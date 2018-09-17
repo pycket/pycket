@@ -92,10 +92,22 @@ the module (read, expand, etc.).
 Note that `pycket-compiled` is a folder that `make compile-file` is
 going to generate by itself.
 
+Currently we have two `make` targets for working with compiled files:
+
+    $ make compile-racket-modules
+
+will create `.zo` files for the predefined list of Racket modules (see
+`compile-file-pycket.rkt`).
+
+    $ make clean-compiled-files
+
+will remove all the `.zo` files under the `pycket-compiled`
+directories in Racket libraries.
+
 This is a work in progress. We plan to have a make target that
-pre-compiles all the Racket modules automatically by following the
-module dependencies. Currently, the modules need to be compiled one by
-one.
+compiles all the Racket modules automatically by following the module
+dependencies (as opposed to using a predefined list of modules with
+the respective paths).
 
 ## Environment Variables
 

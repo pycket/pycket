@@ -79,7 +79,7 @@ debug-no-jit: $(PYFILES)
 compile-file: pycket-c
 	./pycket-c --new compile-file-pycket.rkt -- $(FILE)
 
-compile-racket:
+compile-racket-modules:
 	./pycket-c --new compile-file-pycket.rkt -- -b
 
 clean-compiled-files:
