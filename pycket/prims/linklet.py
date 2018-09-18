@@ -473,6 +473,7 @@ def lam_to_ast(lam_sexp, lex_env, exports, linkl_toplevels, linkl_imports, disab
     else:
         while (formals_ is not w_null):
             if isinstance(formals_, W_Symbol):
+                rest = formals_
                 lex_env.append(formals_)
                 break
             elif formals_.car() is W_Symbol.make("."):
