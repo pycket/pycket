@@ -19,6 +19,11 @@ Note that both versions require an unmodified Racket installation. The
 doesn't require a Racket binary, it still requires the Racket packages
 and libraries to bootstrap.
 
+### Quick Links:
+
+ * [#pycket](https://racket.slack.com/messages/pycket) Slack channel under Racket
+ * [#pycket](irc://freenode/pycket) channel on IRC freenode
+
 ## Building
 
 In order to do anything with Pycket, you need to check out PyPy:
