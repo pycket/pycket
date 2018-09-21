@@ -26,7 +26,7 @@ def make_entry_point(pycketconfig=None):
     from pycket.expand import JsonLoader, ModuleMap, PermException
     from pycket.interpreter import ToplevelEnv, interpret_one, interpret_module
     from pycket.error import SchemeException, ExitException
-    from pycket.option_helper import parse_args
+    from pycket.option_helper import parse_args, JUST_EXIT, RETURN_OK
     from pycket.old_pycket_option_helper import parse_args as old_pycket_parse_args, ensure_json_ast
     from pycket.values_string import W_String
     from pycket.racket_entry import load_inst_linklet_json, racket_entry
@@ -80,8 +80,8 @@ def make_entry_point(pycketconfig=None):
             from pycket.prims.logging import w_main_logger
             w_main_logger.set_syslog_level(names['syslog_level'][0])
 
-        if retval != 0 or config is None:
-            return retval
+        if retval == JUST_EXIT or config is None:
+            return RETURN_OK # exit normally
 
         current_cmd_args = [W_String.fromstr_utf8(arg) for arg in args]
 
