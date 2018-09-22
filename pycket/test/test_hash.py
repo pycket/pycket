@@ -7,6 +7,57 @@ from pycket.test.testhelper          import run_mod_expr, run_mod
 from rpython.rlib.rarithmetic        import r_uint
 from rpython.jit.metainterp.test.support import LLJitMixin, noConst
 
+import pytest
+
+@pytest.mark.skip(reason="FIXME")
+def test_hash_weak(doctest):
+    """
+    > (hash-weak? (impersonate-hash (make-hash) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #f
+    """
+
+def test_hash_equal(doctest):
+    """
+    > (hash-equal? (hash))
+    #t
+    > (hash-eq? (hash))
+    #f
+    > (hash-eqv? (hash))
+    #f
+    > (hash-equal? (impersonate-hash (make-hash) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    > (hash-equal? (chaperone-hash (hash) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    """
+
+def test_hash_eq(doctest):
+    """
+    > (hash-equal? (hasheq))
+    #f
+    > (hash-eq? (hasheq))
+    #t
+    > (hash-eqv? (hasheq))
+    #f
+    > (hash-eq? (impersonate-hash (make-hasheq) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    > (hash-eq? (chaperone-hash (hasheq) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    """
+
+def test_hash_eqv(doctest):
+    """
+    > (hash-equal? (hasheqv))
+    #f
+    > (hash-eq? (hasheqv))
+    #f
+    > (hash-eqv? (hasheqv))
+    #t
+    > (hash-eqv? (impersonate-hash (make-hasheqv) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    > (hash-eqv? (chaperone-hash (hasheqv) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    """
+
 def test_hash_simple(doctest):
     """
     ! (define ht (make-hash))
