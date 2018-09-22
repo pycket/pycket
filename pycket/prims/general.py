@@ -14,8 +14,9 @@ from pycket import values_regex
 from pycket import vector as values_vector
 from pycket.error import SchemeException, UserException
 from pycket.foreign import W_CPointer, W_CType
+from pycket.hash.equal import W_EqualHashTable
 from pycket.hash.base import W_HashTable
-from pycket.hash.simple import (W_EqImmutableHashTable, make_simple_immutable_table)
+from pycket.hash.simple import (W_EqImmutableHashTable, W_EqvImmutableHashTable, W_EqMutableHashTable, W_EqvMutableHashTable, make_simple_immutable_table)
 from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
                                  procedure, define_nyi, subclass_unsafe, make_procedure)
 from pycket.prims.primitive_tables import *
@@ -106,9 +107,6 @@ for args in [
         # FIXME: Assumes we only have eq-hashes
         # XXX tests tests tests tests!
         ("hash?", W_HashTable),
-        ("hash-eq?", W_HashTable),
-        ("hash-eqv?", W_HashTable),
-        ("hash-equal?", W_HashTable),
         ("hash-weak?", W_HashTable),
         ("cpointer?", W_CPointer),
         ("ctype?", W_CType),
@@ -124,6 +122,31 @@ for args in [
         ("null?", values.w_null),
         ]:
     make_pred_eq(*args)
+
+@expose("hash-equal?", [values.W_Object], simple=True)
+def hash_eq(obj):
+    inner = obj
+    if isinstance(obj, imp.W_ImpHashTable) or isinstance(obj, imp.W_ChpHashTable):
+        inner = obj.get_proxied()
+    return values.W_Bool.make(isinstance(inner, W_EqualHashTable))
+
+@expose("hash-eq?", [values.W_Object], simple=True)
+def hash_eq(obj):
+    inner = obj
+    if isinstance(obj, imp.W_ImpHashTable) or isinstance(obj, imp.W_ChpHashTable):
+        inner = obj.get_proxied()
+    eq_mutable = isinstance(inner, W_EqMutableHashTable)
+    eq_immutable = isinstance(inner, W_EqImmutableHashTable)
+    return values.W_Bool.make(eq_mutable or eq_immutable)
+
+@expose("hash-eqv?", [values.W_Object], simple=True)
+def hash_eqv(obj):
+    inner = obj
+    if isinstance(obj, imp.W_ImpHashTable) or isinstance(obj, imp.W_ChpHashTable):
+        inner = obj.get_proxied()
+    eqv_mutable = isinstance(inner, W_EqvMutableHashTable)
+    eqv_immutable = isinstance(inner, W_EqvImmutableHashTable)
+    return values.W_Bool.make(eqv_mutable or eqv_immutable)
 
 @expose("input-port?", [values.W_Object], simple=True)
 def input_port_huh(a):
