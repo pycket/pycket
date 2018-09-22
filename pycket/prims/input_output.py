@@ -15,8 +15,10 @@ from pycket.base         import W_ProtoObject
 from pycket              import values
 from pycket              import values_parameter
 from pycket              import values_struct
-from pycket.hash.simple import W_SimpleMutableHashTable, W_EqvImmutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
-from pycket.hash.equal import W_EqualHashTable
+from pycket.hash.simple  import W_EqvImmutableHashTable, W_EqMutableHashTable, W_EqvMutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
+from pycket.hash.base    import W_HashTable
+from pycket              import impersonators as imp
+from pycket.hash.equal   import W_EqualHashTable
 from pycket              import values_string
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
@@ -1199,6 +1201,64 @@ def write_linklet(v, port, env):
         form.write(port, env)
     port.write(")")
 
+def write_hash_table(v, port, env):
+    from pycket.prims.linklet import is_bundle, is_directory, W_Linklet
+    ht = v
+    if isinstance(v, imp.W_ImpHashTable) or isinstance(v, imp.W_ChpHashTable):
+        ht = v.get_proxied()
+
+    if isinstance(ht, W_EqvImmutableHashTable):
+        port.write("#hasheqv(")
+        for k, v in ht.iteritems():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+    elif isinstance(ht, W_EqImmutableHashTable):
+        port.write("#hasheq(")
+        for k, v in ht.iteritems():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            if is_bundle(v) or is_directory(v):
+                write_linklet_bundle_directory(v, port, env)
+            else:
+                write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+    elif isinstance(ht, W_EqMutableHashTable):
+        port.write("#hasheq(")
+        for k, v in ht.data.iteritems():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+    elif isinstance(ht, W_EqvMutableHashTable):
+        port.write("#hasheqv(")
+        for k, v in ht.data.iteritems():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+    elif isinstance(ht, W_EqualHashTable):
+        port.write("#hash(")
+        for k, v in ht.hash_items():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            if is_bundle(v) or is_directory(v):
+                write_linklet_bundle_directory(v, port, env)
+            else:
+                write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+
 def write_loop(v, port, env):
     from pycket.prims.linklet import is_bundle, is_directory, W_Linklet
     from pycket.vector import W_Vector
@@ -1280,48 +1340,8 @@ def write_loop(v, port, env):
         if v.is_bar_quoted():
             s = "|%s|" % s
         port.write(s) # FIXME: handle special chars
-    elif isinstance(v, W_SimpleMutableHashTable):
-        port.write("#hash(")
-        for k, v in v.data.iteritems():
-            port.write("(")
-            write_loop(k, port, env)
-            port.write(" . ")
-            write_loop(v, port, env)
-            port.write(")")
-        port.write(")")
-    elif isinstance(v, W_EqvImmutableHashTable):
-        port.write("#hasheqv(")
-        for k, v in v.iteritems():
-            port.write("(")
-            write_loop(k, port, env)
-            port.write(" . ")
-            write_loop(v, port, env)
-            port.write(")")
-        port.write(")")
-    elif isinstance(v, W_EqImmutableHashTable):
-        port.write("#hasheq(")
-        for k, v in v.iteritems():
-            port.write("(")
-            write_loop(k, port, env)
-            port.write(" . ")
-            if is_bundle(v) or is_directory(v):
-                write_linklet_bundle_directory(v, port, env)
-            else:
-                write_loop(v, port, env)
-            port.write(")")
-        port.write(")")
-    elif isinstance(v, W_EqualHashTable):
-        port.write("#hash(")
-        for k, v in v.hash_items():
-            port.write("(")
-            write_loop(k, port, env)
-            port.write(" . ")
-            if is_bundle(v) or is_directory(v):
-                write_linklet_bundle_directory(v, port, env)
-            else:
-                write_loop(v, port, env)
-            port.write(")")
-        port.write(")")
+    elif isinstance(v, W_HashTable):
+        write_hash_table(v, port, env)
 
     elif isinstance(v, W_Linklet):
         write_linklet(v, port, env)
