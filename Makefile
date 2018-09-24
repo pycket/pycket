@@ -73,6 +73,9 @@ pycket-c-no-type-size-specialization: $(PYFILES)
 pycket-c-nojit: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) targetpycket.py
 
+pycket-c-linklets-nojit: $(PYFILES)
+	$(RUNINTERP) $(RPYTHON) targetpycket.py --linklets
+
 debug: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) --lldebug targetpycket.py
 	cp pycket-c pycket-c-debug
@@ -107,23 +110,6 @@ test-new-no-expander:
 
 test-new-with-expander:
 	$(RUNINTERP) $(PYTEST) pycket --new --use-expander --ignore=pycket/test/test_old_entry_point.py
-
-# test-expander:
-# 	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/
-
-# test-one:
-
-# 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -k test_${what}.py
-
-# test-one-expander:
-
-# 	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/ -k test_${what}.py
-
-# test-mark:
-# 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -m ${mark}
-
-# test-mark-expander:
-# 	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/ -m ${mark}
 
 # test-random: #$(PYFILES)
 # 	@echo "Not yet implemented"
