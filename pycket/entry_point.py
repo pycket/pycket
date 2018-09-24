@@ -36,7 +36,7 @@ def make_entry_point(pycketconfig=None):
             import sys
             sys.setrecursionlimit(10000)
         try:
-            if pycketconfig.pycket.linklets:
+            if pycketconfig is not None and pycketconfig.pycket.linklets:
                 return actual_entry(argv)
             else:
                 return old_pycket_actual_entry(argv)
