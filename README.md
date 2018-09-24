@@ -19,10 +19,14 @@ Note that both versions require an unmodified Racket installation. The
 doesn't require a Racket binary, it still requires the Racket packages
 and libraries to bootstrap.
 
+See the [Makefile targets](#make-targets) section about how to build both versions.
+
 ### Quick Links:
 
  * [#pycket](https://racket.slack.com/messages/pycket) Slack channel under Racket
  * [#pycket](irc://freenode/pycket) channel on IRC freenode
+ * Pycket's benchmarks are available at [this repository](https://github.com/krono/pycket-bench),
+ along with instructions for running them.
 
 ## Building
 
@@ -50,15 +54,19 @@ If you don't have a PyPy binary, you can also translate with the CPython:
 
 This will take upwards of 10 minutes.
 
-## Make Targets
+## [Make Targets](#make-targets)
 
 You can also use `make` for any of the above,
 
  * `make setup` to setup and update the `pypy` checkout and install `pycket-lang` to Racket
- * `make test` to run the unit tests
  * `make expander` to generate the expander linklet (it assumes an unmodified Racket install and PLTHOME environment variable -- see the Environment Variables section below)
- * `make pycket-c` to translate with JIT
- * `make pycket-c-nojit` to translate without JIT (which may be a lot faster to translate but runs a lot lot slower)
+ * `make pycket-c` to translate `OLD Pycket` with JIT
+ * `make pycket-c-linklets` to translate `NEW Pycket` with JIT
+ * `make pycket-c-nojit` to translate `OLD Pycket` without JIT (which may be a lot faster to translate but runs a lot lot slower)
+ * `make pycket-c-linklets-nojit` to translate `NEW Pycket` without JIT (which may be a lot faster to translate but runs a lot lot slower)
+ * `make test` to run the unit tests on `OLD Pycket`.
+ * `make test-new-with-expander` to run the unit tests on `NEW Pycket` using the Racket's `expander` linklet.
+ * `make test-new-no-expander` to run the unit tests on `NEW Pycket` without using the `expander`.
 
 ## Testing
 
@@ -146,7 +154,7 @@ directories. In particular, it needs:
 
  * `PLTEXECFILE` to point to the location of the `racket` binary
  * `PLTCOLLECTS` to point to the `collects` directory for the main
-collections 
+collections
  * `PLTCONFIGDIR` to point to Racket's `etc` directory that contains
 `config.rktd`
  * (optional) `PLTADDONDIR` to point to a directory for user-specific
@@ -160,16 +168,16 @@ You can also use the command line options to provide these paths,
 e.g. `-X`, `-G` etc.. Run it with `-h` to see all the commands and
 options.
 
-    $ ./pycket-c --new -h
+    $ ./pycket-c-linklets -h
 
 Also, the `Makefile` reacts to some variables:
- * `PYPYPATH` for when your `pypy` checkout is not in this directory.   
+ * `PYPYPATH` for when your `pypy` checkout is not in this directory.
     Defaults to `pypy`.
- * `PYTEST` for when you don’t want to use `pypy`’s version of pytest.  
+ * `PYTEST` for when you don’t want to use `pypy`’s version of pytest.
     Defaults to `$(PYPYPATH)/pytest.py`.
 
  * `RPYTHON` for when you want to use something other than the default
-   `rpython` script, but you probably would not want that.  
+   `rpython` script, but you probably would not want that.
    Defaults to `$(PYPYPATH)/rpython/bin/rpython --batch`.
 
 ## Running
@@ -177,14 +185,14 @@ Also, the `Makefile` reacts to some variables:
 Pycket currently defaults to the `OLD` Pycket. To use the `NEW`
 version with the linklets, run it with:
 
-    $ ./pycket-c --new <arguments>
+    $ ./pycket-c-linklets <arguments>
 
 You can run with the `-h` option to see the different command line
 options for each versions:
 
     $ ./pycket-c -h
 
-    $ ./pycket-c --new -h
+    $ ./pycket-c-linklets -h
 
 You can run `pycket-c` like the `racket` binary:
 
@@ -200,30 +208,24 @@ available), like this:
 One of the beautiful perks of bootstrapping Racket is to be able to
 run on Pykcet some interesting programs implemented in Racket (as long
 as we have enough runtime support for it in Pycket -- i.e. having the
-runtime primitives implemented in RPython). 
+runtime primitives implemented in RPython).
 
 The `NEW` Pycket now features an original Racket REPL that's
 implemented in Racket. Try it out!
 
-    $ ./pycket-c --new
+    $ ./pycket-c-linklets
 
 You can make it more verbose with the `--verbose` flag if you're
 curious about what's going on in the background.
 
-    $ ./pycket-c --new --verbose
+    $ ./pycket-c-linklets --verbose
 
 Also increase the verbosity level (defaults to 0).
 
-    $ ./pycket-c --new --verbose 1
+    $ ./pycket-c-linklets --verbose 1
 
-## Benchmarking
+## Deprecated Stuff Below -- Will be revised
 
-Pycket's benchmarks are available at [this
-repository](https://github.com/krono/pycket-bench), along with
-instructions for running them.
-
-## Deprecated Stuff Below -- Will be revised 
-   
 Or even this, when this directory is in your `PYTHONPATH`:
 
     $ python -mpycket program
@@ -239,8 +241,8 @@ You can generate a coverage report with `pytest`:
 or via
 
     $ make coverage
-    
-which also generates an HTML report in `pycket/test/coverage_report`.  
+
+which also generates an HTML report in `pycket/test/coverage_report`.
 You need these Python packages for that to work:
   * `pytest-cov` (provided with the `pypy` checkout)
   * `cov-core` and `coverage`
