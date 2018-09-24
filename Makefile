@@ -11,7 +11,8 @@ RPYTHON ?= $(PYPYPATH)/rpython/bin/rpython --batch
 
 
 TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state \
-		translate-no-strategies translate-no-type-size-specialization
+		translate-no-strategies translate-no-type-size-specialization \
+		translate-jit-linklet
 
 PYFILES := $(shell find . -name '*.py' -type f)
 
@@ -35,6 +36,7 @@ all: translate-jit-all translate-no-jit
 
 
 translate-jit: pycket-c
+translate-jit-linklet: pycket-c-linklet
 translate-no-hidden-classes: pycket-c-no-hidden-classes
 translate-no-prune-env: pycket-c-no-prune-env
 translate-no-two-state: pycket-c-no-two-state
@@ -46,6 +48,9 @@ translate-no-jit: pycket-c-nojit
 pycket-c: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) targetpycket.py
 	cp pycket-c pycket-c-$(BRANCH)
+
+pycket-c-linklets: $(PYFILES)
+	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) targetpycket.py --linklets
 
 pycket-c-no-hidden-classes: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) targetpycket.py --no-hidden-classes

@@ -21,7 +21,9 @@ pycketoption_descr = OptionDescription(
     BoolOption("immutable_boolean_field_elision", "elide immutable boolean fields from structs",
                default=False, cmdline="--ibfe"),
     BoolOption("hidden_classes", "use hidden classes to implement impersonators",
-               default=True, cmdline="--hidden-classes")
+               default=True, cmdline="--hidden-classes"),
+    BoolOption("linklets", "use 'new pycket', ie based on linklets",
+               default=False, cmdline="--linklets"),
 ])
 
 def get_testing_config(**overrides):
@@ -34,6 +36,8 @@ def get_testing_config(**overrides):
 def compute_executable_suffix(config):
     config = config.pycket
     res = []
+    if config.linklets:
+        res.append("-linklets")
     if not config.callgraph:
         res.append("-no-callgraph")
     if not config.prune_env:
