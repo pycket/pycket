@@ -109,10 +109,15 @@ do_coverage() {
 }
 
 
-do_translate() {
+do_translate_pycket_c() {
     print_console do_translate
     ./pypy-c ../pypy/rpython/bin/rpython --batch -Ojit --translation-jit_opencoder_model=big targetpycket.py
    #do_performance_smoke
+}
+
+do_translate_pycket_c_linklets() {
+    print_console do_translate
+    ./pypy-c ../pypy/rpython/bin/rpython --batch -Ojit --translation-jit_opencoder_model=big targetpycket.py --linklets
 }
 
 # do_performance_smoke() {
@@ -145,9 +150,14 @@ do_translate() {
 #   echo ; echo ">> Smoke cleared" ; echo
 # }
 
-do_translate_nojit_and_racket_tests() {
+do_translate_nojit() {
   print_console do_translate_nojit_and_racket_tests
   ./pypy-c ../pypy/rpython/bin/rpython --batch targetpycket.py
+}
+
+do_translate_nojit_linklets() {
+  print_console do_translate_nojit_and_racket_tests
+  ./pypy-c ../pypy/rpython/bin/rpython --batch targetpycket.py --linklets
 }
 
 ############################################################

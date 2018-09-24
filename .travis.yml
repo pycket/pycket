@@ -15,8 +15,10 @@ env:
   - TEST_TYPE=old_tests
   - TEST_TYPE=new_tests_without_expander_linklet
   - TEST_TYPE=new_tests_using_expander_linklet
-  - PYPY_DONT_RUN_SUBPROCESS=1 TEST_TYPE=translate
-  - TEST_TYPE=translate_nojit_and_racket_tests
+  - PYPY_DONT_RUN_SUBPROCESS=1 TEST_TYPE=translate_pycket_c
+  - PYPY_DONT_RUN_SUBPROCESS=1 TEST_TYPE=translate_pycket_c_linklets
+  - TEST_TYPE=translate_nojit
+  - TEST_TYPE=translate_nojit_linklets
 matrix:
   fast_finish: true
 before_install:
