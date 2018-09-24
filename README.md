@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/pycket/pycket.png?branch=master)](https://travis-ci.org/pycket/pycket) [![codecov.io](https://codecov.io/github/pycket/pycket/coverage.svg?branch=master) ](https://codecov.io/github/pycket/pycket?branch=master)
-[![license](http://img.shields.io/badge/license-mit-blue.svg)](https://opensource.org/licenses/MIT) <img align="right" width="210" height="60" src="https://raw.githubusercontent.com/pycket/pycket/master/images/pycket.png">
+[![license](http://img.shields.io/badge/license-mit-blue.svg)](https://opensource.org/licenses/MIT) <img align="right" width="210" height="60" src="https://github.com/pycket/pycket/blob/master/pycket.png">
 
 
 
