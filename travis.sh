@@ -116,7 +116,7 @@ do_translate_pycket_c() {
 }
 
 do_translate_pycket_c_linklets() {
-    print_console do_translate
+    print_console do_translate_linklets
     ./pypy-c ../pypy/rpython/bin/rpython --batch -Ojit --translation-jit_opencoder_model=big targetpycket.py --linklets
 }
 
@@ -151,15 +151,21 @@ do_translate_pycket_c_linklets() {
 # }
 
 do_translate_nojit() {
-  print_console do_translate_nojit_and_racket_tests
+  print_console do_translate_nojit
   ./pypy-c ../pypy/rpython/bin/rpython --batch targetpycket.py
 }
 
 do_translate_nojit_linklets() {
-  print_console do_translate_nojit_and_racket_tests
+  print_console do_translate_nojit_linklets
   ./pypy-c ../pypy/rpython/bin/rpython --batch targetpycket.py --linklets
 }
 
+do_linklets_load_racket_base() {
+    print_console translating_with_linklets
+    ./pypy-c ../pypy/rpython/bin/rpython --batch -Ojit --translation-jit_opencoder_model=big targetpycket.py --linklets
+    print_console loading_racket_base
+    ./pycket-c-linklets --verbose 1 -c -I racket/base -e 1
+}
 ############################################################
 
 install_deps() {
