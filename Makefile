@@ -12,7 +12,7 @@ RPYTHON ?= $(PYPYPATH)/rpython/bin/rpython --batch
 
 TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state \
 		translate-no-strategies translate-no-type-size-specialization \
-		translate-jit-linklet
+		translate-jit-linklets
 
 PYFILES := $(shell find . -name '*.py' -type f)
 
@@ -36,7 +36,7 @@ all: translate-jit-all translate-no-jit
 
 
 translate-jit: pycket-c
-translate-jit-linklet: pycket-c-linklet
+translate-jit-linklets: pycket-c-linklets
 translate-no-hidden-classes: pycket-c-no-hidden-classes
 translate-no-prune-env: pycket-c-no-prune-env
 translate-no-two-state: pycket-c-no-two-state
