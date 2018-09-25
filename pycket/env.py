@@ -107,8 +107,25 @@ class GlobalConfig(object):
     def __init__(self):
         self.config = {'verbose':MIN_INT,
                        'expander_loaded':0,
-                       'repl_loaded':0}
+                       'repl_loaded':0,
+                       'debug_active':0}
         self.pycketconfig = None
+
+    # debug_active can be used to set a logical
+    # point where a set_trace or a print
+    # is going to be evaluated.
+    # you can combine this for instance
+    # with the 'expander_loaded' to say:
+    # "print the asts after the expander is loaded"
+    # (just activate_debug after is_expander_loaded)
+    def activate_debug(self):
+        self.config['debug_active'] = 1
+
+    def deactivate_debug(self):
+        self.config['debug_active'] = 0
+
+    def is_debug_active(self):
+        return self.config['debug_active'] == 1
 
     def get_config(self):
         return self.config
@@ -124,6 +141,12 @@ class GlobalConfig(object):
 
     def get_pycketconfig(self):
         return self.pycketconfig
+
+    def is_expander_loaded(self):
+        return self.config['expander_loaded'] == 1
+
+    def is_repl_loaded(self):
+        return self.config['repl_loaded'] == 1
 
     def lookup(self, s):
         return self.config.get(s, None)
