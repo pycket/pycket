@@ -56,18 +56,15 @@ You can also use `make` for any of the above,
  * `make pycket-c-linklets` to translate `NEW Pycket` with JIT
  * `make pycket-c-nojit` to translate `OLD Pycket` without JIT (which may be a lot faster to translate but runs a lot lot slower)
  * `make pycket-c-linklets-nojit` to translate `NEW Pycket` without JIT (which may be a lot faster to translate but runs a lot lot slower)
- * `make test` to run the unit tests on `OLD Pycket`.
- * `make test-new-with-expander` to run the unit tests on `NEW Pycket` using the Racket's `expander` linklet.
- * `make test-new-no-expander` to run the unit tests on `NEW Pycket` without using the `expander`.
 
 ## Testing
 
 Now that Pycket has two different modes with options, we run the unit
 tests on each of those settings using the following targets:
 
- * `make test` : to run the `OLD` Pycket on the tests
- * `make test-new-no-expander` : to run `NEW` Pycket without using the expander linklet
- * `make test-new-with-expander` : to run `NEW` Pycket using the expander linklet
+ * `make test` to run the unit tests on `OLD Pycket`.
+ * `make test-new-with-expander` to run the unit tests on `NEW Pycket` using the Racket's `expander` linklet.
+ * `make test-new-no-expander` to run the unit tests on `NEW Pycket` without using the `expander`.
 
 For the `NEW` Pycket, using the expander linklet means that for each
 test expression string we use the `read` and `eval` functions in that
