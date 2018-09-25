@@ -44,6 +44,8 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
     expander_instance.provide_all_exports_to_prim_env(excludes=syntax_primitives)
 
     console_log("Expander loading complete.")
+    from pycket.env import w_global_config
+    w_global_config.set_config_val('expander_loaded', 1)
 
     return sys_config
 
@@ -209,6 +211,8 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
         repl = dynamic_require.call_interpret([W_Symbol.make("racket/repl"),
                                                W_Symbol.make("read-eval-print-loop")],
                                               pycketconfig)
+        from pycket.env import w_global_config
+        w_global_config.set_config_val('repl_loaded', 1)
         repl.call_interpret([], pycketconfig)
 
     if put_newline:

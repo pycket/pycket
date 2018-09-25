@@ -105,7 +105,9 @@ class ModuleEnv(object):
 
 class GlobalConfig(object):
     def __init__(self):
-        self.config = {'verbose':MIN_INT}
+        self.config = {'verbose':MIN_INT,
+                       'expander_loaded':0,
+                       'repl_loaded':0}
         self.pycketconfig = None
 
     def get_config(self):
