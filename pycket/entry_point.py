@@ -26,7 +26,7 @@ def make_entry_point(pycketconfig=None):
     from pycket.expand import JsonLoader, ModuleMap, PermException
     from pycket.interpreter import ToplevelEnv, interpret_one, interpret_module
     from pycket.error import SchemeException, ExitException
-    from pycket.option_helper import parse_args, JUST_EXIT, RETURN_OK
+    from pycket.option_helper import parse_args, JUST_EXIT, RETURN_OK, MISSING_ARG
     from pycket.old_pycket_option_helper import parse_args as old_pycket_parse_args, ensure_json_ast
     from pycket.values_string import W_String
     from pycket.racket_entry import load_inst_linklet_json, racket_entry
@@ -35,6 +35,10 @@ def make_entry_point(pycketconfig=None):
         if not objectmodel.we_are_translated():
             import sys
             sys.setrecursionlimit(10000)
+
+            from rpython.config.config import to_optparse
+            to_optparse(pycketconfig).parse_args(argv)
+
         try:
             if pycketconfig is not None and pycketconfig.pycket.linklets:
                 return actual_entry(argv)
@@ -63,6 +67,13 @@ def make_entry_point(pycketconfig=None):
             if 'not-implemented' in names:
                 print("These flags are not implemented yet : %s" % names['not-implemented'])
 
+        if retval == MISSING_ARG:
+            print("Bad switch, or missing argument in : %s" % argv[1:])
+            return 1
+
+        if retval == JUST_EXIT or config is None:
+            return RETURN_OK # exit normally
+
         if 'stdout_level' in names: # -O
             from pycket.prims.logging import w_main_logger
             w_main_logger.set_stdout_level(names['stdout_level'][0])
@@ -74,9 +85,6 @@ def make_entry_point(pycketconfig=None):
         if 'syslog_level' in names: # -L
             from pycket.prims.logging import w_main_logger
             w_main_logger.set_syslog_level(names['syslog_level'][0])
-
-        if retval == JUST_EXIT or config is None:
-            return RETURN_OK # exit normally
 
         current_cmd_args = [W_String.fromstr_utf8(arg) for arg in args]
 

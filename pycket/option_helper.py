@@ -372,6 +372,10 @@ def parse_args(argv):
             if retval == INIT:
                 retval = JUST_EXIT
 
+        elif argv[i] == '--linklets':
+            # --used as a compile-time argument, so
+            ignore = True
+
         else:
             if '.rkt' in argv[i]:
                 add_name(names, 'loads', "file")
