@@ -36,8 +36,9 @@ def make_entry_point(pycketconfig=None):
             import sys
             sys.setrecursionlimit(10000)
 
-            from rpython.config.config import to_optparse
-            to_optparse(pycketconfig).parse_args(argv)
+            if pycketconfig is not None:
+                from rpython.config.config import to_optparse
+                to_optparse(pycketconfig).parse_args(argv)
 
         try:
             if pycketconfig is not None and pycketconfig.pycket.linklets:
