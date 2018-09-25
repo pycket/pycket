@@ -10,7 +10,7 @@ notifications:
 env:
   global:
   - PATH=./racket/bin:$PATH
-  - PLTHOME=.
+  - PLTHOME=./
   matrix:
   - TEST_TYPE=old_tests
   - TEST_TYPE=new_tests_without_expander_linklet
@@ -19,7 +19,7 @@ env:
   - PYPY_DONT_RUN_SUBPROCESS=1 TEST_TYPE=translate_pycket_c_linklets
   - TEST_TYPE=translate_nojit
   - TEST_TYPE=translate_nojit_linklets
-  - PLTHOME=. TEST_TYPE=linklets_load_racket_base
+  - TEST_TYPE=linklets_load_racket_base
 matrix:
   fast_finish: true
 before_install:
