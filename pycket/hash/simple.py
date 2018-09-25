@@ -119,6 +119,10 @@ class W_EqvMutableHashTable(W_SimpleMutableHashTable):
     def get_item(self, i):
         return get_dict_item(self.data, i)
 
+    def tostring(self):
+        lst = [values.W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
+        return "#hasheqv(%s)" % " ".join(lst)
+
 class W_EqMutableHashTable(W_SimpleMutableHashTable):
 
     def make_copy(self):
@@ -142,6 +146,10 @@ class W_EqMutableHashTable(W_SimpleMutableHashTable):
 
     def get_item(self, i):
         return get_dict_item(self.data, i)
+
+    def tostring(self):
+        lst = [values.W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
+        return "#hasheq(%s)" % " ".join(lst)
 
 W_EqvImmutableHashTable = make_persistent_hash_type(
         super=W_ImmutableHashTable,
