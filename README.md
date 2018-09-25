@@ -17,8 +17,9 @@ See the [Makefile targets](#make-targets) section about how to build both versio
 
  * [#pycket](https://racket.slack.com/messages/pycket) Slack channel under Racket
  * [#pycket](irc://freenode/pycket) channel on IRC freenode
- * Pycket's benchmarks are available at [this repository](https://github.com/krono/pycket-bench),
- along with instructions for running them.
+ * Pycket's benchmarks are available at [this repository](https://github.com/krono/pycket-bench), along with instructions for running them.
+ * [Running Pycket](#running)
+ * [Environment Variables](#vars)
 
 ## Building
 
@@ -111,7 +112,7 @@ compiles all the Racket modules automatically by following the module
 dependencies (as opposed to using a predefined list of modules with
 the respective paths).
 
-## Environment Variables
+## [Environment Variables](#vars)
 
 Running the interpreter on CPython or PyPy (i.e. running the targetpycket.py) requires a `PYTHONPATH` that includes both `RPython` (that should be the `pypy` directory cloned above) and `pycket` (that should be this directory).
 
@@ -143,7 +144,7 @@ Also, the `Makefile` reacts to some variables:
  * `PYTEST` for when you don’t want to use `pypy`’s version of pytest. Defaults to `$(PYPYPATH)/pytest.py`.
  * `RPYTHON` for when you want to use something other than the default `rpython` script, but you probably would not want that. Defaults to `$(PYPYPATH)/rpython/bin/rpython --batch`.
 
-## Running
+## [Running Pycket](#running)
 
 Pycket currently defaults to the `OLD` Pycket. To use the `NEW` version with the linklets, run it with:
 
