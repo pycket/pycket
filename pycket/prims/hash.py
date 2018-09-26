@@ -10,7 +10,7 @@ from pycket.hash.simple  import (
     make_simple_mutable_table, make_simple_mutable_table_assocs,
     make_simple_immutable_table, make_simple_immutable_table_assocs)
 from pycket.hash.equal   import W_EqualHashTable
-from pycket.impersonators.baseline import W_ImpHashTable
+from pycket.impersonators.baseline import W_ImpHashTable, W_ChpHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
@@ -312,13 +312,31 @@ def hash_keys_subset_huh_loop(keys_vals, hash_2, idx, env, cont):
         return hash_ref([hash_2, keys_vals[idx][0], values.w_false], env,
                         hash_keys_subset_huh_cont(keys_vals, hash_2, idx, env, cont))
 
+@jit.elidable
+def uses_same_eq_comparison(h_1, h_2):
+    # FIXME : add the impersonators & chaperones
+    if isinstance(h_1, W_EqualHashTable):
+        return isinstance(h_2, W_EqualHashTable)
+    elif isinstance(h_1, W_EqMutableHashTable) or isinstance(h_1, W_EqImmutableHashTable):
+        return isinstance(h_2, W_EqMutableHashTable) or isinstance(h_2, W_EqImmutableHashTable)
+    elif isinstance(h_1, W_EqvMutableHashTable) or isinstance(h_1, W_EqvImmutableHashTable):
+        return isinstance(h_2, W_EqvMutableHashTable) or isinstance(h_2, W_EqvImmutableHashTable)
+    else:
+        return False
+
 @expose("hash-keys-subset?", [W_HashTable, W_HashTable], simple=False)
 def hash_keys_subset_huh(hash_1, hash_2, env, cont):
-    # FIXME : check if the key comparison functions are the same
-    if isinstance(hash_1, W_EqImmutableHashTable) or isinstance(hash_1, W_EqvImmutableHashTable):
-        k = hash_1.keys()
-        v = hash_2.keys()
-        items = [(k,v) for k,v in hash_1.iteritems()]
+    # FIXME : add the impersonators & chaperones
+    # if isinstance(hash_1, W_ImpHashTable) or isinstance(hash_1, W_ChpHashTable):
+    #     h_1 = hash_1.get_proxied()
+    # if isinstance(hash_2, W_ImpHashTable) or isinstance(hash_2, W_ChpHashTable):
+    #     h_2 = hash_2.get_proxied()
+    if not uses_same_eq_comparison(hash_1, hash_2):
+        raise SchemeException("hash-keys-subset?: given hash tables do not use the same key comparison -- first table : %s - second table: %s" % (hash_1.tostring(), hash_2.tostring()))
+    if isinstance(hash_1, W_EqImmutableHashTable):
+        items = [(k,v) for k, v in hash_1.iteritems()]
+    elif isinstance(hash_1, W_EqvImmutableHashTable):
+        items = [(k,v) for k, v in hash_1.iteritems()]
     else:
         items = hash_1.hash_items()
     return hash_keys_subset_huh_loop(items, hash_2, 0, env, cont)
