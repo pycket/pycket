@@ -228,7 +228,6 @@ def hash_set(table, key, val, env, cont):
     from pycket.interpreter import return_value
     if not table.immutable():
         raise SchemeException("hash-set: not given an immutable table")
-
     # Fast path
     if isinstance(table, W_ImmutableHashTable):
         new_table = table.assoc(key, val)
@@ -315,7 +314,14 @@ def hash_keys_subset_huh_loop(keys_vals, hash_2, idx, env, cont):
 
 @expose("hash-keys-subset?", [W_HashTable, W_HashTable], simple=False)
 def hash_keys_subset_huh(hash_1, hash_2, env, cont):
-    return hash_keys_subset_huh_loop(hash_1.hash_items(), hash_2, 0, env, cont)
+    # FIXME : check if the key comparison functions are the same
+    if isinstance(hash_1, W_EqImmutableHashTable) or isinstance(hash_1, W_EqvImmutableHashTable):
+        k = hash_1.keys()
+        v = hash_2.keys()
+        items = [(k,v) for k,v in hash_1.iteritems()]
+    else:
+        items = hash_1.hash_items()
+    return hash_keys_subset_huh_loop(items, hash_2, 0, env, cont)
 
 @continuation
 def hash_copy_ref_cont(keys, idx, src, new, env, cont, _vals):
