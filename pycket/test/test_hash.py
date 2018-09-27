@@ -20,9 +20,21 @@ def test_hash_equal(doctest):
     """
     > (hash-equal? (hash))
     #t
-    > (hash-eq? (hash))
+    > (hash-equal? (hasheq))
     #f
-    > (hash-eqv? (hash))
+    > (hash-equal? (hasheqv))
+    #f
+    > (hash-equal? (make-hash))
+    #t
+    > (hash-equal? (make-hasheq))
+    #f
+    > (hash-equal? (make-hasheqv))
+    #f
+    > (hash-equal? #hash())
+    #t
+    > (hash-equal? #hasheq())
+    #f
+    > (hash-equal? #hasheqv())
     #f
     > (hash-equal? (impersonate-hash (make-hash) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
     #t
@@ -32,11 +44,23 @@ def test_hash_equal(doctest):
 
 def test_hash_eq(doctest):
     """
-    > (hash-equal? (hasheq))
+    > (hash-eq? (hash))
     #f
     > (hash-eq? (hasheq))
     #t
-    > (hash-eqv? (hasheq))
+    > (hash-eq? (hasheqv))
+    #f
+    > (hash-eq? (make-hash))
+    #f
+    > (hash-eq? (make-hasheq))
+    #t
+    > (hash-eq? (make-hasheqv))
+    #f
+    > (hash-eq? #hash())
+    #f
+    > (hash-eq? #hasheq())
+    #t
+    > (hash-eq? #hasheqv())
     #f
     > (hash-eq? (impersonate-hash (make-hasheq) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
     #t
@@ -46,11 +70,23 @@ def test_hash_eq(doctest):
 
 def test_hash_eqv(doctest):
     """
-    > (hash-equal? (hasheqv))
+    > (hash-eqv? (hash))
     #f
-    > (hash-eq? (hasheqv))
+    > (hash-eqv? (hasheq))
     #f
     > (hash-eqv? (hasheqv))
+    #t
+    > (hash-eqv? (make-hash))
+    #f
+    > (hash-eqv? (make-hasheq))
+    #f
+    > (hash-eqv? (make-hasheqv))
+    #t
+    > (hash-eqv? #hash())
+    #f
+    > (hash-eqv? #hasheq())
+    #f
+    > (hash-eqv? #hasheqv())
     #t
     > (hash-eqv? (impersonate-hash (make-hasheqv) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
     #t
