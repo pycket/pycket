@@ -225,8 +225,16 @@
          [vals (hash-values racket-hash)]
          [keys-asts (map (lambda (k) (to-ast-val k linklet?)) keys)]
          [vals-asts (map (lambda (v) (to-ast-val v linklet?)) vals)])
-    (hash* 'hash-keys keys-asts
-           'hash-vals vals-asts)))
+    (cond
+      [(hash-eq? racket-hash)
+       (hash* 'hasheq-keys keys-asts
+              'hasheq-vals vals-asts)]
+      [(hash-eqv? racket-hash)
+       (hash* 'hasheqv-keys keys-asts
+              'hasheqv-vals vals-asts)]
+      [else
+       (hash* 'hash-keys keys-asts
+              'hash-vals vals-asts)])))
 
 (define (handle-vector racket-vector [linklet? #f])
   (let* ([ls (vector->list racket-vector)])

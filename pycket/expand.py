@@ -19,7 +19,7 @@ from pycket import values_regex
 from pycket import vector
 from pycket import values_struct
 from pycket.hash.equal import W_EqualHashTable
-
+from pycket.hash.simple import (W_EqImmutableHashTable, W_EqvImmutableHashTable, make_simple_immutable_table)
 
 
 class ExpandException(SchemeException):
@@ -809,6 +809,14 @@ def to_value(json):
                     [to_value(i) for i in obj["hash-keys"].value_array()],
                     [to_value(i) for i in obj["hash-vals"].value_array()],
                     immutable=True)
+        if "hasheq-keys" in obj and "hasheq-vals" in obj:
+            keys = [to_value(i) for i in obj["hasheq-keys"].value_array()]
+            vals = [to_value(i) for i in obj["hasheq-vals"].value_array()]
+            return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
+        if "hasheqv-keys" in obj and "hasheqv-vals" in obj:
+            keys = [to_value(i) for i in obj["hasheqv-keys"].value_array()]
+            vals = [to_value(i) for i in obj["hasheqv-vals"].value_array()]
+            return make_simple_immutable_table(W_EqvImmutableHashTable, keys, vals)
         if "regexp" in obj:
             return values_regex.W_Regexp(obj["regexp"].value_string())
         if "byte-regexp" in obj:

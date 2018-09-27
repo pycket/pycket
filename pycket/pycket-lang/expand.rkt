@@ -539,10 +539,22 @@
        (let ([ht (syntax-e v)]
              [ht* (syntax-e v/loc)])
          (parameterize ([quoted? #t])
-           (hash 'hash-keys (to-json (datum->syntax #'lex (hash-keys ht))
-                                     (datum->syntax #'lex (hash-keys ht*)))
-                 'hash-vals (to-json (datum->syntax #'lex (hash-values ht))
-                                     (datum->syntax #'lex (hash-values ht*))))))]
+           (cond
+             [(hash-eq? ht)
+              (hash 'hasheq-keys (to-json (datum->syntax #'lex (hash-keys ht))
+                                          (datum->syntax #'lex (hash-keys ht*)))
+                    'hasheq-vals (to-json (datum->syntax #'lex (hash-values ht))
+                                          (datum->syntax #'lex (hash-values ht*))))]
+             [(hash-eqv? ht)
+              (hash 'hasheqv-keys (to-json (datum->syntax #'lex (hash-keys ht))
+                                           (datum->syntax #'lex (hash-keys ht*)))
+                    'hasheqv-vals (to-json (datum->syntax #'lex (hash-values ht))
+                                           (datum->syntax #'lex (hash-values ht*))))]
+             [else
+              (hash 'hash-keys (to-json (datum->syntax #'lex (hash-keys ht))
+                                        (datum->syntax #'lex (hash-keys ht*)))
+                    'hash-vals (to-json (datum->syntax #'lex (hash-values ht))
+                                        (datum->syntax #'lex (hash-values ht*))))])))]
     [_ #:when (void? (syntax-e v))
        (hash 'void #t)]
     ))
