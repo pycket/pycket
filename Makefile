@@ -84,14 +84,14 @@ debug-no-jit: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) --lldebug targetpycket.py
 	cp pycket-c pycket-c-debug-no-jit
 
-compile-file: pycket-c
-	./pycket-c --new compile-file-pycket.rkt -- $(FILE)
+compile-file: pycket-c-linklets
+	./pycket-c-linklets compile-file-pycket.rkt -- $(FILE)
 
-compile-racket-modules:
-	./pycket-c --new compile-file-pycket.rkt -- -b
+compile-racket-modules: pycket-c-linklets
+	./pycket-c-linklets compile-file-pycket.rkt -- -b
 
-clean-compiled-files:
-	./pycket-c --new compile-file-pycket.rkt -- --clean
+clean-compiled-files: pycket-c-linklets
+	./pycket-c-linklets compile-file-pycket.rkt -- --clean
 setup:
 	raco pkg install -t dir pycket/pycket-lang/ || \
 	raco pkg update --link pycket/pycket-lang
