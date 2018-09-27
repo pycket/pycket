@@ -598,3 +598,31 @@ def test_hash_iterate_functions(doctest):
     > (hash-iterate-next equal-table3 (hash-iterate-first equal-table3))
     #f
     """
+
+def test_hash_keys_subset(doctest):
+    """
+    ! (struct a (n m) #:property prop:equal+hash (list (lambda (a b eql) (and (= (a-n a) (a-n b)) (= (a-m a) (a-m b)))) (lambda (a hc) (a-n a)) (lambda (a hc) (a-n a))))
+    ! (define ht0 (hash (a 1 0) #t))
+    ! (define ht1 (hash (a 1 0) #t (a 1 2) #t))
+    ! (define ht2 (hash (a 1 0) #t (a 1 2) #t (a 33 0) #t))
+    ! (define ht3 (hash (a 1 0) #t (a 33 0) #t))
+    > (hash-keys-subset? ht1 ht2)
+    #t
+    > (hash-keys-subset? ht3 ht2)
+    #t
+    > (hash-keys-subset? ht0 ht3)
+    #t
+    > (hash-keys-subset? ht0 ht2)
+    #t
+    > (hash-keys-subset? ht0 ht1)
+    #t
+    > (hash-keys-subset? ht2 ht1)
+    #f
+    > (hash-keys-subset? ht2 ht0)
+    #f
+    > (hash-keys-subset? ht1 ht0)
+    #f
+    > (hash-keys-subset? ht1 ht3)
+    #f
+    E (hash-keys-subset? ht0 (hasheq (a 1 0) #t))
+    """
