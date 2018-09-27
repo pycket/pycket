@@ -313,8 +313,15 @@ def hash_keys_subset_huh_loop(keys_vals, hash_2, idx, env, cont):
                         hash_keys_subset_huh_cont(keys_vals, hash_2, idx, env, cont))
 
 @jit.elidable
-def uses_same_eq_comparison(h_1, h_2):
-    # FIXME : add the impersonators & chaperones
+def uses_same_eq_comparison(hash_1, hash_2):
+    h_1 = hash_1
+    h_2 = hash_2
+
+    if hash_1.is_impersonator() or hash_1.is_chaperone():
+        h_1 = hash_1.get_proxied()
+    if hash_2.is_impersonator() or hash_2.is_chaperone():
+        h_2 = hash_2.get_proxied()
+
     if isinstance(h_1, W_EqualHashTable):
         return isinstance(h_2, W_EqualHashTable)
     elif isinstance(h_1, W_EqMutableHashTable) or isinstance(h_1, W_EqImmutableHashTable):
@@ -326,15 +333,8 @@ def uses_same_eq_comparison(h_1, h_2):
 
 @expose("hash-keys-subset?", [W_HashTable, W_HashTable], simple=False)
 def hash_keys_subset_huh(hash_1, hash_2, env, cont):
-    # FIXME : add the impersonators & chaperones
-    # if isinstance(hash_1, W_ImpHashTable) or isinstance(hash_1, W_ChpHashTable):
-    #     h_1 = hash_1.get_proxied()
-    # if isinstance(hash_2, W_ImpHashTable) or isinstance(hash_2, W_ChpHashTable):
-    #     h_2 = hash_2.get_proxied()
-
-    # FIXME : let's not check this for now
-    # if not uses_same_eq_comparison(hash_1, hash_2):
-    #     raise SchemeException("hash-keys-subset?: given hash tables do not use the same key comparison -- first table : %s - second table: %s" % (hash_1.tostring(), hash_2.tostring()))
+    if not uses_same_eq_comparison(hash_1, hash_2):
+        raise SchemeException("hash-keys-subset?: given hash tables do not use the same key comparison -- first table : %s - second table: %s" % (hash_1.tostring(), hash_2.tostring()))
     return hash_keys_subset_huh_loop(hash_1.hash_items(), hash_2, 0, env, cont)
 
 @continuation
