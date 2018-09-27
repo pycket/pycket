@@ -570,6 +570,9 @@ def make_persistent_hash_type(
                 vals[i] = self.get_item(i)[1]
             return vals
 
+        def hash_items(self):
+            return [(k,v) for k, v in self.iteritems()]
+
         @jit.dont_look_inside
         def assoc(self, key, val):
             key = restrict_key_type(key)

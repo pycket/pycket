@@ -331,15 +331,11 @@ def hash_keys_subset_huh(hash_1, hash_2, env, cont):
     #     h_1 = hash_1.get_proxied()
     # if isinstance(hash_2, W_ImpHashTable) or isinstance(hash_2, W_ChpHashTable):
     #     h_2 = hash_2.get_proxied()
-    if not uses_same_eq_comparison(hash_1, hash_2):
-        raise SchemeException("hash-keys-subset?: given hash tables do not use the same key comparison -- first table : %s - second table: %s" % (hash_1.tostring(), hash_2.tostring()))
-    if isinstance(hash_1, W_EqImmutableHashTable):
-        items = [(k,v) for k, v in hash_1.iteritems()]
-    elif isinstance(hash_1, W_EqvImmutableHashTable):
-        items = [(k,v) for k, v in hash_1.iteritems()]
-    else:
-        items = hash_1.hash_items()
-    return hash_keys_subset_huh_loop(items, hash_2, 0, env, cont)
+
+    # FIXME : let's not check this for now
+    # if not uses_same_eq_comparison(hash_1, hash_2):
+    #     raise SchemeException("hash-keys-subset?: given hash tables do not use the same key comparison -- first table : %s - second table: %s" % (hash_1.tostring(), hash_2.tostring()))
+    return hash_keys_subset_huh_loop(hash_1.hash_items(), hash_2, 0, env, cont)
 
 @continuation
 def hash_copy_ref_cont(keys, idx, src, new, env, cont, _vals):
