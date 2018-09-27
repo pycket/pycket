@@ -40,6 +40,12 @@ def test_hash_equal(doctest):
     #t
     > (hash-equal? (chaperone-hash (hash) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
     #t
+    > (hash-equal? (make-weak-hash))
+    #t
+    > (hash-equal? (make-weak-hasheq))
+    #f
+    > (hash-equal? (make-weak-hasheqv))
+    #f
     """
 
 def test_hash_eq(doctest):
@@ -66,6 +72,12 @@ def test_hash_eq(doctest):
     #t
     > (hash-eq? (chaperone-hash (hasheq) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
     #t
+    > (hash-eq? (make-weak-hash))
+    #f
+    > (hash-eq? (make-weak-hasheq))
+    #t
+    > (hash-eq? (make-weak-hasheqv))
+    #f
     """
 
 def test_hash_eqv(doctest):
@@ -91,6 +103,12 @@ def test_hash_eqv(doctest):
     > (hash-eqv? (impersonate-hash (make-hasheqv) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
     #t
     > (hash-eqv? (chaperone-hash (hasheqv) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    > (hash-eqv? (make-weak-hash))
+    #f
+    > (hash-eqv? (make-weak-hasheq))
+    #f
+    > (hash-eqv? (make-weak-hasheqv))
     #t
     """
 
