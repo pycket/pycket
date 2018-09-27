@@ -16,7 +16,7 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 
 PYFILES := $(shell find . -name '*.py' -type f)
 
-.PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit
+.PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets pycket-c pycket-c-linklets
 .PHONY: setup test coverage expander test-expander test-one test-one-expander test-mark test-mark-expander test-random
 
 PYPY_EXECUTABLE := $(shell which pypy)
@@ -84,13 +84,18 @@ debug-no-jit: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) --lldebug targetpycket.py
 	cp pycket-c pycket-c-debug-no-jit
 
-compile-file: pycket-c-linklets
+check-binary:
+ifeq (,$(wildcard ./pycket-c-linklets))
+$(error Pycket binary does not exist)
+endif
+
+compile-file: check-binary
 	./pycket-c-linklets compile-file-pycket.rkt -- $(FILE)
 
-compile-racket-modules: pycket-c-linklets
+compile-racket-modules: check-binary
 	./pycket-c-linklets compile-file-pycket.rkt -- -b
 
-clean-compiled-files: pycket-c-linklets
+clean-compiled-files: check-binary
 	./pycket-c-linklets compile-file-pycket.rkt -- --clean
 setup:
 	raco pkg install -t dir pycket/pycket-lang/ || \
