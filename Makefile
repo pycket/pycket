@@ -16,7 +16,7 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 
 PYFILES := $(shell find . -name '*.py' -type f)
 
-.PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets pycket-c pycket-c-linklets
+.PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets
 .PHONY: setup test coverage expander test-expander test-one test-one-expander test-mark test-mark-expander test-random
 
 PYPY_EXECUTABLE := $(shell which pypy)
