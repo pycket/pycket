@@ -38,7 +38,8 @@ def make_entry_point(pycketconfig=None):
 
             if pycketconfig is not None:
                 from rpython.config.config import to_optparse
-                to_optparse(pycketconfig).parse_args(argv)
+                if '--linklets' in argv:
+                    to_optparse(pycketconfig).parse_args(['--linklets'])
 
         try:
             if pycketconfig is not None and pycketconfig.pycket.linklets:
