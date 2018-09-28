@@ -1382,7 +1382,8 @@ def symbol_lt(args):
             raise SchemeException(name + ": not given a string")
         # FIXME: shouldn't need to convert to W_String
         # but this is much easier than recreating the logic
-        if string.symbol_to_string_impl(head).cmp(string.symbol_to_string_impl(t)) < 0:
+
+        if string.symbol_to_string_impl(head).cmp(string.symbol_to_string_impl(t)) >= 0:
             return values.w_false
         head = t
     return values.w_true
