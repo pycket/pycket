@@ -1429,3 +1429,14 @@ def test_procedure_specialize(doctest):
     > ((procedure-specialize f) 1)
     6
     """
+
+@pytest.mark.m
+def test_symbol_less_than(doctest):
+    """
+    > (symbol<? 'a 'b)
+    #t
+    > (symbol<? 'a 'a)
+    #f
+    > (symbol<? 'b 'a)
+    #f
+    """
