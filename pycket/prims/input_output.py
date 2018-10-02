@@ -1167,7 +1167,8 @@ def write_linklet_bundle_directory(v, port, env):
     port.write(")")
 
 def write_linklet(v, port, env):
-    print(v.tostring())
+    from pycket.util import console_log
+    console_log(v.tostring(), 2)
     port.write("(linklet")
     port.write(" ")
     write_loop(v.get_name(), port, env)
