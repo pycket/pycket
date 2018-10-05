@@ -7,6 +7,18 @@ import string
 from rpython.rlib        import jit, objectmodel, rtime
 from rpython.rlib.unroll import unrolling_iterable
 
+def active_break():
+    from pycket.env import w_global_config as glob
+
+    if glob.is_debug_active():
+        import pdb;pdb.set_trace()
+
+def active_log(print_str, given_verbosity_level=0, debug=False):
+    from pycket.env import w_global_config as glob
+
+    if glob.is_debug_active():
+        console_log(print_str, given_verbosity_level, debug)
+
 def console_log(print_str, given_verbosity_level=0, debug=False):
     # use the given_verbosity_level argument to control at which level
     # of verbosity you want this log to appear. Default is 0.
