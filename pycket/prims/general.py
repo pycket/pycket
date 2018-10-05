@@ -1860,3 +1860,17 @@ def primitive_table(v):
     return make_simple_immutable_table(W_EqImmutableHashTable,
                                        expose_env.keys(),
                                        expose_env.values())
+
+# Any primitive on Pycket can use "w_global_config.is_debug_active()"
+# to control debug outputs (or breakpoints in the interpreter) (with
+# an even greater output control with the console_log with verbosity
+# levels)
+@expose("pycket:activate-debug", [])
+def activate_debug():
+    from pycket.env import w_global_config
+    w_global_config.activate_debug()
+
+@expose("pycket:deactivate-debug", [])
+def activate_debug():
+    from pycket.env import w_global_config
+    w_global_config.deactivate_debug()

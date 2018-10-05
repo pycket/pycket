@@ -505,6 +505,8 @@ kernel_str = ["*", "+", "-",
               "syntax->datum", "datum->syntax", "syntax-property",
               "syntax-property-symbol-keys", "syntax-binding-set-extend"]
 
+pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug"]
+
 place = make_primitive_table(place_str)
 paramz = make_primitive_table(paramz_str)
 internal = make_primitive_table(internal_str)
@@ -515,7 +517,10 @@ network = make_primitive_table(network_str)
 foreign = make_primitive_table(foreign_str)
 linklet = make_primitive_table(linklet_str)
 unsafe = make_primitive_table(unsafe_str)
-kernel = make_primitive_table(kernel_str)
+# FIXME : make it a #%pycket-extra, instead of piggybacking on the #%kernel
+kernel = make_primitive_table(kernel_str + pycket_extra_str)
+
+
 
 select_prim_table = {W_Symbol.make("#%linklet"): linklet,
                      W_Symbol.make("#%kernel"): kernel,
