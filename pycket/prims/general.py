@@ -1874,3 +1874,8 @@ def activate_debug():
 def activate_debug():
     from pycket.env import w_global_config
     w_global_config.deactivate_debug()
+
+@expose("pycket:change-verbosity", [values.W_Fixnum])
+def change_verbosity(level):
+    from pycket.env import w_global_config
+    w_global_config.set_config_val('verbose', level.value)
