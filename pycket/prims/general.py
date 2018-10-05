@@ -1875,7 +1875,19 @@ def activate_debug():
     from pycket.env import w_global_config
     w_global_config.deactivate_debug()
 
-@expose("pycket:change-verbosity", [values.W_Fixnum])
-def change_verbosity(level):
+@expose("pycket:is-debug-active", [])
+def debug_status():
     from pycket.env import w_global_config
-    w_global_config.set_config_val('verbose', level.value)
+    return values.W_Bool.make(w_global_config.is_debug_active())
+
+# Maybe we should do it with just one Racket level parameter
+@expose("pycket:get-verbosity", [])
+def get_verbosity():
+    from pycket.env import w_global_config as glob_conf
+    lvl = glob_conf.get_config_val('verbose')
+    return values.W_Fixnum(lvl)
+
+@expose("pycket:set-verbosity", [values.W_Fixnum])
+def set_verbosity(v):
+    from pycket.env import w_global_config as glob_conf
+    glob_conf.set_config_val('verbose', v.value)

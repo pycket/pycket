@@ -506,7 +506,8 @@ kernel_str = ["*", "+", "-",
               "syntax-property-symbol-keys", "syntax-binding-set-extend"]
 
 pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug",
-                    "pycket:change-verbosity"]
+                    "pycket:get-verbosity", "pycket:set-verbosity",
+                    "pycket:is-debug-active"]
 
 place = make_primitive_table(place_str)
 paramz = make_primitive_table(paramz_str)
