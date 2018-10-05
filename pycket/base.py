@@ -138,7 +138,7 @@ class W_Object(W_ProtoObject):
         return self is other # default implementation
 
     def hash_equal(self, info=None):
-        return objectmodel.compute_hash(self) # default implementation
+        return 10
 
     def hash_eqv(self):
         # default to hash_eq
