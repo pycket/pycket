@@ -524,6 +524,9 @@ class W_EqualHashTable(W_HashTable):
     def hash_set(self, key, val, env, cont):
         return self.strategy.set(self, key, val, env, cont)
 
+    def hash_equal(self, info=None):
+        return self.length()
+
     def hash_ref(self, key, env, cont):
         return self.strategy.get(self, key, env, cont)
 

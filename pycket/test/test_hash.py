@@ -680,3 +680,19 @@ def test_hash_keys_subset(doctest):
     #f
     E (hash-keys-subset? ht0 (hasheq (a 1 0) #t))
     """
+
+def test_hash_equal_hash_codes(doctest):
+    """
+    > (equal? (hash (hash) 1) (hash (hash) 1))
+    #t
+    > (hash-ref (make-hash '((#hasheq() . 1))) #hasheq() #f)
+    1
+    > (hash-ref (make-hash '((#hasheq((a . 3)) . 1))) #hasheq((a . 3)) #f)
+    1
+    > (hash-ref (make-hash (list (cons (hasheq) 1))) (hasheq) #f)
+    1
+    > (hash-ref (make-hash (list (cons (hash) 1))) (hash) #f)
+    1
+    > (hash-ref (hash (hash) 1) (hash) #f)
+    1
+    """
