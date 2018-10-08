@@ -241,6 +241,11 @@ def read_token(f):
             return read_number_or_id(f, c)
         if c == "#":
             c2 = f.read(1)
+            if c2 == "s":
+                c3 = f.read(1)
+                if c3 == "(":
+                    return LParenToken("#s(")
+                raise SchemeException("bad token in read: %s" % c3)
             if c2 == "h" and is_hash_token(f):
                 return HashToken("dummy")
             if c2 == "'":
@@ -320,6 +325,8 @@ def read_stream(stream):
         v = read_list(stream, next_token.str)
         if next_token.str in ["#(", "#[", "#{"]:
             return values_vector.W_Vector.fromelements(values.from_list(v))
+        if next_token.str in ["#s("]:
+            return values_struct.W_Struct.make_prefab(v.car(), values.from_list(v.cdr()))
         return v
     else:
         assert isinstance(next_token, values.W_Object)
@@ -329,6 +336,7 @@ def check_matches(s1, s2):
     assert (s1 == "(" and s2 == ")" or
             s1 == "[" and s2 == "]" or
             s1 == "{" and s2 == "}" or
+            s1 == "#s(" and s2 == ")" or
             s1 == "#(" and s2 == ")" or
             s1 == "#[" and s2 == "]" or
             s1 == "#{" and s2 == "}")
