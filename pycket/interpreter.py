@@ -907,7 +907,8 @@ class QuoteSyntax(AST):
         self.w_val = w_val
 
     def interpret_simple(self, env):
-        return values.W_Syntax(self.w_val)
+        from pycket.prims.correlated import W_Correlated
+        return W_Correlated(self.w_val, values.w_false, {})
 
     def direct_children(self):
         return []

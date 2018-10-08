@@ -206,15 +206,15 @@ def true_object_huh(val):
 def procedurep(n):
     return values.W_Bool.make(n.iscallable())
 
-@expose("syntax-original?", [values.W_Syntax])
+@expose("syntax-original?", [values.W_Object])
 def syntax_original(v):
     return values.w_false
 
-@expose("syntax-tainted?", [values.W_Syntax])
+@expose("syntax-tainted?", [values.W_Object])
 def syntax_tainted(v):
     return values.w_false
 
-@expose("syntax-source-module", [values.W_Syntax, default(values.W_Object, values.w_false)])
+@expose("syntax-source-module", [values.W_Object, default(values.W_Object, values.w_false)])
 def syntax_source_module(stx, src):
     # XXX Obviously not correct
     return values.W_ResolvedModulePath(values.W_Symbol.make("fake symbol"))

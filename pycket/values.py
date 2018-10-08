@@ -128,15 +128,6 @@ class W_Undefined(W_Object):
 
 w_unsafe_undefined = W_Undefined()
 
-# FIXME: not a real implementation
-class W_Syntax(W_Object):
-    _attrs_ = _immutable_fields_ = ["val"]
-    errorname = "syntax"
-    def __init__(self, o):
-        self.val = o
-    def tostring(self):
-        return "#'%s" % self.val.tostring()
-
 class W_ModulePathIndex(W_Object):
     errorname = "module-path-index"
     _attrs_ = []
