@@ -67,7 +67,7 @@ class W_Parameterization(W_Object):
         return "#<parameterization>"
 
 # This will need to be thread-specific
-top_level_config = W_Parameterization(RootParameterization(), ParameterizationHashTable.EMPTY)
+top_level_config = W_Parameterization(RootParameterization(), ParameterizationHashTable.EMPTY())
 
 def find_param_cell(cont, param):
     assert isinstance(cont, BaseCont)

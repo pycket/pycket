@@ -31,7 +31,7 @@ from pycket.interpreter import (
 
 def compute_body_frees(node, cache):
     assert isinstance(node, SequencedBodyAST)
-    frees = SymbolSet.EMPTY
+    frees = SymbolSet.EMPTY()
     for b in node.body:
         frees = frees.union(b.free_vars(cache))
     return frees

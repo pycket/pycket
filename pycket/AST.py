@@ -89,7 +89,7 @@ class AST(object):
 
     def _free_vars(self, cache):
         from pycket.interpreter import SymbolSet
-        free_vars = SymbolSet.EMPTY
+        free_vars = SymbolSet.EMPTY()
         for child in self.direct_children():
             free_vars = free_vars.union(child.free_vars(cache))
         return free_vars

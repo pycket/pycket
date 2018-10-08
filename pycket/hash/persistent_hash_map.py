@@ -627,10 +627,10 @@ def make_persistent_hash_type(
             root  = self._root
             count = self._cnt
             if root is None:
-                return PersistentHashMap.EMPTY
+                return PersistentHashMap.EMPTY()
             for key in keys:
                 if root is None:
-                    return PersistentHashMap.EMPTY
+                    return PersistentHashMap.EMPTY()
                 key = restrict_key_type(key)
                 new_root = root.without_inode(0, hashfun(key) & MASK_32, key)
                 if new_root is not root:
@@ -668,8 +668,12 @@ def make_persistent_hash_type(
             return restrict_types(key_or_none, val_or_node)
 
         @staticmethod
+        def EMPTY():
+            return PersistentHashMap(0, None)
+
+        @staticmethod
         def singleton(key, val=None):
-            return PersistentHashMap.EMPTY.assoc(key, val)
+            return PersistentHashMap.EMPTY().assoc(key, val)
 
         def make_copy(self):
             return PersistentHashMap(self._cnt, self._root)
@@ -680,7 +684,7 @@ def make_persistent_hash_type(
     PersistentHashMap.ArrayNode = ArrayNode
     PersistentHashMap.HashCollisionNode = HashCollisionNode
 
-    PersistentHashMap.EMPTY = PersistentHashMap(0, None)
+    #PersistentHashMap.EMPTY = PersistentHashMap(0, None)
 
     def create_node(shift, key1, val1, key2hash, key2, val2):
         key1hash = hashfun(key1) & MASK_32

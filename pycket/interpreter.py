@@ -1427,7 +1427,7 @@ class LinkletVar(Var):
         write_loop(self.sym, port, env)
 
     def _free_vars(self, cache):
-        return SymbolSet.EMPTY
+        return SymbolSet.EMPTY()
 
     def is_constant(self):
         # FIXME : investigate 'consistent
@@ -1521,7 +1521,7 @@ class ModuleVar(Var):
         self.w_value = None
 
     def _free_vars(self, cache):
-        return SymbolSet.EMPTY
+        return SymbolSet.EMPTY()
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -1694,7 +1694,7 @@ def make_lambda(formals, rest, body, sourceinfo=None):
     return Lambda(formals, rest, args, frees, body, sourceinfo=sourceinfo)
 
 def free_vars_lambda(body, args, cache):
-    x = SymbolSet.EMPTY
+    x = SymbolSet.EMPTY()
     for b in body:
         x = x.union(b.free_vars(cache))
     x = x.without_many(args.elems)
@@ -2269,7 +2269,7 @@ class Let(SequencedBodyAST):
         return x
 
     def _free_vars(self, cache):
-        x = SymbolSet.EMPTY
+        x = SymbolSet.EMPTY()
         for b in self.body:
             x = x.union(b.free_vars(cache))
         x = x.without_many(self.args.elems)

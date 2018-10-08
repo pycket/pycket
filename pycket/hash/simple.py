@@ -34,7 +34,7 @@ def make_simple_mutable_table_assocs(cls, assocs, who):
 
 @specialize.arg(0)
 def make_simple_immutable_table(cls, keys=None, vals=None):
-    table = cls.EMPTY
+    table = cls.EMPTY()
     if keys is not None and vals is not None:
         assert len(keys) == len(vals)
         for i, k in enumerate(keys):
@@ -45,7 +45,7 @@ def make_simple_immutable_table(cls, keys=None, vals=None):
 def make_simple_immutable_table_assocs(cls, assocs, who):
     if not assocs.is_proper_list():
         raise SchemeException("%s: not given proper list" % who)
-    table = cls.EMPTY
+    table = cls.EMPTY()
     while isinstance(assocs, values.W_Cons):
         entry, assocs = assocs.car(), assocs.cdr()
         if not isinstance(entry, values.W_Cons):
@@ -175,8 +175,9 @@ class __extend__(W_EqvImmutableHashTable):
     def make_copy(self):
         return self
 
+
     def make_empty(self):
-        return W_EqvImmutableHashTable.EMPTY
+        return W_EqvImmutableHashTable.EMPTY()
 
     def hash_ref(self, k, env, cont):
         from pycket.interpreter import return_value
@@ -206,7 +207,7 @@ class __extend__(W_EqImmutableHashTable):
         return self
 
     def make_empty(self):
-        return W_EqImmutableHashTable.EMPTY
+        return W_EqImmutableHashTable.EMPTY()
 
     def hash_ref(self, key, env, cont):
         from pycket.interpreter import return_value
@@ -226,4 +227,3 @@ class __extend__(W_EqImmutableHashTable):
             entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
             i += 1
         return "#hasheq(%s)" % " ".join(entries)
-

@@ -476,7 +476,7 @@ def test_hash_for(doctest):
 
 def test_persistent_hash():
     HashTable = make_persistent_hash_type()
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -492,7 +492,7 @@ def test_persistent_hash():
 
 def test_persistent_hash2():
     HashTable = make_persistent_hash_type()
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -512,7 +512,7 @@ def test_persistent_hash2():
 
 def test_persistent_hash_collisions():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(42))
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -528,7 +528,7 @@ def test_persistent_hash_collisions():
 
 def test_persistent_hash_collisions2():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(hash(x)) % 8)
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(2048):
         validate_persistent_hash(acc)
@@ -541,7 +541,7 @@ def test_persistent_hash_collisions2():
 
 def test_persistent_hash_removal():
     HashTable = make_persistent_hash_type()
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -564,7 +564,7 @@ def test_persistent_hash_removal():
 
 def test_persistent_hash__collisions_removal():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(42))
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -587,7 +587,7 @@ def test_persistent_hash__collisions_removal():
 
 def test_persistent_hash__collisions_removal2():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(hash(x) % 8))
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -610,8 +610,8 @@ def test_persistent_hash__collisions_removal2():
 
 def test_persistent_hash_union():
     HashTable = make_persistent_hash_type()
-    acc1 = HashTable.EMPTY
-    acc2 = HashTable.EMPTY
+    acc1 = HashTable.EMPTY()
+    acc2 = HashTable.EMPTY()
 
     for i in range(128):
         acc1 = acc1.assoc(i, i)
@@ -629,7 +629,7 @@ def test_persistent_hash_union():
 
 def test_without_many():
     HashTable = make_persistent_hash_type()
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(256):
         acc = acc.assoc(i, i)
