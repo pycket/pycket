@@ -325,7 +325,8 @@ def read_stream(stream):
 def check_matches(s1, s2):
     assert (s1 == "(" and s2 == ")" or
             s1 == "[" and s2 == "]" or
-            s1 == "{" and s2 == "}")
+            s1 == "{" and s2 == "}" or
+            s1 == "#(" and s2 == ")")
 
 def to_improper(l, curr, start=0):
     """
