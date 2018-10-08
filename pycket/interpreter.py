@@ -11,7 +11,6 @@ from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.error             import SchemeException
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.prims.control     import convert_runtime_exception
-
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
 from rpython.rlib             import jit, debug, objectmodel

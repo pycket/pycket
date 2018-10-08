@@ -15,6 +15,7 @@ from pycket.base         import W_ProtoObject
 from pycket              import values
 from pycket              import values_parameter
 from pycket              import values_struct
+from pycket              import vector as values_vector
 from pycket.hash.simple  import W_EqvImmutableHashTable, W_EqMutableHashTable, W_EqvMutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
 from pycket.hash.base    import W_HashTable
 from pycket              import impersonators as imp
@@ -317,6 +318,8 @@ def read_stream(stream):
         if not isinstance(next_token, LParenToken):
             raise SchemeException("read: unexpected %s" % next_token.str)
         v = read_list(stream, next_token.str)
+        if next_token.str in ["#(", "#[", "#{"]:
+            return values_vector.W_Vector.fromelements(values.from_list(v))
         return v
     else:
         assert isinstance(next_token, values.W_Object)
@@ -326,7 +329,9 @@ def check_matches(s1, s2):
     assert (s1 == "(" and s2 == ")" or
             s1 == "[" and s2 == "]" or
             s1 == "{" and s2 == "}" or
-            s1 == "#(" and s2 == ")")
+            s1 == "#(" and s2 == ")" or
+            s1 == "#[" and s2 == "]" or
+            s1 == "#{" and s2 == "}")
 
 def to_improper(l, curr, start=0):
     """
