@@ -1338,7 +1338,10 @@ def unsafe_mcdr(p):
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
     from pycket.interpreter import return_multi_vals
-    return return_multi_vals(values.Values.make([values.w_false] * 3),
+    lin = p.get_line()
+    col = p.get_column()
+    pos = p.get_position()
+    return return_multi_vals(values.Values.make([lin, col, pos]),
                              env, cont)
 
 @expose("port-writes-special?", [values.W_Object])
