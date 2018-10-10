@@ -23,94 +23,72 @@ See the [Makefile targets](#make-targets) section about how to build both versio
 
 ## Building
 
-In order to do anything with Pycket, you need to check out PyPy:
+Building Pycket means translating the interpreter (written in RPython) into a binary. You can use the [make targets](#make-targets) to translate Pycket. We recommend using the PyPy for translation, since it'll be much faster than CPython. If you don't have a `pypy` binary in your environment, then `make` targets will default to CPython.
 
-    $ hg clone https://bitbucket.org/pypy/pypy
-
-The below instructions assume that you do this checkout in Pycket's directory.
+You can clone and make the `pypy` with `make make-pypy` target. It will clone the latest pypy repo in Pycket's directory and will start making it. Note that it will take more than 2 hours to build the pypy. It will result in a binary created at `pypy/pypy/goal/pypy`, and you need to add it to your environment for Pycket's translation to use it.
 
 Additionally, it helps to have the build dependencies of PyPy installed.
 On a Debian or Ubuntu system:
 
     $ sudo apt-get build-dep pypy
 
-To produce an executable, run:
-
-    $ ./pypy/rpython/bin/rpython -Ojit targetpycket.py
-
-This expects that a binary named `pypy` is in your path. (Note that
-a hand-compiled PyPy by running `make` produces `pypy-c`, not `pypy`).
-
-If you don't have a PyPy binary, you can also translate with the CPython:
-
-    $ python ./pypy/rpython/bin/rpython -Ojit targetpycket.py
-
-This will take upwards of 10 minutes.
+To produce a Pycket executable, use one of the provided [make targets](#make-targets) to build the binary you need.
 
 ## [Make Targets](#make-targets)
 
-You can also use `make` for any of the above,
+### PyPy Stuff:
 
- * `make setup` to setup and update the `pypy` checkout and install `pycket-lang` to Racket
- * `make expander` to generate the expander linklet (it assumes an unmodified Racket install and PLTHOME environment variable -- see the Environment Variables section below)
- * `make pycket-c` to translate `OLD Pycket` with JIT
- * `make pycket-c-linklets` to translate `NEW Pycket` with JIT
- * `make pycket-c-nojit` to translate `OLD Pycket` without JIT (which may be a lot faster to translate but runs a lot lot slower)
- * `make pycket-c-linklets-nojit` to translate `NEW Pycket` without JIT (which may be a lot faster to translate but runs a lot lot slower)
+Assumes the mercurial binary `hg` to be in the environment.
 
-## Testing
+ * `make clone-pypy` : clones the latest pypy into Pycket's directory
+ * `make update-pypy` : pulls and updates the pypy
+ * `make make-pypy` : builds pypy, assumes that pypy directory exists in Pycket's directory
 
-Now that Pycket has two different modes with options, we run the unit
-tests on each of those settings using the following targets:
+### Building Pycket
+
+ * `make setup-old-pycket` : installs the `pycket-lang` to Racket and runs `update-pypy`
+ * `make expander` : generates the expander linklet (it assumes an unmodified Racket install and PLTHOME environment variable -- see the Environment Variables section below)
+ * `make pycket-c` : translates `OLD Pycket` with JIT
+ * `make pycket-c-linklets` : translates `NEW Pycket` with JIT
+ * `make pycket-c-nojit` : translates `OLD Pycket` without JIT (which may be a lot faster to translate but runs a lot lot slower)
+ * `make pycket-c-linklets-nojit` : translates `NEW Pycket` without JIT (which may be a lot faster to translate but runs a lot lot slower)
+
+### Testing Pycket
+
+Now that Pycket has two different modes with options, we run the unit tests on each of those settings using the following targets:
 
  * `make test` to run the unit tests on `OLD Pycket`.
  * `make test-new-with-expander` to run the unit tests on `NEW Pycket` using the Racket's `expander` linklet.
  * `make test-new-no-expander` to run the unit tests on `NEW Pycket` without using the `expander`.
 
-For the `NEW` Pycket, using the expander linklet means that for each
-test expression string we use the `read` and `eval` functions in that
-linklet to read and evaluate the test. If we're not using the
-expander, on the other hand, then we manually create a linklet
-containing the expression and instantiate it directly (mostly with an
-empty target) to get the result.
+For the `NEW` Pycket, using the expander linklet means that for each test expression string we use the `read` and `eval` functions in that linklet to read and evaluate the test. If we're not using the expander, on the other hand, then we manually create a linklet containing the expression and instantiate it directly (mostly with an empty target) to get the result.
 
 ## Using Compiled Files
 
-The `NEW` Pycket is able to generate and use its own `.zo` files. For
-now both the generation and the use are manual.
+The `NEW` Pycket is able to generate and use its own `.zo` files. For now both the generation and the use are manual.
 
 To generate a `.zo` file for a `.rkt` source file, use `make
 compile-file`:
 
     $ make compile-file FILE=$(PLTHOME)/racket/collects/racket/private/qq-and-or.rkt
 
-The parameter that enables Racket expander to use compiled code is
-`use-compiled-file-paths`, which defaults to `pycket-compiled` in
-Pycket. Whenever a module is required, the expander will use the
-compiled code if it exists, otherwise it will use the source code of
-the module (read, expand, etc.).
+The parameter that enables Racket expander to use compiled code is `use-compiled-file-paths`, which defaults to `pycket-compiled` in Pycket. Whenever a module is required, the expander will use the compiled code if it exists, otherwise it will use the source code of the module (read, expand, etc.).
 
     pycket-repl> (#%require racket/private/qq-and-or)
 
-Note that `pycket-compiled` is a folder that `make compile-file` is
-going to generate by itself.
+Note that `pycket-compiled` is a folder that `make compile-file` is going to generate by itself.
 
 Currently we have two `make` targets for working with compiled files:
 
     $ make compile-racket-modules
 
-will create `.zo` files for the predefined list of Racket modules (see
-`compile-file-pycket.rkt`).
+will create `.zo` files for the predefined list of Racket modules (see `compile-file-pycket.rkt`).
 
     $ make clean-compiled-files
 
-will remove all the `.zo` files under the `pycket-compiled`
-directories in Racket libraries.
+will remove all the `.zo` files under the `pycket-compiled` directories in Racket libraries.
 
-This is a work in progress. We plan to have a make target that
-compiles all the Racket modules automatically by following the module
-dependencies (as opposed to using a predefined list of modules with
-the respective paths).
+This is a work in progress. We plan to have a make target that compiles all the Racket modules automatically by following the module dependencies (as opposed to using a predefined list of modules with the respective paths).
 
 ## [Environment Variables](#vars)
 

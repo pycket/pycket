@@ -97,11 +97,25 @@ compile-racket-modules: check-binary
 
 clean-compiled-files: check-binary
 	./pycket-c-linklets compile-file-pycket.rkt -- --clean
-setup:
+
+setup-racket-for-old-pycket:
 	raco pkg install -t dir pycket/pycket-lang/ || \
 	raco pkg update --link pycket/pycket-lang
-	hg -R $(PYPYPATH) pull && \
+
+clone-pypy:
+	hg clone https://bitbucket.org/pypy/pypy
+
+make-pypy:
+	$(MAKE) -C pypy
+	cp pypy/pypy/goal/pypy-c pypy/pypy/goal/pypy
+
+pull-pypy:
+	hg -R $(PYPYPATH) pull
+
+update-pypy: pypy-pypy
 	hg -R $(PYPYPATH) update
+
+setup-old-pycket: setup-racket-for-old-pycket update-pypy
 
 expander:
 	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
