@@ -1766,11 +1766,20 @@ class W_Port(W_Object):
     def is_stdin(self):
         return False
 
+    def get_line(self):
+        raise NotImplementedError("abstract base class")
+
+    def get_column(self):
+        raise NotImplementedError("abstract base class")
+
+    def get_position(self):
+        raise NotImplementedError("abstract base class")
+
     def seek(self, offset, end=False):
-        raise NotImplementedError("abstract base classe")
+        raise NotImplementedError("abstract base class")
 
     def tell(self):
-        raise NotImplementedError("abstract base classe")
+        raise NotImplementedError("abstract base class")
 
 class W_OutputPort(W_Port):
     errorname = "output-port"
@@ -1779,10 +1788,10 @@ class W_OutputPort(W_Port):
         pass
 
     def write(self, str):
-        raise NotImplementedError("abstract base classe")
+        raise NotImplementedError("abstract base class")
 
     def flush(self):
-        raise NotImplementedError("abstract base classe")
+        raise NotImplementedError("abstract base class")
 
     def tostring(self):
         return "#<output-port>"
@@ -1793,6 +1802,17 @@ class W_StringOutputPort(W_OutputPort):
     def __init__(self):
         self.closed = False
         self.str = StringBuilder()
+
+    def get_line(self):
+        return w_false
+
+    def get_column(self):
+        # FIXME
+        return w_false
+
+    def get_position(self):
+        return W_Fixnum(self.tell() + 1)
+
     def write(self, s):
         self.str.append(s)
     def contents(self):
@@ -1832,19 +1852,31 @@ class W_InputPort(W_Port):
 class W_StringInputPort(W_InputPort):
     errorname = "input-port"
     _immutable_fields_ = ["str"]
-    _attrs_ = ['closed', 'str', 'ptr', 'read_handler']
-
+    _attrs_ = ['closed', 'str', 'ptr', 'line', 'column', 'read_handler']
+    #_attrs_ = ['closed', 'str', 'ptr', 'read_handler']
     def __init__(self, str):
         self.closed = False
         self.str = str
         self.ptr = 0
         self.read_handler = None
+        self.line = 1
+        self.column = 0
 
     def get_read_handler(self):
         return self.read_handler
 
     def set_read_handler(self, handler):
         self.read_handler = handler
+
+    def get_line(self):
+        return W_Fixnum(self.line)
+
+    def get_column(self):
+        # FIXME
+        return W_Fixnum(self.column)
+
+    def get_position(self):
+        return W_Fixnum(self.ptr + 1)
 
     def readline(self):
         from rpython.rlib.rstring import find
@@ -1899,13 +1931,15 @@ class W_StringInputPort(W_InputPort):
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
     _immutable_fields_ = ["file"]
-    _attrs_ = ['closed', 'file', 'read_handler', 'stdin']
+    _attrs_ = ['closed', 'file', 'line', 'column', 'read_handler', 'stdin']
 
     def __init__(self, f, stdin=False):
         self.closed = False
         self.file = f
         self.read_handler = None
         self.stdin = stdin
+        self.line = 1
+        self.column = 0
 
     def is_stdin(self):
         return self.stdin
@@ -1926,6 +1960,16 @@ class W_FileInputPort(W_InputPort):
 
     def readline(self):
         return self.file.readline()
+
+    def get_line(self):
+        return W_Fixnum(self.line)
+
+    def get_column(self):
+        # FIXME
+        return W_Fixnum(self.column)
+
+    def get_position(self):
+        return W_Fixnum(self.file.pos)
 
     def peek(self):
         offset, string = self.file.peek()
@@ -1967,6 +2011,16 @@ class W_FileOutputPort(W_OutputPort):
         self.closed = False
         self.file = f
         self.stdout = stdout
+
+    def get_line(self):
+        return w_false
+
+    def get_column(self):
+        # FIXME
+        return w_false
+
+    def get_position(self):
+        return W_Fixnum(self.file.pos)
 
     def is_stdout(self):
         return self.stdout
