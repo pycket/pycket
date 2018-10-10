@@ -85,9 +85,9 @@ debug-no-jit: $(PYFILES)
 	cp pycket-c pycket-c-debug-no-jit
 
 check-binary:
-ifeq (,$(wildcard ./pycket-c-linklets))
-$(error Pycket binary does not exist)
-endif
+	ifeq (,$(wildcard ./pycket-c-linklets))
+	  $(error Pycket binary does not exist)
+	endif
 
 compile-file: check-binary
 	./pycket-c-linklets compile-file-pycket.rkt -- $(FILE)
