@@ -82,6 +82,8 @@ expose_val("print-mpair-curly-braces", values_parameter.W_Parameter(values.w_fal
 expose_val("print-pair-curly-braces", values_parameter.W_Parameter(values.w_false))
 expose_val("error-print-source-location", values_parameter.W_Parameter(values.w_true))
 
+expose_val("port-count-lines-enabled", values_parameter.W_Parameter(values.w_false))
+
 READ_TRUE_PARAMS = """
 read-accept-reader
 read-accept-lang
