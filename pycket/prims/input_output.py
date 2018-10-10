@@ -245,7 +245,7 @@ def read_token(f):
                 c3 = f.read(1)
                 if c3 == "(":
                     return LParenToken("#s(")
-                raise SchemeException("bad token in read: %s" % c3)
+                raise SchemeException("bad token in read: %s reading %s" % (c+c2+c3, f))
             if c2 == "h" and is_hash_token(f):
                 return HashToken("dummy")
             if c2 == "'":
@@ -262,16 +262,19 @@ def read_token(f):
                 return values.w_true
             if c2 == "f":
                 return values.w_false
+            if c2 == '"':
+                v = read_string(f)
+                return values.W_Bytes.from_charlist(v.as_charlist_utf8())
             if c2 in ["(", "[", "{"]:
                 return LParenToken("#" + c2)
             if c2 == "\\":
                 s = f.read(1)
                 if not s:
-                    raise SchemeException("unexpected end of file")
+                    raise SchemeException("unexpected end of file reading %s" % f)
                 c = ord(s[0]) # XXX deal with unicode
                 return values.W_Character(unichr(c))
-            raise SchemeException("bad token in read: %s" % c2)
-        raise SchemeException("bad token in read: %s" % c)
+            raise SchemeException("bad token in read: %s reading %s" % (c+c2,f))
+        raise SchemeException("bad token in read: %s reading %s" % (c,f))
 
 @expose("read", [default(values.W_Object, None)], simple=False)
 def read(port, env, cont):

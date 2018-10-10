@@ -3,7 +3,7 @@ from pycket                   import values
 from pycket.cont              import continuation
 from pycket.error             import SchemeException
 from pycket.hidden_classes    import make_map_type, make_caching_map_type
-from pycket.prims.expose      import make_call_method
+from pycket.prims.expose      import make_call_method, default
 from rpython.rlib             import jit
 from rpython.rlib.objectmodel import specialize, we_are_translated
 
@@ -151,9 +151,14 @@ class W_ImpPropertyPredicate(W_ImpPropertyFunction):
 class W_ImpPropertyAccessor(W_ImpPropertyFunction):
     errorname = "impersonator-property-accessor"
 
-    @make_call_method([values.W_Object])
-    def call(self, obj):
-        return lookup_property(obj, self.descriptor)
+    @make_call_method([values.W_Object, default(values.W_Object)]) # FIXME handle second argument as proc
+    def call(self, obj, fail):
+        v = lookup_property(obj, self.descriptor)
+        if v:
+            return v
+        if fail:
+            return fail
+        raise SchemeException("missing impersonator property")
 
 w_impersonator_prop_application_mark = W_ImpPropertyDescriptor("impersonator-prop:application-mark")
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from pycket.cont              import continuation, label, guarded_loop, call_cont, call_extra_cont
-from pycket.prims.expose      import make_call_method
+from pycket.prims.expose      import make_call_method, default
 from pycket.error             import SchemeException
 from pycket.values            import UNROLLING_CUTOFF
 from pycket                   import values
@@ -820,9 +820,16 @@ class W_ImpPropertyPredicate(W_ImpPropertyFunction):
 class W_ImpPropertyAccessor(W_ImpPropertyFunction):
     errorname = "impersonator-property-accessor"
 
-    @make_call_method([values.W_Object])
-    def call(self, obj):
-        return lookup_property(obj, self.descriptor)
+    @make_call_method([values.W_Object, default(values.W_Object)]) # FIXME: handle second argument as proc
+    def call(self, obj, fail):
+        v = lookup_property(obj, self.descriptor)
+        if v:
+            return v
+        if v:
+            return v
+        if fail:
+            return fail
+        raise SchemeException("missing impersonator property")
 
 w_impersonator_prop_application_mark = W_ImpPropertyDescriptor("impersonator-prop:application-mark")
 

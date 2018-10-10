@@ -64,7 +64,7 @@ def datum_to_corr_cont(datum, env, cont, _vals):
     return return_value(W_Correlated(datum, srcloc_object, {}), env, cont)
 
 # [core:datum->correlated datum->syntax]
-@expose("datum->syntax", [W_Object, W_Object, default(W_Object, None)], simple=False)
+@expose("datum->syntax", [W_Object, W_Object, default(W_Object, w_false)], simple=False)
 def datum_to_correlated(ignored, datum, _srcloc, env, cont):
 
     if isinstance(datum, W_Correlated):

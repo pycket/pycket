@@ -344,6 +344,12 @@ def impersonator(x):
 def chaperone(x):
     return values.W_Bool.make(x.is_chaperone())
 
+@expose("procedure-impersonator*?", [values.W_Object])
+def chaperone(x):
+    # FIXME doesn't handle regular impersonators of * impersonators
+    return values.W_Bool.make(isinstance(x,imp.W_ImpProcedureStar) or isinstance(x,imp.W_ChpProcedureStar))
+
+
 @expose("make-impersonator-property", [values.W_Symbol], simple=False)
 def make_imp_prop(sym, env, cont):
     from pycket.interpreter import return_multi_vals
