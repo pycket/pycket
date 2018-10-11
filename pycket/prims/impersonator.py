@@ -68,6 +68,18 @@ def unpack_vector_args(args, name):
 
     return v, refh, seth, prop_keys, prop_vals
 
+def unpack_unsafe_vector_args(args, name):
+    args, prop_keys, prop_vals = unpack_properties(args, name)
+    if len(args) != 2:
+        raise SchemeException(name + ": not given 2 required arguments")
+    v, rv = args
+    if not isinstance(v, values.W_MVector):
+        raise SchemeException(name + ": first arg not a vector")
+    if not isinstance(rv, values.W_MVector):
+        raise SchemeException(name + ": replacement is not a vector")
+
+    return v, rv, prop_keys, prop_vals
+
 def unpack_procedure_args(args, name):
     args, prop_keys, prop_vals = unpack_properties(args, name)
     if len(args) != 2:
@@ -191,6 +203,18 @@ def impersonate_vector(args):
 def chaperone_vector(args):
     unpacked = unpack_vector_args(args, "chaperone-vector")
     return imp.make_interpose_vector(imp.W_ChpVector, *unpacked)
+
+@expose("unsafe-impersonate-vector", arity=Arity.geq(2))
+def unsafe_impersonate_vector(args):
+    unpacked = unpack_unsafe_vector_args(args, "unsafe-impersonate-vector")
+    if unpacked[0].immutable():
+        raise SchemeException("unsafe-impersonate-vector: cannot impersonate immutable vector")
+    return imp.make_unsafe_interpose_vector(imp.W_UnsafeImpVector, *unpacked)
+
+@expose("unsafe-chaperone-vector", arity=Arity.geq(2))
+def unsafe_impersonate_vector(args):
+    unpacked = unpack_unsafe_vector_args(args, "unsafe-chaperone-vector")
+    return imp.make_unsafe_interpose_vector(imp.W_UnsafeChpVector, *unpacked)
 
 # Need to check that fields are mutable
 @expose("impersonate-struct", arity=Arity.geq(1))

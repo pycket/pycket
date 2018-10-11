@@ -32,6 +32,12 @@ def make_interpose_vector(cls, vector, refh, seth, prop_keys, prop_vals):
     fixed = prop_vals[:] if prop_vals is not None else None
     return cls.make(fixed, vector, refh, seth, map)
 
+@specialize.arg(0)
+def make_unsafe_interpose_vector(cls, vector, replacement, prop_keys, prop_vals):
+    map = make_specialized_property_map(prop_keys, EMPTY_PROPERTY_MAP)
+    fixed = prop_vals[:] if prop_vals is not None else None
+    return cls.make(fixed, vector, replacement, map)
+
 class W_InterposeBox(values.W_Box):
     errorname = "interpose-box"
     _immutable_fields_ = ["unboxh", "seth"]
@@ -127,6 +133,10 @@ class W_InterposeVector(values.W_MVector):
     def length(self):
         return get_base_object(self.base).length()
 
+    @staticmethod
+    def safe_proxy():
+        return True
+    
     def replace_proxied(self, other):
         storage = self._get_full_list()
         return self.make(storage, self.inner, self.refh, self.seth, self.property_map)
@@ -178,6 +188,41 @@ class W_ChpVector(W_InterposeVector):
     def post_ref_cont(self, i, env, cont, app=None):
         args = values.Values.make2(self.inner, i)
         return chaperone_reference_cont(self.refh, args, app, env, cont)
+
+class W_UnsafeInterposeVector(values.W_MVector):
+    errorname = "interpose-vector"
+    _immutable_fields_ = ["replacement"]
+
+    import_from_mixin(InlineProxyMixin)
+
+    def __init__(self, vector, replacement, map):
+        assert isinstance(vector, values.W_MVector)
+        assert isinstance(replacement, values.W_MVector)
+        self.replacement = replacement
+        self.init_proxy(vector, map)
+
+    def length(self):
+        return self.replacement.length()
+
+    def vector_set(self, i, new, env, cont, app=None):
+        return self.replacement.vector_set(i, new, env, cont, app)
+
+    def vector_ref(self, i, env, cont, app=None):
+        return self.replacement.vector_ref(i, env, cont, app)
+
+@inline_small_list(immutable=True, unbox_num=True)
+class W_UnsafeChpVector(W_UnsafeInterposeVector):
+    import_from_mixin(ChaperoneMixin)
+
+    errorname = "chaperone-vector"
+
+@inline_small_list(immutable=True, unbox_num=True)
+class W_UnsafeImpVector(W_UnsafeInterposeVector):
+    import_from_mixin(ImpersonatorMixin)
+
+    errorname = "impersonate-vector"
+
+    
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
