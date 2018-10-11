@@ -1969,7 +1969,7 @@ class W_FileInputPort(W_InputPort):
         return W_Fixnum(self.column)
 
     def get_position(self):
-        return W_Fixnum(self.file.pos)
+        return W_Fixnum(self.file.pos + 1)
 
     def peek(self):
         offset, string = self.file.peek()
@@ -2020,7 +2020,7 @@ class W_FileOutputPort(W_OutputPort):
         return w_false
 
     def get_position(self):
-        return W_Fixnum(self.file.pos)
+        return W_Fixnum(self.file.pos + 1)
 
     def is_stdout(self):
         return self.stdout
