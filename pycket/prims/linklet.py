@@ -626,10 +626,27 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
                     form = VariableReference(None, None, is_mut)
                 else:
                     raise SchemeException("Invalid variable-reference form : %s -- arg type : %s" % (form.tostring(), form.cdr().car()))
-            elif form.cdr().cdr().cdr() is w_null: # (variable-reference var #t)
+            elif form.cdr().cdr().cdr() is w_null: # (variable-reference var #t
+                # This must be coming from write (because it's bad syntax in Racket)
                 raise SchemeException("Unhandled variable-reference form : %s" % (form.tostring()))
             else:
-                raise SchemeException("Unhandled variable-reference form : %s" % (form.tostring()))
+                # This is to handle varrefs serialized by Pycket
+                # no Racket varref has more than 1 argument
+                var = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
+                path_ = form.cdr().cdr().car()
+                if isinstance(path_, W_Object):
+                    path = path_.tostring()
+                elif isinstance(path_, str):
+                    path = path_
+                else:
+                    raise SchemeException("fail")
+
+                mut = False
+                if isinstance(form.cdr().cdr().cdr().car(), W_Symbol):
+                    if form.cdr().cdr().cdr().car() is W_Symbol.make("tt"):
+                        mut = True
+
+                form = VariableReference(var, path, mut)
 
         elif form.car() is W_Symbol.make("case-lambda"):
             maybe_rec_sym_part = w_null
