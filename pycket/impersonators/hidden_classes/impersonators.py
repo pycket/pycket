@@ -109,14 +109,31 @@ def imp_vec_set_cont(v, i, app, env, cont, vals):
 
 @continuation
 @jit.unroll_safe
-def impersonate_vector_reference_cont(f, inner, idx, app, env, cont, _vals):
+def impersonate_vector_reference_cont(f, extra, inner, idx, app, env, cont, _vals):
     numargs = _vals.num_values()
     args    = [None] * (numargs + 2)
     args[0] = inner
     args[1] = idx
     for i in range(numargs):
         args[i+2] = _vals.get_value(i)
-    return f.call_with_extra_info(args, env, cont, app)
+    if extra is None:
+        return f.call_with_extra_info(args, env, cont, app)
+    else:
+        return f.call_with_extra_info([extra] + args, env, cont, app)
+
+@continuation
+@jit.unroll_safe
+def chaperone_vector_reference_cont(f, extra, inner, idx, app, env, cont, _vals):
+    numargs = _vals.num_values()
+    args    = [None] * (numargs + 2)
+    args[0] = inner
+    args[1] = idx
+    for i in range(numargs):
+        args[i+2] = _vals.get_value(i)
+    if extra is None:
+        return f.call_with_extra_info(args, env, check_chaperone_results(_vals, env, cont), app)
+    else:
+        return f.call_with_extra_info([extra] + args, env, check_chaperone_results(_vals, env, cont), app)
 
 class W_InterposeVector(values.W_MVector):
     errorname = "interpose-vector"
@@ -133,9 +150,11 @@ class W_InterposeVector(values.W_MVector):
     def length(self):
         return get_base_object(self.base).length()
 
-    @staticmethod
-    def safe_proxy():
-        return True
+    def self_arg(self):
+        return False
+
+    def is_non_interposing_chaperone(self):
+        return self.seth is values.w_false
     
     def replace_proxied(self, other):
         storage = self._get_full_list()
@@ -148,12 +167,19 @@ class W_InterposeVector(values.W_MVector):
         raise NotImplementedError("abstract method")
 
     def vector_set(self, i, new, env, cont, app=None):
+        if self.refh is values.w_false:
+            return self.inner.vector_set(i, new, env, cont, app)
         idx = values.W_Fixnum(i)
         after = self.post_set_cont(new, i, env, cont, app=app)
-        return self.seth.call_with_extra_info([self.inner, idx, new], env, after, app)
+        if self.self_arg():
+            return self.seth.call_with_extra_info([self, self.inner, idx, new], env, after, app)
+        else:
+            return self.seth.call_with_extra_info([self.inner, idx, new], env, after, app)
 
     @jit.unroll_safe
     def vector_ref(self, i, env, cont, app=None):
+        if self.refh is values.w_false:
+            return self.inner.vector_ref(i, env, cont, app)
         idx = values.W_Fixnum(i)
         while isinstance(self, W_InterposeVector):
             cont = self.post_ref_cont(idx, env, cont, app=app)
@@ -172,7 +198,7 @@ class W_ImpVector(W_InterposeVector):
 
     def post_ref_cont(self, i, env, cont, app=None):
         return impersonate_vector_reference_cont(
-                self.refh, self.inner, i, app, env, cont)
+                self.refh, None, self.inner, i, app, env, cont)
 
 @inline_small_list(immutable=True, unbox_num=True)
 class W_ChpVector(W_InterposeVector):
@@ -186,9 +212,42 @@ class W_ChpVector(W_InterposeVector):
                 imp_vec_set_cont(self.inner, i, app, env, cont))
 
     def post_ref_cont(self, i, env, cont, app=None):
-        args = values.Values.make2(self.inner, i)
-        return chaperone_reference_cont(self.refh, args, app, env, cont)
+        return chaperone_vector_reference_cont(self.refh, None, self.inner, i, app, env, cont)
 
+@inline_small_list(immutable=True, unbox_num=True)
+class W_ImpVectorStar(W_InterposeVector):
+    import_from_mixin(ImpersonatorMixin)
+
+    errorname = "impersonate-vector"
+
+    def self_arg(self):
+        return True
+
+    def post_set_cont(self, new, i, env, cont, app=None):
+        return imp_vec_set_cont(self.inner, i, app, env, cont)
+
+    def post_ref_cont(self, i, env, cont, app=None):
+        return impersonate_vector_reference_cont(
+                self.refh, self, self.inner, i, app, env, cont)
+
+@inline_small_list(immutable=True, unbox_num=True)
+class W_ChpVectorStar(W_InterposeVector):
+    import_from_mixin(ChaperoneMixin)
+
+    errorname = "chaperone-vector"
+
+    def self_arg(self):
+        return True
+
+    def post_set_cont(self, new, i, env, cont, app=None):
+        vals = values.Values.make1(new)
+        return check_chaperone_results(vals, env,
+                imp_vec_set_cont(self.inner, i, app, env, cont))
+
+    def post_ref_cont(self, i, env, cont, app=None):
+        return chaperone_vector_reference_cont(self.refh, self, self.inner, i, app, env, cont)
+
+    
 class W_UnsafeInterposeVector(values.W_MVector):
     errorname = "interpose-vector"
     _immutable_fields_ = ["replacement"]

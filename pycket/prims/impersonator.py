@@ -63,9 +63,8 @@ def unpack_vector_args(args, name):
     v, refh, seth = args
     if not isinstance(v, values.W_MVector):
         raise SchemeException(name + ": first arg not a vector")
-    if not refh.iscallable() or not seth.iscallable():
+    if (not refh.iscallable() or not seth.iscallable()) and (not (refh is values.w_false and seth is values.w_false)):
         raise SchemeException(name + ": provided handler is not callable")
-
     return v, refh, seth, prop_keys, prop_vals
 
 def unpack_unsafe_vector_args(args, name):
@@ -203,6 +202,18 @@ def impersonate_vector(args):
 def chaperone_vector(args):
     unpacked = unpack_vector_args(args, "chaperone-vector")
     return imp.make_interpose_vector(imp.W_ChpVector, *unpacked)
+
+@expose("impersonate-vector*", arity=Arity.geq(3))
+def impersonate_vector_star(args):
+    unpacked = unpack_vector_args(args, "impersonate-vector*")
+    if unpacked[0].immutable():
+        raise SchemeException("impersonate-vector*: cannot impersonate immutable vector")
+    return imp.make_interpose_vector(imp.W_ImpVectorStar, *unpacked)
+
+@expose("chaperone-vector*", arity=Arity.geq(3))
+def chaperone_vector_star(args):
+    unpacked = unpack_vector_args(args, "chaperone-vector*")
+    return imp.make_interpose_vector(imp.W_ChpVectorStar, *unpacked)
 
 @expose("unsafe-impersonate-vector", arity=Arity.geq(2))
 def unsafe_impersonate_vector(args):
