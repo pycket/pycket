@@ -121,21 +121,39 @@
         (list "base" "racket" "private")
         (list "base" "racket")
         (list "generic-interfaces" "racket" "private")
-        (list "kw-syntax-local" "racket" "private")))
+        (list "kw-syntax-local" "racket" "private")
+
+        ;; after racket/base
+
+        ;; syntax stuff
+        (list "readerr" "syntax")
+        (list "module-reader" "syntax")
+
+        ;; racket/ stuff
+        (list "path" "racket")
+        ; (list "file" "racket")
+        (list "cmdline" "racket")
+        (list "promise" "racket" "private")
+        (list "promise" "racket")
+        (list "config" "racket" "private")
+
+        ;; setup/ stuff
+        (list "dirs" "setup" "private")
+        (list "dirs" "setup")
+        (list "path-relativize" "setup")
+        (list "cross-system" "setup")
+
+        ; extra
+        (list "define-config" "planet" "private")
+        (list "path" "pkg")
+        ))
 
 ;; TODO list
 
-;; module-prefetch: (racket/path racket/file racket/cmdline) in: #<path:/home/cderici/pycketland/pycket/>
-;; module-prefetch: (path.rkt setup/dirs setup/cross-system) in: #<path:/home/cderici/racketland/racket/racket/collects/racket/>
 ;; module-prefetch: (racket/promise racket/private/config compiler/private/winutf16 compiler/private/mach-o setup/cross-system private/dirs.rkt) in: #<path:/home/cderici/racketland/racket/racket/collects/setup/>
-;; module-prefetch: (private/promise.rkt) in: #<path:/home/cderici/racketland/racket/racket/collects/racket/>
-;; [1539378328.839288] making instance : 'config
-;; module-prefetch: (racket/promise racket/private/config) in: #<path:/home/cderici/racketland/racket/racket/collects/setup/private/>
-;; module-prefetch: (dirs.rkt path-relativize.rkt pkg/path) in: #<path:/home/cderici/racketland/racket/racket/collects/setup/>
-;; module-prefetch: (private/define-config.rkt setup/dirs) in: #<path:/home/cderici/racketland/racket/racket/collects/planet/>
 
+;; racket/contract stuff
 
-;; promise.rkt
 ;; blame.rkt
 ;; rand.rkt
 ;; guts.rkt
