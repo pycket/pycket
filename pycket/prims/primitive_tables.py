@@ -172,7 +172,9 @@ unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-place-local-ref",
               "unsafe-place-local-set!",
               "unsafe-char<?", "unsafe-char<=?", "unsafe-char=?", "unsafe-char>=?", "unsafe-char>?",
-              "unsafe-char->integer"]
+              "unsafe-char->integer",
+              "unsafe-add-global-finalizer", "unsafe-add-collect-callbacks",
+              "unsafe-remove-collect-callbacks"]
 
  # This table omits anything that the expander implements itself,
  # since the expander will export its own variant instead of the
