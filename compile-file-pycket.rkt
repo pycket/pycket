@@ -106,10 +106,10 @@
         (list "for" "racket" "private")
         (list "map" "racket" "private")
         (list "kernstruct" "racket" "private")
-        (list "top-int" "racket" "private")))
+        (list "top-int" "racket" "private")
+        (list "pre-base" "racket" "private")
+        (list "runtime-config" "racket")))
 
-#;(collection-file-path "pre-base.rkt" "racket" "private")
-#;(collection-file-path "runtime-config.rkt" "racket")
 #;(collection-file-path "hash.rkt" "racket")
 #;(collection-file-path "list.rkt" "racket")
 #;(collection-file-path "string.rkt" "racket")
