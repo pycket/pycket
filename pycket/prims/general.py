@@ -148,18 +148,31 @@ def hash_eqv(obj):
     eqv_immutable = isinstance(inner, W_EqvImmutableHashTable)
     return values.W_Bool.make(eqv_mutable or eqv_immutable)
 
+def struct_port_huh(s, in_p=True):
+    st = s.struct_type()
+    for prop in st.props:
+        p, v = prop
+        if in_p:
+            if p is values_struct.w_prop_input_port:
+                return True
+        else:
+            if p is values_struct.w_prop_output_port:
+                return True
+    return False
+
+def struct_input_port_huh(s):
+    return struct_port_huh(s)
+
+def struct_output_port_huh(s):
+    return struct_port_huh(s, in_p=False)
+
 @expose("input-port?", [values.W_Object], simple=True)
 def input_port_huh(a):
     if isinstance(a, values.W_InputPort):
         return values.w_true
     elif isinstance(a, values_struct.W_Struct):
-        st = a.struct_type()
-        in_port_prop = False
-        out_port_prop = False
-        for prop in st.props:
-            p, v = prop
-            if p is values_struct.w_prop_input_port:
-                return values.w_true
+        if struct_input_port_huh(a):
+            return values.w_true
     return values.w_false
 
 @expose("datum-intern-literal", [values.W_Object])
@@ -1335,9 +1348,29 @@ def unsafe_cdr(p):
 def unsafe_mcdr(p):
     return p.cdr()
 
+@continuation
+def struct_port_loc_cont(env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_multi_vals
+    pr = check_one_val(_vals)
+
+    lin = pr.get_line()
+    col = pr.get_column()
+    pos = pr.get_position()
+    return return_multi_vals(values.Values.make([lin, col, pos]),
+                             env, cont)
+
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
     from pycket.interpreter import return_multi_vals
+
+    if isinstance(p, values_struct.W_Struct):
+        if struct_input_port_huh(p):
+            port_index = 0
+        else:
+            port_index = 1
+
+        return p.struct_type().accessor.call([p, values.W_Fixnum(port_index)], env, struct_port_loc_cont(env, cont))
+
     lin = p.get_line()
     col = p.get_column()
     pos = p.get_position()
