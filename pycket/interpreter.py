@@ -954,8 +954,11 @@ class VariableReference(AST):
         if self.var:
             self.var.write(port, env)
         if self.path:
-            port.write("%s " % self.path)
-        port.write("%s" % self.is_mut)
+            port.write(" %s " % self.path)
+        if self.is_mut:
+            port.write(" #t")
+        else:
+            port.write(" #f")
         port.write(")")
 
 class WithContinuationMark(AST):
