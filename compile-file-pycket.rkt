@@ -37,7 +37,8 @@
                    (path->complete-path base (current-directory)))))
            (define out (open-output-file temp-filename #:exists 'truncate/replace))
            (parameterize ([current-load-relative-directory dir]
-                          [current-write-relative-directory dir])
+                          [current-write-relative-directory dir]
+                          [read-accept-reader #t])
              ; Rather than installing a continuation barrier, we detect reinvocation.
              ; The only thing that can cause reinvocation is if the filter captures the
              ; continuation and communicates it externally.
@@ -48,6 +49,7 @@
                     (set! count 1)
                     (error 'compile-file "filter function should not be re-entrant")))
               (lambda ()
+                (printf "read-accept-lang : ~a -- read-accept-reader : ~a\n" (read-accept-lang) (read-accept-reader))
                 (for ([r (in-port (lambda (in) (read-syntax src in)) in)])
                   (write (compile-syntax (filter (namespace-syntax-introduce r))) out))
                 (set! ok? #t))
@@ -102,23 +104,44 @@
         (list "provide-transform" "racket")
         (list "reqprov" "racket" "private")
         (list "modbeg" "racket" "private")
+        (list "submodules" "racket" "private")
         (list "reverse" "racket" "private")
         (list "for" "racket" "private")
         (list "map" "racket" "private")
         (list "kernstruct" "racket" "private")
         (list "top-int" "racket" "private")
         (list "pre-base" "racket" "private")
-        (list "runtime-config" "racket")))
+        (list "runtime-config" "racket")
+        (list "hash" "racket" "private")
+        (list "list" "racket" "private")
+        (list "string" "racket" "private")
+        (list "kw-file" "racket" "private")))
 
-#;(collection-file-path "hash.rkt" "racket")
-#;(collection-file-path "list.rkt" "racket")
-#;(collection-file-path "string.rkt" "racket")
-#;(collection-file-path "kw-file.rkt" "racket" "private")
 #;(collection-file-path "namespace.rkt" "racket" "private")
 #;(collection-file-path "struct.rkt" "racket" "private")
 #;(collection-file-path "base.rkt" "racket" "private")
 #;(collection-file-path "generic-interfaces.rkt" "racket" "private")
 #;(collection-file-path "kw-syntax-local.rkt" "racket" "private")
+
+;; TODO list
+
+;; promise.rkt
+;; blame.rkt
+;; rand.rkt
+;; guts.rkt
+;; prop.rkt
+;; arrow-common.rkt
+;; arity-checking.rkt
+;; arr-util.rkt
+;; opt.rkt
+;; opt-guts.rkt
+;; generate.rkt
+;; exists.rkt
+;; arrow-val-first.rkt
+;; arrow-higher-order.rkt
+;; orc.rkt
+;; generate-base.rkt
+
 
 (define batch #f)
 (define clean #f)
