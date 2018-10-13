@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/pycket/pycket.png?branch=master)](https://travis-ci.org/pycket/pycket) [![codecov.io](https://codecov.io/github/pycket/pycket/coverage.svg?branch=master) ](https://codecov.io/github/pycket/pycket?branch=master)
 [![license](http://img.shields.io/badge/license-mit-blue.svg)](https://opensource.org/licenses/MIT) <img align="right" width="210" height="60" src="https://github.com/pycket/pycket/blob/master/pycket.png">
 
-
+[![Slack channel](https://img.shields.io/badge/slack-channel-orange.svg)](https://racket.slack.com/messages/pycket) [![IRC channel](https://img.shields.io/badge/IRC-channel-orange.svg)](irc://freenode/pycket)
 
 Pycket is a Racket/Scheme implementation that is automatically
 generated using the [RPython framework](https://rpython.readthedocs.io/en/latest/). Given an interpreter written in RPython (in our case a CEK machine interpreter for Racket), RPython framework produces a fast binary for it. It can also add a tracing JIT.
@@ -15,8 +15,6 @@ See the [Makefile targets](#make-targets) section about how to build both versio
 
 ### Quick Links:
 
- * [#pycket](https://racket.slack.com/messages/pycket) Slack channel under Racket
- * [#pycket](irc://freenode/pycket) channel on IRC freenode
  * Pycket's benchmarks are available at [this repository](https://github.com/krono/pycket-bench), along with instructions for running them.
  * [Running Pycket](#running)
  * [Environment Variables](#vars)
