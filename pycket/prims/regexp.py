@@ -231,13 +231,13 @@ def regexp_replace(pattern, input, insert, prefix):
     elif isinstance(input, values.W_Bytes):
         str = input.as_str().decode("utf-8")
     else:
-        raise SchemeException("regexp-replace*: expected string or bytes input")
+        raise SchemeException("regexp-replace: expected string or bytes input, given : %s" % input.tostring())
     if isinstance(insert, values_string.W_String):
         ins = insert.as_unicode()
     elif isinstance(insert, values.W_Bytes):
         ins = insert.as_str().decode("utf-8")
     else:
-        raise SchemeException("regexp-replace*: expected string or bytes insert string")
+        raise SchemeException("regexp-replace: expected string or bytes as insert, given : %s" % insert.tostring())
     formatter = values_regex.parse_insert_string(ins)
     subs = values_regex.do_input_substitution(formatter, str, matches)
     start, end = matches[0]
@@ -262,13 +262,13 @@ def regexp_replace_star(pattern, input, insert, start, end, prefix):
     elif isinstance(input, values.W_Bytes):
         str = input.as_str().decode("utf-8")
     else:
-        raise SchemeException("regexp-replace*: expected string or bytes input")
+        raise SchemeException("regexp-replace*: expected string or bytes input, given : %s" % input.tostring())
     if isinstance(insert, values_string.W_String):
         ins = insert.as_unicode()
     elif isinstance(insert, values.W_Bytes):
         ins = insert.as_str().decode("utf-8")
     else:
-        raise SchemeException("regexp-replace*: expected string or bytes insert string")
+        raise SchemeException("regexp-replace*: expected string or bytes as insert, given : %s" % insert.tostring())
     builder = rstring.UnicodeBuilder()
     lhs = 0
     formatter = values_regex.parse_insert_string(ins)
