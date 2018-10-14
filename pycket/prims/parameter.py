@@ -1,6 +1,7 @@
 
 from pycket                 import values
 from pycket                 import values_parameter
+from pycket                 import vector
 from pycket.argument_parser import ArgParser
 from pycket.arity           import Arity
 from pycket.base            import W_Object
@@ -72,7 +73,8 @@ expose_val("compile-context-preservation-enabled", values_parameter.W_Parameter(
 
 expose_val("compile-allow-set!-undefined", values_parameter.W_Parameter(values.w_false))
 
-expose_val("current-command-line-arguments", values_parameter.W_Parameter(values.w_false))
+current_cmd_args_param = values_parameter.W_Parameter(vector.W_Vector.fromelements([]))
+expose_val("current-command-line-arguments", current_cmd_args_param)
 expose_val("eval-jit-enabled", values_parameter.W_Parameter(values.w_true, eval_jit_enabled_guard))
 expose_val("exnh", values_parameter.W_Parameter(values.w_false))
 expose_val("load-on-demand-enabled", values_parameter.W_Parameter(values.w_true))

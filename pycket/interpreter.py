@@ -6,11 +6,12 @@ from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
 from pycket.AST               import AST
 from pycket.arity             import Arity
-from pycket.cont              import Cont, NilCont, label
+from pycket.cont              import Cont, NilCont, label, continuation
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.error             import SchemeException
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.prims.control     import convert_runtime_exception
+from pycket.prims.parameter   import current_cmd_args_param
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
 from rpython.rlib             import jit, debug, objectmodel
@@ -2443,6 +2444,10 @@ def interpret_one(ast, env=None, cont=None):
 
     if cont.marks is None:
         cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+
+    if env.get_commandline_arguments():
+        cell = current_cmd_args_param.get_cell(cont)
+        cell.set(vector.W_Vector.fromelements(env.get_commandline_arguments()))
     try:
         inner_interpret(ast, env, cont)
     except Done, e:

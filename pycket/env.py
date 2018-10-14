@@ -208,6 +208,9 @@ class ToplevelEnv(Env):
         self._pycketconfig = pycketconfig
         self.current_linklet_instance = current_linklet_instance
 
+    def get_commandline_arguments(self):
+        return self.commandline_arguments
+
     def get_current_version(self):
         return self.version
 
