@@ -2445,7 +2445,7 @@ def interpret_one(ast, env=None, cont=None):
     if cont.marks is None:
         cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
 
-    if env.get_commandline_arguments():
+    if env.toplevel_env().get_commandline_arguments():
         cell = current_cmd_args_param.get_cell(cont)
         cell.set(vector.W_Vector.fromelements(env.get_commandline_arguments()))
     try:
