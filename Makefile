@@ -84,19 +84,26 @@ debug-no-jit: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) --lldebug targetpycket.py
 	cp pycket-c pycket-c-debug-no-jit
 
-check-binary:
-	ifeq (,$(wildcard ./pycket-c-linklets))
-	  $(error Pycket binary does not exist)
-	endif
-
-compile-file: check-binary
+compile-file:
+ifneq (,$(wildcard ./pycket-c-linklets))
 	./pycket-c-linklets compile-file-pycket.rkt -- $(FILE)
+else
+	$(error Pycket binary does not exist)
+endif
 
-compile-racket-modules: check-binary
+compile-racket-modules:
+ifneq (,$(wildcard ./pycket-c-linklets))
 	./pycket-c-linklets compile-file-pycket.rkt -- -b
+else
+	$(error Pycket binary does not exist)
+endif
 
-clean-compiled-files: check-binary
+clean-compiled-files:
+ifneq (,$(wildcard ./pycket-c-linklets))
 	./pycket-c-linklets compile-file-pycket.rkt -- --clean
+else
+	$(error Pycket binary does not exist)
+endif
 
 setup-racket-for-old-pycket:
 	raco pkg install -t dir pycket/pycket-lang/ || \
