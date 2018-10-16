@@ -180,20 +180,36 @@
 
 (define batch #f)
 (define clean #f)
+(define force-recompile #f)
 
 (command-line
  #:once-each
- [("-b" "--batch") "compile the Racket modules statically listed here" (set! batch #t)]
- [("--clean") "remove all the generated pycket .zo files for racket modules" (set! clean #t)]
+ [("-b" "--batch") "compile the Racket modules statically listed here"
+                   (set! batch #t)]
+ [("--clean") "remove all the generated pycket .zo files for racket modules"
+              (set! clean #t)]
+ [("-f" "--force") "force re-generation of existing zo files (disabled by default)"
+                   (set! force-recompile #t)]
  #:args paths
  (parameterize ([current-namespace (make-base-namespace)])
+   ;; to do multiple
    (when batch
      (for ([p-list (in-list racket-modules)])
        (let* ([mod-name (format "~a.rkt" (car p-list))]
               [dirs (cdr p-list)]
-              [p (apply collection-file-path (cons mod-name dirs))])
-         (printf "PYCKET COMPILE FILE -- compiling : ~a\n" p)
-         (compile-file p))))
+              [p (apply collection-file-path (cons mod-name dirs))]
+
+              [compiled-dir (append dirs (list "pycket-compiled"))]
+              [compiled-file-name (format "~a_rkt.zo" (car p-list))]
+              [zo-path (apply collection-file-path (cons compiled-file-name
+                                                         compiled-dir))])
+         (if (or force-recompile (not (file-exists? zo-path)))
+             (begin
+               (printf "PYCKET COMPILE FILE -- compiling : ~a\n" p)
+               (compile-file p))
+             (printf "PYCKET COMPILE FILE -- PASS -- already exists : ~a\n" p)))))
+
+   ;; to compile individual paths
    (when (not (null? paths))
      (for ([p (in-list paths)])
        (let* ([path-to-file.rkt (string->path p)]
