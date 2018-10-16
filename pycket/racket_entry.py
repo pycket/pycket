@@ -305,7 +305,7 @@ def get_options(names, config):
     set_config_dir = names['set-config-dir'][0] if 'set-config-dir' in names else ""
     set_addon_dir = names['set-addon-dir'][0] if 'set-addon-dir' in names else ""
 
-    init_library = names['init-lib'][0] if 'init-lib' in names else "racket/kernel/init" # racket/init
+    init_library = names['init-lib'][0] if 'init-lib' in names else "racket/base" # racket/init
     is_repl = config['repl']
     no_lib = config['no-lib']
     just_kernel = config['just_kernel']
