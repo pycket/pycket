@@ -49,7 +49,7 @@
                     (set! count 1)
                     (error 'compile-file "filter function should not be re-entrant")))
               (lambda ()
-                (printf "read-accept-lang : ~a -- read-accept-reader : ~a\n" (read-accept-lang) (read-accept-reader))
+                #;(printf "read-accept-lang : ~a -- read-accept-reader : ~a\n" (read-accept-lang) (read-accept-reader))
                 (for ([r (in-port (lambda (in) (read-syntax src in)) in)])
                   (write (compile-syntax (filter (namespace-syntax-introduce r))) out))
                 (set! ok? #t))
@@ -104,7 +104,7 @@
         (list "provide-transform" "racket")
         (list "reqprov" "racket" "private")
         (list "modbeg" "racket" "private")
-        (list "submodules" "racket" "private")
+        (list "submodule" "racket" "private")
         (list "reverse" "racket" "private")
         (list "for" "racket" "private")
         (list "map" "racket" "private")
@@ -121,7 +121,7 @@
         (list "base" "racket" "private")
         (list "base" "racket")
         (list "generic-interfaces" "racket" "private")
-        (list "kw-syntax-local" "racket" "private")
+        (list "kw-syntax-binding" "racket" "private")
 
         ;; after racket/base
 
@@ -130,23 +130,24 @@
         (list "module-reader" "syntax")
 
         ;; racket/ stuff
-        (list "path" "racket")
-        ; (list "file" "racket")
-        (list "cmdline" "racket")
-        (list "promise" "racket" "private")
-        (list "promise" "racket")
-        (list "config" "racket" "private")
+        #;(list "path" "racket")
+        #;(list "file" "racket")
+        #;(list "cmdline" "racket")
+        #;(list "promise" "racket")
+        #;(list "promise" "racket" "private")
+        #;(list "config" "racket" "private")
 
         ;; setup/ stuff
-        (list "dirs" "setup" "private")
-        (list "dirs" "setup")
-        (list "path-relativize" "setup")
-        (list "cross-system" "setup")
+        #;(list "dirs" "setup")
+        #;(list "dirs" "setup" "private")
+        #;(list "path-relativize" "setup")
+        #;(list "cross-system" "setup")
 
         ; extra
-        (list "define-config" "planet" "private")
-        (list "path" "pkg")
+        #;(list "define-config" "planet" "private")
+        #;(list "path" "pkg")
         ))
+
 
 ;; TODO list
 
@@ -206,4 +207,5 @@
                 (zo-path (build-path d "pycket-compiled" zo-name)))
            (printf "REMOVING : ~a\n" zo-path)
            (when (file-exists? zo-path)
-             (delete-file zo-path))))))))
+             (delete-file zo-path))))))
+   (printf "DONE.\n")))
