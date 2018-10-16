@@ -2,7 +2,7 @@
 (require racket/path racket/list
          racket/file
          racket/cmdline)
-(provide compile-file)
+(provide compile-file compile-lib-path)
 
 (define compile-file
   (case-lambda
@@ -132,14 +132,28 @@
     "racket/list"
     "racket/private/arity"
     "racket/private/norm-arity"
+    "racket/promise"
+    "racket/private/promise"
+    "racket/private/config"
     "syntax/readerr"
     "syntax/module-reader"
-    "syntax/wrap-modbeg"))
+    "syntax/wrap-modbeg"
+    "setup/cross-system"
+    "setup/dirs"
+    "setup/private/dirs"
+    "compiler/private/mach-o"
+    "compiler/private/winutf16"
+    "planet/private/define-config"
+    "racket/cmdline"
+    "setup/path-relativize"
+    "pkg/path"
+    ;; "racket/path" ;; fails for regexp feature
+    ))
+
+
 
 
 ;; TODO list
-
-;; module-prefetch: (racket/promise racket/private/config compiler/private/winutf16 compiler/private/mach-o setup/cross-system private/dirs.rkt) in: #<path:/home/cderici/racketland/racket/racket/collects/setup/>
 
 ;; racket/contract stuff
 
@@ -167,12 +181,9 @@
   (let* ([p-list (split p)]
          [mod-name (format "~a.rkt" (car p-list))]
          [dirs (cdr p-list)]
-         [p (apply collection-file-path (cons mod-name dirs))]
-
-         [compiled-dir (append dirs (list "pycket-compiled"))]
+         [p (apply collection-file-path mod-name dirs)]
          [compiled-file-name (format "~a_rkt.zo" (car p-list))]
-         [zo-path (apply collection-file-path (cons compiled-file-name
-                                                    compiled-dir))])
+         [zo-path (build-path (path-only p) "pycket-compiled" compiled-file-name)])
     (if (or force-recompile (not (file-exists? zo-path)))
         (begin
           (printf "PYCKET COMPILE FILE -- compiling : ~a\n" p)
@@ -200,6 +211,9 @@
       (when (file-exists? zo-path)
         (delete-file zo-path)))))
 
+;; fake-parameterize
+(define old-ns (current-namespace))
+
 (define batch #f)
 (define clean #f)
 (define force-recompile #f)
@@ -215,20 +229,23 @@
  [("-l") "interpret paths as library paths"
          (set! lib-path? #t)]
  #:args paths
- (parameterize ([current-namespace (make-base-namespace)])
-   ;; to do multiple
-   (when batch
-     (for ([p (in-list racket-modules)])
-       (compile-lib-path p)))
+ ;; do this with mutation because parameterization doesn't currently work
+ (current-namespace (make-base-namespace))
+ ;; to do multiple
+ (when batch
+   (for ([p (in-list racket-modules)])
+     (compile-lib-path p)))
+ 
+ ;; to compile individual paths
+ (when (not (null? paths))
+   (for ([p (in-list paths)])
+     (if lib-path?
+         (compile-lib-path p)
+         (compile-path p))))
+ 
+ (when clean
+   (for ([p (in-list racket-modules)])
+     (clean-file p)))
+ (printf "DONE.\n"))
 
-   ;; to compile individual paths
-   (when (not (null? paths))
-     (for ([p (in-list paths)])
-       (if lib-path?
-           (compile-lib-path p)
-           (compile-path p))))
-   
-   (when clean
-     (for ([p (in-list racket-modules)])
-       (clean-file p)))
-   (printf "DONE.\n")))
+(current-namespace old-ns)
