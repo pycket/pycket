@@ -122,12 +122,18 @@
         (list "base" "racket")
         (list "generic-interfaces" "racket" "private")
         (list "kw-syntax-binding" "racket" "private")
+        (list "executable-path" "racket" "private")
+        (list "old-path" "racket" "private")
+        (list "immediate-default" "racket" "private")
+        (list "collect" "racket" "private")
+        (list "cert" "racket" "private")
 
         ;; after racket/base
 
         ;; syntax stuff
         (list "readerr" "syntax")
         (list "module-reader" "syntax")
+        (list "wrap-modbeg" "syntax")
 
         ;; racket/ stuff
         #;(list "path" "racket")
