@@ -129,6 +129,7 @@
     "racket/private/collect"
     "racket/private/cert"
     "racket/private/list-predicates"
+    "racket/private/math-predicates"
     "racket/list"
     "racket/private/arity"
     "racket/private/norm-arity"
@@ -155,31 +156,94 @@
     "syntax/srcloc"
     "syntax/location"
     "racket/path"
-    ;; "racket/file"
+    "racket/file"
+    "racket/private/vector-wraps"
+    "racket/unsafe/ops"
+    "racket/private/port"
+    "racket/private/portlines"
+    "racket/struct-info"
+    "racket/private/custom-write"
+    "racket/pretty"
+    "setup/main-collects"
+    "setup/path-to-relative"
+    "racket/private/performance-hint"
+    "racket/contract/private/helpers"
+    "racket/contract/private/prop"
+    "racket/contract/private/blame"
+    "racket/contract/private/generate-base"
+    "racket/contract/private/guts"
+    "racket/contract/private/misc"
+    "racket/contract/private/arrow-common"
+    "racket/contract/private/arr-i-parse"
+    "racket/contract/private/arr-util"
+    "racket/contract/private/arr-i"
+    "racket/contract/private/arr-d"
+    "racket/contract/private/and"
+    "racket/contract/private/opt-guts"
+    "racket/contract/private/list"
+    "racket/contract/private/opt"
+    "racket/contract/private/ds-helpers"
+    ;; "racket/contract/private/ds" ;; exn:fail : Reference to an undefined variable : build-optres22.1
+    "racket/contract/private/arity-checking"
+    "racket/contract/private/application-arity-checking"
+    "racket/contract/private/arrow-higher-order"
+    "racket/contract/private/kwd-info-struct"
+    "racket/contract/private/box"
+    "racket/contract/private/basic-opters"
+    "racket/contract/private/arrow-val-first"
+    ;; "racket/contract/private/case-arrow" ;; fail
+    "racket/contract/private/hash"
+    "racket/contract/private/legacy"
+    "racket/contract/private/orc"
+    ;; "racket/contract/private/out" ;; fail
+    ;; "racket/contract/private/object" ;; needs classes
+    "racket/contract/private/parametric"
+    ;; "racket/contract/private/provide" ;; fail
+    ;; "racket/contract/private/struct-dc" ;; fail
+    "racket/contract/private/struct-prop"
+    "racket/contract/private/top-sort"
+    "racket/contract/private/types"
+    "racket/contract/private/unconstrained-domain-arrow"
+    "racket/contract/private/vector"
+
+    "racket/private/serialize-structs"
+    "racket/private/so-search"
+    "racket/private/runtime-path-table"
+    "racket/private/this-expression-source-directory"
+    ;; "racket/runtime-path" ;; fail
+    "racket/unsafe/undefined"
+    "syntax/kerncase"
+    "racket/private/class-wrapped"
+    "racket/private/classidmap"
+    "racket/private/class-undef"
+    "racket/private/check"
+    ;; "racket/private/custom-hash" ;; fail
+    ;; "racket/private/generic" ;; fail
+    "racket/private/local"
+    "racket/private/place-local"
+    "racket/private/primitive-table"
+    "racket/private/sequence"
+    "racket/private/small-scheme"
+    "racket/private/streams"
+    "racket/private/stream-cons"
+    "racket/private/truncate-path"
+    "racket/private/unit-keywords"
+    "racket/private/unix-rand"
+    ;; "racket/private/serialize" ;; fail
+    ;; "racket/private/unit-compiletime" ;; fail
+    ;; "racket/private/unit-utils" ;; fail
+    ;; "racket/private/set" ;; fail
+    ;; "racket/private/set-types" ;; fail
+    ;; "racket/private/shared-body" ;; fail
+    ;; "racket/private/tethered-installer" ;; fail
+    ;; "racket/private/unit-contract-syntax" ;; fail
+    ;; "racket/private/unit-contract" ;; fail
+    "racket/private/unit-runtime"
+
+    ;; "racket/struct" ;; needs contracts
+    ;; "syntax/strip-context" ;; needs contracts
     ))
 
-
-
-
-;; TODO list
-
-;; racket/contract stuff
-
-;; blame.rkt
-;; rand.rkt
-;; guts.rkt
-;; prop.rkt
-;; arrow-common.rkt
-;; arity-checking.rkt
-;; arr-util.rkt
-;; opt.rkt
-;; opt-guts.rkt
-;; generate.rkt
-;; exists.rkt
-;; arrow-val-first.rkt
-;; arrow-higher-order.rkt
-;; orc.rkt
-;; generate-base.rkt
 
 (define (split s)
   (define l (regexp-split "/" s))
