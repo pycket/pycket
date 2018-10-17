@@ -236,6 +236,9 @@ def regexp_replace(pattern, input, insert, prefix):
         ins = insert.as_unicode()
     elif isinstance(insert, values.W_Bytes):
         ins = insert.as_str().decode("utf-8")
+    elif isinstance(insert, values.W_Procedure):
+        # FIXME: hack
+        return input
     else:
         raise SchemeException("regexp-replace: expected string or bytes as insert, given : %s" % insert.tostring())
     formatter = values_regex.parse_insert_string(ins)
