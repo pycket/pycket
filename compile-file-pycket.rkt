@@ -147,7 +147,15 @@
     "racket/cmdline"
     "setup/path-relativize"
     "pkg/path"
-    ;; "racket/path" ;; fails for regexp feature
+    "racket/private/vector-wraps"
+    "racket/unsafe/ops"
+    "racket/flonum"
+    "racket/fixnum"
+    "syntax/private/boundmap"
+    "syntax/srcloc"
+    "syntax/location"
+    "racket/path"
+    ;; "racket/file"
     ))
 
 
