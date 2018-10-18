@@ -149,7 +149,7 @@ def test_instantiate_basic_import():
     # target's defs are overwritten only if the linklet has a definition
     # not with an imported variable
     l1 = make_instance("(linklet () (x) (define-values (x) 4))")
-    l2 = make_linklet("(linklet ((x)) () (+ x x))")    
+    l2 = make_linklet("(linklet ((x)) () (+ x x))")
     t = make_instance("(linklet () () (define-values (x) 1000))")
     result, t = eval_fixnum(l2, t, [l1])
     assert result == 8
@@ -414,10 +414,46 @@ def test_instantiate_letrec_rhs_cells():
 def test_compilation_context_normalize_term():
     # Context.normalize_term might be faulty
     l = make_linklet("(linklet () () (let-values (((x) 5)) (+ x (let-values (((x) 10)) x))))")
-    #import pdb;pdb.set_trace()
     result, _ = eval_fixnum(l, empty_target())
     assert result == 15
 
     l = make_linklet("(linklet () () (let-values (((x) 5)) (+ x (let-values (((x) 10)) (+ x (let-values (((x) 20) ((y) 21)) (+ x y)))))))")
     result, _ = eval_fixnum(l, empty_target())
     assert result == 56
+
+
+@pytest.mark.marks
+def test_continuation_marks_across_linklets():
+    l1 = make_instance("""(linklet () (f)
+                            (define-values (f)
+                              (lambda (c)
+                                (if
+                                 (eq? (continuation-mark-set-first #f parameterization-key) c)
+                                 1 -1))))""")
+    l2 = make_linklet("""(linklet ((f)) ()
+                         (f (continuation-mark-set-first #f parameterization-key)))""")
+    result, _ = eval_fixnum(l2, empty_target(), [l1])
+    assert result == 1
+
+    l1 = make_instance("""(linklet
+     () (f)
+     (define-values (f)
+       (lambda (c)
+         (if (eq? c (continuation-mark-set-first #f parameterization-key))
+             1
+             -1))))""")
+    l2 = make_linklet("""(linklet
+     ((f)) ()
+     (define-values (caner) (make-parameter #f))
+     (define-values (new-params)
+       (extend-parameterization
+        (continuation-mark-set-first #f parameterization-key)
+        caner
+        11))
+     (with-continuation-mark
+         parameterization-key
+       new-params
+       (car (list (f new-params))))
+     )""")
+    result, _ = eval_fixnum(l2, empty_target(), [l1])
+    assert result == 1
