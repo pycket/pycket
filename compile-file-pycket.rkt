@@ -326,8 +326,7 @@
          [dirs (cdr p-list)]
          [p (apply collection-file-path mod-name dirs)]
          [compiled-file-name (format "~a_rkt.zo" (car p-list))]
-         [zo-path (apply collection-file-path (cons compiled-file-name
-                                                    compiled-dir))])
+         [zo-path (build-path (path-only p) "pycket-compiled" compiled-file-name)])
     (if (or force-recompile
             (<= (file-or-directory-modify-seconds zo-path #f (lambda () -inf.0))
                 (file-or-directory-modify-seconds p #f)))
