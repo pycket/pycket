@@ -239,7 +239,76 @@
     ;; "racket/private/unit-contract-syntax" ;; fail
     ;; "racket/private/unit-contract" ;; fail
     "racket/private/unit-runtime"
+    ;; "racket/async-channel" ;; fail
+    "racket/bool"
+    "racket/block"
+    "racket/bytes"
+    "racket/control"
+    ;; "racket/date" ;; fail
+    ;; "racket/dict" ;; fail
+    ;; "racket/engine ;; fail
+    ;; "racket/enter" fail
+    "racket/exn"
+    "racket/fasl"
+    ;; "racket/format ;; fail
+    "racket/function"
+    "racket/future"
+    "racket/generator"
+    ;; "racket/generic" ;; fail
+    ;; "racket/hash" ;; fial
+    "racket/help"
+    "racket/include"
+    ;; "racket/init" ;; fail
+    "racket/interactive"
+    "racket/kernel"
+    "racket/keyword-transform"
+    "racket/language-info"
+    ;; "racket/lazy-require" ;; fail
+    "racket/linklet"
+    ;; "racket/match" ;;fail
+    "racket/local"
+    ;; "racket/main" ;; fail
+    ;; "racket/logging" ;; fail
+    ;; "racket/os" ;; fail
+    ;; "racket/performance-hint" ;; fail
+    ;; "racket/place" ;; fail
+    "racket/provide-syntax"
+    "racket/provide-transform"
+    "racket/prefab"
+    ;; "racket/port" ;; fail
+    ;; "racket/random" ;; fail
+    "racket/require"
+    "racket/require-syntax"
+    "racket/require-transform"
+    ;; "racket/rerequire" ;; fail
+    ;; "racket/sequence" ;; fail
+    ;; "racket/serialize" ;; fail
+    ;; "racket/set" ;; fail
+    ;; "racket/shared" ;; fail
+    "racket/splicing"
+    ;; "racket/stream" ;; fail
+    "racket/string"
+    ;; "racket/surrogate" ;; fail
+    "racket/syntax"
+    "racket/stxparam"
+    "racket/system"
+    "racket/undefined"
+    "racket/tcp"
+    "racket/udp"
+    ;; "racket/trait ;; fail
+    "racket/vector"
+    ;; "racket/unit ;; fail
+    ;; "racket/unit-exptime" ;; fail
+    "racket/load/lang/reader"
+    "racket/base/lang/reader"
+    ;; "racket/lang/reader" ;; fail
+    "racket/kernel/init" ;; fail
+    "racket/place/private/prop"
+    "racket/place/private/th-place"
+    "racket/place/private/coercion"
+    "racket/place/private/async-bi-channel"
 
+    ;; racket/match ??
     ;; "racket/struct" ;; needs contracts
     ;; "syntax/strip-context" ;; needs contracts
     ))
