@@ -307,7 +307,9 @@
     "racket/place/private/th-place"
     "racket/place/private/coercion"
     "racket/place/private/async-bi-channel"
-
+    "racket/match/runtime"
+    "racket/match/stxtime"
+    "racket/match/syntax-local-match-introduce"
     ;; racket/match ??
     ;; "racket/struct" ;; needs contracts
     ;; "syntax/strip-context" ;; needs contracts
