@@ -1927,3 +1927,13 @@ def get_verbosity():
 def set_verbosity(v):
     from pycket.env import w_global_config as glob_conf
     glob_conf.set_config_val('verbose', v.value)
+
+addr_sym = values.W_Symbol.make("mem-address")
+
+@expose("pycket:print", [values.W_Object, default(values.W_Symbol, addr_sym)])
+def pycket_print(o, sym):
+    from pycket.util import console_log
+    if sym is addr_sym:
+        console_log("PYCKET:PRINT : %s" % o, debug=True)
+    else:
+        console_log("PYCKET:PRINT : %s" % o.tostring(), debug=True)
