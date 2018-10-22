@@ -296,6 +296,8 @@ class W_Linklet(W_Object):
 
         if not cont:
             cont = Prompt(w_default_continuation_prompt_tag, None, env, NilCont())
+            if prompt: # REMOVABLE
+                raise SchemeException("assumption failed; didn't get a continuation as a parameter, but got prompt : #t")
 
         if prompt:
             Prompt(w_default_continuation_prompt_tag, None, env, cont)
