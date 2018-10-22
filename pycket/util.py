@@ -36,7 +36,7 @@ def console_log(print_str, given_verbosity_level=0, debug=False):
     from pycket.env import w_global_config
     current_v_level = w_global_config.get_config_val('verbose')
 
-    if given_verbosity_level <= current_v_level:
+    if given_verbosity_level <= current_v_level or debug:
         current_str = str(rtime.time()) # str will trim it to 2 decimals
         decimal = len(current_str.split(".")[1])
         # decimal cannot be 0, since we know rtime.time() will always
