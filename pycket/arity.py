@@ -3,6 +3,7 @@
 
 from pycket.util  import memoize
 from rpython.rlib import jit
+import values
 
 class Arity(object):
     _immutable_fields_ = ['arity_list[*]', 'at_least']
@@ -34,6 +35,18 @@ class Arity(object):
         arity_list = [i + shift for i in self.arity_list if i + shift > -1]
         at_least = max(self.at_least + shift, -1)
         return Arity(arity_list, at_least)
+
+    @jit.elidable
+    def arity_bits(self):
+        # FIXME: handle bignums
+        import math
+        if self.at_least == -1:
+            m = 0
+        else:
+            m = -int(math.pow(2, self.at_least))
+        for n in self.arity_list:
+            m = m | int(math.pow(2, n))
+        return values.W_Fixnum(m)
 
     @staticmethod
     @memoize
