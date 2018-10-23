@@ -669,14 +669,15 @@ def procedure_result_arity(proc, env, cont):
 
 @expose("procedure-reduce-arity", [procedure, values.W_Object])
 def procedure_reduce_arity(proc, arity):
-    # FIXME : checks (keyword args etc)
-    assert isinstance(arity, Arity)
-    proc.set_arity(arity)
+    # FIXME : this code is all wrong
+    #assert isinstance(arity, Arity)
+    #proc.set_arity(arity)
     return proc
 
 @expose("procedure-reduce-arity-mask", [procedure, values.W_Fixnum, default(values.W_Object, values.w_false)])
-def procedure_reduce_arity(proc, mask, name):
+def procedure_reduce_arity_mask(proc, mask, name):
     import math
+    return proc # FIXME: do this without mutation
 
     v = mask.value
     # turn the given mask into an arity
@@ -690,6 +691,7 @@ def procedure_reduce_arity(proc, mask, name):
         ar = Arity([ar_value], -1)
 
     # FIXME: what if the mask represents a list? see math_arity_cont
+    # FIXME: mutation is wrong!
     proc.set_arity(ar)
     return proc
 
