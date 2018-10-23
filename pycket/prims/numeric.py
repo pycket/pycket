@@ -177,7 +177,8 @@ def flexpt(n, m):
     return n.arith_pow_same(m)
 
 def make_arith(name, neutral_element, methname, supports_zero_args):
-    @expose(name, simple=True)
+    art = Arity.geq(0) if supports_zero_args else Arity.geq(1)
+    @expose(name, simple=True, arity=art)
     @jit.unroll_safe
     def do(args):
         # XXX so far (+ '()) returns '(). need better type checking here
