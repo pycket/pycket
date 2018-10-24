@@ -477,18 +477,18 @@ def raise_exception(v, barrier, env, cont):
     assert barrier is values.w_true
 
     handler = None
-    while cont is not None:
-        handler, _ = cont.find_cm(values.exn_handler_key)
+    k = cont
+    while k is not None:
+        handler, _ = k.find_cm(values.exn_handler_key)
         if handler is not None:
             break
-        cont = cont.get_previous_continuation()
+        k = k.get_previous_continuation()
     else:
         raise SchemeException("uncaught exception:\n %s" % v.tostring())
 
     if not handler.iscallable():
         raise SchemeException("provided handler is not callable")
 
-    assert cont is not None
     return handler.call([v], env, cont)
 
 expose("raise", [values.W_Object, default(values.W_Object, values.w_true)], simple=False)(raise_exception)
