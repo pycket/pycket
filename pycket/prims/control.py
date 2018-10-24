@@ -332,6 +332,7 @@ def abort_current_continuation(args, env, cont):
     tag, args = args[0], args[1:]
     if not isinstance(tag, values.W_ContinuationPromptTag):
         raise SchemeException("abort-current-continuation: expected prompt-tag for argument 0")
+
     prompt, frames = find_continuation_prompt(tag, cont, direction='unwind')
     if prompt is None:
         raise SchemeException("abort-current-continuation: no such prompt exists")
@@ -463,8 +464,6 @@ def call_with_continuation_prompt(args, env, cont):
     if handler is values.w_false:
         handler = None
     cont = Prompt(tag, handler, env, cont)
-    cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
-    cont.update_cm(values.exn_handler_key, default_uncaught_exception_handler)
     return fun.call(args, env, cont)
 
 @expose("call-with-continuation-barrier", [procedure], simple=False, extra_info=True)

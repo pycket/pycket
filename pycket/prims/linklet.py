@@ -295,16 +295,15 @@ class W_Linklet(W_Object):
         env.set_current_linklet_instance(target)
 
         if not cont:
-            cont = Prompt(w_default_continuation_prompt_tag, None, env, NilCont())
+            cont = NilCont()
+            cont.update_cm(parameterization_key, top_level_config)
+            cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+
             if prompt: # REMOVABLE
                 raise SchemeException("assumption failed; didn't get a continuation as a parameter, but got prompt : #t")
 
         if prompt:
             Prompt(w_default_continuation_prompt_tag, None, env, cont)
-
-        cont.update_cm(parameterization_key, top_level_config)
-        cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
-
 
         """
         Process the imports, get them into the toplevel environment
