@@ -119,7 +119,7 @@ make-pypy:
 pull-pypy:
 	hg -R $(PYPYPATH) pull
 
-update-pypy: pypy-pypy
+update-pypy: pull-pypy
 	hg -R $(PYPYPATH) update
 
 setup-old-pycket: setup-racket-for-old-pycket update-pypy
