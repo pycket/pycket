@@ -48,8 +48,8 @@ def call_with_parameterization(f, args, paramz, env, cont):
     return f.call(args, env, cont)
 
 @expose("call-with-parameterization",
-        [values.W_Object, values_parameter.W_Parameterization], simple=False)
-def call_w_paramz(f, paramz, env, cont):
+        [values_parameter.W_Parameterization, values.W_Object], simple=False)
+def call_w_paramz(paramz, f, env, cont):
     return call_with_parameterization(f, [], paramz, env, cont)
 
 def call_with_extended_paramz(f, args, keys, vals, env, cont):
