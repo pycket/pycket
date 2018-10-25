@@ -105,7 +105,12 @@ else
 	$(error Pycket binary does not exist)
 endif
 
-recompile-racket-modules: clean-compiled-files compile-racket-modules
+recompile-racket-modules:
+ifneq (,$(wildcard ./pycket-c-linklets))
+	./pycket-c-linklets -c compile-file-pycket.rkt -- --recompile
+else
+	$(error Pycket binary does not exist)
+endif
 
 setup-racket-for-old-pycket:
 	raco pkg install -t dir pycket/pycket-lang/ || \

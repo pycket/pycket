@@ -313,12 +313,15 @@
   (define lib-path? #f)
   ;; fake-parameterize
   (define old-ns (current-namespace))
+  (define recompile #f)
   (command-line
    #:once-each
    [("-b" "--batch") "compile the Racket modules statically listed here"
                      (set! batch #t)]
    [("--clean") "remove all the generated pycket .zo files for racket modules"
                 (set! clean #t)]
+   [("--recompile") "clean and recompile the Racket libraries"
+                (set! recompile #t)]
    [("-f" "--force") "force re-generation of existing zo files (disabled by default)"
                      (force-recompile #t)]
    [("-l") "interpret paths as library paths"
@@ -326,6 +329,15 @@
    #:args paths
    ;; do this with mutation because parameterization doesn't currently work
    (current-namespace (make-base-namespace))
+
+   (when recompile
+     (set! clean #t)
+     (set! batch #t))
+
+   (when clean
+     (for ([p (in-list racket-modules)])
+       (clean-file p)))
+
    ;; to do multiple
    (when batch
      (for ([p (in-list racket-modules)])
@@ -339,9 +351,6 @@
            (compile-lib-path p)
            (compile-path p))))
    
-   (when clean
-     (for ([p (in-list racket-modules)])
-       (clean-file p)))
    (printf "DONE.\n"))
 
   (current-namespace old-ns);)
