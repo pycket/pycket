@@ -80,14 +80,14 @@ class W_LinkletInstance(W_Object):
         return var.is_uninitialized()
 
     def check_var_exists(self, name):
-        if not self.has_var(name):
-            name_rep = name
-            if name in self.exports:
-                name_rep = self.exports[name]
-            raise SchemeException("Reference to an undefined variable : %s" % name_rep.tostring())
+        if not self.has_var(name) and name not in self.exports:
+            raise SchemeException("Reference to an undefined variable : %s" % name.tostring())
 
     def get_var(self, name):
         self.check_var_exists(name)
+
+        if name not in self.vars:
+            return self.vars[self.exports[name]]
         return self.vars[name]
 
     def add_var(self, name, var):
