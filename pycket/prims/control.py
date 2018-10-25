@@ -479,10 +479,10 @@ def raise_exception(v, barrier, env, cont):
     handler = None
     k = cont
     while k is not None:
-        handler, _ = k.find_cm(values.exn_handler_key)
+        handler, next_cont = k.find_cm(values.exn_handler_key)
         if handler is not None:
             break
-        k = k.get_previous_continuation()
+        k = next_cont if next_cont else k.get_previous_continuation()
     else:
         raise SchemeException("uncaught exception:\n %s" % v.tostring())
 
