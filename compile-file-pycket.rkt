@@ -9,6 +9,8 @@
 (define (compile-file src)
   (with-module-reading-parameterization (lambda () (c:compile-file src))))
 
+(define fails '())
+
 (define racket-modules
   '("racket/private/stx"
     "racket/private/qq-and-or"
@@ -341,16 +343,31 @@
    ;; to do multiple
    (when batch
      (for ([p (in-list racket-modules)])
-       (with-handlers ([exn:fail? (lambda (e) (printf "ERROR : ~a\n" (exn-message e)))])
+       (with-handlers ([exn:fail?
+                        (lambda (e)
+                          (let* ((msg (string-append (substring (exn-message e) 0 40) "..."))
+                                 (mod.msg (cons p msg)))
+                            (set! fails (cons mod.msg fails))
+                            (printf "ERROR : ~a\n" (exn-message e))))])
          (compile-lib-path p))))
-   
+
    ;; to compile individual paths
    (when (not (null? paths))
      (for ([p (in-list paths)])
        (if lib-path?
            (compile-lib-path p)
            (compile-path p))))
-   
+
+   (when fails
+     (printf "\n-- Here are the failed libraries -- ~a / ~a failed --\n\n"
+             (length fails) (length racket-modules))
+     (for ([p (in-list fails)])
+       (printf "~a ------------ ~a\n" (car p) (cdr p))))
+
+   (unless fails
+     (printf "All Succeded.\n"))
+
+
    (printf "DONE.\n"))
 
   (current-namespace old-ns);)
