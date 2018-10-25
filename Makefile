@@ -100,7 +100,7 @@ endif
 
 clean-compiled-files:
 ifneq (,$(wildcard ./pycket-c-linklets))
-	./pycket-c-linklets compile-file-pycket.rkt -- --clean
+	./pycket-c-linklets -c compile-file-pycket.rkt -- --clean
 else
 	$(error Pycket binary does not exist)
 endif
