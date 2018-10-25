@@ -329,7 +329,8 @@
    ;; to do multiple
    (when batch
      (for ([p (in-list racket-modules)])
-       (compile-lib-path p)))
+       (with-handlers ([exn:fail? (lambda (e) (printf "ERROR : ~a\n" (exn-message e)))])
+         (compile-lib-path p))))
    
    ;; to compile individual paths
    (when (not (null? paths))
