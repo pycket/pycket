@@ -1355,8 +1355,6 @@ def write_loop(v, port, env):
         port.write(v.tostring()) # FIXME: need to encode special chars
     elif isinstance(v, values.W_Symbol):
         s = v.tostring()
-        if s == '': # FIXME: make it work with is_bar_quoted
-            s = "||"
         if v.is_bar_quoted():
             s = "|%s|" % s
         port.write(s) # FIXME: handle special chars

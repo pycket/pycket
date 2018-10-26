@@ -1210,10 +1210,14 @@ class W_Symbol(W_Object):
         self.utf8value = val
         self.unreadable = unreadable
         self._isascii = MAYBE
-        if " " in val:
+        self.bar_quoted = False
+        if val == "" or val == ".":
             self.bar_quoted = True
         else:
-            self.bar_quoted = False
+            for q in " ()[]{}|\\,.`'":
+                if q in val:
+                    self.bar_quoted = True
+                    break
 
     def is_bar_quoted(self):
         return self.bar_quoted
@@ -1287,7 +1291,6 @@ class W_Symbol(W_Object):
 W_Symbol.all_symbols = {}
 W_Symbol.unreadable_symbols = {}
 
-# XXX what are these for?
 break_enabled_key = W_Symbol("break-enabled-key")
 exn_handler_key = W_Symbol("exnh")
 parameterization_key = W_Symbol("parameterization")
