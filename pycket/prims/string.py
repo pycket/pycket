@@ -339,6 +339,10 @@ def string_append(args):
 def string_length(s1):
     return values.W_Fixnum(s1.length())
 
+@expose("string-copy", [W_String])
+def string_copy(s):
+    return get_substring(s, values.W_Fixnum.make(0), None)
+
 @expose("substring", [W_String, values.W_Fixnum, default(values.W_Fixnum, None)])
 def substring(w_string, w_start, w_end):
     return get_substring(w_string, w_start, w_end)

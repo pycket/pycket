@@ -1171,6 +1171,10 @@ def make_hasheqv_placeholder(vals):
 def listp(v):
     return values.W_Bool.make(v.is_proper_list())
 
+@expose("list-pair?", [values.W_Object])
+def list_pair(v):
+    return values.W_Bool.make(isinstance(v, values.W_Cons) and v.is_proper_list())
+
 def enter_list_ref_iff(lst, pos):
     if jit.isconstant(lst) and jit.isconstant(pos):
         return True
