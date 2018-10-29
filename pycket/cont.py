@@ -250,7 +250,7 @@ class Barrier(Cont):
         return Barrier(self.env, self.prev)
 
     def get_previous_continuation(self, upto=[]):
-        return None
+        return self.prev
 
     def plug_reduce(self, _vals, env):
         return self.prev.plug_reduce(_vals, env)
