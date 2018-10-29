@@ -131,7 +131,7 @@
     "racket/contract/private/list"
     "racket/contract/private/opt"
     "racket/contract/private/ds-helpers"
-    ;; "racket/contract/private/ds" ;; exn:fail : Reference to an undefined variable : build-optres22.1
+    "racket/contract/private/ds" ;; exn:fail : Reference to an undefined variable : build-optres22.1
     "racket/contract/private/arity-checking"
     "racket/contract/private/application-arity-checking"
     "racket/contract/private/arrow-higher-order"
@@ -139,15 +139,15 @@
     "racket/contract/private/box"
     "racket/contract/private/basic-opters"
     "racket/contract/private/arrow-val-first"
-    ;; "racket/contract/private/case-arrow" ;; fail
+    "racket/contract/private/case-arrow" ;; fail
     "racket/contract/private/hash"
     "racket/contract/private/legacy"
     "racket/contract/private/orc"
-    ;; "racket/contract/private/out" ;; fail
-    ;; "racket/contract/private/object" ;; needs classes
+    "racket/contract/private/out" ;; fail
+    "racket/contract/private/object" ;; needs classes
     "racket/contract/private/parametric"
-    ;; "racket/contract/private/provide" ;; fail
-    ;; "racket/contract/private/struct-dc" ;; fail
+    "racket/contract/private/provide" ;; fail
+    "racket/contract/private/struct-dc" ;; infinite exn:fail : abort-current-continuation: no such prompt exists
     "racket/contract/private/struct-prop"
     "racket/contract/private/top-sort"
     "racket/contract/private/types"
@@ -158,15 +158,15 @@
     "racket/private/so-search"
     "racket/private/runtime-path-table"
     "racket/private/this-expression-source-directory"
-    ;; "racket/runtime-path" ;; fail
+    "racket/runtime-path" ;; exn:fail : Reference to an undefined variable : path->collects-relative10.1
     "racket/unsafe/undefined"
     "syntax/kerncase"
     "racket/private/class-wrapped"
     "racket/private/classidmap"
     "racket/private/class-undef"
     "racket/private/check"
-    ;; "racket/private/custom-hash" ;; fail
-    ;; "racket/private/generic" ;; fail
+    "racket/private/custom-hash" ;; fail
+    "racket/private/generic" ;; fail
     "racket/private/local"
     "racket/private/place-local"
     "racket/private/primitive-table"
@@ -177,79 +177,79 @@
     "racket/private/truncate-path"
     "racket/private/unit-keywords"
     "racket/private/unix-rand"
-    ;; "racket/private/serialize" ;; fail
-    ;; "racket/private/unit-compiletime" ;; fail
-    ;; "racket/private/unit-utils" ;; fail
-    ;; "racket/private/set" ;; fail
-    ;; "racket/private/set-types" ;; fail
-    ;; "racket/private/shared-body" ;; fail
-    ;; "racket/private/tethered-installer" ;; fail
-    ;; "racket/private/unit-contract-syntax" ;; fail
-    ;; "racket/private/unit-contract" ;; fail
+    "racket/private/serialize" ;; fail hangs
+    "racket/private/unit-compiletime" ;; fail
+    "racket/private/unit-utils" ;; fail
+    "racket/private/set" ;; fail
+    "racket/private/set-types" ;; fail
+    "racket/private/shared-body" ;; fail
+    "racket/private/tethered-installer" ;; fail hangs
+    "racket/private/unit-contract-syntax" ;; fail
+    "racket/private/unit-contract" ;; fail
     "racket/private/unit-runtime"
-    ;; "racket/async-channel" ;; fail
+    "racket/async-channel" ;; fail
     "racket/bool"
     "racket/block"
     "racket/bytes"
     "racket/control"
-    ;; "racket/date" ;; fail
-    ;; "racket/dict" ;; fail
-    ;; "racket/engine ;; fail
-    ;; "racket/enter" fail
+    "racket/date" ;; fail
+    "racket/dict" ;; fail
+    "racket/engine" ;; fail hangs
+    "racket/enter" ;; fail
     "racket/exn"
     "racket/fasl"
-    ;; "racket/format ;; fail
+    "racket/format" ;; fail
     "racket/function"
     "racket/future"
     "racket/generator"
-    ;; "racket/generic" ;; fail
-    ;; "racket/hash" ;; fial
+    "racket/generic" ;; fail
+    "racket/hash" ;; fial
     "racket/help"
     "racket/include"
-    ;; "racket/init" ;; fail
+    "racket/init" ;; fail
     "racket/interactive"
     "racket/kernel"
     "racket/keyword-transform"
     "racket/language-info"
-    ;; "racket/lazy-require" ;; fail
+    "racket/lazy-require" ;; fail
     "racket/linklet"
-    ;; "racket/match" ;;fail
+    "racket/match" ;;fail
     "racket/local"
-    ;; "racket/main" ;; fail
-    ;; "racket/logging" ;; fail
-    ;; "racket/os" ;; fail
-    ;; "racket/performance-hint" ;; fail
-    ;; "racket/place" ;; fail
+    "racket/main" ;; fail
+    "racket/logging" ;; fail
+    "racket/os" ;; fail
+    "racket/performance-hint" ;; fail
+    "racket/place" ;; fail
     "racket/provide-syntax"
     "racket/provide-transform"
     "racket/prefab"
-    ;; "racket/port" ;; fail
-    ;; "racket/random" ;; fail
+    "racket/port" ;; fail hangs 
+    "racket/random" ;; fail
     "racket/require"
     "racket/require-syntax"
     "racket/require-transform"
-    ;; "racket/rerequire" ;; fail
-    ;; "racket/sequence" ;; fail
-    ;; "racket/serialize" ;; fail
-    ;; "racket/set" ;; fail
-    ;; "racket/shared" ;; fail
+    "racket/rerequire" ;; fail
+    "racket/sequence" ;; fail
+    "racket/serialize" ;; fail hangs
+    "racket/set" ;; fail
+    "racket/shared" ;; fail
     "racket/splicing"
-    ;; "racket/stream" ;; fail
+    "racket/stream" ;; fail
     "racket/string"
-    ;; "racket/surrogate" ;; fail
+    "racket/surrogate" ;; fail
     "racket/syntax"
     "racket/stxparam"
     "racket/system"
     "racket/undefined"
     "racket/tcp"
     "racket/udp"
-    ;; "racket/trait ;; fail
+    "racket/trait" ;; fail
     "racket/vector"
-    ;; "racket/unit ;; fail
-    ;; "racket/unit-exptime" ;; fail
+    "racket/unit" ;; fail
+    "racket/unit-exptime" ;; fail
     "racket/load/lang/reader"
     "racket/base/lang/reader"
-    ;; "racket/lang/reader" ;; fail
+    "racket/lang/reader" ;; fail
     "racket/kernel/init" ;; fail
     "racket/place/private/prop"
     "racket/place/private/th-place"
@@ -258,9 +258,8 @@
     "racket/match/runtime"
     "racket/match/stxtime"
     "racket/match/syntax-local-match-introduce"
-    ;; racket/match ??
-    ;; "racket/struct" ;; needs contracts
-    ;; "syntax/strip-context" ;; needs contracts
+    "racket/struct" ;; needs contracts hangs
+    "syntax/strip-context" ;; needs contracts hangs
     "compiler/compile-file"
     ))
 
@@ -342,10 +341,13 @@
      (for ([p (in-list racket-modules)])
        (with-handlers ([exn:fail?
                         (lambda (e)
-                          (let* ((msg (string-append (substring (exn-message e) 0 40) "..."))
-                                 (mod.msg (cons p msg)))
+                          (let* ((msg (lambda (n)
+                                        (string-append (substring (exn-message e) 0 n) " ...")))
+                                 (msg-short (msg 40))
+                                 (msg-long (msg (min (string-length (exn-message e)) 200)))
+                                 (mod.msg (cons p msg-short)))
                             (set! fails (cons mod.msg fails))
-                            (printf "ERROR : ~a\n" (exn-message e))))])
+                            (printf "ERROR : ~a\n\n" msg-long)))])
          (compile-lib-path p))))
 
    ;; to compile individual paths
