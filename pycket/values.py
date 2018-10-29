@@ -1214,7 +1214,7 @@ class W_Symbol(W_Object):
         if val == "" or val == ".":
             self.bar_quoted = True
         else:
-            for q in " ()[]{}|\\,.`'":
+            for q in " ()[]{}|\\,`'":
                 if q in val:
                     self.bar_quoted = True
                     break
