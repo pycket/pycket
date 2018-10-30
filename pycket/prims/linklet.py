@@ -192,7 +192,7 @@ def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, e
                 target.add_var(ext_name, var)
         elif external_of_an_export(name, exports):
             gensym_count += 1
-            ex_name = W_Symbol(name.tostring() + "." + str(gensym_count))
+            ex_name = W_Symbol.make_unreadable(name.tostring() + "." + str(gensym_count))
             target.add_var(ex_name, var)
 
     return return_value(w_void, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont))
