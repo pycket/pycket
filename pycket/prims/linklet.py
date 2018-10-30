@@ -1047,7 +1047,6 @@ def read_loop(sexp):
 
     if isinstance(sexp, W_Cons):
         c = sexp.car()
-        #import pdb;pdb.set_trace()
         if c is dir_sym:
             dir_map = sexp.cdr()
             return W_LinkletDirectory(read_loop(dir_map))
@@ -1056,8 +1055,16 @@ def read_loop(sexp):
             return W_LinkletBundle(read_loop(bundle_map))
         elif c is linklet_sym:
             # Unify this with compile_linklet
-            w_name = sexp.cdr().car()
-            w_importss = sexp.cdr().cdr().car()
+            if isinstance(sexp.cdr().car(), W_List):
+                w_name = W_Symbol.make("anonymous")
+                w_importss = sexp.cdr().car()
+                w_exports = sexp.cdr().cdr().car()
+                w_body = sexp.cdr().cdr().cdr()
+            else:
+                w_name = sexp.cdr().car()
+                w_importss = sexp.cdr().cdr().car()
+                w_exports = sexp.cdr().cdr().cdr().car()
+                w_body = sexp.cdr().cdr().cdr().cdr()
 
             importss_acc = to_rpython_list(w_importss)
             importss_list = [None]*len(importss_acc)
@@ -1081,8 +1088,6 @@ def read_loop(sexp):
                 importss_list[index] = inner_acc
 
             # Process the exports
-            w_exports = sexp.cdr().cdr().cdr().car()
-
             exports = {}
             r_exports = to_rpython_list(w_exports)
 
@@ -1095,7 +1100,6 @@ def read_loop(sexp):
                     exports[exp] = exp
 
             # Process the body
-            w_body = sexp.cdr().cdr().cdr().cdr()
             body_forms_ls = to_rpython_list(w_body)
 
             toplevel_defined_linklet_vars = create_toplevel_linklet_vars(body_forms_ls)
@@ -1158,7 +1162,6 @@ def read_loop(sexp):
         keys = [None]*l
         vals = [None]*l
         i = 0
-        #import pdb;pdb.set_trace()
         for k, v in sexp.iteritems():
             keys[i] = k
             vals[i] = read_loop(v)
@@ -1170,7 +1173,6 @@ def read_loop(sexp):
         keys = [None]*l
         vals = [None]*l
         i = 0
-        #import pdb;pdb.set_trace()
         for k, v in sexp.hash_items():
             keys[i] = k
             vals[i] = read_loop(v)
@@ -1185,5 +1187,4 @@ def read_loop(sexp):
 
         return W_Vector.fromelements(new, sexp.immutable())
     else:
-        #import pdb;pdb.set_trace()
         return sexp
