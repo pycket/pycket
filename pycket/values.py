@@ -1222,6 +1222,9 @@ class W_Symbol(W_Object):
     def is_bar_quoted(self):
         return self.bar_quoted
 
+    def is_unreadable(self):
+        return self.unreadable
+
     @staticmethod
     def _cache_is_ascii(self):
         from pycket.values_string import _is_ascii
