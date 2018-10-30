@@ -814,6 +814,12 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             else:
                 return return_multi_vals(Values.make([linkl, import_keys]), env, cont)
 
+    elif isinstance(form, W_Linklet):
+        if import_keys is w_false:
+            return return_value_direct(form, env, cont)
+        else:
+            return return_multi_vals(Values.make([form, import_keys]), env, cont)
+
     else: # correlated
         # take the AST from the correlated and put it in a W_Linklet and return
         raise SchemeException("NYI")
