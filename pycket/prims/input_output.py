@@ -1548,11 +1548,16 @@ def open_input_string(w_str, name):
 def get_output_string(w_port):
     return values_string.W_String.fromascii(w_port.contents()) # XXX
 
-@expose("get-output-bytes", [values.W_StringOutputPort])
-def get_output_bytes(w_port):
-    return values.W_Bytes.from_string(w_port.contents(),
+@expose("get-output-bytes", [values.W_StringOutputPort,
+                             default(values.W_Object, values.w_false),
+                             default(values.W_Fixnum, values.W_Fixnum.ZERO),
+                             default(values.W_Object, values.w_false)])
+def get_output_bytes(w_port, reset_huh, start_pos, end_pos):
+    if start_pos is not values.W_Fixnum.ZERO or end_pos is not values.w_false:
+        raise SchemeException("get-output-bytes : handle start-pos and end-pos arguments")
+    reset = True if reset_huh is not values.w_false else False
+    return values.W_Bytes.from_string(w_port.contents(reset),
                                       immutable=False) # XXX
-
 
 # FIXME: implementation
 @expose("make-output-port",

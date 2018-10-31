@@ -1821,8 +1821,13 @@ class W_StringOutputPort(W_OutputPort):
 
     def write(self, s):
         self.str.append(s)
-    def contents(self):
-        return self.str.build()
+    def contents(self, reset=False):
+        ret_val = self.str.build()
+        if reset:
+            # CAUTION : eq?
+            self.str = StringBuilder()
+        return ret_val
+
     def seek(self, offset, end=False):
         if end or offset == self.str.getlength():
             return
