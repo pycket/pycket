@@ -347,7 +347,7 @@
                                  (msg-long (msg (min (string-length (exn-message e)) 200)))
                                  (mod.msg (cons p msg-short)))
                             (set! fails (cons mod.msg fails))
-                            (printf "ERROR : ~a\n\n" msg-long)))])
+                            (printf "ERROR : ~a\n\n" (exn-message e))))])
          (compile-lib-path p))))
 
    ;; to compile individual paths
