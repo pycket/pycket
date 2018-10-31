@@ -47,6 +47,15 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
     from pycket.env import w_global_config
     w_global_config.set_config_val('expander_loaded', 1)
 
+    console_log("Loading the fasl linklet...")
+    fasl_file_path = locate_linklet("fasl.rktl.linklet")
+
+    # load the fasl linklet
+    fasl_instance, sys_config = load_inst_linklet_json(fasl_file_path, pycketconfig, debug)
+    fasl_instance.provide_all_exports_to_prim_env()
+
+    console_log("fasl loading complete.")
+    import pdb;pdb.set_trace()
     return sys_config
 
 def load_inst_linklet_json(json_file_name, pycketconfig, debug=False):
