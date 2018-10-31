@@ -135,6 +135,9 @@ expander:
 	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
 	$(MAKE) -C linklet-extractor
 
+fasl:
+	$(MAKE) -C linklet-extractor fasl
+
 test:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py
 
