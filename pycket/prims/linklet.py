@@ -570,12 +570,19 @@ def is_val_type(form):
 path_sym = W_Symbol.make("p+")
 srcloc_sym = W_Symbol.make("srcloc")
 
+def ast_to_sexp(form):
+    if is_val_type(form):
+        return form
+    else:
+        raise SchemeException("ast->sexp doesn't handle %s : %s yet." % (form, form.tostring()))
+
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
     elif is_val_type(form):
         form = Quote(form)
     elif isinstance(form, W_Symbol):
+
         if form in cell_ref:
             form = CellRef(form)
         elif form in lex_env:
