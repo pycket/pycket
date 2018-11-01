@@ -1171,15 +1171,57 @@ def do_write_cont(o, env, cont, _vals):
     write_loop(o, port, env)
     return return_void(env, cont)
 
-def write_linklet_bundle_directory(v, port, env):
-    from pycket.prims.linklet import is_bundle, is_directory, W_Linklet
-    if is_bundle(v):
-        port.write("(:B: . ")
+def write_linklet_bundle(v, port, env):
+    from pycket.racket_entry import get_primitive
+    from pycket.prims.linklet import ast_to_sexp
+
+    mapping = ld.get_mapping()
+    s_exp_to_fasl = get_primitive("s-exp->fasl")
+
+    assert isinstance(mapping, W_EqualHashTable) or isinstance(mapping, W_EqImmutableHashTable)
+
+    itr = None
+    if isinstance(mapping, W_EqualHashTable):
+        itr = mapping.hash_items()
+    else isinstance(mapping, W_EqImmutableHashTable):
+        itr = mapping.iteritems()
+
+    l = mapping.length()
+    keys = [None]*l
+    vals = [None]*l
+    i = 0
+    for k, v in itr:
+        keys[i] = k
+        if isinstance(v, W_LinkletBundle):
+            ...
+        elif isinstance(v, W_LinkletDirectory):
+            ...
+        else:
+            vals[i] = ast_to_sexp(v)
+        i += 1
+
+    s = None
+    if isinstance(mapping, W_EqualHashTable):
+        s = W_EqualHashTable(keys, vals, immutable=True)
+    else isinstance(mapping, W_EqImmutableHashTable):
+        s = make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
+
+    s_exp_to_fasl.call_interpret([s, port, values.w_false])
+
+def write_linklet_directory(ld, port, env):
+    from pycket.racket_entry import get_primitive
+    from pycket.prims.linklet import ast_to_sexp
+
+    mapping = ld.get_mapping()
+    s_exp_to_fasl = get_primitive("s-exp->fasl")
+
+    if isinstance(mapping, W_EqualHashTable):
+        .....
+    elif isinstance(mapping, W_EqImmutableHashTable):
+        ....
     else:
-        port.write("(:D: . ")
-    mapping = v.get_mapping()
-    assert isinstance(mapping, W_EqualHashTable) or \
-        isinstance(mapping, W_EqImmutableHashTable)
+        raise SchemeException("Something's wrong with this bundle mapping : %s" % mapping.tostring())
+
     write_loop(mapping, port, env)
     port.write(")")
 
@@ -1240,8 +1282,10 @@ def write_hash_table(v, port, env):
             port.write("(")
             write_loop(k, port, env)
             port.write(" . ")
-            if is_bundle(v) or is_directory(v):
-                write_linklet_bundle_directory(v, port, env)
+            if is_bundle(v):
+                write_linklet_bundle(v, port, env)
+            elif is_directory(v):
+                write_linklet_directory(v, port, env)
             else:
                 write_loop(v, port, env)
             port.write(")")
@@ -1270,8 +1314,10 @@ def write_hash_table(v, port, env):
             port.write("(")
             write_loop(k, port, env)
             port.write(" . ")
-            if is_bundle(v) or is_directory(v):
-                write_linklet_bundle_directory(v, port, env)
+            if is_bundle(v):
+                write_linklet_bundle(v, port, env)
+            elif is_directory(v):
+                write_linklet_directory(v, port, env)
             else:
                 write_loop(v, port, env)
             port.write(")")
@@ -1364,16 +1410,23 @@ def write_loop(v, port, env):
     elif isinstance(v, W_Linklet):
         write_linklet(v, port, env)
 
-    elif is_bundle(v) or is_directory(v):
+    elif is_bundle(v):
         from pycket.env import w_version
-
         port.write("#~")
         version = w_version.get_version()
         len_version = len(version)
+        assert len_version < 10
+        port.write("%s%s:B:" % (len_version, version))
+        write_linklet_bundle(v, port, env)
 
-        port.write("((%s)" % version)
-        write_linklet_bundle_directory(v, port, env)
-        port.write(")\n")
+    elif is_directory(v):
+        from pycket.env import w_version
+        port.write("#~")
+        version = w_version.get_version()
+        len_version = len(version)
+        assert len_version < 10
+        port.write("%s%s:D:" % (len_version, version))
+        write_linklet_directory(v, port, env)
 
     elif isinstance(v, W_Struct):
         v.write(port, env)
