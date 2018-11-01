@@ -80,8 +80,9 @@ def hash_iterate_key_value(ht, pos, env, cont):
 def hash_iterate_pair(ht, pos, env, cont):
     return hash_iter_ref(ht, pos.value, env, cont, returns=_PAIR)
 
-@expose("hash-for-each", [W_HashTable, procedure], simple=False)
-def hash_for_each(ht, f, env, cont):
+@expose("hash-for-each", [W_HashTable, procedure, default(values.W_Object, values.w_false)], simple=False)
+def hash_for_each(ht, f, try_order, env, cont):
+    # FIXME: implmeent try-order? -- see hash-map
     return hash_for_each_loop(ht, f, 0, env, cont)
 
 @loop_label
