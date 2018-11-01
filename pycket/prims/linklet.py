@@ -573,7 +573,13 @@ srcloc_sym = W_Symbol.make("srcloc")
 def ast_to_sexp(form):
     if is_val_type(form):
         return form
-    elif isinstance(form, W_LinkletBundle):
+    elif isinstance(form, W_LinkletBundle) or isinstance(form, W_LinkletDirectory):
+        bd_sym = None
+        if isinstance(form, W_LinkletBundle):
+            bd_sym = W_Symbol.make(":B:")
+        else:
+            bd_sym = W_Symbol.make(":D:")
+
         mapping = form.get_mapping()
         assert isinstance(mapping, W_EqualHashTable) or isinstance(mapping, W_EqImmutableHashTable)
         itr = None
@@ -592,12 +598,10 @@ def ast_to_sexp(form):
             i += 1
 
         if isinstance(mapping, W_EqualHashTable):
-            return W_EqualHashTable(keys, vals, immutable=True)
+            return W_Cons.make(bd_sym, W_EqualHashTable(keys, vals, immutable=True))
         else isinstance(mapping, W_EqImmutableHashTable):
-            return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
+            return W_Cons.make(bd_sym, make_simple_immutable_table(W_EqImmutableHashTable, keys, vals))
 
-    elif isinstance(form, W_LinkletDirectory):
-        ## similar to bundle
     else:
         raise SchemeException("ast->sexp doesn't handle %s : %s yet." % (form, form.tostring()))
 
