@@ -2137,6 +2137,24 @@ class Letrec(SequencedBodyAST):
         body = " ".join([b.tostring() for b in self.body])
         return "(letrec (%s) %s)" % (bindings, body)
 
+    def to_sexp(self):
+        from pycket.prims.linklet import ast_to_sexp
+        letrec_sym = values.W_Symbol.make("letrec-values")
+        all_bindings = values.w_null
+        for i, count in reversed(list(enumerate(self.counts))):
+            current_bindings_sexp = values.to_list(self.args.elems)
+
+            current_rhs_sexp = ast_to_sexp(self.rhss[i])
+            current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
+            current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
+
+            all_bindings = values.W_Cons.make(current_ids, all_bindings)
+
+        body_ls = [ast_to_sexp(b) for b in self.body]
+        letrec_sexp = values.to_list([letrec_sym, all_bindings] + body_ls)
+
+        return letrec_sexp
+
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         port.write("(letrec-values (")
