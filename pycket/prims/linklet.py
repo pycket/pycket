@@ -25,6 +25,7 @@ from pycket.prims.vector import vector
 from pycket.AST import AST
 from pycket.cont import Prompt, NilCont, continuation
 from pycket.prims.control import default_error_escape_handler, default_uncaught_exception_handler
+from pycket.hash.base import W_HashTable
 from pycket.hash.simple import W_SimpleMutableHashTable, W_EqvImmutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
 from pycket.hash.equal import W_EqualHashTable
 
@@ -560,8 +561,8 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
     else:
         return make_let(varss_list, rhss_list, body_ls)
 
-def is_val_type(form):
-    val_types = [W_Number, W_Bool, W_String, W_ImmutableBytes, W_Character]
+def is_val_type(form, extra=[]):
+    val_types = [W_Number, W_Bool, W_String, W_ImmutableBytes, W_Character] + extra
     for t in val_types:
         if isinstance(form, t):
             return True
@@ -571,7 +572,7 @@ path_sym = W_Symbol.make("p+")
 srcloc_sym = W_Symbol.make("srcloc")
 
 def ast_to_sexp(form):
-    if is_val_type(form):
+    if is_val_type(form, extra=[W_Vector, W_HashTable, W_List]):
         return form
     elif isinstance(form, W_Linklet):
         l_sym = W_Symbol.make("linklet")
