@@ -1124,13 +1124,9 @@ def read_compiled_linklet(in_port, env, cont):
     #data = sexp.cdr().car()
     s_exp = fasl_to_s_exp.call_interpret([in_port, values.w_true])
 
-    import pdb;pdb.set_trace()
-
-    D_or_B = data.car()
-
-    if not D_or_B is dir_sym and not D_or_B is bundle_sym:
-        raise SchemeException("malformed compiled code : Expected %s or %s to start with" % (dir_sym.tostring(), bundle_sym.tostring()))
-    read_data = deserialize_loop(data)
+    # if not D_or_B is dir_sym and not D_or_B is bundle_sym:
+    #     raise SchemeException("malformed compiled code : Expected %s or %s to start with" % (dir_sym.tostring(), bundle_sym.tostring()))
+    read_data = deserialize_loop(s_exp)
 
     return return_value(read_data, env, cont)
 
