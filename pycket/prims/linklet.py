@@ -617,32 +617,32 @@ def ast_to_sexp(form):
             bd_sym = W_Symbol.make(":D:")
 
         mapping = form.get_mapping()
-        assert isinstance(mapping, W_EqualHashTable) or isinstance(mapping, W_EqImmutableHashTable)
-        itr = None
-        if isinstance(mapping, W_EqualHashTable):
-            itr = mapping.hash_items()
-        else:
-            itr = mapping.iteritems()
-
         l = mapping.length()
         keys = [None]*l
         vals = [None]*l
-        i = 0
-        for k, v in itr:
-            keys[i] = k
-            vals[i] = ast_to_sexp(v)
-            i += 1
 
         if isinstance(mapping, W_EqualHashTable):
-            return W_Cons.make(bd_sym, W_EqualHashTable(keys, vals, immutable=True))
-        else:
-            return W_Cons.make(bd_sym, make_simple_immutable_table(W_EqImmutableHashTable, keys, vals))
+            i = 0
+            for k, v in mapping.hash_items():
+                keys[i] = k
+                vals[i] = ast_to_sexp(v)
+                i += 1
 
+            return W_Cons.make(bd_sym, W_EqualHashTable(keys, vals, immutable=True))
+        elif isinstance(mapping, W_EqImmutableHashTable):
+            i = 0
+            for k, v in mapping.iteritems():
+                keys[i] = k
+                vals[i] = ast_to_sexp(v)
+                i += 1
+
+            return W_Cons.make(bd_sym, make_simple_immutable_table(W_EqImmutableHashTable, keys, vals))
+        else:
+            raise SchemeException("Something wrong with the bundle/directory mapping : %s" % mapping.tostring())
     else:
         try:
             return form.to_sexp()
         except:
-            import pdb;pdb.set_trace()
             raise SchemeException("ast->sexp doesn't handle %s : %s yet." % (type(form), form.tostring()))
 
 ## TODO : handle :B: & :D: for linklet bundles and directories
@@ -1103,29 +1103,14 @@ def read_compiled_linklet(in_port, env, cont):
 
     fasl_to_s_exp = get_primitive("fasl->s-exp")
 
-    #read_sym = values.W_Symbol.make("read")
-    #read = prim_env[read_sym]
-
-    # Racket's read
-    #pycketconfig = env.toplevel_env()._pycketconfig
-    #sexp = read.call_interpret([in_port], pycketconfig)
-
-    # if sexp is w_void:
-    #     raise SchemeException("Couldn't read : %s" % in_port.read(-1))
-
-    #written_version = sexp.car().car() # W_Symbol
-
     version_length = int(in_port.read(1))
     written_version = in_port.read(version_length)
 
-    if written_version.tostring() != current_version:
-        raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version.tostring()))
+    if written_version != current_version:
+        raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version))
 
-    #data = sexp.cdr().car()
     s_exp = fasl_to_s_exp.call_interpret([in_port, values.w_true])
 
-    # if not D_or_B is dir_sym and not D_or_B is bundle_sym:
-    #     raise SchemeException("malformed compiled code : Expected %s or %s to start with" % (dir_sym.tostring(), bundle_sym.tostring()))
     read_data = deserialize_loop(s_exp)
 
     return return_value(read_data, env, cont)
