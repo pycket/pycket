@@ -2378,6 +2378,18 @@ class DefineValues(AST):
         return "(define-values (%s) %s)" % (
             ' '.join([n.tostring() for n in self.display_names]), self.rhs.tostring())
 
+    def to_sexp(self):
+        from pycket.prims.linklet import ast_to_sexp
+        dv_sym = values.W_Symbol.make("define-values")
+        ids = values.w_null
+        for name in self.display_names:
+            ids = values.W_Cons.make(name, ids)
+
+        rhs = ast_to_sexp(self.rhs)
+        rhs_sexp = values.W_Cons.make(rhs, values.w_null)
+
+        return values.W_Cons.make(dv_sym, values.W_Cons.make(ids, rhs_sexp))
+
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         port.write("(define-values (")
