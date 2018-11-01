@@ -592,15 +592,25 @@ def ast_to_sexp(form):
             importss_rlist[index] = to_list(importss_inst)
         importss_list = to_list(importss_rlist)
 
-        exports_rlist = []
+        exports_rlist = [None]*len(exports)
+        i = 0
+        for k, v in exports.iteritems():
+            exports_rlist[i] = W_Cons.make(k, v)
+            i += 1
+
         exports_list = to_list(exports_rlist)
 
-        body_forms_rlist = []
+        body_forms_rlist = [None]*len(body_forms)
+        for index, ast_form in enumerate(body_forms):
+            body_forms_rlist[index] = ast_to_sexp(ast_form)
         body_forms_list = to_list(body_forms_rlist)
 
-        l_list = [l_sym, name, importss_list, exports_list, body_forms_list]
+        linklet_rlist = [l_sym, name, importss_list, exports_list, body_forms_list]
+        linklet_s_exp = to_list(linklet_rlist)
 
         import pdb;pdb.set_trace()
+
+        return linklet_s_exp
     elif isinstance(form, W_LinkletBundle) or isinstance(form, W_LinkletDirectory):
         bd_sym = None
         if isinstance(form, W_LinkletBundle):
