@@ -603,9 +603,8 @@ def ast_to_sexp(form):
         body_forms_rlist = [None]*len(body_forms)
         for index, ast_form in enumerate(body_forms):
             body_forms_rlist[index] = ast_to_sexp(ast_form)
-        body_forms_list = to_list(body_forms_rlist)
 
-        linklet_rlist = [l_sym, name, importss_list, exports_list, body_forms_list]
+        linklet_rlist = [l_sym, name, importss_list, exports_list] + body_forms_rlist
         linklet_s_exp = to_list(linklet_rlist)
 
         import pdb;pdb.set_trace()
@@ -640,9 +639,11 @@ def ast_to_sexp(form):
         else:
             return W_Cons.make(bd_sym, make_simple_immutable_table(W_EqImmutableHashTable, keys, vals))
 
+    elif isinstance(form, Quote):
+        return W_Cons.make(W_Symbol.make("quote"), ast_to_sexp(form.w_val))
     else:
         import pdb;pdb.set_trace()
-        raise SchemeException("ast->sexp doesn't handle %s : %s yet." % (form, form.tostring()))
+        raise SchemeException("ast->sexp doesn't handle %s : %s yet." % (type(form), form.tostring()))
 
 
 ## TODO : handle :B: & :D: for linklet bundles and directories
