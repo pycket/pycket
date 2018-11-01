@@ -1073,7 +1073,7 @@ class App(AST):
         from pycket.prims.linklet import ast_to_sexp
         rator_sexp = ast_to_sexp(self.rator)
         rands_sexp = values.w_null
-        for rand in self.rands:
+        for rand in reversed(self.rands):
             rands_sexp = values.W_Cons.make(ast_to_sexp(rand), rands_sexp)
 
         return values.W_Cons.make(rator_sexp, rands_sexp)
@@ -2339,6 +2339,24 @@ class Let(SequencedBodyAST):
         result.append(")")
         return "".join(result)
 
+    def to_sexp(self):
+        from pycket.prims.linklet import ast_to_sexp
+        let_sym = values.W_Symbol.make("let-values")
+        all_bindings = values.w_null
+        for i, count in reversed(list(enumerate(self.counts))):
+            current_bindings_sexp = values.to_list(self.args.elems)
+
+            current_rhs_sexp = ast_to_sexp(self.rhss[i])
+            current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
+            current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
+
+            all_bindings = values.W_Cons.make(current_ids, all_bindings)
+
+        body_ls = [ast_to_sexp(b) for b in self.body]
+        let_sexp = values.to_list([let_sym, all_bindings] + body_ls)
+
+        return let_sexp
+
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         port.write("(let-values (")
@@ -2394,7 +2412,7 @@ class DefineValues(AST):
         from pycket.prims.linklet import ast_to_sexp
         dv_sym = values.W_Symbol.make("define-values")
         ids = values.w_null
-        for name in self.display_names:
+        for name in reversed(self.display_names):
             ids = values.W_Cons.make(name, ids)
 
         rhs = ast_to_sexp(self.rhs)
