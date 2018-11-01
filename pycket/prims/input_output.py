@@ -1171,59 +1171,23 @@ def do_write_cont(o, env, cont, _vals):
     write_loop(o, port, env)
     return return_void(env, cont)
 
-def write_linklet_bundle(v, port, env):
+def write_linklet_bundle(lb, port, env):
     from pycket.racket_entry import get_primitive
     from pycket.prims.linklet import ast_to_sexp
 
-    mapping = ld.get_mapping()
     s_exp_to_fasl = get_primitive("s-exp->fasl")
+    bundle_s_exp = ast_to_sexp(lb)
 
-    assert isinstance(mapping, W_EqualHashTable) or isinstance(mapping, W_EqImmutableHashTable)
-
-    itr = None
-    if isinstance(mapping, W_EqualHashTable):
-        itr = mapping.hash_items()
-    else isinstance(mapping, W_EqImmutableHashTable):
-        itr = mapping.iteritems()
-
-    l = mapping.length()
-    keys = [None]*l
-    vals = [None]*l
-    i = 0
-    for k, v in itr:
-        keys[i] = k
-        if isinstance(v, W_LinkletBundle):
-            ...
-        elif isinstance(v, W_LinkletDirectory):
-            ...
-        else:
-            vals[i] = ast_to_sexp(v)
-        i += 1
-
-    s = None
-    if isinstance(mapping, W_EqualHashTable):
-        s = W_EqualHashTable(keys, vals, immutable=True)
-    else isinstance(mapping, W_EqImmutableHashTable):
-        s = make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
-
-    s_exp_to_fasl.call_interpret([s, port, values.w_false])
+    s_exp_to_fasl.call_interpret([bundle_s_exp, port, values.w_false])
 
 def write_linklet_directory(ld, port, env):
     from pycket.racket_entry import get_primitive
     from pycket.prims.linklet import ast_to_sexp
 
-    mapping = ld.get_mapping()
     s_exp_to_fasl = get_primitive("s-exp->fasl")
+    directory_s_exp = ast_to_sexp(ld)
 
-    if isinstance(mapping, W_EqualHashTable):
-        .....
-    elif isinstance(mapping, W_EqImmutableHashTable):
-        ....
-    else:
-        raise SchemeException("Something's wrong with this bundle mapping : %s" % mapping.tostring())
-
-    write_loop(mapping, port, env)
-    port.write(")")
+    s_exp_to_fasl.call_interpret([directory_s_exp, port, values.w_false])
 
 def write_linklet(v, port, env):
     from pycket.util import console_log

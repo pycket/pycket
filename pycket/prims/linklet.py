@@ -573,9 +573,36 @@ srcloc_sym = W_Symbol.make("srcloc")
 def ast_to_sexp(form):
     if is_val_type(form):
         return form
+    elif isinstance(form, W_LinkletBundle):
+        mapping = form.get_mapping()
+        assert isinstance(mapping, W_EqualHashTable) or isinstance(mapping, W_EqImmutableHashTable)
+        itr = None
+        if isinstance(mapping, W_EqualHashTable):
+            itr = mapping.hash_items()
+        else isinstance(mapping, W_EqImmutableHashTable):
+            itr = mapping.iteritems()
+
+        l = mapping.length()
+        keys = [None]*l
+        vals = [None]*l
+        i = 0
+        for k, v in itr:
+            keys[i] = k
+            vals[i] = ast_to_sexp(v)
+            i += 1
+
+        if isinstance(mapping, W_EqualHashTable):
+            return W_EqualHashTable(keys, vals, immutable=True)
+        else isinstance(mapping, W_EqImmutableHashTable):
+            return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
+
+    elif isinstance(form, W_LinkletDirectory):
+        ## similar to bundle
     else:
         raise SchemeException("ast->sexp doesn't handle %s : %s yet." % (form, form.tostring()))
 
+
+## TODO : handle :B: & :D: for linklet bundles and directories
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
