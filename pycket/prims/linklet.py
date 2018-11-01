@@ -573,6 +573,34 @@ srcloc_sym = W_Symbol.make("srcloc")
 def ast_to_sexp(form):
     if is_val_type(form):
         return form
+    elif isinstance(form, W_Linklet):
+        l_sym = W_Symbol.make("linklet")
+
+        name = form.get_name() # W_Symbol
+        importss = form.get_importss() # rlist of rdict of W_Symbol:W_Symbol
+        exports = form.get_exports() # rdict
+        body_forms = form.get_forms() # rlist of ASTs
+
+        importss_rlist = [None]*len(importss)
+        for index, rdict in enumerate(importss):
+            len_dict = len(rdict)
+            importss_inst = [None]*len_dict
+            i = 0
+            for k, v in rdict.iteritems():
+                importss_inst[i] = W_Cons.make(k, v)
+                i += 1
+            importss_rlist[index] = to_list(importss_inst)
+        importss_list = to_list(importss_rlist)
+
+        exports_rlist = []
+        exports_list = to_list(exports_rlist)
+
+        body_forms_rlist = []
+        body_forms_list = to_list(body_forms_rlist)
+
+        l_list = [l_sym, name, importss_list, exports_list, body_forms_list]
+
+        import pdb;pdb.set_trace()
     elif isinstance(form, W_LinkletBundle) or isinstance(form, W_LinkletDirectory):
         bd_sym = None
         if isinstance(form, W_LinkletBundle):
@@ -585,7 +613,7 @@ def ast_to_sexp(form):
         itr = None
         if isinstance(mapping, W_EqualHashTable):
             itr = mapping.hash_items()
-        else isinstance(mapping, W_EqImmutableHashTable):
+        else:
             itr = mapping.iteritems()
 
         l = mapping.length()
@@ -599,7 +627,7 @@ def ast_to_sexp(form):
 
         if isinstance(mapping, W_EqualHashTable):
             return W_Cons.make(bd_sym, W_EqualHashTable(keys, vals, immutable=True))
-        else isinstance(mapping, W_EqImmutableHashTable):
+        else:
             return W_Cons.make(bd_sym, make_simple_immutable_table(W_EqImmutableHashTable, keys, vals))
 
     else:
