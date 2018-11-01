@@ -1380,6 +1380,9 @@ class Var(AST):
         from pycket.prims.input_output import write_loop
         write_loop(self.sym, port, env)
 
+    def to_sexp(self):
+        return self.sym
+
 class CellRef(Var):
     simple = True
     visitable = True
