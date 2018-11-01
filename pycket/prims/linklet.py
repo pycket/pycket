@@ -572,7 +572,7 @@ path_sym = W_Symbol.make("p+")
 srcloc_sym = W_Symbol.make("srcloc")
 
 def ast_to_sexp(form):
-    if is_val_type(form, extra=[W_Vector, W_HashTable, W_List]):
+    if is_val_type(form, extra=[W_Vector, W_HashTable, W_List, W_Symbol]):
         return form
     elif isinstance(form, W_Linklet):
         l_sym = W_Symbol.make("linklet")
