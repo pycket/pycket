@@ -897,6 +897,10 @@ class Quote(AST):
         write_loop(self.w_val, port, env)
         port.write(")")
 
+    def to_sexp(self):
+        from pycket.prims.linklet import ast_to_sexp
+        return values.W_Cons.make(values.W_Symbol.make("quote"), ast_to_sexp(self.w_val))
+
 class QuoteSyntax(AST):
     _immutable_fields_ = ["w_val"]
     visitable = True
