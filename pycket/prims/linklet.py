@@ -641,6 +641,7 @@ def ast_to_sexp(form):
             return W_Cons.make(bd_sym, make_simple_immutable_table(W_EqImmutableHashTable, keys, vals))
 
     else:
+        import pdb;pdb.set_trace()
         raise SchemeException("ast->sexp doesn't handle %s : %s yet." % (form, form.tostring()))
 
 
@@ -767,8 +768,8 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
         elif form.car() is W_Symbol.make("quote"):
             if form.cdr().cdr() is not w_null:
                 raise SchemeException("malformed quote form : %s" % form.tostring())
-            # the reason for read_loop is to deserialize paths (from p+ to W_Path)
-            form = Quote(read_loop(form.cdr().car()))
+            # the reason for deserialize_loop is to deserialize paths (from p+ to W_Path)
+            form = Quote(deserialize_loop(form.cdr().car()))
         elif form.car() is W_Symbol.make("if"):
             tst_w = form.cdr().car()
             thn_w = form.cdr().cdr().car()
@@ -1115,7 +1116,7 @@ def read_compiled_linklet(in_port, env, cont):
     #written_version = sexp.car().car() # W_Symbol
 
     version_length = int(in_port.read(1))
-    written_version = in_port.read(version_lenght)
+    written_version = in_port.read(version_length)
 
     if written_version.tostring() != current_version:
         raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version.tostring()))
@@ -1129,11 +1130,11 @@ def read_compiled_linklet(in_port, env, cont):
 
     if not D_or_B is dir_sym and not D_or_B is bundle_sym:
         raise SchemeException("malformed compiled code : Expected %s or %s to start with" % (dir_sym.tostring(), bundle_sym.tostring()))
-    read_data = read_loop(data)
+    read_data = deserialize_loop(data)
 
     return return_value(read_data, env, cont)
 
-def read_loop(sexp):
+def deserialize_loop(sexp):
     # Work in progress
     from pycket.env import w_global_config
 
@@ -1141,10 +1142,10 @@ def read_loop(sexp):
         c = sexp.car()
         if c is dir_sym:
             dir_map = sexp.cdr()
-            return W_LinkletDirectory(read_loop(dir_map))
+            return W_LinkletDirectory(deserialize_loop(dir_map))
         elif c is bundle_sym:
             bundle_map = sexp.cdr()
-            return W_LinkletBundle(read_loop(bundle_map))
+            return W_LinkletBundle(deserialize_loop(bundle_map))
         elif c is linklet_sym:
             # Unify this with compile_linklet
             if isinstance(sexp.cdr().car(), W_List):
@@ -1209,11 +1210,11 @@ def read_loop(sexp):
             from pycket.prims.general import srcloc
             srcloc_const = srcloc.constructor
 
-            source = read_loop(sexp.cdr().car())
-            line = read_loop(sexp.cdr().cdr().car())
-            column = read_loop(sexp.cdr().cdr().cdr().car())
-            position = read_loop(sexp.cdr().cdr().cdr().cdr().car())
-            span = read_loop(sexp.cdr().cdr().cdr().cdr().cdr().car())
+            source = deserialize_loop(sexp.cdr().car())
+            line = deserialize_loop(sexp.cdr().cdr().car())
+            column = deserialize_loop(sexp.cdr().cdr().cdr().car())
+            position = deserialize_loop(sexp.cdr().cdr().cdr().cdr().car())
+            span = deserialize_loop(sexp.cdr().cdr().cdr().cdr().cdr().car())
 
             #FIXME : don't need call_interpret here, allocate the
             #object manually, get rid of the interpreter indirection
@@ -1231,11 +1232,11 @@ def read_loop(sexp):
             new_rev = w_null
             while sexp is not w_null:
                 if isinstance(sexp, W_Cons):
-                    new_rev = W_Cons.make(read_loop(sexp.car()), new_rev)
+                    new_rev = W_Cons.make(deserialize_loop(sexp.car()), new_rev)
                     sexp = sexp.cdr()
                 else:
                     is_improper = True
-                    new_rev = W_Cons.make(read_loop(sexp), new_rev)
+                    new_rev = W_Cons.make(deserialize_loop(sexp), new_rev)
                     sexp = w_null
             # double reverse
             # FIXME : do this without the double space
@@ -1256,7 +1257,7 @@ def read_loop(sexp):
         i = 0
         for k, v in sexp.iteritems():
             keys[i] = k
-            vals[i] = read_loop(v)
+            vals[i] = deserialize_loop(v)
             i += 1
 
         return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
@@ -1267,7 +1268,7 @@ def read_loop(sexp):
         i = 0
         for k, v in sexp.hash_items():
             keys[i] = k
-            vals[i] = read_loop(v)
+            vals[i] = deserialize_loop(v)
             i += 1
 
         return W_EqualHashTable(keys, vals, immutable=True)
@@ -1275,7 +1276,7 @@ def read_loop(sexp):
         new = [None]*sexp.length()
         items = sexp.get_strategy().ref_all(sexp)
         for index, obj in enumerate(items):
-            new[index] = read_loop(obj)
+            new[index] = deserialize_loop(obj)
 
         return W_Vector.fromelements(new, sexp.immutable())
     else:
