@@ -1027,24 +1027,34 @@ def read_compiled_linklet(in_port, env, cont):
     # port position comes at 2 (i.e. #~ is already read)
     from pycket.interpreter import return_value
     from pycket.env import w_version
+    from pycket.racket_entry import get_primitive
+
     current_version = w_version.get_version() # str
 
-    read_sym = values.W_Symbol.make("read")
-    read = prim_env[read_sym]
+    fasl_to_s_exp = get_primitive("fasl->s-exp")
+
+    #read_sym = values.W_Symbol.make("read")
+    #read = prim_env[read_sym]
 
     # Racket's read
-    pycketconfig = env.toplevel_env()._pycketconfig
-    sexp = read.call_interpret([in_port], pycketconfig)
+    #pycketconfig = env.toplevel_env()._pycketconfig
+    #sexp = read.call_interpret([in_port], pycketconfig)
 
-    if sexp is w_void:
-        raise SchemeException("Couldn't read : %s" % in_port.read(-1))
+    # if sexp is w_void:
+    #     raise SchemeException("Couldn't read : %s" % in_port.read(-1))
 
-    written_version = sexp.car().car() # W_Symbol
+    #written_version = sexp.car().car() # W_Symbol
+
+    version_length = int(in_port.read(1))
+    written_version = in_port.read(version_lenght)
 
     if written_version.tostring() != current_version:
         raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version.tostring()))
 
-    data = sexp.cdr().car()
+    #data = sexp.cdr().car()
+    s_exp = fasl_to_s_exp.call_interpret([in_port, values.w_true])
+
+    import pdb;pdb.set_trace()
 
     D_or_B = data.car()
 
