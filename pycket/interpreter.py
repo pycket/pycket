@@ -1069,6 +1069,15 @@ class App(AST):
         elements = [self.rator] + self.rands
         return "(%s)" % " ".join([r.tostring() for r in elements])
 
+    def to_sexp(self):
+        from pycket.prims.linklet import ast_to_sexp
+        rator_sexp = ast_to_sexp(self.rator)
+        rands_sexp = values.w_null
+        for rand in self.rands:
+            rands_sexp = values.W_Cons.make(ast_to_sexp(rand), rands_sexp)
+
+        return values.W_Cons.make(rator_sexp, rands_sexp)
+
     def write(self, port, env):
         port.write("(")
         self.rator.write(port, env)
