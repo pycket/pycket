@@ -640,10 +640,7 @@ def ast_to_sexp(form):
         else:
             raise SchemeException("Something wrong with the bundle/directory mapping : %s" % mapping.tostring())
     else:
-        try:
-            return form.to_sexp()
-        except:
-            raise SchemeException("ast->sexp doesn't handle %s : %s yet." % (type(form), form.tostring()))
+        return form.to_sexp()
 
 ## TODO : handle :B: & :D: for linklet bundles and directories
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
