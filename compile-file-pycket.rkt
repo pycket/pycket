@@ -10,6 +10,7 @@
   (with-module-reading-parameterization (lambda () (c:compile-file src))))
 
 (define fails '())
+(define clean-count 0)
 
 (define racket-modules
   '("racket/private/stx"
@@ -300,10 +301,12 @@
     (let* ((d (path-only p))
            (zo-name (format "~a_rkt.zo" (car p-list)))
            (zo-path (build-path d "pycket-compiled" zo-name)))
-      (printf "REMOVING : ~a\n" zo-path)
-      (when (file-exists? zo-path)
-        (delete-file zo-path)))))
-
+      (if (file-exists? zo-path)
+          (begin
+            (printf "REMOVING : ~a\n" zo-path)
+            (set! clean-count (add1 clean-count))
+            (delete-file zo-path))
+          (printf "DOESN'T EXIST : ~a\n" zo-path)))))
 
 (define force-recompile (make-parameter #f))
 
@@ -351,22 +354,25 @@
          (compile-lib-path p))))
 
    ;; to compile individual paths
-   (when (not (null? paths))
+   (unless (null? paths)
      (for ([p (in-list paths)])
        (if lib-path?
            (compile-lib-path p)
            (compile-path p))))
 
-   (when fails
-     (printf "\n-- Here are the failed libraries -- ~a / ~a failed --\n\n"
-             (length fails) (length racket-modules))
-     (for ([p (in-list fails)])
-       (printf "~a ------------ ~a\n" (car p) (cdr p))))
 
-   (unless fails
-     (printf "All Succeded.\n"))
+   (unless (zero? clean-count)
+     (printf "\n-- ~a out of ~a zo files removed --\n\n"
+                 clean-count (length racket-modules)))
 
-
-   (printf "DONE.\n"))
+   (if (null? fails)
+       (printf "All DONE without errors.\n")
+       (begin
+         (printf "\n-- Here are the failed libraries -- ~a / ~a failed --\n\n"
+                 (length fails) (length racket-modules))
+         (for ([p (in-list fails)])
+           (printf "~a ------------ ~a\n" (car p) (cdr p)))
+         (printf "DONE.\n")))
 
   (current-namespace old-ns);)
+  )
