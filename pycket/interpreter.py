@@ -1006,6 +1006,10 @@ class WithContinuationMark(AST):
         result = WithContinuationMark(key, value, body)
         return context.plug(result)
 
+    def to_sexp(self):
+        wcm_sym = values.W_Symbol.make("with-continuation-mark")
+        return values.to_list([wcm_sym, self.key.to_sexp(), self.value.to_sexp(), self.body.to_sexp()])
+
     def write(self, port, env):
         port.write("(with-continuation-mark ")
         if self.key:
