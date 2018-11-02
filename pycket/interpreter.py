@@ -1722,6 +1722,10 @@ class If(AST):
     def _tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
+    def to_sexp(self):
+        if_sym = values.W_Symbol.make("if")
+        return values.to_list([if_sym, self.tst.to_sexp(), self.thn.to_sexp(), self.els.to_sexp()])
+
     def write(self, port, env):
         port.write("(if ")
         self.tst.write(port, env)
