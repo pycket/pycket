@@ -2035,6 +2035,21 @@ class Lambda(SequencedBodyAST):
                 self.body[0].tostring() if len(self.body) == 1 else
                 " ".join([b.tostring() for b in self.body]))
 
+    def to_sexp(self):
+        lam_sym = values.W_Symbol.make("lambda")
+
+        if self.rest and not self.formals:
+            args_sexp = self.rest.to_sexp()
+        elif self.rest:
+            args_sexp = self.rest.to_sexp()
+            for f in reversed(self.formals):
+                args_sexp = values.W_Cons.make(f.to_sexp(), args_sexp)
+        else:
+            args_sexp = values.to_list(self.formals)
+
+        body_ls = [b.to_sexp() for b in self.body]
+        return values.to_list([lam_sym, args_sexp] + body_ls)
+
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         port.write("(lambda")
