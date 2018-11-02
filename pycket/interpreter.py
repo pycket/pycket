@@ -919,6 +919,10 @@ class QuoteSyntax(AST):
     def _tostring(self):
         return "#'%s" % self.w_val.tostring()
 
+    def to_sexp(self):
+        qs_sym = values.W_Symbol.make("quote-syntax")
+        return values.W_Cons.make(qs_sym, values.W_Cons.make(self.w_val.to_sexp(), values.w_null))
+
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         port.write("(quote-syntax ")
