@@ -957,6 +957,10 @@ class VariableReference(AST):
     def _tostring(self):
         return "#<#%variable-reference>"
 
+    def to_sexp(self):
+        vr_sym = values.W_Symbol.make("#%variable-reference")
+        return values.W_Cons.make(vr_sym, values.W_Cons.make(self.var.to_sexp(), values.w_null))
+
     def write(self, port, env):
         port.write("(#%variable-reference ")
         if self.var:
