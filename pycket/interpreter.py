@@ -2137,20 +2137,24 @@ class Letrec(SequencedBodyAST):
 
     def to_sexp(self):
         letrec_sym = values.W_Symbol.make("letrec-values")
-        all_bindings = values.w_null
-        for i, count in reversed(list(enumerate(self.counts))):
-            current_bindings_sexp = values.to_list(self.args.elems)
-
+        all_bindings_ls = [None]*len(self.counts)
+        total = 0
+        for i, count in enumerate(self.counts):
+            binding_ls = [None]*count
+            for k in range(count):
+                binding_ls[k] = self.args.elems[total+k]
+            total += count
+            current_bindings_sexp = values.to_list(binding_ls)
             current_rhs_sexp = self.rhss[i].to_sexp()
             current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
             current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
 
-            all_bindings = values.W_Cons.make(current_ids, all_bindings)
+            all_bindings_ls[i] = current_ids
+
+        all_bindings = values.to_list(all_bindings_ls)
 
         body_ls = [b.to_sexp() for b in self.body]
-        letrec_sexp = values.to_list([letrec_sym, all_bindings] + body_ls)
-
-        return letrec_sexp
+        return values.to_list([letrec_sym, all_bindings] + body_ls)
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -2356,20 +2360,24 @@ class Let(SequencedBodyAST):
 
     def to_sexp(self):
         let_sym = values.W_Symbol.make("let-values")
-        all_bindings = values.w_null
-        for i, count in reversed(list(enumerate(self.counts))):
-            current_bindings_sexp = values.to_list(self.args.elems)
-
+        all_bindings_ls = [None]*len(self.counts)
+        total = 0
+        for i, count in enumerate(self.counts):
+            binding_ls = [None]*count
+            for k in range(count):
+                binding_ls[k] = self.args.elems[total+k]
+            total += count
+            current_bindings_sexp = values.to_list(binding_ls)
             current_rhs_sexp = self.rhss[i].to_sexp()
             current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
             current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
 
-            all_bindings = values.W_Cons.make(current_ids, all_bindings)
+            all_bindings_ls[i] = current_ids
+
+        all_bindings = values.to_list(all_bindings_ls)
 
         body_ls = [b.to_sexp() for b in self.body]
-        let_sexp = values.to_list([let_sym, all_bindings] + body_ls)
-
-        return let_sexp
+        return values.to_list([let_sym, all_bindings] + body_ls)
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
