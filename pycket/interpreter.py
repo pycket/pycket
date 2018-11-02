@@ -1342,6 +1342,10 @@ class Begin(SequencedBodyAST):
     def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
+    def to_sexp(self):
+        begin_sym = values.W_Symbol.make("begin")
+        return values.to_list([begin_sym] + [b.to_sexp() for b in self.body])
+
     def write(self, port, env):
         port.write("(begin ")
         for b in self.body:
