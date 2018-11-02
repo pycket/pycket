@@ -958,8 +958,15 @@ class VariableReference(AST):
         return "#<#%variable-reference>"
 
     def to_sexp(self):
+        from pycket.values_string import W_String
+
         vr_sym = values.W_Symbol.make("#%variable-reference")
-        return values.W_Cons.make(vr_sym, values.W_Cons.make(self.var.to_sexp(), values.w_null))
+        var_sexp = self.var.to_sexp() if self.var else values.w_false
+        path_sexp = values.w_false
+        if isinstance(self.path, str):
+            path_sexp = W_String.fromascii(self.path)
+        mut_sexp = values.w_true if self.is_mut else values.w_false
+        return values.to_list([vr_sym, var_sexp, path_sexp, mut_sexp])
 
     def write(self, port, env):
         port.write("(#%variable-reference ")
@@ -1008,6 +1015,7 @@ class WithContinuationMark(AST):
 
     def to_sexp(self):
         wcm_sym = values.W_Symbol.make("with-continuation-mark")
+        assert self.key and self.value and self.body
         return values.to_list([wcm_sym, self.key.to_sexp(), self.value.to_sexp(), self.body.to_sexp()])
 
     def write(self, port, env):
