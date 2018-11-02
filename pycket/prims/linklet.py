@@ -603,7 +603,7 @@ def ast_to_sexp(form):
 
         body_forms_rlist = [None]*len(body_forms)
         for index, ast_form in enumerate(body_forms):
-            body_forms_rlist[index] = ast_to_sexp(ast_form)
+            body_forms_rlist[index] = ast_form.to_sexp()
 
         linklet_rlist = [l_sym, name, importss_list, exports_list] + body_forms_rlist
         linklet_s_exp = to_list(linklet_rlist)
