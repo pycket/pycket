@@ -1354,6 +1354,10 @@ class BeginForSyntax(AST):
     def _tostring(self):
         return "(begin-for-syntax %s)" % " ".join([b.tostring() for b in self.body])
 
+    def to_sexp(self):
+        bfs_sym = values.W_Symbol.make("begin-for-syntax")
+        return values.to_list([bfs_sym] + [b.to_sexp() for b in self.body])
+
     def write(self, port, env):
         port.write("(begin-for-syntax ")
         for b in self.body:
