@@ -1380,7 +1380,7 @@ def write_loop(v, port, env):
         version = w_version.get_version()
         len_version = len(version)
         assert len_version < 10
-        port.write("%s%s:B:" % (len_version, version))
+        port.write("%s%s" % (len_version, version))
         write_linklet_bundle(v, port, env)
 
     elif is_directory(v):
@@ -1389,7 +1389,7 @@ def write_loop(v, port, env):
         version = w_version.get_version()
         len_version = len(version)
         assert len_version < 10
-        port.write("%s%s:D:" % (len_version, version))
+        port.write("%s%s" % (len_version, version))
         write_linklet_directory(v, port, env)
 
     elif isinstance(v, W_Struct):
