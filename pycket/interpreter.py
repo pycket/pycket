@@ -1675,6 +1675,10 @@ class SetBang(AST):
     def _tostring(self):
         return "(set! %s %s)" % (self.var.tostring(), self.rhs.tostring())
 
+    def to_sexp(self):
+        set_sym = values.W_Symbol.make("set!")
+        return values.to_list([set_sym, self.var.to_sexp(), self.rhs.to_sexp()])
+
     def write(self, port, env):
         port.write("(set! ")
         self.var.write(port, env)
