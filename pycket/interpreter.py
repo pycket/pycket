@@ -898,8 +898,7 @@ class Quote(AST):
         port.write(")")
 
     def to_sexp(self):
-        from pycket.prims.linklet import ast_to_sexp
-        return values.W_Cons.make(values.W_Symbol.make("quote"), ast_to_sexp(self.w_val))
+        return values.W_Cons.make(values.W_Symbol.make("quote"), self.w_val.to_sexp())
 
 class QuoteSyntax(AST):
     _immutable_fields_ = ["w_val"]
@@ -1070,11 +1069,10 @@ class App(AST):
         return "(%s)" % " ".join([r.tostring() for r in elements])
 
     def to_sexp(self):
-        from pycket.prims.linklet import ast_to_sexp
-        rator_sexp = ast_to_sexp(self.rator)
+        rator_sexp = self.rator.to_sexp()
         rands_sexp = values.w_null
         for rand in reversed(self.rands):
-            rands_sexp = values.W_Cons.make(ast_to_sexp(rand), rands_sexp)
+            rands_sexp = values.W_Cons.make(rand.to_sexp(), rands_sexp)
 
         return values.W_Cons.make(rator_sexp, rands_sexp)
 
@@ -2138,19 +2136,18 @@ class Letrec(SequencedBodyAST):
         return "(letrec (%s) %s)" % (bindings, body)
 
     def to_sexp(self):
-        from pycket.prims.linklet import ast_to_sexp
         letrec_sym = values.W_Symbol.make("letrec-values")
         all_bindings = values.w_null
         for i, count in reversed(list(enumerate(self.counts))):
             current_bindings_sexp = values.to_list(self.args.elems)
 
-            current_rhs_sexp = ast_to_sexp(self.rhss[i])
+            current_rhs_sexp = self.rhss[i].to_sexp()
             current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
             current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
 
             all_bindings = values.W_Cons.make(current_ids, all_bindings)
 
-        body_ls = [ast_to_sexp(b) for b in self.body]
+        body_ls = [b.to_sexp() for b in self.body]
         letrec_sexp = values.to_list([letrec_sym, all_bindings] + body_ls)
 
         return letrec_sexp
@@ -2358,19 +2355,18 @@ class Let(SequencedBodyAST):
         return "".join(result)
 
     def to_sexp(self):
-        from pycket.prims.linklet import ast_to_sexp
         let_sym = values.W_Symbol.make("let-values")
         all_bindings = values.w_null
         for i, count in reversed(list(enumerate(self.counts))):
             current_bindings_sexp = values.to_list(self.args.elems)
 
-            current_rhs_sexp = ast_to_sexp(self.rhss[i])
+            current_rhs_sexp = self.rhss[i].to_sexp()
             current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
             current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
 
             all_bindings = values.W_Cons.make(current_ids, all_bindings)
 
-        body_ls = [ast_to_sexp(b) for b in self.body]
+        body_ls = [b.to_sexp() for b in self.body]
         let_sexp = values.to_list([let_sym, all_bindings] + body_ls)
 
         return let_sexp
@@ -2427,13 +2423,12 @@ class DefineValues(AST):
             ' '.join([n.tostring() for n in self.display_names]), self.rhs.tostring())
 
     def to_sexp(self):
-        from pycket.prims.linklet import ast_to_sexp
         dv_sym = values.W_Symbol.make("define-values")
         ids = values.w_null
         for name in reversed(self.display_names):
             ids = values.W_Cons.make(name, ids)
 
-        rhs = ast_to_sexp(self.rhs)
+        rhs = self.rhs.to_sexp()
         rhs_sexp = values.W_Cons.make(rhs, values.w_null)
 
         return values.W_Cons.make(dv_sym, values.W_Cons.make(ids, rhs_sexp))
