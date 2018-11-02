@@ -147,6 +147,9 @@ class W_Object(W_ProtoObject):
     def tostring(self):
         return str(self)
 
+    def to_sexp(self):
+        return self
+
     # for expose
     @classmethod
     def make_unwrapper(cls, unbox=False):
