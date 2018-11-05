@@ -409,7 +409,7 @@ class W_UnwrappedFixnumCons(W_Cons):
 
 @add_copy_method(copy_method="clone")
 class W_UnwrappedFixnumConsProper(W_UnwrappedFixnumCons):
-    def is_proper_list(self):
+    def is_proper_list(self, seen=[]):
         return True
 
 @add_copy_method(copy_method="clone")
@@ -431,7 +431,7 @@ class W_UnwrappedFlonumCons(W_Cons):
 
 @add_copy_method(copy_method="clone")
 class W_UnwrappedFlonumConsProper(W_UnwrappedFlonumCons):
-    def is_proper_list(self):
+    def is_proper_list(self, seen=[]):
         return True
 
 @add_copy_method(copy_method="clone")
@@ -452,12 +452,14 @@ class W_WrappedCons(W_Cons):
 
 @add_copy_method(copy_method="clone")
 class W_WrappedConsProper(W_WrappedCons):
-    def is_proper_list(self):
+    def is_proper_list(self, seen=[]):
         return True
 
 class W_WrappedConsMaybe(W_WrappedCons):
-    def is_proper_list(self):
-        return self._cdr.is_proper_list()
+    def is_proper_list(self, seen=[]):
+        if self in seen:
+            return False # contains a cycle
+        return self._cdr.is_proper_list(seen + [self])
 
 class W_Box(W_Object):
     errorname = "box"
@@ -963,7 +965,7 @@ class W_Null(W_List):
     def tostring(self):
         return "()"
 
-    def is_proper_list(self):
+    def is_proper_list(self, seen=[]):
         return True
 
 w_void = W_Void()

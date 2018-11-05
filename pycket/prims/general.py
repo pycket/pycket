@@ -856,7 +856,7 @@ def virtual_length(lst, unroll_to=0):
 @expose("length", [values.W_List])
 def length(a):
     if not a.is_proper_list():
-        raise SchemeException("length: not given proper list")
+        raise SchemeException("length: not given a proper list (either cyclic or not null terminated)")
     return values.W_Fixnum(virtual_length(a, unroll_to=2))
 
 @expose("list")
