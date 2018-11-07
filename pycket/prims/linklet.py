@@ -399,9 +399,11 @@ class W_Linklet(W_Object):
 
         all_forms = []
         for body_form in getkey(linklet_dict, "body", type='a'):
-            form = loader.to_ast(body_form)
-            form = Context.normalize_term(form)
-            form = assign_convert(form)
+            form_2 = loader.to_ast(body_form)
+            form_1 = Context.normalize_term(form_2)
+            # if form_1.tostring() != form_2.tostring():
+            #     import pdb;pdb.set_trace()
+            form = assign_convert(form_1)
             all_forms.append(form)
 
         console_log("Finished converting linklet forms to AST ...", 2)
@@ -1095,6 +1097,7 @@ def read_compiled_linklet(in_port, env, cont):
     from pycket.interpreter import return_value
     from pycket.env import w_version
     from pycket.racket_entry import get_primitive
+    from pycket.util import console_log
 
     current_version = w_version.get_version() # str
 
@@ -1106,7 +1109,11 @@ def read_compiled_linklet(in_port, env, cont):
     if written_version != current_version:
         raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version))
 
+    console_log("read-compiled-linklet : version check OK", 8)
+
     s_exp = fasl_to_s_exp.call_interpret([in_port, values.w_true])
+
+    console_log("read-compiled-linklet : fasl->sexp returns -- sexp is here : %s", 8)
 
     read_data = deserialize_loop(s_exp)
 
@@ -1115,16 +1122,23 @@ def read_compiled_linklet(in_port, env, cont):
 def deserialize_loop(sexp):
     # Work in progress
     from pycket.env import w_global_config
+    from pycket.util import console_log
 
+    console_log("deserialize_loop -- s-exp : %s -- %s" % (sexp, sexp.tostring()), 8)
     if isinstance(sexp, W_Cons):
+        console_log("it's a W_Cons", 8)
         c = sexp.car()
+        console_log("c is : %s" % c.tostring(), 8)
         if c is dir_sym:
+            console_log("dir_sym", 8)
             dir_map = sexp.cdr()
             return W_LinkletDirectory(deserialize_loop(dir_map))
         elif c is bundle_sym:
+            console_log("bundle_sym", 8)
             bundle_map = sexp.cdr()
             return W_LinkletBundle(deserialize_loop(bundle_map))
         elif c is linklet_sym:
+            console_log("linklet_sym", 8)
             # Unify this with compile_linklet
             if isinstance(sexp.cdr().car(), W_List):
                 w_name = W_Symbol.make("anonymous")
@@ -1137,19 +1151,22 @@ def deserialize_loop(sexp):
                 w_exports = sexp.cdr().cdr().cdr().car()
                 w_body = sexp.cdr().cdr().cdr().cdr()
 
+            console_log("-- w_name : %s\n-- w_imports : %s\n-- w_exports : %s\n-- w_body : %s" % (w_name.tostring(), w_importss.tostring(), w_exports.tostring(), w_body.tostring()), 8)
+
             importss_acc = to_rpython_list(w_importss)
             importss_list = [None]*len(importss_acc)
             for index, importss_current in enumerate(importss_acc):
                 inner_acc = {}
+                console_log("imports_current : %s" % importss_current.tostring(), 8)
                 while (importss_current is not w_null):
                     c = importss_current.car()
                     if isinstance(c, W_Symbol):
                         inner_acc[c] = c
                     elif isinstance(c, W_List):
-                        if c.cdr().cdr() is not w_null:
-                            raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
+                        # if c.cdr().cdr() is not w_null:
+                        #     raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
                         external_id = c.car()
-                        internal_id = c.cdr().car()
+                        internal_id = c.cdr()
 
                         assert isinstance(external_id, W_Symbol) and isinstance(internal_id, W_Symbol)
                         inner_acc[external_id] = internal_id
@@ -1157,6 +1174,8 @@ def deserialize_loop(sexp):
                     importss_current = importss_current.cdr()
 
                 importss_list[index] = inner_acc
+
+            console_log("imports are done", 8)
 
             # Process the exports
             exports = {}
@@ -1169,6 +1188,8 @@ def deserialize_loop(sexp):
                     exports[internal_name] = external_name
                 else:
                     exports[exp] = exp
+
+            console_log("exports are done", 8)
 
             # Process the body
             body_forms_ls = to_rpython_list(w_body)
@@ -1183,8 +1204,11 @@ def deserialize_loop(sexp):
                 b_form = assign_convert(b_form)
                 body_forms[i] = b_form
 
+            console_log("body forms are done", 8)
+
             return W_Linklet(w_name, importss_list, exports, body_forms)
         elif c is srcloc_sym:
+            console_log("srcloc_sym", 8)
             from pycket.prims.general import srcloc
             srcloc_const = srcloc.constructor
 
@@ -1203,9 +1227,11 @@ def deserialize_loop(sexp):
 
             return srcloc_obj
         elif c is path_sym:
+            console_log("path_sym", 8)
             path_str = sexp.cdr().car().tostring()
             return W_Path(path_str)
         else:
+            console_log("ELSE", 8)
             is_improper = False
             new_rev = w_null
             while sexp is not w_null:
@@ -1229,6 +1255,7 @@ def deserialize_loop(sexp):
 
             return new
     elif isinstance(sexp, W_EqImmutableHashTable):
+        console_log("it's a W_EqImmutableHashTable", 8)
         l = sexp.length()
         keys = [None]*l
         vals = [None]*l
@@ -1240,6 +1267,7 @@ def deserialize_loop(sexp):
 
         return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
     elif isinstance(sexp, W_EqualHashTable):
+        console_log("it's a W_EqualHashTable", 8)
         l = sexp.length()
         keys = [None]*l
         vals = [None]*l
@@ -1251,6 +1279,7 @@ def deserialize_loop(sexp):
 
         return W_EqualHashTable(keys, vals, immutable=True)
     elif isinstance(sexp, W_Vector):
+        console_log("it's a W_Vector", 8)
         new = [None]*sexp.length()
         items = sexp.get_strategy().ref_all(sexp)
         for index, obj in enumerate(items):
@@ -1258,4 +1287,5 @@ def deserialize_loop(sexp):
 
         return W_Vector.fromelements(new, sexp.immutable())
     else:
+        console_log("it's something else", 8)
         return sexp
