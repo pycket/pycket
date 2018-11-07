@@ -646,6 +646,8 @@ def ast_to_sexp(form):
 
 ## TODO : handle :B: & :D: for linklet bundles and directories
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
+    from pycket.util import console_log
+    console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
     elif is_val_type(form):
@@ -1197,6 +1199,9 @@ def deserialize_loop(sexp):
             toplevel_defined_linklet_vars = create_toplevel_linklet_vars(body_forms_ls)
 
             _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
+
+            console_log("body forms -> ASTs are done, postprocessing begins...", 8)
+
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):
