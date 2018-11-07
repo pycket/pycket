@@ -1203,7 +1203,7 @@ def write_linklet(v, port, env):
         for ext_name, int_name in imp_dict.iteritems():
             port.write("(")
             write_loop(ext_name, port, env)
-            port.write(" ")
+            port.write(" . ")
             write_loop(int_name, port, env)
             port.write(")")
         port.write(")")
