@@ -534,7 +534,10 @@ def integer_bytes_to_integer(bstr, signed):
     for i, v in enumerate(bytes):
         val += rarithmetic.r_int64(ord(v)) << (i * 8)
 
-    return values.W_Flonum(longlong2float.longlong2float(val))
+    try:
+        return values.W_Flonum(longlong2float.longlong2float(val))
+    except OverflowError, e:
+        raise SchemeException("RPython overflow : %s" % e)
 
 @expose("integer-bytes->integer",
         [values.W_Bytes,
