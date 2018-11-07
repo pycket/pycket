@@ -108,7 +108,8 @@ class GlobalConfig(object):
         self.config = {'verbose':MIN_INT,
                        'expander_loaded':0,
                        'repl_loaded':0,
-                       'debug_active':0}
+                       'debug_active':0,
+                       'boot_done':0}
         self.pycketconfig = None
 
     # debug_active can be used to set a logical
@@ -126,6 +127,12 @@ class GlobalConfig(object):
 
     def is_debug_active(self):
         return self.config['debug_active'] == 1
+
+    def is_boot_completed(self):
+        return self.config['boot_done'] == 1
+
+    def boot_is_completed(self):
+        self.config['boot_done'] = 1
 
     def get_config(self):
         return self.config

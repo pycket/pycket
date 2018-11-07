@@ -156,6 +156,8 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, d
     c.set(W_Path(c_dir))
 
     console_log("...Boot Sequence Completed")
+    from pycket.env import w_global_config as glob
+    glob.boot_is_completed()
 
     return 0
 
