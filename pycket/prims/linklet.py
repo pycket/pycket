@@ -582,6 +582,9 @@ path_sym = W_Symbol.make("p+")
 srcloc_sym = W_Symbol.make("srcloc")
 
 def ast_to_sexp(form):
+    from pycket.util import console_log
+    console_log("ast->sexp is called with form : %s" % form.tostring(), 8)
+
     if is_val_type(form, extra=[W_Vector, W_HashTable, W_List, W_Symbol]):
         return form
     elif isinstance(form, W_Linklet):
