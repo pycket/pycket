@@ -775,10 +775,9 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             assert isinstance(var, Var)
             form = SetBang(var, rhs)
         elif form.car() is W_Symbol.make("quote"):
-            if form.cdr().cdr() is not w_null:
+            if form.cdr() is w_null or form.cdr().cdr() is not w_null:
                 raise SchemeException("malformed quote form : %s" % form.tostring())
-            # the reason for deserialize_loop is to deserialize paths (from p+ to W_Path)
-            form = Quote(deserialize_loop(form.cdr().car()))
+            form = Quote(form.cdr().car())
         elif form.car() is W_Symbol.make("if"):
             tst_w = form.cdr().car()
             thn_w = form.cdr().cdr().car()
