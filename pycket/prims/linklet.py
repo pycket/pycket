@@ -1214,8 +1214,7 @@ def deserialize_loop(sexp):
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):
-                b_form = Context.normalize_term(bf)
-                b_form = assign_convert(b_form)
+                b_form = assign_convert(bf)
                 body_forms[i] = b_form
 
             console_log("body forms are done", 8)
