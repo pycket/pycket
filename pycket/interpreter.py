@@ -899,8 +899,7 @@ class Quote(AST):
 
     def to_sexp(self):
         q_sym = values.W_Symbol.make("quote")
-        val_sexp = self.w_val.to_sexp()
-        return values.W_Cons.make(q_sym, values.W_Cons.make(val_sexp, values.w_null))
+        return values.W_Cons.make(q_sym, values.W_Cons.make(self.w_val, values.w_null))
 
 class QuoteSyntax(AST):
     _immutable_fields_ = ["w_val"]
