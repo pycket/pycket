@@ -249,7 +249,7 @@ class W_Linklet(W_Object):
         importss_ls = [None]*len(self.importss)
 
         for index, imp_dict in enumerate(self.importss):
-            importss_ls[index] = "".join(["(%s %s)" % (ext_name.tostring(), int_name.tostring()) for ext_name, int_name in imp_dict.iteritems()])
+            importss_ls[index] = "".join(["(%s . %s)" % (ext_name.tostring(), int_name.tostring()) for ext_name, int_name in imp_dict.iteritems()])
 
         importss_str = "".join(importss_ls)
 
