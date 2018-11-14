@@ -124,6 +124,10 @@ class W_LinkletBundle(W_Object):
     def get_mapping(self):
         return self.bundle_mapping
 
+    def tostring(self):
+        mapping = self.bundle_mapping
+        return "BUNDLE : %s" % mapping.tostring()
+
 @expose("hash->linklet-bundle", [W_Object])
 def hash_to_linklet_bundle(content):
     return W_LinkletBundle(content)
@@ -147,6 +151,10 @@ class W_LinkletDirectory(W_Object):
 
     def get_mapping(self):
         return self.dir_mapping
+
+    def tostring(self):
+        mapping = self.dir_mapping
+        return "DIRECTORY : %s" % mapping.tostring()
 
 @expose("hash->linklet-directory", [W_Object])
 def hash_to_linklet_directory(content):
@@ -1118,6 +1126,8 @@ def read_compiled_linklet(in_port, env, cont):
     console_log("read-compiled-linklet : fasl->sexp returns -- sexp is here : %s", 8)
 
     read_data = deserialize_loop(s_exp)
+
+    console_log("READ DATA : %s" % read_data.tostring(), 8)
 
     return return_value(read_data, env, cont)
 
