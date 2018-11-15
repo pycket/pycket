@@ -200,7 +200,7 @@ class __extend__(Context):
     def Name(context, hint, ast):
         if ast.simple:
             return context.plug(ast)
-        sym = values.W_Symbol.make(hint + str(Gensym.get_counter(hint).next_value()))
+        sym  = Gensym.gensym(hint=hint)
         var  = LexicalVar(sym)
         body = Context.normalize_term(var, context)
         Context.yields(make_let_singlevar(sym, ast, [body]))
