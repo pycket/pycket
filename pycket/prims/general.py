@@ -466,6 +466,10 @@ def set_bang_transformer(v):
 def object_name(v):
     if isinstance(v, values.W_Prim):
         return v.name
+
+    elif isinstance(v, values_regex.W_AnyRegexp):
+        return v.obj_name()
+
     return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 
 @expose("find-main-config", [])
