@@ -1174,18 +1174,30 @@ def do_write_cont(o, env, cont, _vals):
 def write_linklet_bundle(lb, port, env):
     from pycket.racket_entry import get_primitive
     from pycket.prims.linklet import ast_to_sexp
+    from pycket.util import console_log
 
     s_exp_to_fasl = get_primitive("s-exp->fasl")
+
+    console_log("BUNDLE AST TO BE SERIALIZED: %s" % lb.tostring(), 8)
+
     bundle_s_exp = ast_to_sexp(lb)
+
+    console_log("WRITING BUNDLE SEXP : %s" % bundle_s_exp.tostring(), 8)
 
     s_exp_to_fasl.call_interpret([bundle_s_exp, port, values.w_false])
 
 def write_linklet_directory(ld, port, env):
     from pycket.racket_entry import get_primitive
     from pycket.prims.linklet import ast_to_sexp
+    from pycket.util import console_log
 
     s_exp_to_fasl = get_primitive("s-exp->fasl")
+
+    console_log("DIRECTORY AST TO BE SERIALIZED: %s" % ld.tostring(), 8)
+
     directory_s_exp = ast_to_sexp(ld)
+
+    console_log("WRITING DIRECTORY : %s" % directory_s_exp.tostring(), 8)
 
     s_exp_to_fasl.call_interpret([directory_s_exp, port, values.w_false])
 
