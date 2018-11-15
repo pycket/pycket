@@ -1821,6 +1821,9 @@ class W_StringOutputPort(W_OutputPort):
     def get_position(self):
         return W_Fixnum(self.tell() + 1)
 
+    def flush(self):
+        pass
+
     def write(self, s):
         self.str.append(s)
     def contents(self, reset=False):
