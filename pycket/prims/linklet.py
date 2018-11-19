@@ -609,7 +609,7 @@ def ast_to_sexp(form):
         exports_rlist = [None]*len(exports)
         i = 0
         for k, v in exports.iteritems():
-            exports_rlist[i] = W_Cons.make(k, v)
+            exports_rlist[i] = W_Cons.make(k, W_Cons.make(v, w_null))
             i += 1
 
         exports_list = to_list(exports_rlist)
