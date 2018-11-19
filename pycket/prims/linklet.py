@@ -28,6 +28,7 @@ from pycket.prims.control import default_error_escape_handler, default_uncaught_
 from pycket.hash.base import W_HashTable
 from pycket.hash.simple import W_SimpleMutableHashTable, W_EqvImmutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
 from pycket.hash.equal import W_EqualHashTable
+from pycket.util import PerfRegion
 
 class W_Uninitialized(W_Object):
     errorname = "uninitialized"
@@ -362,17 +363,18 @@ class W_Linklet(W_Object):
         from pycket.expand import readfile_rpython, getkey
         from pycket.util import console_log
         """ Expands and loads a linklet from a JSON file"""
-        data = readfile_rpython(json_file_name)
-        json = pycket_json.loads(data)
-        console_log("Finished reading JSON from %s" % json_file_name, 2)
-        assert json.is_object
-        json_python_dict = json.value_object()
-        assert "linklet" in json_python_dict
-        linklet_dict = getkey(json_python_dict, "linklet", type='o')
-        assert "exports" in linklet_dict and "body" in linklet_dict
+        with PerfRegion("json-load"):
+            data = readfile_rpython(json_file_name)
+            json = pycket_json.loads(data)
+            console_log("Finished reading JSON from %s" % json_file_name, 2)
+            assert json.is_object
+            json_python_dict = json.value_object()
+            assert "linklet" in json_python_dict
+            linklet_dict = getkey(json_python_dict, "linklet", type='o')
+            assert "exports" in linklet_dict and "body" in linklet_dict
 
-        # list of JsonObject
-        exports_list = getkey(linklet_dict, "exports", type='a')
+            # list of JsonObject
+            exports_list = getkey(linklet_dict, "exports", type='a')
 
         exports = {}
         for exp in exports_list:
@@ -405,14 +407,15 @@ class W_Linklet(W_Object):
 
         console_log("Converting linklet forms to AST ...", 2)
 
-        all_forms = []
-        for body_form in getkey(linklet_dict, "body", type='a'):
-            form_2 = loader.to_ast(body_form)
-            form_1 = Context.normalize_term(form_2)
-            # if form_1.tostring() != form_2.tostring():
-            #     import pdb;pdb.set_trace()
-            form = assign_convert(form_1)
-            all_forms.append(form)
+        with PerfRegion("json-to-ast"):
+            all_forms = []
+            for body_form in getkey(linklet_dict, "body", type='a'):
+                form_2 = loader.to_ast(body_form)
+                form_1 = Context.normalize_term(form_2)
+                # if form_1.tostring() != form_2.tostring():
+                #     import pdb;pdb.set_trace()
+                form = assign_convert(form_1)
+                all_forms.append(form)
 
         console_log("Finished converting linklet forms to AST ...", 2)
 
@@ -830,7 +833,8 @@ def external_of_an_export(sym, exports):
 def compile_linklet(form, name, import_keys, get_import, options, env, cont):
     from pycket.util import console_log
     console_log("compiling linklet : %s" % form.tostring(), 3)
-    return do_compile_linklet(form, name, import_keys, get_import, options, env, cont)
+    with PerfRegion("compile-linklet"):
+        return do_compile_linklet(form, name, import_keys, get_import, options, env, cont)
 
 def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
 
@@ -954,8 +958,8 @@ def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, en
         target = target_instance
     else:
         raise SchemeException("Expected #f or instance? as target-instance, got : %s" % target_instance)
-
-    return linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt, target, env, cont)
+    with PerfRegion("instantiate-linklet"):
+        return linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt, target, env, cont)
 
 @expose("linklet-import-variables", [W_Linklet])
 def linklet_import_variables(linkl):
@@ -998,36 +1002,36 @@ def is_bundle(v):
 
 @expose("make-instance") #FIXME: [W_Object, W_Object, [W_Symbol, W_Object] ....]
 def make_instance(args): # name, data, *vars_vals
+    with PerfRegion("make-instance"):
+        name = args[0] # W_Symbol
+        data = w_false
+        mode = w_false
 
-    name = args[0] # W_Symbol
-    data = w_false
-    mode = w_false
+        from pycket.util import console_log
+        if "'" in name.tostring():
+            console_log("making instance : %s" % name.tostring(), 2)
+        else:
+            console_log("making instance : %s" % name.tostring(), 3)
 
-    from pycket.util import console_log
-    if "'" in name.tostring():
-        console_log("making instance : %s" % name.tostring(), 1)
-    else:
-        console_log("making instance : %s" % name.tostring(), 2)
+        if len(args) <= 2:
+            data = args[1]
+            vars_vals = []
+        else:
+            data = args[1]
+            mode = args[2]
+            vars_vals = args[3:]
+            
+        # check if the vars and vals match
+        if ((len(vars_vals) % 2) != 0):
+            raise SchemeException("Variable names and values do not match : %s" % vars_vals)
 
-    if len(args) <= 2:
-        data = args[1]
-        vars_vals = []
-    else:
-        data = args[1]
-        mode = args[2]
-        vars_vals = args[3:]
+        vars_vals_dict = {}
+        for i in range(0, len(vars_vals), 2):
+            n = vars_vals[i]
+            v = vars_vals[i+1]
+            vars_vals_dict[n] = LinkletVar(n, v, mode)
 
-    # check if the vars and vals match
-    if ((len(vars_vals) % 2) != 0):
-        raise SchemeException("Variable names and values do not match : %s" % vars_vals)
-
-    vars_vals_dict = {}
-    for i in range(0, len(vars_vals), 2):
-        n = vars_vals[i]
-        v = vars_vals[i+1]
-        vars_vals_dict[n] = LinkletVar(n, v, mode)
-
-    return W_LinkletInstance(name, vars_vals_dict, {}, data)
+        return W_LinkletInstance(name, vars_vals_dict, {}, data)
 
 @expose("recompile-linklet", [W_Linklet, default(W_Object, None), default(W_Object, w_false), default(W_Object, None)], simple=False)
 def recompile_linklet(linkl, name, import_keys, get_import, env, cont):
@@ -1105,32 +1109,34 @@ linklet_sym = values.W_Symbol.make("linklet")
 
 @expose("read-compiled-linklet", [values.W_InputPort], simple=False)
 def read_compiled_linklet(in_port, env, cont):
-    # port position comes at 2 (i.e. #~ is already read)
     from pycket.interpreter import return_value
     from pycket.env import w_version
     from pycket.racket_entry import get_primitive
     from pycket.util import console_log
+    # port position comes at 2 (i.e. #~ is already read)
 
     current_version = w_version.get_version() # str
-
+    
     fasl_to_s_exp = get_primitive("fasl->s-exp")
-
+    
     version_length = int(in_port.read(1))
     written_version = in_port.read(version_length)
-
+    
     if written_version != current_version:
         raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version))
-
+        
     console_log("read-compiled-linklet : version check OK", 8)
 
-    s_exp = fasl_to_s_exp.call_interpret([in_port, values.w_true])
-
+    with PerfRegion("fasl->s-exp"):
+        s_exp = fasl_to_s_exp.call_interpret([in_port, values.w_true])
+    
     console_log("read-compiled-linklet : fasl->sexp returns -- sexp is here : %s", 8)
 
-    read_data = deserialize_loop(s_exp)
-
+    with PerfRegion("s-exp->ast"):
+        read_data = deserialize_loop(s_exp)
+    
     console_log("READ DATA : %s" % read_data.tostring(), 8)
-
+    
     return return_value(read_data, env, cont)
 
 def deserialize_loop(sexp):

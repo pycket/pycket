@@ -3,7 +3,9 @@
 
 import inspect
 import string
+from rpython.rlib             import streamio as sio
 
+from rpython.rlib.listsort import make_timsort_class
 from rpython.rlib        import jit, objectmodel, rtime
 from rpython.rlib.unroll import unrolling_iterable
 
@@ -25,6 +27,143 @@ def console_log_after_boot(print_str, given_verbosity_level=0, debug=False):
     if glob.is_boot_completed():
         console_log(print_str, given_verbosity_level, debug)
 
+## this code is a port of cs/linklet/performance.ss
+        
+class PerfRegion(object):
+    def __init__(self, l):
+        self.label = l
+
+    def __enter__(self):
+        from pycket.env import w_global_config
+        current_v_level = w_global_config.get_config_val('verbose')
+        if current_v_level > 0:
+            linklet_perf.current_start_time.append(rtime.time())
+
+    def __exit__(self,a,b,c):
+        from pycket.env import w_global_config
+        current_v_level = w_global_config.get_config_val('verbose')
+        if current_v_level > 0:
+            assert (len(linklet_perf.current_start_time) > 0)
+            delta = rtime.time() - linklet_perf.current_start_time[-1]
+            table_add(linklet_perf.region_times, self.label, delta)
+            table_add(linklet_perf.region_counts, self.label, 1)
+            linklet_perf.current_start_time.pop()
+            for i in range(len(linklet_perf.current_start_time)):
+                linklet_perf.current_start_time[i] += delta
+
+class LinkletPerf(object):
+    def __init__(self):
+        self.region_times = {}
+        self.region_counts = {}
+        self.current_start_time = []
+        self.name_len = 0
+        self.total_len = 0
+        self.region_subs = {}
+        self.categories = {"read" : ["fasl->s-exp", "s-exp->ast"],
+                           "run" : ["instantiate-linklet" "outer"],
+                           "boot" : ["expander-linklet", "json-load", "json-to-ast",
+                                     "fasl-linklet", "set-params"],
+                           "compile" : ["compile-linklet"]}
+
+    def report_time(self, level, label, n):
+        counts = self.region_counts.get(label,0)
+        assert not(isinstance(counts,str))
+        if counts == 0:
+            c = ""
+        else:
+            c = " ; %d times"%int(counts)
+        self.report(level, label, n, " [gc]", "ms", c)
+    
+    def report(self, level, label, n, nextra, units, extra):
+        lprintf(";; %s%s%s  %s%s %s%s\n",
+                (spaces(level*2),
+                 pad_right(label,self.name_len),
+                 spaces((3-level) * 2),
+                 pad_left(n,self.total_len),
+                 nextra,
+                 units,
+                 extra))
+        
+    def loop(self, ht, level):
+        for label in ht:  # Fixme I can't sort
+            self.report_time(level, label, int(1000*ht[label]))
+            sub_ht = self.region_subs.get(label, None)
+            if sub_ht:
+                self.loop(sub_ht, level+1)
+
+    def print_report(self):
+        from pycket.env import w_global_config
+        current_v_level = w_global_config.get_config_val('verbose')
+        if current_v_level > 0:
+            total = 0
+            self.name_len = 0
+            for k in self.region_times:
+                self.name_len = max(self.name_len,len(k))
+                total += self.region_times[k]
+            self.total = int(1000*total)
+            self.total_len = len(str(total))
+    
+            for cat in self.categories:
+                t = sum_values(self.region_times, self.categories[cat], cat, self.region_subs)
+                if not(0 == t):
+                    self.region_times[cat] = t
+
+            self.loop(self.region_times, 0)
+            self.report(0, "total", self.total, " [gc]", "ms", "")
+        
+linklet_perf = LinkletPerf()        
+
+def second(l,i):
+    x,y = l[i]
+    return y
+
+Sorter = make_timsort_class(getitem=second)                
+
+def ht_to_sorted_list(ht):
+    l = []
+    for k,v in enumerate(ht):
+        l.append((k,v))
+    s = Sorter(l)
+    s.sort()
+    return l
+
+        
+def table_add(t, l, v):
+    t.setdefault(l,0)
+    t[l] += v
+
+def lprintf(fmt, args):
+    from pycket.prims.logging import w_main_logger
+    sio.fdopen_as_stream(2, "w", buffering=1).write(fmt%args)
+    return
+
+def spaces(n):
+    return " "*n
+
+def pad_left(v,w):
+    s = str(v)
+    return spaces(max(0, w - (len(s)))) + (s)
+
+def pad_right(v,w):
+    s = str(v)
+    return s + (spaces(max(0, w - (len(s)))))
+
+def sum_values(ht, keys, key, subs):
+    sub_ht = {}
+    subs[key] = sub_ht
+    sum = 0
+    for sub_key in keys:
+        v = ht.get(sub_key,0)
+        sum += v
+        sub_ht[sub_key] = v
+        if sub_key in ht:
+            del ht[sub_key]
+    return sum
+
+
+            
+               
+        
 def console_log(print_str, given_verbosity_level=0, debug=False):
     # use the given_verbosity_level argument to control at which level
     # of verbosity you want this log to appear. Default is 0.
