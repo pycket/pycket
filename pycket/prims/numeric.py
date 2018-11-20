@@ -9,7 +9,7 @@ from pycket.arity                            import Arity
 from pycket.error                            import SchemeException
 from pycket.prims.expose                     import expose, default, unsafe
 
-from rpython.rlib                            import jit, longlong2float, rarithmetic, unroll
+from rpython.rlib                            import jit, longlong2float, rarithmetic, unroll, objectmodel
 from rpython.rlib.rarithmetic                import r_uint
 from rpython.rlib.objectmodel                import always_inline, specialize
 from rpython.rlib.rbigint                    import rbigint
@@ -521,21 +521,45 @@ def real_floating_point_bytes(n, _size, big_endian):
     chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
     return values.W_Bytes.from_charlist(chars)
 
+
+
+
+# this duplicates, slightly differently, a definition in longlong2float.py
+# using unsigned long long fixes an overflow issue
+# this happens only in the interpreter, so we do it only then
+def pycket_longlong2float(llval):
+    """ NOT_RPYTHON """
+    from rpython.rtyper.lltypesystem import lltype, rffi
+    DOUBLE_ARRAY_PTR = lltype.Ptr(lltype.Array(rffi.DOUBLE))
+    ULONGLONG_ARRAY_PTR = lltype.Ptr(lltype.Array(rffi.ULONGLONG))
+    with lltype.scoped_alloc(DOUBLE_ARRAY_PTR.TO, 1) as d_array:
+        ll_array = rffi.cast(ULONGLONG_ARRAY_PTR, d_array)
+        ll_array[0] = llval
+        floatval = d_array[0]
+        return floatval
+
+
 @expose("floating-point-bytes->real",
         [values.W_Bytes, default(values.W_Object, values.w_false)])
-def integer_bytes_to_integer(bstr, signed):
+def float_bytes_to_real(bstr, signed):
     # XXX Currently does not make use of the signed parameter
     bytes = bstr.as_bytes_list()
     if len(bytes) not in (4, 8):
         raise SchemeException(
                 "floating-point-bytes->real: byte string must have length 2, 4, or 8")
 
-    val = rarithmetic.r_int64(0)
-    for i, v in enumerate(bytes):
-        val += rarithmetic.r_int64(ord(v)) << (i * 8)
-
     try:
-        return values.W_Flonum(longlong2float.longlong2float(val))
+        if objectmodel.we_are_translated():
+            val = rarithmetic.r_int64(0)
+            for i, v in enumerate(bytes):
+                val += rarithmetic.r_int64(ord(v)) << (i * 8)
+            return values.W_Flonum(longlong2float.longlong2float(val))
+        else:
+            # use unsigned to avoid rlib bug
+            val = rarithmetic.r_uint64(0)
+            for i, v in enumerate(bytes):
+                val += rarithmetic.r_uint64(ord(v)) << (i * 8)
+            return values.W_Flonum(pycket_longlong2float(val))
     except OverflowError, e:
         # Uncomment the check below to run Pycket on the
         # interpreter with compiled (zo) files
