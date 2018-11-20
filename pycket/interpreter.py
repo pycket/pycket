@@ -1276,7 +1276,7 @@ class Begin0(SequencedBodyAST):
 
     def to_sexp(self):
         beg0_sym = values.W_Symbol.make("begin0")
-        return values.to_list([beg0_sym] + [b.to_sexp() for b in self.body])
+        return values.to_list([beg0_sym] + [b.to_sexp() for b in self.direct_children()])
 
     def write(self, port, env):
         port.write("(begin0 ")
