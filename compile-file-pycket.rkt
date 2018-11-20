@@ -33,7 +33,7 @@
     "racket/private/sort"
     "racket/private/case"
     "racket/private/logger"
-    ; "racket/private/more-scheme" ;; makes the "reify-result" error (private/promise.rkt)
+    "racket/private/more-scheme"
     "racket/private/path"
     "racket/private/path-list"
     "racket/private/reading-param"
@@ -182,13 +182,13 @@
             "racket/private/truncate-path"
             "racket/private/unit-keywords"
             "racket/private/unix-rand"
-            "racket/private/serialize" ;; fail hangs
+            "racket/private/serialize" ;; fail
             "racket/private/unit-compiletime" ;; fail
             "racket/private/unit-utils" ;; fail
             "racket/private/set" ;; fail
             "racket/private/set-types" ;; fail
             "racket/private/shared-body" ;; fail
-            "racket/private/tethered-installer" ;; fail hangs
+            "racket/private/tethered-installer" ;; fail
             "racket/private/unit-contract-syntax" ;; fail
             "racket/private/unit-contract" ;; fail
             "racket/private/unit-runtime"
@@ -199,7 +199,7 @@
             "racket/control"
             "racket/date" ;; fail
             "racket/dict" ;; fail
-            "racket/engine" ;; fail hangs
+            "racket/engine" ;; fail
             "racket/enter" ;; fail
             "racket/exn"
             "racket/fasl"
@@ -228,14 +228,14 @@
             "racket/provide-syntax"
             "racket/provide-transform"
             "racket/prefab"
-            "racket/port" ;; fail hangs
+            "racket/port" ;; fail
             "racket/random" ;; fail
             "racket/require"
             "racket/require-syntax"
             "racket/require-transform"
             "racket/rerequire" ;; fail
             "racket/sequence" ;; fail
-            "racket/serialize" ;; fail hangs
+            "racket/serialize" ;; fail
             "racket/set" ;; fail
             "racket/shared" ;; fail
             "racket/splicing"
@@ -263,8 +263,8 @@
             "racket/match/runtime"
             "racket/match/stxtime"
             "racket/match/syntax-local-match-introduce"
-            "racket/struct" ;; needs contracts hangs
-            "syntax/strip-context" ;; needs contracts hangs
+            "racket/struct" ;; needs contracts
+            "syntax/strip-context" ;; needs contracts
             "compiler/compile-file"
             )))
 
