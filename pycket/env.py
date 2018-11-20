@@ -110,6 +110,7 @@ class GlobalConfig(object):
                        'repl_loaded':0,
                        'debug_active':0,
                        'boot_done':0}
+        self.environment_vars = {}
         self.pycketconfig = None
 
     # debug_active can be used to set a logical
@@ -136,6 +137,22 @@ class GlobalConfig(object):
 
     def get_config(self):
         return self.config
+
+    @staticmethod
+    def ask_OS_var(var_str):
+        import os
+        return os.environ[var_str] if var_str in os.environ.keys() else ""
+
+    def get_env_var(self, var_str):
+        # lazily cache the OS environment variable values
+        if var_str not in self.environment_vars:
+            self.environment_vars[var_str] = GlobalConfig.ask_OS_var(var_str)
+        return self.environment_vars[var_str]
+
+    def env_var_exists(self, var_str):
+        if var_str not in self.environment_vars:
+            self.environment_vars[var_str] = GlobalConfig.ask_OS_var(var_str)
+        return self.environment_vars[var_str] != ""
 
     def get_config_val(self, name):
         return self.config[name]

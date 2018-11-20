@@ -28,12 +28,12 @@ def console_log_after_boot(print_str, given_verbosity_level=0, debug=False):
         console_log(print_str, given_verbosity_level, debug)
 
 def os_check_env_var(var_str):
-    import os
-    return var_str in os.environ.keys()
+    from pycket.env import w_global_config
+    return w_global_config.env_var_exists(var_str)
 
 def os_get_env_var(var_str):
-    import os
-    return os.environ.get(var_str) if var_str in os.environ.keys() else ""
+    from pycket.env import w_global_config
+    return w_global_config.get_env_var(var_str)
 
 ## this code is a port of cs/linklet/performance.ss
 
