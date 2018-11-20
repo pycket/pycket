@@ -467,7 +467,7 @@ def object_name(v):
     if isinstance(v, values.W_Prim):
         return v.name
 
-    elif isinstance(v, values_regex.W_AnyRegexp):
+    elif isinstance(v, values_regex.W_AnyRegexp) or isinstance(v, values.W_Port):
         return v.obj_name()
 
     return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?

@@ -30,9 +30,9 @@ import os
 
 ############################ Values and Parameters
 
-stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"), stdin=True)
-stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1), stdout=True)
-stderr_port = values.W_FileOutputPort(sio.fdopen_as_stream(2, "w", buffering=1), stdout=True)
+stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"), None, stdin=True)
+stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1), None, stdout=True)
+stderr_port = values.W_FileOutputPort(sio.fdopen_as_stream(2, "w", buffering=1), None, stdout=True)
 
 expose_val("eof", values.eof_object)
 
@@ -991,7 +991,7 @@ def open_infile(w_str, mode):
     if not os.path.exists(s):
         raise SchemeException("No such file or directory : %s" % s)
 
-    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21))
+    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21), path=os.path.abspath(s))
 
 def open_outfile(w_str, mode, exists):
     from pycket.prims.general import exn_fail_fs
@@ -1008,7 +1008,7 @@ def open_outfile(w_str, mode, exists):
             raise SchemeException("open-output-file : cannot open file : %s" % s, exn_fail_fs)
 
     # FIXME : handle different exists modes (e.g. replace)
-    return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
+    return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode), path=os.path.abspath(s))
 
 @expose("rename-file-or-directory", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)])
 def rename_file_or_directory(o, n, exists_ok):
