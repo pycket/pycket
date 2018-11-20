@@ -83,11 +83,14 @@ class LinkletPerf(object):
         self.region_subs = {}
         self.categories = {"read" : ["fasl->s-exp", "s-exp->ast", "assign-convert-deserialize"],
                            "run" : ["instantiate-linklet" "outer"],
-                           "boot" : ["expander-linklet", "json-load", "json-to-ast",
-                                     "fasl-linklet", "set-params"],
+                           "startup" : ["expander-linklet", "json-load", "json-to-ast",
+                                        "fasl-linklet", "set-params"],
                            "compile" : ["compile-linklet", "compile-sexp-to-ast",
                                         "compile-normalize", "compile-assign-convert",
                            ]}
+
+    def init(self):
+        self.region_times["boot"] = rtime.clock()
 
     def report_time(self, level, label, n):
         counts = self.region_counts.get(label,0)

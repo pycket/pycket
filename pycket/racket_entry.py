@@ -39,11 +39,11 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
     with PerfRegion("expander-linklet"):
         console_log("Loading the expander linklet...")
         expander_file_path = locate_linklet("expander.rktl.linklet")
-        
+
         # load the expander linklet
         expander_instance, sys_config = load_inst_linklet_json(expander_file_path, pycketconfig, debug)
         expander_instance.provide_all_exports_to_prim_env(excludes=syntax_primitives)
-        
+
         console_log("Expander loading complete.")
         from pycket.env import w_global_config
         w_global_config.set_config_val('expander_loaded', 1)
@@ -51,11 +51,11 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
     with PerfRegion("fasl-linklet"):
         console_log("Loading the fasl linklet...")
         fasl_file_path = locate_linklet("fasl.rktl.linklet")
-        
+
         # load the fasl linklet
         fasl_instance, sys_config = load_inst_linklet_json(fasl_file_path, pycketconfig, debug)
         fasl_instance.provide_all_exports_to_prim_env()
-        
+
         console_log("fasl loading complete.")
 
     return sys_config
@@ -86,21 +86,21 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, d
 
     sysconfig = load_bootstrap_linklets(pycketconfig, debug)
 
-    
-    with PerfRegion("set-params"):    
+
+    with PerfRegion("set-params"):
         v = sysconfig["version"]
         console_log("Setting the version to %s" % v)
         w_version.set_version(v)
-        
+
         # These need to be set before the boot sequence
         if set_run_file:
             console_log("Setting the 'run-file path to %s" % set_run_file)
             set_path("run-file", set_run_file)
-            
+
         if set_collects_dir:
             console_log("Setting the 'collects-dir path to %s" % set_collects_dir)
             set_path("collects-dir", set_collects_dir)
-                
+
         if set_config_dir:
             console_log("Setting the 'config-dir path to %s" % set_config_dir)
             set_path("config-dir", set_config_dir)
@@ -118,23 +118,23 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, d
         # things like '#%kernel really)
 
         console_log("Entering Boot Sequence")
-        
+
         console_log("(boot)")
         boot = get_primitive("boot")
         boot.call_interpret([], pycketconfig)
-        
+
         console_log("(current-library-collection-links (find-library-collection-links))")
         flcl = get_primitive("find-library-collection-links")
         lib_coll_links = flcl.call_interpret([], pycketconfig)
         clcl = get_primitive("current-library-collection-links")
         clcl.call_interpret([lib_coll_links], pycketconfig)
-        
+
         console_log("(current-library-collection-paths (find-library-collection-paths))")
         flcp = get_primitive("find-library-collection-paths")
         lib_coll_paths = flcp.call_interpret([], pycketconfig)
         clcp = get_primitive("current-library-collection-paths")
         clcp.call_interpret([lib_coll_paths], pycketconfig)
-        
+
         console_log("(read-accept-compiled true)")
         read_accept_compiled = get_primitive("read-accept-compiled")
         read_accept_compiled.call_interpret([w_true], pycketconfig)
@@ -177,10 +177,12 @@ def namespace_require_kernel(pycketconfig):
 
 def racket_entry(names, config, pycketconfig, command_line_arguments):
 
+    linklet_perf.init()
+
     loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled = get_options(names, config)
 
-    
-    with PerfRegion("boot"):
+
+    with PerfRegion("startup"):
         initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
 
     if just_init:
@@ -198,7 +200,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
             init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
                                                 W_WrappedConsProper.make(W_String.make(init_library), w_null))
             console_log("(namespace-require %s) ..." % init_lib.tostring())
-            
+
             namespace_require.call_interpret([init_lib], pycketconfig)
             console_log("Init lib : %s loaded..." % (init_library))
 
@@ -223,7 +225,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
     if version:
         from pycket.env import w_version
         print("Welcome to Pycket v%s" % w_version.get_version())
-        
+
     if is_repl: # -i
         put_newline = True
         dynamic_require = get_primitive("dynamic-require")
@@ -239,7 +241,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
 
     linklet_perf.print_report()
-    
+
     exit = get_primitive("exit")
     exit.call_interpret([], pycketconfig)
 
