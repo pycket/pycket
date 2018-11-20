@@ -3,7 +3,9 @@
 
 import inspect
 import string
+from rpython.rlib             import streamio as sio
 
+from rpython.rlib.listsort import make_timsort_class
 from rpython.rlib        import jit, objectmodel, rtime
 from rpython.rlib.unroll import unrolling_iterable
 
@@ -18,6 +20,177 @@ def active_log(print_str, given_verbosity_level=0, debug=False):
 
     if glob.is_debug_active():
         console_log(print_str, given_verbosity_level, debug)
+
+def console_log_after_boot(print_str, given_verbosity_level=0, debug=False):
+    from pycket.env import w_global_config as glob
+
+    if glob.is_boot_completed():
+        console_log(print_str, given_verbosity_level, debug)
+
+def os_check_env_var(var_str):
+    from pycket.env import w_global_config
+    return w_global_config.env_var_exists(var_str)
+
+def os_get_env_var(var_str):
+    from pycket.env import w_global_config
+    return w_global_config.get_env_var(var_str)
+
+## this code is a port of cs/linklet/performance.ss
+
+class PerfRegion(object):
+    def __init__(self, l):
+        self.label = l
+
+    def __enter__(self):
+        start_perf_region(self.label)
+
+    def __exit__(self,a,b,c):
+        finish_perf_region(self.label)
+
+class PerfRegionCPS(PerfRegion):
+    def __exit__(self,a,b,c):
+        if a is None:
+            # normal return, except that this is a CPS function and so the
+            # finish_perf_region call is in the continuation
+            # If `with` gave us access to the return value we could do this
+            # automatically here, but it doesn't
+            pass
+        else:
+            # exception, so we have to call finish_perf_region
+            finish_perf_region(self.label)
+            # re-raise the exception
+            return None # using False here confuses rtyper
+
+def start_perf_region(label):
+    if os_check_env_var("PLT_LINKLET_TIMES"):
+        linklet_perf.current_start_time.append(rtime.time())
+
+def finish_perf_region(label):
+    if os_check_env_var("PLT_LINKLET_TIMES"):
+        assert (len(linklet_perf.current_start_time) > 0)
+        delta = rtime.time() - linklet_perf.current_start_time[-1]
+        table_add(linklet_perf.region_times, label, delta)
+        table_add(linklet_perf.region_counts, label, 1)
+        linklet_perf.current_start_time.pop()
+        for i in range(len(linklet_perf.current_start_time)):
+            linklet_perf.current_start_time[i] += delta
+
+
+class LinkletPerf(object):
+    def __init__(self):
+        self.region_times = {}
+        self.region_counts = {}
+        self.current_start_time = []
+        self.name_len = 0
+        self.total_len = 0
+        self.region_subs = {}
+        self.categories = {"read" : ["fasl->s-exp", "s-exp->ast", "assign-convert-deserialize"],
+                           "run" : ["instantiate-linklet" "outer"],
+                           "startup" : ["expander-linklet", "json-load", "json-to-ast",
+                                        "fasl-linklet", "set-params"],
+                           "compile" : ["compile-linklet", "compile-sexp-to-ast",
+                                        "compile-normalize", "compile-assign-convert",
+                           ]}
+
+    def init(self):
+        self.region_times["boot"] = rtime.clock()
+
+    def report_time(self, level, label, n):
+        counts = self.region_counts.get(label,0)
+        assert not(isinstance(counts,str))
+        if counts == 0:
+            c = ""
+        else:
+            c = " ; %d times"%int(counts)
+        self.report(level, label, n, " [gc]", "ms", c)
+
+    def report(self, level, label, n, nextra, units, extra):
+        lprintf(";; %s%s%s  %s%s %s%s\n",
+                (spaces(level*2),
+                 pad_right(label,self.name_len),
+                 spaces((3-level) * 2),
+                 pad_left(n,self.total_len),
+                 nextra,
+                 units,
+                 extra))
+
+    def loop(self, ht, level):
+        for label in ht:  # Fixme I can't sort
+            self.report_time(level, label, int(1000*ht[label]))
+            sub_ht = self.region_subs.get(label, None)
+            if sub_ht:
+                self.loop(sub_ht, level+1)
+
+    def print_report(self):
+        if os_check_env_var("PLT_LINKLET_TIMES"):
+            total = 0
+            self.name_len = 0
+            for k in self.region_times:
+                self.name_len = max(self.name_len,len(k))
+                total += self.region_times[k]
+            self.total = int(1000*total)
+            self.total_len = len(str(total))
+
+            for cat in self.categories:
+                t = sum_values(self.region_times, self.categories[cat], cat, self.region_subs)
+                if not(0 == t):
+                    self.region_times[cat] = t
+
+            self.loop(self.region_times, 0)
+            self.report(0, "total", self.total, " [gc]", "ms", "")
+
+linklet_perf = LinkletPerf()
+
+def second(l,i):
+    x,y = l[i]
+    return y
+
+Sorter = make_timsort_class(getitem=second)
+
+def ht_to_sorted_list(ht):
+    l = []
+    for k,v in enumerate(ht):
+        l.append((k,v))
+    s = Sorter(l)
+    s.sort()
+    return l
+
+
+def table_add(t, l, v):
+    t.setdefault(l,0)
+    t[l] += v
+
+def lprintf(fmt, args):
+    from pycket.prims.logging import w_main_logger
+    sio.fdopen_as_stream(2, "w", buffering=1).write(fmt%args)
+    return
+
+def spaces(n):
+    return " "*n
+
+def pad_left(v,w):
+    s = str(v)
+    return spaces(max(0, w - (len(s)))) + (s)
+
+def pad_right(v,w):
+    s = str(v)
+    return s + (spaces(max(0, w - (len(s)))))
+
+def sum_values(ht, keys, key, subs):
+    sub_ht = {}
+    subs[key] = sub_ht
+    sum = 0
+    for sub_key in keys:
+        v = ht.get(sub_key,0)
+        sum += v
+        sub_ht[sub_key] = v
+        if sub_key in ht:
+            del ht[sub_key]
+    return sum
+
+
+
+
 
 def console_log(print_str, given_verbosity_level=0, debug=False):
     # use the given_verbosity_level argument to control at which level

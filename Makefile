@@ -80,6 +80,10 @@ debug: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) --lldebug targetpycket.py
 	cp pycket-c pycket-c-debug
 
+debug-linklets: $(PYFILES)
+	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) --lldebug targetpycket.py --linklets
+	cp pycket-c-linklets pycket-c-debug-linklets
+
 debug-no-jit: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) --lldebug targetpycket.py
 	cp pycket-c pycket-c-debug-no-jit

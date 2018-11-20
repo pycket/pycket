@@ -131,6 +131,9 @@ class W_AnyRegexp(W_Object):
     def tostring(self):
         return '#rx"%s"' % self.source
 
+    def obj_name(self):
+        return values_string.W_String.fromstr_utf8(self.source)
+
 @rsre_core.specializectx
 @jit.unroll_safe
 def _extract_spans(ctx, groupcount):
@@ -180,12 +183,18 @@ class W_ByteRegexp(W_AnyRegexp):
         out_encoded = string_escape_encode(self.source, '"')
         return '#rx#%s' % out_encoded
 
+    def obj_name(self):
+        return values.W_Bytes.from_string(self.source)
+
 class W_BytePRegexp(W_AnyRegexp):
 
     def tostring(self):
         from pypy.objspace.std.bytesobject import string_escape_encode
         out_encoded = string_escape_encode(self.source, '"')
         return '#px#%s' % out_encoded
+
+    def obj_name(self):
+        return values.W_Bytes.from_string(self.source)
 
 class ReplacementOption(object):
     _attrs_ = []

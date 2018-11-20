@@ -409,7 +409,7 @@ class W_UnwrappedFixnumCons(W_Cons):
 
 @add_copy_method(copy_method="clone")
 class W_UnwrappedFixnumConsProper(W_UnwrappedFixnumCons):
-    def is_proper_list(self):
+    def is_proper_list(self, seen=[]):
         return True
 
 @add_copy_method(copy_method="clone")
@@ -431,7 +431,7 @@ class W_UnwrappedFlonumCons(W_Cons):
 
 @add_copy_method(copy_method="clone")
 class W_UnwrappedFlonumConsProper(W_UnwrappedFlonumCons):
-    def is_proper_list(self):
+    def is_proper_list(self, seen=[]):
         return True
 
 @add_copy_method(copy_method="clone")
@@ -452,12 +452,14 @@ class W_WrappedCons(W_Cons):
 
 @add_copy_method(copy_method="clone")
 class W_WrappedConsProper(W_WrappedCons):
-    def is_proper_list(self):
+    def is_proper_list(self, seen=[]):
         return True
 
 class W_WrappedConsMaybe(W_WrappedCons):
-    def is_proper_list(self):
-        return self._cdr.is_proper_list()
+    def is_proper_list(self, seen=[]):
+        if self in seen:
+            return False # contains a cycle
+        return self._cdr.is_proper_list(seen + [self])
 
 class W_Box(W_Object):
     errorname = "box"
@@ -963,7 +965,7 @@ class W_Null(W_List):
     def tostring(self):
         return "()"
 
-    def is_proper_list(self):
+    def is_proper_list(self, seen=[]):
         return True
 
 w_void = W_Void()
@@ -1787,6 +1789,9 @@ class W_Port(W_Object):
     def tell(self):
         raise NotImplementedError("abstract base class")
 
+    def obj_name(self):
+        raise NotImplementedError("abstract base class")
+
 class W_OutputPort(W_Port):
     errorname = "output-port"
     _attrs_ = []
@@ -1809,6 +1814,9 @@ class W_StringOutputPort(W_OutputPort):
         self.closed = False
         self.str = StringBuilder()
 
+    def obj_name(self):
+        return W_Symbol.make("string")
+
     def get_line(self):
         return w_false
 
@@ -1818,6 +1826,9 @@ class W_StringOutputPort(W_OutputPort):
 
     def get_position(self):
         return W_Fixnum(self.tell() + 1)
+
+    def flush(self):
+        pass
 
     def write(self, s):
         self.str.append(s)
@@ -1872,6 +1883,9 @@ class W_StringInputPort(W_InputPort):
         self.read_handler = None
         self.line = 1
         self.column = 0
+
+    def obj_name(self):
+        return W_Symbol.make("string")
 
     def get_read_handler(self):
         return self.read_handler
@@ -1941,16 +1955,17 @@ class W_StringInputPort(W_InputPort):
 
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
-    _immutable_fields_ = ["file"]
-    _attrs_ = ['closed', 'file', 'line', 'column', 'read_handler', 'stdin']
+    _immutable_fields_ = ["file", "path"]
+    _attrs_ = ['closed', 'file', 'line', 'column', 'read_handler', 'stdin', 'path']
 
-    def __init__(self, f, stdin=False):
+    def __init__(self, f, path, stdin=False):
         self.closed = False
         self.file = f
         self.read_handler = None
         self.stdin = stdin
         self.line = 1
         self.column = 0
+        self.path = path
 
     def is_stdin(self):
         return self.stdin
@@ -1968,6 +1983,12 @@ class W_FileInputPort(W_InputPort):
 
     def set_read_handler(self, handler):
         self.read_handler = handler
+
+    def get_path(self):
+        return W_Path(self.path)
+
+    def obj_name(self):
+        return self.get_path()
 
     def readline(self):
         return self.file.readline()
@@ -2015,13 +2036,20 @@ class W_FileInputPort(W_InputPort):
 
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
-    _immutable_fields_ = ["file"]
-    _attrs_ = ['closed', 'file', 'stdout']
+    _immutable_fields_ = ["file", "path"]
+    _attrs_ = ['closed', 'file', 'stdout', 'path']
 
-    def __init__(self, f, stdout=False):
+    def __init__(self, f, path, stdout=False):
         self.closed = False
         self.file = f
         self.stdout = stdout
+        self.path = path
+
+    def obj_name(self):
+        return self.get_path()
+
+    def get_path(self):
+        return W_Path(self.path)
 
     def get_line(self):
         return w_false

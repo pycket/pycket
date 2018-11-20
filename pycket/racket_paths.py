@@ -62,25 +62,24 @@ class RacketPaths(object):
         self.paths[kind] = path
 
     def initialize_paths(self):
+        from pycket.util import os_get_env_var, os_check_env_var
         # FIXME : check absolute/relative paths
 
         # Environment Variables
-        OS_ENV_VARS = os.environ
-        env_vars = OS_ENV_VARS.keys()
 
-        if "PLTHOME" not in env_vars and "PLTCOLLECTS" not in env_vars:
+        if not os_check_env_var("PLTHOME") and not os_check_env_var("PLTCOLLECTS"):
             raise SchemeException("In order to locate the Racket installation, Pycket requires a `PLTHOME` environment variable to point to Racket directory. If Racket is installed in Unix-style, then you can just set a `PLTCOLLECTS` variable to point to the Racket `collects`.")
 
-        PLTHOME = OS_ENV_VARS["PLTHOME"] if "PLTHOME" in env_vars else ""
-        PLTCOLLECTS = OS_ENV_VARS["PLTCOLLECTS"] if "PLTCOLLECTS" in env_vars else ""
-        PLTEXECFILE = OS_ENV_VARS["PLTEXECFILE"] if "PLTEXECFILE" in env_vars else ""
-        PLTUSERHOME = OS_ENV_VARS["PLTUSERHOME"] if "PLTUSERHOME" in env_vars else ""
-        HOME = OS_ENV_VARS["HOME"] if "HOME" in env_vars else ""
-        USER = OS_ENV_VARS["USER"] if "USER" in env_vars else ""
-        LOGNAME = OS_ENV_VARS["LOGNAME"] if "LOGNAME" in env_vars else ""
-        TMPDIR = OS_ENV_VARS["TMPDIR"] if "TMPDIR" in env_vars else ""
-        PLTCONFIGDIR = OS_ENV_VARS["PLTCONFIGDIR"] if "PLTCONFIGDIR" in env_vars else ""
-        PLTADDONDIR = OS_ENV_VARS["PLTADDONDIR"] if "PLTADDONDIR" in env_vars else ""
+        PLTHOME = os_get_env_var("PLTHOME")
+        PLTCOLLECTS = os_get_env_var("PLTCOLLECTS")
+        PLTEXECFILE = os_get_env_var("PLTEXECFILE")
+        PLTUSERHOME = os_get_env_var("PLTUSERHOME")
+        HOME = os_get_env_var("HOME")
+        USER = os_get_env_var("USER")
+        LOGNAME = os_get_env_var("LOGNAME")
+        TMPDIR = os_get_env_var("TMPDIR")
+        PLTCONFIGDIR = os_get_env_var("PLTCONFIGDIR")
+        PLTADDONDIR = os_get_env_var("PLTADDONDIR")
 
         CURRENT_DIR = os.getcwd()
 

@@ -534,7 +534,16 @@ def integer_bytes_to_integer(bstr, signed):
     for i, v in enumerate(bytes):
         val += rarithmetic.r_int64(ord(v)) << (i * 8)
 
-    return values.W_Flonum(longlong2float.longlong2float(val))
+    try:
+        return values.W_Flonum(longlong2float.longlong2float(val))
+    except OverflowError, e:
+        # Uncomment the check below to run Pycket on the
+        # interpreter with compiled (zo) files
+        # (fasl makes a call that blows the longlong2float on rpython)
+
+        # if val == 18442240474082181120L:
+        #     return values.W_Flonum.NEGINF
+        raise SchemeException("RPython overflow : %s" % e)
 
 @expose("integer-bytes->integer",
         [values.W_Bytes,

@@ -125,7 +125,7 @@ class W_Object(W_ProtoObject):
     def replace_proxied(self, other):
         raise ValueError("Not a proxy")
 
-    def is_proper_list(self):
+    def is_proper_list(self, seen=[]):
         return False
 
     def immutable(self):
@@ -146,6 +146,9 @@ class W_Object(W_ProtoObject):
 
     def tostring(self):
         return str(self)
+
+    def to_sexp(self):
+        return self
 
     # for expose
     @classmethod

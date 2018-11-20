@@ -897,6 +897,10 @@ class Quote(AST):
         write_loop(self.w_val, port, env)
         port.write(")")
 
+    def to_sexp(self):
+        q_sym = values.W_Symbol.make("quote")
+        return values.W_Cons.make(q_sym, values.W_Cons.make(self.w_val, values.w_null))
+
 class QuoteSyntax(AST):
     _immutable_fields_ = ["w_val"]
     visitable = True
@@ -915,6 +919,10 @@ class QuoteSyntax(AST):
 
     def _tostring(self):
         return "#'%s" % self.w_val.tostring()
+
+    def to_sexp(self):
+        qs_sym = values.W_Symbol.make("quote-syntax")
+        return values.W_Cons.make(qs_sym, values.W_Cons.make(self.w_val.to_sexp(), values.w_null))
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -949,6 +957,17 @@ class VariableReference(AST):
 
     def _tostring(self):
         return "#<#%variable-reference>"
+
+    def to_sexp(self):
+        from pycket.values_string import W_String
+
+        vr_sym = values.W_Symbol.make("#%variable-reference")
+        var_sexp = self.var.to_sexp() if self.var else values.w_false
+        path_sexp = values.w_false
+        if isinstance(self.path, str):
+            path_sexp = W_String.fromascii(self.path)
+        mut_sexp = values.w_true if self.is_mut else values.w_false
+        return values.to_list([vr_sym, var_sexp, path_sexp, mut_sexp])
 
     def write(self, port, env):
         port.write("(#%variable-reference ")
@@ -994,6 +1013,11 @@ class WithContinuationMark(AST):
         body   = Context.normalize_term(self.body)
         result = WithContinuationMark(key, value, body)
         return context.plug(result)
+
+    def to_sexp(self):
+        wcm_sym = values.W_Symbol.make("with-continuation-mark")
+        assert self.key and self.value and self.body
+        return values.to_list([wcm_sym, self.key.to_sexp(), self.value.to_sexp(), self.body.to_sexp()])
 
     def write(self, port, env):
         port.write("(with-continuation-mark ")
@@ -1064,6 +1088,14 @@ class App(AST):
     def _tostring(self):
         elements = [self.rator] + self.rands
         return "(%s)" % " ".join([r.tostring() for r in elements])
+
+    def to_sexp(self):
+        rator_sexp = self.rator.to_sexp()
+        rands_sexp = values.w_null
+        for rand in reversed(self.rands):
+            rands_sexp = values.W_Cons.make(rand.to_sexp(), rands_sexp)
+
+        return values.W_Cons.make(rator_sexp, rands_sexp)
 
     def write(self, port, env):
         port.write("(")
@@ -1242,6 +1274,10 @@ class Begin0(SequencedBodyAST):
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
 
+    def to_sexp(self):
+        beg0_sym = values.W_Symbol.make("begin0")
+        return values.to_list([beg0_sym] + [b.to_sexp() for b in self.direct_children()])
+
     def write(self, port, env):
         port.write("(begin0 ")
         self.first.write(port, env)
@@ -1307,6 +1343,10 @@ class Begin(SequencedBodyAST):
     def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
+    def to_sexp(self):
+        begin_sym = values.W_Symbol.make("begin")
+        return values.to_list([begin_sym] + [b.to_sexp() for b in self.body])
+
     def write(self, port, env):
         port.write("(begin ")
         for b in self.body:
@@ -1330,6 +1370,10 @@ class BeginForSyntax(AST):
 
     def _tostring(self):
         return "(begin-for-syntax %s)" % " ".join([b.tostring() for b in self.body])
+
+    def to_sexp(self):
+        bfs_sym = values.W_Symbol.make("begin-for-syntax")
+        return values.to_list([bfs_sym] + [b.to_sexp() for b in self.body])
 
     def write(self, port, env):
         port.write("(begin-for-syntax ")
@@ -1366,6 +1410,9 @@ class Var(AST):
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         write_loop(self.sym, port, env)
+
+    def to_sexp(self):
+        return self.sym
 
 class CellRef(Var):
     simple = True
@@ -1637,6 +1684,10 @@ class SetBang(AST):
     def _tostring(self):
         return "(set! %s %s)" % (self.var.tostring(), self.rhs.tostring())
 
+    def to_sexp(self):
+        set_sym = values.W_Symbol.make("set!")
+        return values.to_list([set_sym, self.var.to_sexp(), self.rhs.to_sexp()])
+
     def write(self, port, env):
         port.write("(set! ")
         self.var.write(port, env)
@@ -1679,6 +1730,10 @@ class If(AST):
 
     def _tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
+
+    def to_sexp(self):
+        if_sym = values.W_Symbol.make("if")
+        return values.to_list([if_sym, self.tst.to_sexp(), self.thn.to_sexp(), self.els.to_sexp()])
 
     def write(self, port, env):
         port.write("(if ")
@@ -1769,6 +1824,14 @@ class CaseLambda(AST):
             return self.lams[0].tostring()
         r_sym_str = self.recursive_sym.tostring() if self.recursive_sym else ""
         return "(case-lambda (recursive-sym %s) %s)" % (r_sym_str, " ".join([l.tostring() for l in self.lams]))
+
+    def to_sexp(self):
+        case_sym = values.W_Symbol.make("case-lambda")
+        rec_sym = values.W_Symbol.make("recursive-sym")
+        rec_ls = [rec_sym, self.recursive_sym.to_sexp()] if self.recursive_sym else [rec_sym]
+        rec_sexp = values.to_list(rec_ls)
+        lams_ls = [l.to_sexp() for l in self.lams]
+        return values.to_list([case_sym, rec_sexp] + lams_ls)
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -1981,6 +2044,21 @@ class Lambda(SequencedBodyAST):
                 self.body[0].tostring() if len(self.body) == 1 else
                 " ".join([b.tostring() for b in self.body]))
 
+    def to_sexp(self):
+        lam_sym = values.W_Symbol.make("lambda")
+
+        if self.rest and not self.formals:
+            args_sexp = self.rest.to_sexp()
+        elif self.rest:
+            args_sexp = self.rest.to_sexp()
+            for f in reversed(self.formals):
+                args_sexp = values.W_Cons.make(f.to_sexp(), args_sexp)
+        else:
+            args_sexp = values.to_list(self.formals)
+
+        body_ls = [b.to_sexp() for b in self.body]
+        return values.to_list([lam_sym, args_sexp] + body_ls)
+
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         port.write("(lambda")
@@ -2120,6 +2198,27 @@ class Letrec(SequencedBodyAST):
         bindings = " ".join(bindings)
         body = " ".join([b.tostring() for b in self.body])
         return "(letrec (%s) %s)" % (bindings, body)
+
+    def to_sexp(self):
+        letrec_sym = values.W_Symbol.make("letrec-values")
+        all_bindings_ls = [None]*len(self.counts)
+        total = 0
+        for i, count in enumerate(self.counts):
+            binding_ls = [None]*count
+            for k in range(count):
+                binding_ls[k] = self.args.elems[total+k]
+            total += count
+            current_bindings_sexp = values.to_list(binding_ls)
+            current_rhs_sexp = self.rhss[i].to_sexp()
+            current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
+            current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
+
+            all_bindings_ls[i] = current_ids
+
+        all_bindings = values.to_list(all_bindings_ls)
+
+        body_ls = [b.to_sexp() for b in self.body]
+        return values.to_list([letrec_sym, all_bindings] + body_ls)
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -2323,6 +2422,27 @@ class Let(SequencedBodyAST):
         result.append(")")
         return "".join(result)
 
+    def to_sexp(self):
+        let_sym = values.W_Symbol.make("let-values")
+        all_bindings_ls = [None]*len(self.counts)
+        total = 0
+        for i, count in enumerate(self.counts):
+            binding_ls = [None]*count
+            for k in range(count):
+                binding_ls[k] = self.args.elems[total+k]
+            total += count
+            current_bindings_sexp = values.to_list(binding_ls)
+            current_rhs_sexp = self.rhss[i].to_sexp()
+            current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
+            current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
+
+            all_bindings_ls[i] = current_ids
+
+        all_bindings = values.to_list(all_bindings_ls)
+
+        body_ls = [b.to_sexp() for b in self.body]
+        return values.to_list([let_sym, all_bindings] + body_ls)
+
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         port.write("(let-values (")
@@ -2373,6 +2493,17 @@ class DefineValues(AST):
     def _tostring(self):
         return "(define-values (%s) %s)" % (
             ' '.join([n.tostring() for n in self.display_names]), self.rhs.tostring())
+
+    def to_sexp(self):
+        dv_sym = values.W_Symbol.make("define-values")
+        ids = values.w_null
+        for name in reversed(self.display_names):
+            ids = values.W_Cons.make(name, ids)
+
+        rhs = self.rhs.to_sexp()
+        rhs_sexp = values.W_Cons.make(rhs, values.w_null)
+
+        return values.W_Cons.make(dv_sym, values.W_Cons.make(ids, rhs_sexp))
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop

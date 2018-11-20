@@ -25,8 +25,10 @@ from pycket.prims.vector import vector
 from pycket.AST import AST
 from pycket.cont import Prompt, NilCont, continuation
 from pycket.prims.control import default_error_escape_handler, default_uncaught_exception_handler
+from pycket.hash.base import W_HashTable
 from pycket.hash.simple import W_SimpleMutableHashTable, W_EqvImmutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
 from pycket.hash.equal import W_EqualHashTable
+from pycket.util import PerfRegion, PerfRegionCPS
 
 class W_Uninitialized(W_Object):
     errorname = "uninitialized"
@@ -123,6 +125,10 @@ class W_LinkletBundle(W_Object):
     def get_mapping(self):
         return self.bundle_mapping
 
+    def tostring(self):
+        mapping = self.bundle_mapping
+        return "BUNDLE : %s" % mapping.tostring()
+
 @expose("hash->linklet-bundle", [W_Object])
 def hash_to_linklet_bundle(content):
     return W_LinkletBundle(content)
@@ -147,6 +153,10 @@ class W_LinkletDirectory(W_Object):
     def get_mapping(self):
         return self.dir_mapping
 
+    def tostring(self):
+        mapping = self.dir_mapping
+        return "DIRECTORY : %s" % mapping.tostring()
+
 @expose("hash->linklet-directory", [W_Object])
 def hash_to_linklet_directory(content):
     return W_LinkletDirectory(content)
@@ -154,6 +164,12 @@ def hash_to_linklet_directory(content):
 @expose("linklet-directory->hash", [W_LinkletDirectory])
 def linklet_directory_to_hash(linkl_directory):
     return linkl_directory.dir_mapping
+
+@continuation
+def finish_perf_region_cont(label, env, cont, _vals):
+    from pycket.util import finish_perf_region
+    finish_perf_region(label)
+    return return_value(_vals, env, cont)
 
 @continuation
 def instantiate_val_cont(forms, index, gensym_count, return_val, target, exports, env, cont, _vals):
@@ -240,7 +256,7 @@ class W_Linklet(W_Object):
         importss_ls = [None]*len(self.importss)
 
         for index, imp_dict in enumerate(self.importss):
-            importss_ls[index] = "".join(["(%s %s)" % (ext_name.tostring(), int_name.tostring()) for ext_name, int_name in imp_dict.iteritems()])
+            importss_ls[index] = "(" + "".join(["(%s . %s)" % (ext_name.tostring(), int_name.tostring()) for ext_name, int_name in imp_dict.iteritems()]) + ")"
 
         importss_str = "".join(importss_ls)
 
@@ -353,17 +369,18 @@ class W_Linklet(W_Object):
         from pycket.expand import readfile_rpython, getkey
         from pycket.util import console_log
         """ Expands and loads a linklet from a JSON file"""
-        data = readfile_rpython(json_file_name)
-        json = pycket_json.loads(data)
-        console_log("Finished reading JSON from %s" % json_file_name, 2)
-        assert json.is_object
-        json_python_dict = json.value_object()
-        assert "linklet" in json_python_dict
-        linklet_dict = getkey(json_python_dict, "linklet", type='o')
-        assert "exports" in linklet_dict and "body" in linklet_dict
+        with PerfRegion("json-load"):
+            data = readfile_rpython(json_file_name)
+            json = pycket_json.loads(data)
+            console_log("Finished reading JSON from %s" % json_file_name, 2)
+            assert json.is_object
+            json_python_dict = json.value_object()
+            assert "linklet" in json_python_dict
+            linklet_dict = getkey(json_python_dict, "linklet", type='o')
+            assert "exports" in linklet_dict and "body" in linklet_dict
 
-        # list of JsonObject
-        exports_list = getkey(linklet_dict, "exports", type='a')
+            # list of JsonObject
+            exports_list = getkey(linklet_dict, "exports", type='a')
 
         exports = {}
         for exp in exports_list:
@@ -396,12 +413,15 @@ class W_Linklet(W_Object):
 
         console_log("Converting linklet forms to AST ...", 2)
 
-        all_forms = []
-        for body_form in getkey(linklet_dict, "body", type='a'):
-            form = loader.to_ast(body_form)
-            form = Context.normalize_term(form)
-            form = assign_convert(form)
-            all_forms.append(form)
+        with PerfRegion("json-to-ast"):
+            all_forms = []
+            for body_form in getkey(linklet_dict, "body", type='a'):
+                form_2 = loader.to_ast(body_form)
+                form_1 = Context.normalize_term(form_2)
+                # if form_1.tostring() != form_2.tostring():
+                #     import pdb;pdb.set_trace()
+                form = assign_convert(form_1)
+                all_forms.append(form)
 
         console_log("Finished converting linklet forms to AST ...", 2)
 
@@ -560,8 +580,8 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
     else:
         return make_let(varss_list, rhss_list, body_ls)
 
-def is_val_type(form):
-    val_types = [W_Number, W_Bool, W_String, W_ImmutableBytes, W_Character]
+def is_val_type(form, extra=[]):
+    val_types = [W_Number, W_Bool, W_String, W_ImmutableBytes, W_Character] + extra
     for t in val_types:
         if isinstance(form, t):
             return True
@@ -571,12 +591,83 @@ path_sym = W_Symbol.make("p+")
 srcloc_sym = W_Symbol.make("srcloc")
 
 def ast_to_sexp(form):
-    if is_val_type(form):
-        return form
-    else:
-        raise SchemeException("ast->sexp doesn't handle %s : %s yet." % (form, form.tostring()))
+    from pycket.util import console_log
+    console_log("ast->sexp is called with form : %s" % form.tostring(), 8)
 
+    if is_val_type(form, extra=[W_Vector, W_HashTable, W_List, W_Symbol]):
+        return form
+    elif isinstance(form, W_Linklet):
+        l_sym = W_Symbol.make("linklet")
+
+        name = form.get_name() # W_Symbol
+        importss = form.get_importss() # rlist of rdict of W_Symbol:W_Symbol
+        exports = form.get_exports() # rdict
+        body_forms = form.get_forms() # rlist of ASTs
+
+        importss_rlist = [None]*len(importss)
+        for index, rdict in enumerate(importss):
+            len_dict = len(rdict)
+            importss_inst = [None]*len_dict
+            i = 0
+            for k, v in rdict.iteritems():
+                importss_inst[i] = W_Cons.make(k, v)
+                i += 1
+            importss_rlist[index] = to_list(importss_inst)
+        importss_list = to_list(importss_rlist)
+
+        exports_rlist = [None]*len(exports)
+        i = 0
+        for k, v in exports.iteritems():
+            exports_rlist[i] = W_Cons.make(k, W_Cons.make(v, w_null))
+            i += 1
+
+        exports_list = to_list(exports_rlist)
+
+        body_forms_rlist = [None]*len(body_forms)
+        for index, ast_form in enumerate(body_forms):
+            body_forms_rlist[index] = ast_form.to_sexp()
+
+        linklet_rlist = [l_sym, name, importss_list, exports_list] + body_forms_rlist
+        linklet_s_exp = to_list(linklet_rlist)
+
+        return linklet_s_exp
+    elif isinstance(form, W_LinkletBundle) or isinstance(form, W_LinkletDirectory):
+        bd_sym = None
+        if isinstance(form, W_LinkletBundle):
+            bd_sym = W_Symbol.make(":B:")
+        else:
+            bd_sym = W_Symbol.make(":D:")
+
+        mapping = form.get_mapping()
+        l = mapping.length()
+        keys = [None]*l
+        vals = [None]*l
+
+        if isinstance(mapping, W_EqualHashTable):
+            i = 0
+            for k, v in mapping.hash_items():
+                keys[i] = k
+                vals[i] = ast_to_sexp(v)
+                i += 1
+
+            return W_Cons.make(bd_sym, W_EqualHashTable(keys, vals, immutable=True))
+        elif isinstance(mapping, W_EqImmutableHashTable):
+            i = 0
+            for k, v in mapping.iteritems():
+                keys[i] = k
+                vals[i] = ast_to_sexp(v)
+                i += 1
+
+            return W_Cons.make(bd_sym, make_simple_immutable_table(W_EqImmutableHashTable, keys, vals))
+        else:
+            raise SchemeException("Something wrong with the bundle/directory mapping : %s" % mapping.tostring())
+    else:
+        return form.to_sexp()
+
+## TODO : handle :B: & :D: for linklet bundles and directories
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
+    from pycket.util import console_log
+    console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
     elif is_val_type(form):
@@ -696,10 +787,9 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             assert isinstance(var, Var)
             form = SetBang(var, rhs)
         elif form.car() is W_Symbol.make("quote"):
-            if form.cdr().cdr() is not w_null:
+            if form.cdr() is w_null or form.cdr().cdr() is not w_null:
                 raise SchemeException("malformed quote form : %s" % form.tostring())
-            # the reason for read_loop is to deserialize paths (from p+ to W_Path)
-            form = Quote(read_loop(form.cdr().car()))
+            form = Quote(form.cdr().car())
         elif form.car() is W_Symbol.make("if"):
             tst_w = form.cdr().car()
             thn_w = form.cdr().cdr().car()
@@ -749,7 +839,9 @@ def external_of_an_export(sym, exports):
 def compile_linklet(form, name, import_keys, get_import, options, env, cont):
     from pycket.util import console_log
     console_log("compiling linklet : %s" % form.tostring(), 3)
-    return do_compile_linklet(form, name, import_keys, get_import, options, env, cont)
+    with PerfRegionCPS("compile-linklet"):
+        cont_ = finish_perf_region_cont("compile-linklet", env, cont)
+        return do_compile_linklet(form, name, import_keys, get_import, options, env, cont_)
 
 def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
 
@@ -801,13 +893,15 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             body_forms_ls = to_rpython_list(w_body)
 
             toplevel_defined_linklet_vars = create_toplevel_linklet_vars(body_forms_ls)
-
-            _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
+            with PerfRegion("compile-sexp-to-ast"):
+                _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):
-                b_form = Context.normalize_term(bf)
-                b_form = assign_convert(b_form)
+                with PerfRegion("compile-normalize"):
+                    b_form = Context.normalize_term(bf)
+                with PerfRegion("compile-assign-convert"):
+                    b_form = assign_convert(b_form)
                 body_forms[i] = b_form
 
             if name is w_false:
@@ -873,8 +967,9 @@ def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, en
         target = target_instance
     else:
         raise SchemeException("Expected #f or instance? as target-instance, got : %s" % target_instance)
-
-    return linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt, target, env, cont)
+    with PerfRegionCPS("instantiate-linklet"):
+        cont_ = finish_perf_region_cont("instantiate-linklet", env, cont)
+        return linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt, target, env, cont_)
 
 @expose("linklet-import-variables", [W_Linklet])
 def linklet_import_variables(linkl):
@@ -917,36 +1012,36 @@ def is_bundle(v):
 
 @expose("make-instance") #FIXME: [W_Object, W_Object, [W_Symbol, W_Object] ....]
 def make_instance(args): # name, data, *vars_vals
+    with PerfRegion("make-instance"):
+        name = args[0] # W_Symbol
+        data = w_false
+        mode = w_false
 
-    name = args[0] # W_Symbol
-    data = w_false
-    mode = w_false
+        from pycket.util import console_log
+        if "'" in name.tostring():
+            console_log("making instance : %s" % name.tostring(), 2)
+        else:
+            console_log("making instance : %s" % name.tostring(), 3)
 
-    from pycket.util import console_log
-    if "'" in name.tostring():
-        console_log("making instance : %s" % name.tostring(), 1)
-    else:
-        console_log("making instance : %s" % name.tostring(), 2)
+        if len(args) <= 2:
+            data = args[1]
+            vars_vals = []
+        else:
+            data = args[1]
+            mode = args[2]
+            vars_vals = args[3:]
 
-    if len(args) <= 2:
-        data = args[1]
-        vars_vals = []
-    else:
-        data = args[1]
-        mode = args[2]
-        vars_vals = args[3:]
+        # check if the vars and vals match
+        if ((len(vars_vals) % 2) != 0):
+            raise SchemeException("Variable names and values do not match : %s" % vars_vals)
 
-    # check if the vars and vals match
-    if ((len(vars_vals) % 2) != 0):
-        raise SchemeException("Variable names and values do not match : %s" % vars_vals)
+        vars_vals_dict = {}
+        for i in range(0, len(vars_vals), 2):
+            n = vars_vals[i]
+            v = vars_vals[i+1]
+            vars_vals_dict[n] = LinkletVar(n, v, mode)
 
-    vars_vals_dict = {}
-    for i in range(0, len(vars_vals), 2):
-        n = vars_vals[i]
-        v = vars_vals[i+1]
-        vars_vals_dict[n] = LinkletVar(n, v, mode)
-
-    return W_LinkletInstance(name, vars_vals_dict, {}, data)
+        return W_LinkletInstance(name, vars_vals_dict, {}, data)
 
 @expose("recompile-linklet", [W_Linklet, default(W_Object, None), default(W_Object, w_false), default(W_Object, None)], simple=False)
 def recompile_linklet(linkl, name, import_keys, get_import, env, cont):
@@ -1024,49 +1119,56 @@ linklet_sym = values.W_Symbol.make("linklet")
 
 @expose("read-compiled-linklet", [values.W_InputPort], simple=False)
 def read_compiled_linklet(in_port, env, cont):
-    # port position comes at 2 (i.e. #~ is already read)
     from pycket.interpreter import return_value
     from pycket.env import w_version
+    from pycket.racket_entry import get_primitive
+    from pycket.util import console_log
+    # port position comes at 2 (i.e. #~ is already read)
+
     current_version = w_version.get_version() # str
 
-    read_sym = values.W_Symbol.make("read")
-    read = prim_env[read_sym]
+    fasl_to_s_exp = get_primitive("fasl->s-exp")
 
-    # Racket's read
-    pycketconfig = env.toplevel_env()._pycketconfig
-    sexp = read.call_interpret([in_port], pycketconfig)
+    version_length = int(in_port.read(1))
+    written_version = in_port.read(version_length)
 
-    if sexp is w_void:
-        raise SchemeException("Couldn't read : %s" % in_port.read(-1))
+    if written_version != current_version:
+        raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version))
 
-    written_version = sexp.car().car() # W_Symbol
+    console_log("read-compiled-linklet : version check OK", 8)
 
-    if written_version.tostring() != current_version:
-        raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version.tostring()))
+    with PerfRegion("fasl->s-exp"):
+        s_exp = fasl_to_s_exp.call_interpret([in_port, values.w_true])
 
-    data = sexp.cdr().car()
+    console_log("read-compiled-linklet : fasl->sexp returns -- sexp is here : %s", 8)
 
-    D_or_B = data.car()
+    with PerfRegion("s-exp->ast"):
+        read_data = deserialize_loop(s_exp)
 
-    if not D_or_B is dir_sym and not D_or_B is bundle_sym:
-        raise SchemeException("malformed compiled code : Expected %s or %s to start with" % (dir_sym.tostring(), bundle_sym.tostring()))
-    read_data = read_loop(data)
+    console_log("READ DATA : %s" % read_data.tostring(), 8)
 
     return return_value(read_data, env, cont)
 
-def read_loop(sexp):
+def deserialize_loop(sexp):
     # Work in progress
     from pycket.env import w_global_config
+    from pycket.util import console_log
 
+    console_log("deserialize_loop -- s-exp : %s -- %s" % (sexp, sexp.tostring()), 8)
     if isinstance(sexp, W_Cons):
+        console_log("it's a W_Cons", 8)
         c = sexp.car()
+        console_log("c is : %s" % c.tostring(), 8)
         if c is dir_sym:
+            console_log("dir_sym", 8)
             dir_map = sexp.cdr()
-            return W_LinkletDirectory(read_loop(dir_map))
+            return W_LinkletDirectory(deserialize_loop(dir_map))
         elif c is bundle_sym:
+            console_log("bundle_sym", 8)
             bundle_map = sexp.cdr()
-            return W_LinkletBundle(read_loop(bundle_map))
+            return W_LinkletBundle(deserialize_loop(bundle_map))
         elif c is linklet_sym:
+            console_log("linklet_sym", 8)
             # Unify this with compile_linklet
             if isinstance(sexp.cdr().car(), W_List):
                 w_name = W_Symbol.make("anonymous")
@@ -1079,19 +1181,22 @@ def read_loop(sexp):
                 w_exports = sexp.cdr().cdr().cdr().car()
                 w_body = sexp.cdr().cdr().cdr().cdr()
 
+            console_log("-- w_name : %s\n-- w_imports : %s\n-- w_exports : %s\n-- w_body : %s" % (w_name.tostring(), w_importss.tostring(), w_exports.tostring(), w_body.tostring()), 8)
+
             importss_acc = to_rpython_list(w_importss)
             importss_list = [None]*len(importss_acc)
             for index, importss_current in enumerate(importss_acc):
                 inner_acc = {}
+                console_log("imports_current : %s" % importss_current.tostring(), 8)
                 while (importss_current is not w_null):
                     c = importss_current.car()
                     if isinstance(c, W_Symbol):
                         inner_acc[c] = c
                     elif isinstance(c, W_List):
-                        if c.cdr().cdr() is not w_null:
-                            raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
+                        # if c.cdr().cdr() is not w_null:
+                        #     raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
                         external_id = c.car()
-                        internal_id = c.cdr().car()
+                        internal_id = c.cdr()
 
                         assert isinstance(external_id, W_Symbol) and isinstance(internal_id, W_Symbol)
                         inner_acc[external_id] = internal_id
@@ -1099,6 +1204,8 @@ def read_loop(sexp):
                     importss_current = importss_current.cdr()
 
                 importss_list[index] = inner_acc
+
+            console_log("imports are done", 8)
 
             # Process the exports
             exports = {}
@@ -1112,29 +1219,37 @@ def read_loop(sexp):
                 else:
                     exports[exp] = exp
 
+            console_log("exports are done", 8)
+
             # Process the body
             body_forms_ls = to_rpython_list(w_body)
 
             toplevel_defined_linklet_vars = create_toplevel_linklet_vars(body_forms_ls)
 
             _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
+
+            console_log("body forms -> ASTs are done, postprocessing begins...", 8)
+
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):
-                b_form = Context.normalize_term(bf)
-                b_form = assign_convert(b_form)
+                with PerfRegion("assign-convert-deserialize"):
+                    b_form = assign_convert(bf)
                 body_forms[i] = b_form
+
+            console_log("body forms are done", 8)
 
             return W_Linklet(w_name, importss_list, exports, body_forms)
         elif c is srcloc_sym:
+            console_log("srcloc_sym", 8)
             from pycket.prims.general import srcloc
             srcloc_const = srcloc.constructor
 
-            source = read_loop(sexp.cdr().car())
-            line = read_loop(sexp.cdr().cdr().car())
-            column = read_loop(sexp.cdr().cdr().cdr().car())
-            position = read_loop(sexp.cdr().cdr().cdr().cdr().car())
-            span = read_loop(sexp.cdr().cdr().cdr().cdr().cdr().car())
+            source = deserialize_loop(sexp.cdr().car())
+            line = deserialize_loop(sexp.cdr().cdr().car())
+            column = deserialize_loop(sexp.cdr().cdr().cdr().car())
+            position = deserialize_loop(sexp.cdr().cdr().cdr().cdr().car())
+            span = deserialize_loop(sexp.cdr().cdr().cdr().cdr().cdr().car())
 
             #FIXME : don't need call_interpret here, allocate the
             #object manually, get rid of the interpreter indirection
@@ -1145,18 +1260,20 @@ def read_loop(sexp):
 
             return srcloc_obj
         elif c is path_sym:
+            console_log("path_sym", 8)
             path_str = sexp.cdr().car().tostring()
             return W_Path(path_str)
         else:
+            console_log("ELSE", 8)
             is_improper = False
             new_rev = w_null
             while sexp is not w_null:
                 if isinstance(sexp, W_Cons):
-                    new_rev = W_Cons.make(read_loop(sexp.car()), new_rev)
+                    new_rev = W_Cons.make(deserialize_loop(sexp.car()), new_rev)
                     sexp = sexp.cdr()
                 else:
                     is_improper = True
-                    new_rev = W_Cons.make(read_loop(sexp), new_rev)
+                    new_rev = W_Cons.make(deserialize_loop(sexp), new_rev)
                     sexp = w_null
             # double reverse
             # FIXME : do this without the double space
@@ -1171,33 +1288,37 @@ def read_loop(sexp):
 
             return new
     elif isinstance(sexp, W_EqImmutableHashTable):
+        console_log("it's a W_EqImmutableHashTable", 8)
         l = sexp.length()
         keys = [None]*l
         vals = [None]*l
         i = 0
         for k, v in sexp.iteritems():
             keys[i] = k
-            vals[i] = read_loop(v)
+            vals[i] = deserialize_loop(v)
             i += 1
 
         return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
     elif isinstance(sexp, W_EqualHashTable):
+        console_log("it's a W_EqualHashTable", 8)
         l = sexp.length()
         keys = [None]*l
         vals = [None]*l
         i = 0
         for k, v in sexp.hash_items():
             keys[i] = k
-            vals[i] = read_loop(v)
+            vals[i] = deserialize_loop(v)
             i += 1
 
         return W_EqualHashTable(keys, vals, immutable=True)
     elif isinstance(sexp, W_Vector):
+        console_log("it's a W_Vector", 8)
         new = [None]*sexp.length()
         items = sexp.get_strategy().ref_all(sexp)
         for index, obj in enumerate(items):
-            new[index] = read_loop(obj)
+            new[index] = deserialize_loop(obj)
 
         return W_Vector.fromelements(new, sexp.immutable())
     else:
+        console_log("it's something else", 8)
         return sexp

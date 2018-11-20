@@ -30,9 +30,9 @@ import os
 
 ############################ Values and Parameters
 
-stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"), stdin=True)
-stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1), stdout=True)
-stderr_port = values.W_FileOutputPort(sio.fdopen_as_stream(2, "w", buffering=1), stdout=True)
+stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"), None, stdin=True)
+stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1), None, stdout=True)
+stderr_port = values.W_FileOutputPort(sio.fdopen_as_stream(2, "w", buffering=1), None, stdout=True)
 
 expose_val("eof", values.eof_object)
 
@@ -991,7 +991,7 @@ def open_infile(w_str, mode):
     if not os.path.exists(s):
         raise SchemeException("No such file or directory : %s" % s)
 
-    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21))
+    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21), path=os.path.abspath(s))
 
 def open_outfile(w_str, mode, exists):
     from pycket.prims.general import exn_fail_fs
@@ -1008,7 +1008,7 @@ def open_outfile(w_str, mode, exists):
             raise SchemeException("open-output-file : cannot open file : %s" % s, exn_fail_fs)
 
     # FIXME : handle different exists modes (e.g. replace)
-    return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
+    return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode), path=os.path.abspath(s))
 
 @expose("rename-file-or-directory", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)])
 def rename_file_or_directory(o, n, exists_ok):
@@ -1171,17 +1171,39 @@ def do_write_cont(o, env, cont, _vals):
     write_loop(o, port, env)
     return return_void(env, cont)
 
-def write_linklet_bundle_directory(v, port, env):
-    from pycket.prims.linklet import is_bundle, is_directory, W_Linklet
-    if is_bundle(v):
-        port.write("(:B: . ")
-    else:
-        port.write("(:D: . ")
-    mapping = v.get_mapping()
-    assert isinstance(mapping, W_EqualHashTable) or \
-        isinstance(mapping, W_EqImmutableHashTable)
-    write_loop(mapping, port, env)
-    port.write(")")
+def write_linklet_bundle(lb, port, env):
+    from pycket.racket_entry import get_primitive
+    from pycket.prims.linklet import ast_to_sexp
+    from pycket.util import console_log, PerfRegion
+
+    s_exp_to_fasl = get_primitive("s-exp->fasl")
+
+    console_log("BUNDLE AST TO BE SERIALIZED: %s" % lb.tostring(), 8)
+
+    with PerfRegion("ast_to_sexp"):
+        bundle_s_exp = ast_to_sexp(lb)
+
+    console_log("WRITING BUNDLE SEXP : %s" % bundle_s_exp.tostring(), 8)
+
+    with PerfRegion("s-exp->fasl"):
+        s_exp_to_fasl.call_interpret([bundle_s_exp, port, values.w_false])
+
+def write_linklet_directory(ld, port, env):
+    from pycket.racket_entry import get_primitive
+    from pycket.prims.linklet import ast_to_sexp
+    from pycket.util import console_log, PerfRegion
+
+    s_exp_to_fasl = get_primitive("s-exp->fasl")
+
+    console_log("DIRECTORY AST TO BE SERIALIZED: %s" % ld.tostring(), 8)
+
+    with PerfRegion("ast_to_sexp"):
+        directory_s_exp = ast_to_sexp(ld)
+
+    console_log("WRITING DIRECTORY : %s" % directory_s_exp.tostring(), 8)
+
+    with PerfRegion("s-exp->fasl"):
+        s_exp_to_fasl.call_interpret([directory_s_exp, port, values.w_false])
 
 def write_linklet(v, port, env):
     from pycket.util import console_log
@@ -1197,7 +1219,7 @@ def write_linklet(v, port, env):
         for ext_name, int_name in imp_dict.iteritems():
             port.write("(")
             write_loop(ext_name, port, env)
-            port.write(" ")
+            port.write(" . ")
             write_loop(int_name, port, env)
             port.write(")")
         port.write(")")
@@ -1240,8 +1262,10 @@ def write_hash_table(v, port, env):
             port.write("(")
             write_loop(k, port, env)
             port.write(" . ")
-            if is_bundle(v) or is_directory(v):
-                write_linklet_bundle_directory(v, port, env)
+            if is_bundle(v):
+                write_linklet_bundle(v, port, env)
+            elif is_directory(v):
+                write_linklet_directory(v, port, env)
             else:
                 write_loop(v, port, env)
             port.write(")")
@@ -1270,8 +1294,10 @@ def write_hash_table(v, port, env):
             port.write("(")
             write_loop(k, port, env)
             port.write(" . ")
-            if is_bundle(v) or is_directory(v):
-                write_linklet_bundle_directory(v, port, env)
+            if is_bundle(v):
+                write_linklet_bundle(v, port, env)
+            elif is_directory(v):
+                write_linklet_directory(v, port, env)
             else:
                 write_loop(v, port, env)
             port.write(")")
@@ -1364,16 +1390,23 @@ def write_loop(v, port, env):
     elif isinstance(v, W_Linklet):
         write_linklet(v, port, env)
 
-    elif is_bundle(v) or is_directory(v):
+    elif is_bundle(v):
         from pycket.env import w_version
-
         port.write("#~")
         version = w_version.get_version()
         len_version = len(version)
+        assert len_version < 10
+        port.write("%s%s" % (len_version, version))
+        write_linklet_bundle(v, port, env)
 
-        port.write("((%s)" % version)
-        write_linklet_bundle_directory(v, port, env)
-        port.write(")\n")
+    elif is_directory(v):
+        from pycket.env import w_version
+        port.write("#~")
+        version = w_version.get_version()
+        len_version = len(version)
+        assert len_version < 10
+        port.write("%s%s" % (len_version, version))
+        write_linklet_directory(v, port, env)
 
     elif isinstance(v, W_Struct):
         v.write(port, env)

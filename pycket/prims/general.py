@@ -466,6 +466,10 @@ def set_bang_transformer(v):
 def object_name(v):
     if isinstance(v, values.W_Prim):
         return v.name
+
+    elif isinstance(v, values_regex.W_AnyRegexp) or isinstance(v, values.W_Port):
+        return v.obj_name()
+
     return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 
 @expose("find-main-config", [])
@@ -856,7 +860,7 @@ def virtual_length(lst, unroll_to=0):
 @expose("length", [values.W_List])
 def length(a):
     if not a.is_proper_list():
-        raise SchemeException("length: not given proper list")
+        raise SchemeException("length: not given a proper list (either cyclic or not null terminated)")
     return values.W_Fixnum(virtual_length(a, unroll_to=2))
 
 @expose("list")
