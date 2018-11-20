@@ -153,6 +153,7 @@
             "racket/contract/private/provide" ;; fail
             "racket/contract/private/struct-dc" ;; infinite exn:fail : abort-current-continuation: no such prompt exists
             "racket/contract/private/struct-prop"
+            "racket/contract/private/rand"
             "racket/contract/private/top-sort"
             "racket/contract/private/types"
             "racket/contract/private/unconstrained-domain-arrow"
