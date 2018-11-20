@@ -27,6 +27,14 @@ def console_log_after_boot(print_str, given_verbosity_level=0, debug=False):
     if glob.is_boot_completed():
         console_log(print_str, given_verbosity_level, debug)
 
+def os_check_env_var(var_str):
+    import os
+    return var_str in os.environ.keys()
+
+def os_get_env_var(var_str):
+    import os
+    return os.environ.get(var_str) if var_str in os.environ.keys() else ""
+
 ## this code is a port of cs/linklet/performance.ss
 
 class PerfRegion(object):
@@ -54,16 +62,11 @@ class PerfRegionCPS(PerfRegion):
             return None # using False here confuses rtyper
 
 def start_perf_region(label):
-    from pycket.env import w_global_config
-    current_v_level = w_global_config.get_config_val('verbose')
-    if current_v_level > 0:
+    if os_check_env_var("PLT_LINKLET_TIMES"):
         linklet_perf.current_start_time.append(rtime.time())
 
-
 def finish_perf_region(label):
-    from pycket.env import w_global_config
-    current_v_level = w_global_config.get_config_val('verbose')
-    if current_v_level > 0:
+    if os_check_env_var("PLT_LINKLET_TIMES"):
         assert (len(linklet_perf.current_start_time) > 0)
         delta = rtime.time() - linklet_perf.current_start_time[-1]
         table_add(linklet_perf.region_times, label, delta)
@@ -119,9 +122,7 @@ class LinkletPerf(object):
                 self.loop(sub_ht, level+1)
 
     def print_report(self):
-        from pycket.env import w_global_config
-        current_v_level = w_global_config.get_config_val('verbose')
-        if current_v_level > 0:
+        if os_check_env_var("PLT_LINKLET_TIMES"):
             total = 0
             self.name_len = 0
             for k in self.region_times:
