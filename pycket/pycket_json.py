@@ -259,8 +259,10 @@ class OwnJSONDecoder(JSONDecoder):
 def loads(s):
     if not we_are_translated():
         import json
+        from pycket.util import PerfRegion
         data = json.loads(s)
-        return _convert(data)
+        with PerfRegion("json_convert"):
+            return _convert(data)
     decoder = OwnJSONDecoder(s)
     try:
         w_res = decoder.decode_any(0)
