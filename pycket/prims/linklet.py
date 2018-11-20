@@ -28,7 +28,7 @@ from pycket.prims.control import default_error_escape_handler, default_uncaught_
 from pycket.hash.base import W_HashTable
 from pycket.hash.simple import W_SimpleMutableHashTable, W_EqvImmutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
 from pycket.hash.equal import W_EqualHashTable
-from pycket.util import PerfRegion
+from pycket.util import PerfRegion, PerfRegionCPS
 
 class W_Uninitialized(W_Object):
     errorname = "uninitialized"
@@ -164,6 +164,12 @@ def hash_to_linklet_directory(content):
 @expose("linklet-directory->hash", [W_LinkletDirectory])
 def linklet_directory_to_hash(linkl_directory):
     return linkl_directory.dir_mapping
+
+@continuation
+def finish_perf_region_cont(label, env, cont, _vals):
+    from pycket.util import finish_perf_region
+    finish_perf_region(label)
+    return return_value(_vals, env, cont)
 
 @continuation
 def instantiate_val_cont(forms, index, gensym_count, return_val, target, exports, env, cont, _vals):
@@ -833,8 +839,9 @@ def external_of_an_export(sym, exports):
 def compile_linklet(form, name, import_keys, get_import, options, env, cont):
     from pycket.util import console_log
     console_log("compiling linklet : %s" % form.tostring(), 3)
-    with PerfRegion("compile-linklet"):
-        return do_compile_linklet(form, name, import_keys, get_import, options, env, cont)
+    with PerfRegionCPS("compile-linklet"):
+        cont_ = finish_perf_region_cont("compile-linklet", env, cont)
+        return do_compile_linklet(form, name, import_keys, get_import, options, env, cont_)
 
 def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
 
@@ -886,13 +893,15 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             body_forms_ls = to_rpython_list(w_body)
 
             toplevel_defined_linklet_vars = create_toplevel_linklet_vars(body_forms_ls)
-
-            _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
+            with PerfRegion("compile-sexp-to-ast"):
+                _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):
-                b_form = Context.normalize_term(bf)
-                b_form = assign_convert(b_form)
+                with PerfRegion("compile-normalize"):
+                    b_form = Context.normalize_term(bf)
+                with PerfRegion("compile-assign-convert"):
+                    b_form = assign_convert(b_form)
                 body_forms[i] = b_form
 
             if name is w_false:
@@ -958,8 +967,9 @@ def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, en
         target = target_instance
     else:
         raise SchemeException("Expected #f or instance? as target-instance, got : %s" % target_instance)
-    with PerfRegion("instantiate-linklet"):
-        return linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt, target, env, cont)
+    with PerfRegionCPS("instantiate-linklet"):
+        cont_ = finish_perf_region_cont("instantiate-linklet", env, cont)
+        return linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt, target, env, cont_)
 
 @expose("linklet-import-variables", [W_Linklet])
 def linklet_import_variables(linkl):
@@ -1020,7 +1030,7 @@ def make_instance(args): # name, data, *vars_vals
             data = args[1]
             mode = args[2]
             vars_vals = args[3:]
-            
+
         # check if the vars and vals match
         if ((len(vars_vals) % 2) != 0):
             raise SchemeException("Variable names and values do not match : %s" % vars_vals)
@@ -1116,27 +1126,27 @@ def read_compiled_linklet(in_port, env, cont):
     # port position comes at 2 (i.e. #~ is already read)
 
     current_version = w_version.get_version() # str
-    
+
     fasl_to_s_exp = get_primitive("fasl->s-exp")
-    
+
     version_length = int(in_port.read(1))
     written_version = in_port.read(version_length)
-    
+
     if written_version != current_version:
         raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version))
-        
+
     console_log("read-compiled-linklet : version check OK", 8)
 
     with PerfRegion("fasl->s-exp"):
         s_exp = fasl_to_s_exp.call_interpret([in_port, values.w_true])
-    
+
     console_log("read-compiled-linklet : fasl->sexp returns -- sexp is here : %s", 8)
 
     with PerfRegion("s-exp->ast"):
         read_data = deserialize_loop(s_exp)
-    
+
     console_log("READ DATA : %s" % read_data.tostring(), 8)
-    
+
     return return_value(read_data, env, cont)
 
 def deserialize_loop(sexp):
@@ -1223,7 +1233,8 @@ def deserialize_loop(sexp):
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):
-                b_form = assign_convert(bf)
+                with PerfRegion("assign-convert-deserialize"):
+                    b_form = assign_convert(bf)
                 body_forms[i] = b_form
 
             console_log("body forms are done", 8)

@@ -28,28 +28,50 @@ def console_log_after_boot(print_str, given_verbosity_level=0, debug=False):
         console_log(print_str, given_verbosity_level, debug)
 
 ## this code is a port of cs/linklet/performance.ss
-        
+
 class PerfRegion(object):
     def __init__(self, l):
         self.label = l
 
     def __enter__(self):
-        from pycket.env import w_global_config
-        current_v_level = w_global_config.get_config_val('verbose')
-        if current_v_level > 0:
-            linklet_perf.current_start_time.append(rtime.time())
+        start_perf_region(self.label)
 
     def __exit__(self,a,b,c):
-        from pycket.env import w_global_config
-        current_v_level = w_global_config.get_config_val('verbose')
-        if current_v_level > 0:
-            assert (len(linklet_perf.current_start_time) > 0)
-            delta = rtime.time() - linklet_perf.current_start_time[-1]
-            table_add(linklet_perf.region_times, self.label, delta)
-            table_add(linklet_perf.region_counts, self.label, 1)
-            linklet_perf.current_start_time.pop()
-            for i in range(len(linklet_perf.current_start_time)):
-                linklet_perf.current_start_time[i] += delta
+        finish_perf_region(self.label)
+
+class PerfRegionCPS(PerfRegion):
+    def __exit__(self,a,b,c):
+        if a is None:
+            # normal return, except that this is a CPS function and so the
+            # finish_perf_region call is in the continuation
+            # If `with` gave us access to the return value we could do this
+            # automatically here, but it doesn't
+            pass
+        else:
+            # exception, so we have to call finish_perf_region
+            finish_perf_region(self.label)
+            # re-raise the exception
+            return None # using False here confuses rtyper
+
+def start_perf_region(label):
+    from pycket.env import w_global_config
+    current_v_level = w_global_config.get_config_val('verbose')
+    if current_v_level > 0:
+        linklet_perf.current_start_time.append(rtime.time())
+
+
+def finish_perf_region(label):
+    from pycket.env import w_global_config
+    current_v_level = w_global_config.get_config_val('verbose')
+    if current_v_level > 0:
+        assert (len(linklet_perf.current_start_time) > 0)
+        delta = rtime.time() - linklet_perf.current_start_time[-1]
+        table_add(linklet_perf.region_times, label, delta)
+        table_add(linklet_perf.region_counts, label, 1)
+        linklet_perf.current_start_time.pop()
+        for i in range(len(linklet_perf.current_start_time)):
+            linklet_perf.current_start_time[i] += delta
+
 
 class LinkletPerf(object):
     def __init__(self):
@@ -59,11 +81,13 @@ class LinkletPerf(object):
         self.name_len = 0
         self.total_len = 0
         self.region_subs = {}
-        self.categories = {"read" : ["fasl->s-exp", "s-exp->ast"],
+        self.categories = {"read" : ["fasl->s-exp", "s-exp->ast", "assign-convert-deserialize"],
                            "run" : ["instantiate-linklet" "outer"],
                            "boot" : ["expander-linklet", "json-load", "json-to-ast",
                                      "fasl-linklet", "set-params"],
-                           "compile" : ["compile-linklet"]}
+                           "compile" : ["compile-linklet", "compile-sexp-to-ast",
+                                        "compile-normalize", "compile-assign-convert",
+                           ]}
 
     def report_time(self, level, label, n):
         counts = self.region_counts.get(label,0)
@@ -73,7 +97,7 @@ class LinkletPerf(object):
         else:
             c = " ; %d times"%int(counts)
         self.report(level, label, n, " [gc]", "ms", c)
-    
+
     def report(self, level, label, n, nextra, units, extra):
         lprintf(";; %s%s%s  %s%s %s%s\n",
                 (spaces(level*2),
@@ -83,7 +107,7 @@ class LinkletPerf(object):
                  nextra,
                  units,
                  extra))
-        
+
     def loop(self, ht, level):
         for label in ht:  # Fixme I can't sort
             self.report_time(level, label, int(1000*ht[label]))
@@ -102,7 +126,7 @@ class LinkletPerf(object):
                 total += self.region_times[k]
             self.total = int(1000*total)
             self.total_len = len(str(total))
-    
+
             for cat in self.categories:
                 t = sum_values(self.region_times, self.categories[cat], cat, self.region_subs)
                 if not(0 == t):
@@ -110,14 +134,14 @@ class LinkletPerf(object):
 
             self.loop(self.region_times, 0)
             self.report(0, "total", self.total, " [gc]", "ms", "")
-        
-linklet_perf = LinkletPerf()        
+
+linklet_perf = LinkletPerf()
 
 def second(l,i):
     x,y = l[i]
     return y
 
-Sorter = make_timsort_class(getitem=second)                
+Sorter = make_timsort_class(getitem=second)
 
 def ht_to_sorted_list(ht):
     l = []
@@ -127,7 +151,7 @@ def ht_to_sorted_list(ht):
     s.sort()
     return l
 
-        
+
 def table_add(t, l, v):
     t.setdefault(l,0)
     t[l] += v
@@ -161,9 +185,9 @@ def sum_values(ht, keys, key, subs):
     return sum
 
 
-            
-               
-        
+
+
+
 def console_log(print_str, given_verbosity_level=0, debug=False):
     # use the given_verbosity_level argument to control at which level
     # of verbosity you want this log to appear. Default is 0.
