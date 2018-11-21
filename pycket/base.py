@@ -46,7 +46,8 @@ class W_Object(W_ProtoObject):
         return False
 
     def call(self, args, env, cont):
-        raise SchemeException("%s is not callable" % self.tostring())
+        raise SchemeException("%s is not callable\n  args were: %s" % (self.tostring(),
+                                                                       [s.tostring() for s in args]))
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         return self.call(args, env, cont)
