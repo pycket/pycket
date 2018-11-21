@@ -144,7 +144,7 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, d
         read_accept_compiled = get_primitive("read-accept-compiled")
         read_accept_compiled.call_interpret([w_true], pycketconfig)
 
-        compiled_file_path = "pycket-compiled"
+        compiled_file_path = "compiled/pycket"
         ucfp = get_primitive("use-compiled-file-paths")
         if use_compiled:
             console_log("(use-compiled-file-paths %s)" % compiled_file_path)

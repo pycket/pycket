@@ -9,6 +9,8 @@
 (define (compile-file src)
   (with-module-reading-parameterization (lambda () (c:compile-file src))))
 
+(define compiled-file-path (build-path "compiled" "pycket"))
+
 (define fails '())
 (define clean-count 0)
 
@@ -279,7 +281,7 @@
          [dirs (cdr p-list)]
          [p (apply collection-file-path mod-name dirs)]
          [compiled-file-name (format "~a_rkt.zo" (car p-list))]
-         [zo-path (build-path (path-only p) "pycket-compiled" compiled-file-name)])
+         [zo-path (build-path (path-only p) compiled-file-path compiled-file-name)])
     (if (or (force-recompile)
             (<= (file-or-directory-modify-seconds zo-path #f (lambda () -inf.0))
                 (file-or-directory-modify-seconds p #f)))
@@ -304,7 +306,7 @@
          [p (apply collection-file-path (cons mod-name dirs))])
     (let* ((d (path-only p))
            (zo-name (format "~a_rkt.zo" (car p-list)))
-           (zo-path (build-path d "pycket-compiled" zo-name)))
+           (zo-path (build-path d compiled-file-path zo-name)))
       (if (file-exists? zo-path)
           (begin
             (printf "REMOVING : ~a\n" zo-path)
@@ -319,6 +321,7 @@
   (define batch #f)
   (define clean #f)
   (define lib-path? #f)
+  (define base-only #f)
   ;; fake-parameterize
   (define old-ns (current-namespace))
 
@@ -334,49 +337,51 @@
                      (force-recompile #t)]
    [("-l") "interpret paths as library paths"
            (set! lib-path? #t)]
+   [("--base-only") "only compile modules needed for `racket/base`"
+                    (set! base-only #t)]
    #:args paths
    ;; do this with mutation because parameterization doesn't currently work
    (current-namespace (make-base-namespace))
+   (let ([racket-modules (if base-only racket-base-modules racket-modules)]) 
+     (when clean
+       (for ([p (in-list racket-modules)])
+         (clean-file p))
+       (use-compiled-file-paths (list compiled-file-path)))
 
-   (when clean
-     (for ([p (in-list racket-modules)])
-       (clean-file p))
-     (use-compiled-file-paths (list (build-path "pycket-compiled"))))
+     ;; to do multiple
+     (when batch
+       (for ([p (in-list racket-modules)])
+         (with-handlers ([exn:fail?
+                          (lambda (e)
+                            (let* ((msg (lambda (n)
+                                          (string-append (substring (exn-message e) 0 n) " ...")))
+                                   (msg-short (msg 40))
+                                   (msg-long (msg (min (string-length (exn-message e)) 200)))
+                                   (mod.msg (cons p msg-short)))
+                              (set! fails (cons mod.msg fails))
+                              (printf "ERROR : ~a\n\n" (exn-message e))))])
+           (compile-lib-path p))))
 
-   ;; to do multiple
-   (when batch
-     (for ([p (in-list racket-modules)])
-       (with-handlers ([exn:fail?
-                        (lambda (e)
-                          (let* ((msg (lambda (n)
-                                        (string-append (substring (exn-message e) 0 n) " ...")))
-                                 (msg-short (msg 40))
-                                 (msg-long (msg (min (string-length (exn-message e)) 200)))
-                                 (mod.msg (cons p msg-short)))
-                            (set! fails (cons mod.msg fails))
-                            (printf "ERROR : ~a\n\n" (exn-message e))))])
-         (compile-lib-path p))))
-
-   ;; to compile individual paths
-   (unless (null? paths)
-     (for ([p (in-list paths)])
-       (if lib-path?
-           (compile-lib-path p)
-           (compile-path p))))
+     ;; to compile individual paths
+     (unless (null? paths)
+       (for ([p (in-list paths)])
+         (if lib-path?
+             (compile-lib-path p)
+             (compile-path p))))
 
 
-   (unless (zero? clean-count)
-     (printf "\n-- ~a out of ~a zo files removed --\n\n"
-                 clean-count (length racket-modules)))
+     (unless (zero? clean-count)
+       (printf "\n-- ~a out of ~a zo files removed --\n\n"
+               clean-count (length racket-modules)))
 
-   (if (null? fails)
-       (printf "All DONE without errors.\n")
-       (begin
-         (printf "\n-- Here are the failed libraries -- ~a / ~a failed --\n\n"
-                 (length fails) (length racket-modules))
-         (for ([p (in-list fails)])
-           (printf "~a ------------ ~a\n" (car p) (cdr p)))
-         (printf "DONE.\n")))
+     (if (null? fails)
+         (printf "All DONE without errors.\n")
+         (begin
+           (printf "\n-- Here are the failed libraries -- ~a / ~a failed --\n\n"
+                   (length fails) (length racket-modules))
+           (for ([p (in-list fails)])
+             (printf "~a ------------ ~a\n" (car p) (cdr p)))
+           (printf "DONE.\n")))
 
-  (current-namespace old-ns);)
-  )
+     (current-namespace old-ns);)
+     ))
