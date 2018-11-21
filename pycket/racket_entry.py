@@ -61,10 +61,18 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
     return sys_config
 
 def load_inst_linklet_json(json_file_name, pycketconfig, debug=False):
+    from pycket.env import w_version
 
     console_log("Loading linklet from %s" % json_file_name)
     linkl, sys_config = W_Linklet.load_linklet(json_file_name, JsonLoader())
 
+    # this needs to happen before we instantiate any linklets
+    # FIXME: probably need to do this with other config options
+    # FIXME: happens twice
+    v = sys_config["version"]
+    console_log("Setting the version to %s" % v)
+    w_version.set_version(v)
+    
 
     console_log("Instantiating %s ...."  % json_file_name)
     instantiate_linklet = get_primitive("instantiate-linklet")
@@ -88,9 +96,6 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, d
 
 
     with PerfRegion("set-params"):
-        v = sysconfig["version"]
-        console_log("Setting the version to %s" % v)
-        w_version.set_version(v)
 
         # These need to be set before the boot sequence
         if set_run_file:
