@@ -129,6 +129,12 @@ class W_LinkletBundle(W_Object):
         mapping = self.bundle_mapping
         return "BUNDLE : %s" % mapping.tostring()
 
+our_vm_bytes = values.W_Bytes.from_string("pycket")
+    
+@expose("linklet-virtual-machine-bytes", [])
+def vm_bytes():
+    return our_vm_bytes
+    
 @expose("hash->linklet-bundle", [W_Object])
 def hash_to_linklet_bundle(content):
     return W_LinkletBundle(content)
@@ -1116,6 +1122,40 @@ def var_ref_from_unsafe_huh(varref):
 dir_sym = values.W_Symbol.make(":D:")
 bundle_sym = values.W_Symbol.make(":B:")
 linklet_sym = values.W_Symbol.make("linklet")
+
+@expose("read-linklet-bundle-hash", [values.W_InputPort])
+def read_linklet_bundle_hash(in_port):
+    from pycket.racket_entry import get_primitive
+    fasl_to_s_exp = get_primitive("fasl->s-exp")
+    with PerfRegion("fasl->s-exp"):
+        bundle_map = fasl_to_s_exp.call_interpret([in_port, values.w_true])
+    with PerfRegion("s-exp->ast"):
+        return deserialize_loop(bundle_map)
+
+@expose("write-linklet-bundle-hash", [W_EqImmutableHashTable, values.W_OutputPort])
+def write_linklet_bundle_hash(ht, out_port):
+    from pycket.util import console_log
+    from pycket.racket_entry import get_primitive
+    console_log("BUNDLE AST TO BE SERIALIZED: %s" % ht.tostring(), 8)
+
+    l = ht.length()
+    keys = [None]*l
+    vals = [None]*l
+
+    i = 0
+    for k, v in ht.iteritems():
+        keys[i] = k
+        vals[i] = ast_to_sexp(v)
+        i += 1
+
+    bundle_s_exp = make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
+
+    console_log("WRITING BUNDLE SEXP : %s" % bundle_s_exp.tostring(), 8)
+
+    s_exp_to_fasl = get_primitive("s-exp->fasl")
+    with PerfRegion("s-exp->fasl"):
+        s_exp_to_fasl.call_interpret([bundle_s_exp, out_port, values.w_false])
+
 
 @expose("read-compiled-linklet", [values.W_InputPort], simple=False)
 def read_compiled_linklet(in_port, env, cont):
