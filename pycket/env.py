@@ -109,7 +109,8 @@ class GlobalConfig(object):
                        'expander_loaded':0,
                        'repl_loaded':0,
                        'debug_active':0,
-                       'boot_done':0}
+                       'boot_done':0,
+                       'linklet_mode':1}
         self.environment_vars = {}
         self.pycketconfig = None
 
@@ -127,13 +128,19 @@ class GlobalConfig(object):
         self.config['debug_active'] = 0
 
     def is_debug_active(self):
-        return self.config['debug_active'] == 1
+        return self.config['debug_active']
 
     def is_boot_completed(self):
-        return self.config['boot_done'] == 1
+        return self.config['boot_done']
 
     def boot_is_completed(self):
         self.config['boot_done'] = 1
+
+    def are_we_in_linklet_mode(self):
+        return self.config['linklet_mode']
+
+    def no_linklet_mode(self):
+        self.config['linklet_mode'] = 0
 
     def get_config(self):
         return self.config
