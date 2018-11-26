@@ -146,9 +146,13 @@ def correlated_property_symbol_keys(c):
 def correlated_property(stx, key, v):
     if v is None:
         # getting
-        return stx.get_props()[key]
+        props = stx.get_props()
+        if key in props:
+            return props[key]
+        return w_false
     else:
         # setting
+        # FIXME: should not use mutation!
         stx.extend_prop(key, v)
         return stx
 
