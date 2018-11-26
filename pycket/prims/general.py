@@ -53,6 +53,12 @@ def make_pred(name, cls):
         return values.W_Bool.make(isinstance(a, cls))
     predicate_.__name__ +=  cls.__name__
 
+def make_dummy_char_pred(name):
+    @expose(name, [values.W_Character], simple=True)
+    def predicate_(a):
+        return values.w_false
+    predicate_.__name__ +=  name
+    
 def make_pred_eq(name, val):
     typ = type(val)
     @expose(name, [values.W_Object], simple=True)
@@ -114,6 +120,7 @@ for args in [
         ("logger?", values.W_Logger),
         ("evt?", values.W_Evt),
         ("unquoted-printing-string?", values.W_UnquotedPrintingString),
+        ("port?", values.W_Port),
         ]:
     make_pred(*args)
 
@@ -246,11 +253,18 @@ expose_val("exception-handler-key", values.exn_handler_key)
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
              "prop:impersonator-of",
-             "prop:method-arity-error",
-             "prop:exn:srclocs",
-             "prop:custom-print-quotable"]:
+             "prop:method-arity-error"]:
     expose_val(name, values_struct.W_StructProperty(
         values.W_Symbol.make(name), values.w_false))
+
+for name in ["exn:srclocs",
+             "custom-print-quotable"]:
+    prop = values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false)
+    expose_val("prop:"+name, prop)
+    expose_val(name+"?", values_struct.W_StructPropertyPredicate(prop))
+    expose_val(name+"-accessor", values_struct.W_StructPropertyAccessor(prop))
+    
+
 
 expose_val("prop:authentic", values_struct.w_prop_authentic)
 expose_val("prop:object-name", values_struct.w_prop_object_name)
@@ -403,13 +417,7 @@ date_star_struct = define_struct("date*", date_struct,
 
 arity_at_least = define_struct("arity-at-least", values.w_null, ["value"])
 
-
-for args in [ ("subprocess?",),
-              ("file-stream-port?",),
-              ("terminal-port?",),
-              ("byte-ready?",),
-              ("char-ready?",),
-              ("char-symbolic?",),
+for args in [ ("char-symbolic?",),
               ("char-graphic?",),
               ("char-blank?",),
               ("char-iso-control?",),
@@ -417,24 +425,23 @@ for args in [ ("subprocess?",),
               ("char-upper-case?",),
               ("char-title-case?",),
               ("char-lower-case?",),
-              ("custom-print-quotable?",),
-              ("liberal-define-context?",),
+              ]:
+    make_dummy_char_pred(*args)
+
+
+for args in [ ("subprocess?",),
+              ("file-stream-port?",),
+              ("terminal-port?",),
+              ("byte-ready?",),
+              ("char-ready?",),
               ("handle-evt?",),
-              ("exn:srclocs?",),
               ("log-receiver?",),
-              # FIXME: these need to be defined with structs
-              ("date-dst?",),
               ("thread?",),
               ("thread-running?",),
               ("thread-dead?",),
               ("will-executor?",),
               ("semaphore-try-wait?",),
-              ("readtable?",),
               ("link-exists?",),
-              ("rename-transformer?",),
-              ("port?",),
-              ("sequence?",),
-              ("namespace-anchor?",),
               ("chaperone-channel",),
               ("impersonate-channel",),
               ]:
