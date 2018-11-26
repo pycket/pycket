@@ -18,7 +18,7 @@ from pycket.values_string import W_String
 from pycket.values_parameter import top_level_config
 from pycket.error import SchemeException
 from pycket import pycket_json
-from pycket.prims.expose import prim_env, expose, default
+from pycket.prims.expose import prim_env, expose, default, expose_val
 from pycket.prims.general import make_pred
 from pycket.prims.correlated import W_Correlated
 from pycket.prims.vector import vector
@@ -134,7 +134,17 @@ our_vm_bytes = values.W_Bytes.from_string("pycket")
 @expose("linklet-virtual-machine-bytes", [])
 def vm_bytes():
     return our_vm_bytes
-    
+
+w_pycket_sym = values.W_Symbol.make("pycket")
+
+# FIXME: control initialization of this from command line using -W
+expose_val("current-compile-target-machine", values_parameter.W_Parameter(w_pycket_sym))
+
+
+@expose("compile-target-machine?", [values.W_Symbol])
+def compile_machine_target_p(v):
+    return values.W_Bool.make(v is w_pycket_sym)
+
 @expose("hash->linklet-bundle", [W_Object])
 def hash_to_linklet_bundle(content):
     return W_LinkletBundle(content)
