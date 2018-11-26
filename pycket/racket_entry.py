@@ -72,7 +72,7 @@ def load_inst_linklet_json(json_file_name, pycketconfig, debug=False):
     v = sys_config["version"]
     console_log("Setting the version to %s" % v)
     w_version.set_version(v)
-    
+
 
     console_log("Instantiating %s ...."  % json_file_name)
     instantiate_linklet = get_primitive("instantiate-linklet")
@@ -184,6 +184,22 @@ def namespace_require_kernel(pycketconfig):
                                       W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
     namespace_require.call_interpret([kernel], pycketconfig)
 
+def namespace_require_plus(spec, pycketconfig):
+
+    namespace_require = get_primitive("namespace-require")
+    dynamic_require = get_primitive("dynamic-require")
+    module_declared = get_primitive("module-declared?")
+    join = get_primitive("module-path-index-join")
+    m = join.call_interpret([spec, w_false], pycketconfig)
+    submod = W_WrappedConsProper.make(W_Symbol.make("submod"),
+                                      W_WrappedConsProper.make(W_String.make("."),
+                                                               W_WrappedConsProper(W_Symbol.make("main"), w_null)))
+    # FIXME: configure-runtime
+    namespace_require.call_interpret([m], pycketconfig)
+    main = join.call_interpret([submod, m], pycketconfig)
+    if module_declared.call_interpret([main, w_true], pycketconfig) is w_true:
+        dynamic_require.call_interpret([main, w_false], pycketconfig)
+
 def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     linklet_perf.init()
@@ -210,7 +226,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
                                                 W_WrappedConsProper.make(W_String.make(init_library), w_null))
             console_log("(namespace-require %s) ..." % init_lib.tostring())
 
-            namespace_require.call_interpret([init_lib], pycketconfig)
+            namespace_require_plus(init_lib, pycketconfig)
             console_log("Init lib : %s loaded..." % (init_library))
 
     put_newline = False
@@ -222,10 +238,10 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
                 load.call_interpret([W_String.make(rand_str)], pycketconfig)
             elif rator_str == "file" or rator_str == "lib":
                 # -t & -l
-                load_form = W_WrappedConsProper.make(W_Symbol.make(rator_str),
-                                                     W_WrappedConsProper.make(W_String.make(rand_str), w_null))
+                require_spec = W_WrappedConsProper.make(W_Symbol.make(rator_str),
+                                                        W_WrappedConsProper.make(W_String.make(rand_str), w_null))
                 console_log("(namespace-require '(%s %s))" % (rator_str, rand_str))
-                namespace_require.call_interpret([load_form], pycketconfig)
+                namespace_require_plus(require_spec, pycketconfig)
             elif rator_str == "eval":
                 # -e
                 console_log("(eval (read (open-input-string %s)))" % rand_str)
@@ -346,8 +362,8 @@ def get_options(names, config):
     use_compiled = config['use-compiled']
     debug = config['verbose']
     version = config['version']
-    compile_any = config['compile-machine-independent'] 
-    
+    compile_any = config['compile-machine-independent']
+
     loads_print_str = []
     loads = []
     for index, rator in enumerate(load_rators):
