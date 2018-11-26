@@ -447,6 +447,12 @@ for args in [ ("subprocess?",),
               ]:
     define_nyi(*args)
 
+if not w_global_config.is_expander_loaded():
+    define_nyi("liberal-define-context?")
+    define_nyi("readtable?")
+    define_nyi("namespace-anchor?")
+    define_nyi("rename-transformer?")
+
 @expose("unsafe-make-place-local", [values.W_Object])
 def unsafe_make_place_local(v):
     return values.W_MBox(v)
