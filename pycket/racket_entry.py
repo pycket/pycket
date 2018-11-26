@@ -41,7 +41,7 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
         expander_file_path = locate_linklet("expander.rktl.linklet")
 
         # load the expander linklet
-        expander_instance, sys_config = load_inst_linklet_json(expander_file_path, pycketconfig, debug)
+        expander_instance, sys_config = load_inst_linklet_json(expander_file_path, pycketconfig, debug, set_version=True)
         expander_instance.provide_all_exports_to_prim_env(excludes=syntax_primitives)
 
         console_log("Expander loading complete.")
@@ -60,19 +60,11 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
 
     return sys_config
 
-def load_inst_linklet_json(json_file_name, pycketconfig, debug=False):
+def load_inst_linklet_json(json_file_name, pycketconfig, debug=False, set_version=False):
     from pycket.env import w_version
 
     console_log("Loading linklet from %s" % json_file_name)
-    linkl, sys_config = W_Linklet.load_linklet(json_file_name, JsonLoader())
-
-    # this needs to happen before we instantiate any linklets
-    # FIXME: probably need to do this with other config options
-    # FIXME: happens twice
-    v = sys_config["version"]
-    console_log("Setting the version to %s" % v)
-    w_version.set_version(v)
-
+    linkl, sys_config = W_Linklet.load_linklet(json_file_name, JsonLoader(), set_version)
 
     console_log("Instantiating %s ...."  % json_file_name)
     instantiate_linklet = get_primitive("instantiate-linklet")

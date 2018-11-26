@@ -164,7 +164,7 @@ do_linklets_load_racket_base() {
     print_console translating_with_linklets
     ./pypy-c ../pypy/rpython/bin/rpython --batch -Ojit --translation-jit_opencoder_model=big targetpycket.py --linklets
     print_console loading_racket_base
-    ./pycket-c-linklets --verbose 1 --collects /home/travis/build/pycket/pycket/racket/collects/ -c -I racket/base -e 1
+    ./pycket-c-linklets --verbose 2 --collects /home/travis/build/pycket/pycket/racket/collects/ -c -I racket/base -e 1
 }
 ############################################################
 

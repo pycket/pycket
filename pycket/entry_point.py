@@ -121,6 +121,9 @@ def make_entry_point(pycketconfig=None):
         args_w = [W_String.fromstr_utf8(arg) for arg in args]
         module_name, json_ast = ensure_json_ast(config, names)
 
+        from pycket.env import w_global_config
+        w_global_config.no_linklet_mode()
+
         entry_flag = 'byte-expand' in names
         multi_mod_flag = 'multiple-modules' in names
 

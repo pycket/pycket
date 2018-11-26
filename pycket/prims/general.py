@@ -22,7 +22,7 @@ from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
 from pycket.prims.primitive_tables import *
 from pycket.prims import string
 from pycket.racket_paths import racket_sys_paths
-
+from pycket.env import w_global_config
 from rpython.rlib         import jit, objectmodel, unroll
 from rpython.rlib.rsre    import rsre_re as re
 
@@ -446,6 +446,12 @@ for args in [ ("subprocess?",),
               ("impersonate-channel",),
               ]:
     define_nyi(*args)
+
+if not w_global_config.is_expander_loaded():
+    define_nyi("liberal-define-context?")
+    define_nyi("readtable?")
+    define_nyi("namespace-anchor?")
+    define_nyi("rename-transformer?")
 
 @expose("unsafe-make-place-local", [values.W_Object])
 def unsafe_make_place_local(v):
@@ -1908,30 +1914,25 @@ def ups_val(v):
 # levels)
 @expose("pycket:activate-debug", [])
 def activate_debug():
-    from pycket.env import w_global_config
     w_global_config.activate_debug()
 
 @expose("pycket:deactivate-debug", [])
 def activate_debug():
-    from pycket.env import w_global_config
     w_global_config.deactivate_debug()
 
 @expose("pycket:is-debug-active", [])
 def debug_status():
-    from pycket.env import w_global_config
     return values.W_Bool.make(w_global_config.is_debug_active())
 
 # Maybe we should do it with just one Racket level parameter
 @expose("pycket:get-verbosity", [])
 def get_verbosity():
-    from pycket.env import w_global_config as glob_conf
-    lvl = glob_conf.get_config_val('verbose')
+    lvl = w_global_config.get_config_val('verbose')
     return values.W_Fixnum(lvl)
 
 @expose("pycket:set-verbosity", [values.W_Fixnum])
 def set_verbosity(v):
-    from pycket.env import w_global_config as glob_conf
-    glob_conf.set_config_val('verbose', v.value)
+    w_global_config.set_config_val('verbose', v.value)
 
 addr_sym = values.W_Symbol.make("mem-address")
 

@@ -130,7 +130,7 @@ class W_LinkletBundle(W_Object):
         return "BUNDLE : %s" % mapping.tostring()
 
 our_vm_bytes = values.W_Bytes.from_string("pycket")
-    
+
 @expose("linklet-virtual-machine-bytes", [])
 def vm_bytes():
     return our_vm_bytes
@@ -381,7 +381,7 @@ class W_Linklet(W_Object):
         return instantiate_loop(self.forms, 0, 0, return_val, target, self.exports, env, cont)
 
     @staticmethod # json_file_name -> W_Linklet
-    def load_linklet(json_file_name, loader):
+    def load_linklet(json_file_name, loader, set_version=False):
         from pycket.expand import readfile_rpython, getkey
         from pycket.util import console_log
         """ Expands and loads a linklet from a JSON file"""
@@ -397,6 +397,15 @@ class W_Linklet(W_Object):
 
             # list of JsonObject
             exports_list = getkey(linklet_dict, "exports", type='a')
+
+        if set_version:
+            from pycket.util import console_log
+            from pycket.env import w_version
+
+            conf = getkey(linklet_dict, "config", type='o')
+            ver = conf['version'].value_string()
+            console_log("Setting the version to %s" % ver)
+            w_version.set_version(ver)
 
         exports = {}
         for exp in exports_list:
