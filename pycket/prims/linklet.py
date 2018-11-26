@@ -238,7 +238,7 @@ def instantiate_loop(forms, index, gensym_count, return_val, target, exports, en
 
 class W_Linklet(W_Object):
 
-    _immutable_fields_ = ["name", "importss[*]", "exports", "all_forms"]
+    _immutable_fields_ = ["name", "importss[*]", "exports", "forms"]
 
     def __init__(self, name, importss, exports, all_forms):
         self.name = name # W_Symbol -- for debugging
