@@ -854,7 +854,7 @@ def external_of_an_export(sym, exports):
 @expose("compile-linklet", [W_Object, default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false)], simple=False)
 def compile_linklet(form, name, import_keys, get_import, options, env, cont):
     from pycket.util import console_log
-    console_log("compiling linklet : %s" % form.tostring(), 3)
+    console_log("compiling linklet : %s %s" % (name.tostring(), form.tostring()), 3)
     with PerfRegionCPS("compile-linklet"):
         cont_ = finish_perf_region_cont("compile-linklet", env, cont)
         return do_compile_linklet(form, name, import_keys, get_import, options, env, cont_)
