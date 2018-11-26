@@ -113,6 +113,7 @@ for args in [
         ("continuation-prompt-tag?", values.W_ContinuationPromptTag),
         ("logger?", values.W_Logger),
         ("evt?", values.W_Evt),
+        ("unquoted-printing-string?", values.W_UnquotedPrintingString),
         ]:
     make_pred(*args)
 
@@ -1884,6 +1885,15 @@ def primitive_table(v):
     return make_simple_immutable_table(W_EqImmutableHashTable,
                                        expose_env.keys(),
                                        expose_env.values())
+
+@expose("unquoted-printing-string", [values_string.W_String])
+def up_string(s):
+    return values.W_UnquotedPrintingString(s)
+
+@expose("unquoted-printing-string-value", [values.W_UnquotedPrintingString])
+def ups_val(v):
+    return v.string
+
 
 # Any primitive on Pycket can use "w_global_config.is_debug_active()"
 # to control debug outputs (or breakpoints in the interpreter) (with

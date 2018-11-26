@@ -2124,3 +2124,13 @@ def wrap(*_pyval):
         if isinstance(car, W_Object):
             return W_Cons.make(car, cdr)
     assert False
+
+class W_UnquotedPrintingString(W_Object):
+    errorname = "unquoted-printing-string"
+    _immutable_fields_ = ["string"]
+
+    def __init__(self, s):
+        self.string = s
+
+    def tostring(self):
+        return self.string.tostring()
