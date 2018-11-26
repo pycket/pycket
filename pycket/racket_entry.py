@@ -89,7 +89,7 @@ def set_path(kind_str, path_str):
 
     racket_sys_paths.set_path(W_Symbol.make(kind_str), W_Path(path_str))
 
-def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir=""):
+def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False):
     from pycket.env import w_version
 
     sysconfig = load_bootstrap_linklets(pycketconfig, debug)
@@ -153,6 +153,10 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, d
             ucfp.call_interpret([w_null], pycketconfig)
             console_log("(use-compiled-file-paths null)")
 
+        cctm = get_primitive("current-compile-target-machine")
+        if compile_any:
+            cctm.call_interpret([w_false], pycketconfig)
+
         # set the current directory to the current directory
         import os
         c_dir = os.getcwd()
@@ -184,11 +188,11 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     linklet_perf.init()
 
-    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled = get_options(names, config)
+    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a = get_options(names, config)
 
 
     with PerfRegion("startup"):
-        initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
+        initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a)
 
     if just_init:
         return 0
@@ -342,7 +346,8 @@ def get_options(names, config):
     use_compiled = config['use-compiled']
     debug = config['verbose']
     version = config['version']
-
+    compile_any = config['compile-machine-independent'] 
+    
     loads_print_str = []
     loads = []
     for index, rator in enumerate(load_rators):
@@ -377,4 +382,4 @@ use-compiled     : %s
 
     console_log(log_str)
 
-    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled
+    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any

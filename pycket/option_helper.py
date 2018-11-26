@@ -34,6 +34,7 @@ def print_help(argv):
   -U, --no-user-path              ***: Ignore user-specific collects, etc.
   -R <paths>, --compiled <paths>  ***: Set compiled-file search roots to <paths>
   -C, --cross                     ***: Cross-build mode; save current collects and config as host
+  -M, --compile-any                  : Compile to machine-independent form
   -N <file>, --name <file>           : Sets `(find-system-path 'run-file)' to <file>
   -j, --no-jit                    ***: Disable the just-in-time compiler
   -d, --no-delay                  ***: Disable on-demand loading of syntax and code
@@ -80,6 +81,7 @@ conf_opts = ["-c", "--no-compiled",
              "-R", "--compiled",
              "-C", "--cross",
              "-N", "--name",
+             "-M", "--compile-any",
              "-j", "--no-jit",
              "-d", "--no-delay",
              "-b", "--binary",
@@ -106,7 +108,8 @@ config = {
     'just_kernel' : False,
     'verbose' : False,
     'just-init' : False,
-    'use-compiled' : True
+    'use-compiled' : True,
+    'compile-machine-independent' : False
 }
 
 def add_name(names, name, val, replace=False):
@@ -234,6 +237,9 @@ def parse_args(argv):
 
         elif argv[i] in ["-c", "--no-compiled"]:
             config['use-compiled'] = False
+
+        elif argv[i] in ["-M", "--compile-any"]:
+            config['compile-machine-independent'] = True
 
         elif argv[i] in ["-q", "--no-init-file"]:
             add_name(names, 'not-implemented', argv[i])

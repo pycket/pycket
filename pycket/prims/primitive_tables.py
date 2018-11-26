@@ -506,7 +506,9 @@ kernel_str = ["*", "+", "-",
               "syntax-source", "syntax-line", "syntax-column",
               "syntax-position", "syntax-span", "syntax-e",
               "syntax->datum", "datum->syntax", "syntax-property",
-              "syntax-property-symbol-keys", "syntax-binding-set-extend"]
+              "syntax-property-symbol-keys", "syntax-binding-set-extend",
+              "current-compile-target-machine",
+              "compile-target-machine?"]
 
 pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug",
                     "pycket:get-verbosity", "pycket:set-verbosity",
