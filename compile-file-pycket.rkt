@@ -285,8 +285,8 @@
             (<= (file-or-directory-modify-seconds zo-path #f (lambda () -inf.0))
                 (file-or-directory-modify-seconds p #f)))
         (begin
-          (printf "PYCKET COMPILE FILE -- compiling : ~a\n" p)
-          (compile-file p))
+          (printf "PYCKET COMPILE FILE -- compiling : ~a to ~s\n" p zo-path)
+          (compile-file p zo-path))
         (printf "PYCKET COMPILE FILE -- PASS -- already exists : ~a\n" p))))
 
 
