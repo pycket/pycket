@@ -1175,39 +1175,6 @@ def write_linklet_bundle_hash(ht, out_port):
     with PerfRegion("s-exp->fasl"):
         s_exp_to_fasl.call_interpret([bundle_s_exp, out_port, values.w_false])
 
-
-@expose("read-compiled-linklet", [values.W_InputPort], simple=False)
-def read_compiled_linklet(in_port, env, cont):
-    from pycket.interpreter import return_value
-    from pycket.env import w_version
-    from pycket.racket_entry import get_primitive
-    from pycket.util import console_log
-    # port position comes at 2 (i.e. #~ is already read)
-
-    current_version = w_version.get_version() # str
-
-    fasl_to_s_exp = get_primitive("fasl->s-exp")
-
-    version_length = int(in_port.read(1))
-    written_version = in_port.read(version_length)
-
-    if written_version != current_version:
-        raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version))
-
-    console_log("read-compiled-linklet : version check OK", 8)
-
-    with PerfRegion("fasl->s-exp"):
-        s_exp = fasl_to_s_exp.call_interpret([in_port, values.w_true])
-
-    console_log("read-compiled-linklet : fasl->sexp returns -- sexp is here : %s", 8)
-
-    with PerfRegion("s-exp->ast"):
-        read_data = deserialize_loop(s_exp)
-
-    console_log("READ DATA : %s" % read_data.tostring(), 8)
-
-    return return_value(read_data, env, cont)
-
 def deserialize_loop(sexp):
     # Work in progress
     from pycket.env import w_global_config
@@ -1299,29 +1266,6 @@ def deserialize_loop(sexp):
             console_log("body forms are done", 8)
 
             return W_Linklet(w_name, importss_list, exports, body_forms)
-        elif c is srcloc_sym:
-            console_log("srcloc_sym", 8)
-            from pycket.prims.general import srcloc
-            srcloc_const = srcloc.constructor
-
-            source = deserialize_loop(sexp.cdr().car())
-            line = deserialize_loop(sexp.cdr().cdr().car())
-            column = deserialize_loop(sexp.cdr().cdr().cdr().car())
-            position = deserialize_loop(sexp.cdr().cdr().cdr().cdr().car())
-            span = deserialize_loop(sexp.cdr().cdr().cdr().cdr().cdr().car())
-
-            #FIXME : don't need call_interpret here, allocate the
-            #object manually, get rid of the interpreter indirection
-            srcloc_obj = srcloc_const.call_interpret([source, line, column, position, span])
-
-            if srcloc_obj is w_void:
-                raise SchemeException("Couldn't create a srcloc object")
-
-            return srcloc_obj
-        elif c is path_sym:
-            console_log("path_sym", 8)
-            path_str = sexp.cdr().car().tostring()
-            return W_Path(path_str)
         else:
             console_log("ELSE", 8)
             is_improper = False
