@@ -689,7 +689,6 @@ def ast_to_sexp(form):
     else:
         return form.to_sexp()
 
-## TODO : handle :B: & :D: for linklet bundles and directories
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
     from pycket.util import console_log
     console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
@@ -845,7 +844,8 @@ def create_toplevel_linklet_vars(forms_ls):
             ids = form.cdr().car()
             ids_ls = to_rpython_list(ids)
             # create LinkletVar for each id
-            for id in ids_ls:
+            for id_ in ids_ls:
+                id = id_.get_obj() if isinstance(id_, W_Correlated) else id_
                 if id in linkl_toplevels:
                     raise SchemeException("duplicate binding name : %s" % id.tostring())
                 linkl_toplevels[id] = LinkletVar(id, is_transparent=True)
