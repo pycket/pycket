@@ -293,6 +293,15 @@ def string_downcase(v):
 def string_upcase(v):
     return v.upper()
 
+@expose("string-fill!", [W_String, values.W_Character])
+def string_fill(s, c):
+    if s.immutable():
+        raise SchemeException("string-fill!: given immutable string")
+    for i in range(s.length()):
+        s.setitem(i, c)
+    return values.w_void
+
+
 @jit.unroll_safe
 def string_append_fastpath(args):
     try:
@@ -491,6 +500,13 @@ def unsafe_bytes_ref(s, n):
 def unsafe_bytes_set_bang(s, n, v):
     return s.set(n.value, v.value)
 
+@expose("bytes-fill!", [values.W_Bytes, values.W_Fixnum])
+def string_fill(s, c):
+    if s.immutable():
+        raise SchemeException("bytes-fill!: given immutable bytes")
+    for i in range(s.length()):
+        s.set(i, c.value)
+    return values.w_void
 
 @expose("list->bytes", [values.W_List])
 def list_to_bytes(w_list):
@@ -535,6 +551,11 @@ def subbytes(w_bytes, w_start, w_end):
         raise SchemeException(
             "subbytes: ending index is smaller than starting index")
     slice = w_bytes.getslice(start, end)
+    return values.W_Bytes.from_charlist(slice, immutable=False)
+
+@expose("bytes-copy", [values.W_Bytes])
+def bytes_copy(w_src):
+    slice = w_src.getslice(0, w_src.length())
     return values.W_Bytes.from_charlist(slice, immutable=False)
 
 @expose("bytes-copy!",
