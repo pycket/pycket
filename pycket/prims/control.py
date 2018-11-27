@@ -433,6 +433,10 @@ def default_uncaught_exception_handler(exn, env, cont):
 
     return exn.struct_type().accessor.call([exn, message_field_index], env, display_escape_cont(exn, env, cont))
 
+uncaught_exception_handler_param = values_parameter.W_Parameter(default_uncaught_exception_handler)
+
+expose_val("uncaught-exception-handler", uncaught_exception_handler_param)
+
 @make_procedure("default-continuation-prompt-handler", [procedure], simple=False)
 def default_continuation_prompt_handler(proc, env, cont):
     return proc.call([], env, cont)

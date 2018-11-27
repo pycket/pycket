@@ -432,7 +432,7 @@ kernel_str = ["*", "+", "-",
               "thread-resume-evt", "thread-rewind-receive", "thread-running?",
               "thread-send", "thread-receive", "thread-suspend",
               "thread-suspend-evt", "thread-try-receive", "thread-wait",
-              "true-object?", "truncate", "unbox", "unbox*"
+              "true-object?", "truncate", "unbox", "unbox*",
               "uncaught-exception-handler", "unquoted-printing-string", "unquoted-printing-string?",
               "unquoted-printing-string-value", "values", "vector",
               "vector->immutable-vector", "vector->list", "vector->pseudo-random-generator",
