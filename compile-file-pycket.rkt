@@ -9,10 +9,9 @@
 (define (compile-file src)
   (with-module-reading-parameterization (lambda () (c:compile-file src))))
 
-(define compiled-file-path (build-path "compiled" "pycket"))
-
-(define fails '())
 (define clean-count 0)
+
+(define compiled-file-path (build-path "compiled" "pycket"))
 
 (define racket-base-modules
   '("racket/private/stx"
@@ -317,13 +316,16 @@
 (define force-recompile (make-parameter #f))
 
 
-;(module+ main
+(module+ main
   (define batch #f)
   (define clean #f)
   (define lib-path? #f)
   (define base-only #f)
+  (define stop-on-error? #f)
+
   ;; fake-parameterize
   (define old-ns (current-namespace))
+  (define fails '())
 
   (command-line
    #:once-each
@@ -337,6 +339,8 @@
                      (force-recompile #t)]
    [("-l") "interpret paths as library paths"
            (set! lib-path? #t)]
+   [("--stop-on-error") "stop on the first error"
+                        (set! stop-on-error? #t)]
    [("--base-only") "only compile modules needed for `racket/base`"
                     (set! base-only #t)]
    #:args paths
@@ -350,7 +354,8 @@
 
      ;; to do multiple
      (when batch
-       (for ([p (in-list racket-modules)])
+       (for ([p (in-list racket-modules)]
+             #:break (and stop-on-error? (not (null? fails))))
          (with-handlers ([exn:fail?
                           (lambda (e)
                             (let* ((msg (lambda (n)
@@ -383,5 +388,5 @@
              (printf "~a ------------ ~a\n" (car p) (cdr p)))
            (printf "DONE.\n")))
 
-     (current-namespace old-ns);)
+     (current-namespace old-ns))
      ))
