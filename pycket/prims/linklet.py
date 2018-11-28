@@ -758,10 +758,12 @@ def var_ref_from_unsafe_huh(varref):
 
 @expose("read-linklet-bundle-hash", [values.W_InputPort])
 def read_linklet_bundle_hash(in_port):
+    from pycket.util import console_log
     from pycket.racket_entry import get_primitive
     fasl_to_s_exp = get_primitive("fasl->s-exp")
     with PerfRegion("fasl->s-exp"):
         bundle_map = fasl_to_s_exp.call_interpret([in_port, values.w_true])
+    console_log("BUNDLE FASL->S-EXPR : %s" % bundle_map.tostring(), 8)
     with PerfRegion("s-exp->ast"):
         return deserialize_loop(bundle_map)
 
