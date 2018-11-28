@@ -7,6 +7,8 @@ from pycket.expand import JsonLoader
 from pycket.util import console_log, LinkletPerf, linklet_perf, PerfRegion
 from pycket.prims.correlated import syntax_primitives
 
+from rpython.rlib.debug import debug_start, debug_stop, debug_print
+
 def locate_linklet(file_name):
     import os
     from pycket.error import SchemeException
@@ -63,13 +65,21 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
 def load_inst_linklet_json(json_file_name, pycketconfig, debug=False, set_version=False):
     from pycket.env import w_version
 
+    debug_start("loading-linklet")
+    debug_print("loading and instantiating : %s" % json_file_name)
+
     console_log("Loading linklet from %s" % json_file_name)
     linkl, sys_config = W_Linklet.load_linklet(json_file_name, JsonLoader(), set_version)
 
+    debug_print("DONE with loading : %s" % json_file_name)
+
     console_log("Instantiating %s ...."  % json_file_name)
+    debug_print("Instantiating %s ...."  % json_file_name)
     instantiate_linklet = get_primitive("instantiate-linklet")
     linkl_instance = instantiate_linklet.call_interpret([linkl, w_null, w_false, w_false], pycketconfig)
-    console_log("DONE.")
+    debug_print("DONE Instantiating %s ...."  % json_file_name)
+    debug_stop("loading-linklet")
+    console_log("DONE with the %s." % json_file_name)
     return linkl_instance, sys_config
 
 def set_path(kind_str, path_str):
