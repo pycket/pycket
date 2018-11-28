@@ -25,6 +25,7 @@ from pycket.prims.vector import vector
 from pycket.AST import AST
 from pycket.cont import Prompt, NilCont, continuation
 from pycket.prims.control import default_error_escape_handler, default_uncaught_exception_handler
+from pycket.hash.base import W_HashTable
 from pycket.hash.simple import W_EqImmutableHashTable, make_simple_immutable_table
 from pycket.util import PerfRegion, PerfRegionCPS
 
@@ -763,7 +764,9 @@ def read_linklet_bundle_hash(in_port):
     fasl_to_s_exp = get_primitive("fasl->s-exp")
     with PerfRegion("fasl->s-exp"):
         bundle_map = fasl_to_s_exp.call_interpret([in_port, values.w_true])
-    console_log("BUNDLE FASL->S-EXPR : %s" % bundle_map.tostring(), 8)
+    console_log("BUNDLE FASL->S-EXPR : %s" % bundle_map.tostring(), 7)
+    if not isinstance(bundle_map, W_HashTable):
+        raise SchemeException("got something that is not a table: %s"%bundle_map.tostring())
     with PerfRegion("s-exp->ast"):
         return deserialize_loop(bundle_map)
 
@@ -771,7 +774,7 @@ def read_linklet_bundle_hash(in_port):
 def write_linklet_bundle_hash(ht, out_port):
     from pycket.util import console_log
     from pycket.racket_entry import get_primitive
-    console_log("BUNDLE AST TO BE SERIALIZED: %s" % ht.tostring(), 8)
+    console_log("BUNDLE AST TO BE SERIALIZED: %s" % ht.tostring(), 7)
 
     l = ht.length()
     keys = [None]*l
@@ -785,7 +788,7 @@ def write_linklet_bundle_hash(ht, out_port):
 
     bundle_s_exp = make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
 
-    console_log("WRITING BUNDLE SEXP : %s" % bundle_s_exp.tostring(), 8)
+    console_log("WRITING BUNDLE SEXP : %s" % bundle_s_exp.tostring(), 7)
 
     s_exp_to_fasl = get_primitive("s-exp->fasl")
     with PerfRegion("s-exp->fasl"):
