@@ -755,3 +755,15 @@ def unsafe_flabs(a):
 @expose("extflonum-availale?", [])
 def extflonum_available():
     return values.w_false
+
+@expose("real-part", [values.W_Number])
+def real_part(n):
+    if isinstance(n, values.W_Complex):
+        return n.real
+    return n
+
+@expose("imag-part", [values.W_Number])
+def imag_part(n):
+    if isinstance(n, values.W_Complex):
+        return n.imag
+    return values.W_Fixnum.ZERO
