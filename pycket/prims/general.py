@@ -811,8 +811,8 @@ def time_apply(a, args, env, cont, extra_call_info):
 
 @expose("apply", simple=False, extra_info=True)
 def apply(args, env, cont, extra_call_info):
-    if not args:
-        raise SchemeException("apply expected at least one argument, got 0")
+    if len(args) < 2:
+        raise SchemeException("apply expected at least 2 arguments, given %s" % len(args))
     fn = args[0]
     if not fn.iscallable():
         raise SchemeException("apply expected a procedure, got something else")
