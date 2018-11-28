@@ -6,8 +6,12 @@
          (prefix-in c: compiler/compile-file))
 (provide compile-file compile-lib-path)
 
-(define (compile-file src)
-  (with-module-reading-parameterization (lambda () (c:compile-file src))))
+(define compile-file
+  (case-lambda
+    [(src)
+     (with-module-reading-parameterization (lambda () (c:compile-file src)))]
+    [(src dest)
+     (with-module-reading-parameterization (lambda () (c:compile-file src dest)))]))
 
 (define clean-count 0)
 
