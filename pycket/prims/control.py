@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket                    import values, values_parameter, values_string
+from pycket                    import values, values_parameter, values_string, values_struct
 from pycket.arity              import Arity
 from pycket.cont               import continuation, loop_label, call_cont, Barrier, Cont, NilCont, Prompt
 from pycket.error              import SchemeException
@@ -403,7 +403,11 @@ def default_error_display_handler(msg, exn_object, env, cont):
     port = current_error_param.get(cont)
 
     assert isinstance(port, values.W_OutputPort)
-    port.write("%s : %s\n" % (exn_object.struct_type().name.tostring(), msg.tostring()))
+    # FIXME: check for exceptions, not structs
+    if isinstance(exn_object, values_struct.W_Struct):
+        port.write("%s : %s\n" % (exn_object.struct_type().name.tostring(), msg.tostring()))
+    else:
+        port.write("exception : %s\n" % (msg.tostring()))
     # FIXME : FIX the continuation-mark-set->context and extract a stack trace using it
     return return_void(env, cont)
 
@@ -427,11 +431,16 @@ def default_uncaught_exception_handler(exn, env, cont):
     # racket/src/cs/rumble/error.ss
 
     #FIXME : handle Breaks
-    offset = exn.struct_type().get_offset(exn.struct_type())
-    original_field_num = 0 # this is for the message field in exceptions
-    message_field_index = values.W_Fixnum(original_field_num-offset)
+    # FIXME: check for exceptions, not structs
+    if isinstance(exn, values_struct.W_Struct):
+        offset = exn.struct_type().get_offset(exn.struct_type())
+        original_field_num = 0 # this is for the message field in exceptions
+        message_field_index = values.W_Fixnum(original_field_num-offset)
 
-    return exn.struct_type().accessor.call([exn, message_field_index], env, display_escape_cont(exn, env, cont))
+        return exn.struct_type().accessor.call([exn, message_field_index], env, display_escape_cont(exn, env, cont))
+    else:
+        from pycket.interpreter import return_value
+        return return_value(values_string.W_String.make(exn.tostring()), env, display_escape_cont(exn, env, cont))
 
 uncaught_exception_handler_param = values_parameter.W_Parameter(default_uncaught_exception_handler)
 
