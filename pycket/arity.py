@@ -36,6 +36,18 @@ class Arity(object):
         at_least = max(self.at_least + shift, -1)
         return Arity(arity_list, at_least)
 
+    def tostring(self):
+        if self.at_least == -1 and 1 == len(self.arity_list):
+            return str(self.arity_list[0])
+        if self.at_least == -1 and 0 == len(self.arity_list):
+            return "impossible number"
+        elif self.at_least > -1:
+            return "at least %s"%self.at_least
+        else:
+            return "%s or some other number"%self.arity_list[0]
+
+
+
     @jit.elidable
     def arity_bits(self):
         # FIXME: handle bignums
@@ -63,4 +75,3 @@ Arity.ZERO    = Arity.oneof(0)
 Arity.ONE     = Arity.oneof(1)
 Arity.TWO     = Arity.oneof(2)
 Arity.THREE   = Arity.oneof(3)
-
