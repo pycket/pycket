@@ -700,10 +700,12 @@ class JsonLoader(object):
             if "variable-reference" in obj:
                 current_mod = self.modtable.current_mod()
                 if obj["variable-reference"].is_bool: # assumes that only boolean here is #f
-                    return VariableReference(None, current_mod)
+                    # the only things we load from JSON are the bootstrap linklets which
+                    # should be run in unsafe mode
+                    return VariableReference(None, current_mod, unsafe=True)
                 else:
                     var = self.to_ast(obj["variable-reference"])
-                    return VariableReference(var, current_mod)
+                    return VariableReference(var, current_mod, unsafe=True)
             if "lambda" in obj:
                     return CaseLambda([self._to_lambda(obj)])
             if "case-lambda" in obj:

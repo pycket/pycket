@@ -259,10 +259,15 @@ class W_ContinuationMarkKey(W_Object):
 
 class W_VariableReference(W_Object):
     errorname = "variable-reference"
-    _attrs_ = ['varref', 'linklet_instance']
+    _attrs_ = _immutable_fields_ = ['varref', 'linklet_instance']
     def __init__(self, varref, l_instance=None):
         self.varref = varref
         self.linklet_instance = l_instance
+
+    def is_unsafe(self):
+        if self.varref.unsafe:
+            return w_true
+        return w_false
 
     def get_instance(self):
         return self.linklet_instance

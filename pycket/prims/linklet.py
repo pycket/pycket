@@ -755,7 +755,7 @@ def var_ref_from_unsafe_huh(varref):
     necessarily a referenced variable) is compiled in unsafe mode, #f
     otherwise.
     """
-    return w_false
+    return varref.is_unsafe()
 
 @expose("read-linklet-bundle-hash", [values.W_InputPort])
 def read_linklet_bundle_hash(in_port):

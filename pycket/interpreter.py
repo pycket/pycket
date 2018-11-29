@@ -931,13 +931,14 @@ class QuoteSyntax(AST):
         port.write(")")
 
 class VariableReference(AST):
-    _immutable_fields_ = ["var", "is_mut", "path"]
+    _immutable_fields_ = ["var", "is_mut", "path", "unsafe"]
     visitable = True
     simple = True
-    def __init__ (self, var, path, is_mut=False):
+    def __init__ (self, var, path, is_mut=False, unsafe=False):
         self.var = var
         self.path = path
         self.is_mut = is_mut
+        self.unsafe = unsafe
 
     def is_mutable(self, env):
         if self.is_mut:
@@ -947,6 +948,7 @@ class VariableReference(AST):
             return var.is_mutable(env)
         else:
             return False
+
 
     def interpret_simple(self, env):
         current_inst = env.get_current_linklet_instance()
