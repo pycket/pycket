@@ -397,14 +397,25 @@ error_escape_handler_param = values_parameter.W_Parameter(default_error_escape_h
 
 expose_val("error-escape-handler", error_escape_handler_param)
 
+def is_exn(v):
+    from pycket.prims.general import exn
+    return (isinstance(v, values_struct.W_Struct) and (exn.has_subtype(v.struct_type())))
+
+def get_exn_message(exn, env, cont):
+    offset = exn.struct_type().get_offset(exn.struct_type())
+    original_field_num = 0 # this is for the message field in exceptions
+    message_field_index = values.W_Fixnum(original_field_num-offset)
+
+    return exn.struct_type().accessor.call([exn, message_field_index], env, display_escape_cont(exn, env, cont))
+
+
 @make_procedure("default-error-display-handler", [values_string.W_String, values.W_Object], simple=False)
 def default_error_display_handler(msg, exn_object, env, cont):
     from pycket.prims.input_output import current_error_param, return_void
     port = current_error_param.get(cont)
 
     assert isinstance(port, values.W_OutputPort)
-    # FIXME: check for exceptions, not structs
-    if isinstance(exn_object, values_struct.W_Struct):
+    if is_exn(exn_object):
         port.write("%s : %s\n" % (exn_object.struct_type().name.tostring(), msg.tostring()))
     else:
         port.write("exception : %s\n" % (msg.tostring()))
@@ -431,13 +442,8 @@ def default_uncaught_exception_handler(exn, env, cont):
     # racket/src/cs/rumble/error.ss
 
     #FIXME : handle Breaks
-    # FIXME: check for exceptions, not structs
-    if isinstance(exn, values_struct.W_Struct):
-        offset = exn.struct_type().get_offset(exn.struct_type())
-        original_field_num = 0 # this is for the message field in exceptions
-        message_field_index = values.W_Fixnum(original_field_num-offset)
-
-        return exn.struct_type().accessor.call([exn, message_field_index], env, display_escape_cont(exn, env, cont))
+    if is_exn(exn):
+        return get_exn_message(exn, env, display_escape_cont(exn, env, cont))
     else:
         from pycket.interpreter import return_value
         return return_value(values_string.W_String.make(exn.tostring()), env, display_escape_cont(exn, env, cont))
