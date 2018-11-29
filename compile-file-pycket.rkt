@@ -290,7 +290,7 @@
                 (file-or-directory-modify-seconds p #f)))
         (begin
           (printf "PYCKET COMPILE FILE -- compiling : ~a to ~s\n" p zo-path)
-          (compile-file p zo-path))
+          (compile-file p #;zo-path))
         (printf "PYCKET COMPILE FILE -- PASS -- already exists : ~a\n" p))))
 
 
