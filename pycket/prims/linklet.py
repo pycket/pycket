@@ -243,14 +243,14 @@ class W_Linklet(W_Object):
 
     def __init__(self, name, importss, exports, all_forms):
         self.name = name # W_Symbol -- for debugging
-        """ importss
+        """ importss -- list of dictionaries (for each import instance) of symbols
         [...,{W_Symbol:W_Symbol},...]
         [...,{exported_by_the_instance:referenced_in_self_forms},...]
 
         if not renamed, then it has it's own name as the value (thanks RPython!)
         """
         self.importss = importss
-        self.exports = exports
+        self.exports = exports # dictionary of W_Symbols
         # {internal_id(W_Symbol):external_id(W_Symbol)}
         # again, may be the same if it's not renamed
 
@@ -508,11 +508,16 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
                     elif isinstance(c, W_List):
                         if c.cdr().cdr() is not w_null:
                             raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
-                        external_id = c.car()
-                        internal_id = c.cdr().car()
+                        external_id = c.car().get_obj() if isinstance(c.car(), W_Correlated) else c.car()
+                        internal_id = c.cdr().car().get_obj() if isinstance(c.cdr().car(), W_Correlated) else c.cdr().car()
 
                         assert isinstance(external_id, W_Symbol) and isinstance(internal_id, W_Symbol)
                         inner_acc[external_id] = internal_id
+                    elif isinstance(c, W_Correlated):
+                        cc = c.get_obj()
+                        inner_acc[cc] = cc
+                    else:
+                        raise SchemeException("uncrecognized import : %s" % c.tostring())
 
                     importss_current = importss_current.cdr()
 
@@ -526,11 +531,13 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
 
             for exp in r_exports:
                 if isinstance(exp, W_WrappedConsProper):
-                    internal_name = exp.car() # W_Symbol
-                    external_name = exp.cdr().car() # W_Symbol
+                    car = exp.car()
+                    internal_name = car.get_obj() if isinstance(car, W_Correlated) else car
+                    cadr =  exp.cdr().car()
+                    external_name = cadr.get_obj() if isinstance(cadr, W_Correlated) else cadr
                     exports[internal_name] = external_name
                 else:
-                    exports[exp] = exp
+                    exports[exp] = exp.get_obj() if isinstance(exp, W_Correlated) else exp
 
             # Process the body
             w_body = form.cdr().cdr().cdr()

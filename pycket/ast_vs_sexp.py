@@ -453,13 +453,16 @@ def deserialize_loop(sexp):
                     if isinstance(c, values.W_Symbol):
                         inner_acc[c] = c
                     elif isinstance(c, values.W_List):
-                        # if c.cdr().cdr() is not w_null:
-                        #     raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
-                        external_id = c.car()
-                        internal_id = c.cdr()
+                        external_id = c.car().get_obj() if isinstance(c.car(), W_Correlated) else c.car()
+                        internal_id = c.cdr().get_obj() if isinstance(c.car(), W_Correlated) else c.cdr()
 
                         assert isinstance(external_id, values.W_Symbol) and isinstance(internal_id, values.W_Symbol)
                         inner_acc[external_id] = internal_id
+                    elif isinstance(c, W_Correlated):
+                        cc = c.get_obj()
+                        inner_acc[cc] = cc
+                    else:
+                        raise SchemeException("uncrecognized import : %s" % c.tostring())
 
                     importss_current = importss_current.cdr()
 
@@ -473,11 +476,13 @@ def deserialize_loop(sexp):
 
             for exp in r_exports:
                 if isinstance(exp, values.W_WrappedConsProper):
-                    internal_name = exp.car() # W_Symbol
-                    external_name = exp.cdr().car() # W_Symbol
+                    car = exp.car()
+                    internal_name = car.get_obj() if isinstance(car, W_Correlated) else car
+                    cadr =  exp.cdr().car()
+                    external_name = cadr.get_obj() if isinstance(cadr, W_Correlated) else cadr
                     exports[internal_name] = external_name
                 else:
-                    exports[exp] = exp
+                    exports[exp] = exp.get_obj() if isinstance(exp, W_Correlated) else exp
 
             util.console_log("exports are done", 8)
 
