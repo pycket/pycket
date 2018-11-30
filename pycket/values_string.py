@@ -465,13 +465,17 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
             return w_str.setitem(index, unichar)
 
     def setslice(self, w_str, index, w_from, fromstart, fromend):
-        target = self.unerase(w_str.get_storage())
-        # XXX inefficient
-        for sourceindex in range(fromstart, fromend):
-            char = ord(w_from.getitem(sourceindex))
-            assert char < 128 # XXX
-            target[index] = chr(char)
-            index += 1
+        if w_from.get_strategy() is self:
+            target = self.unerase(w_str.get_storage())
+            # XXX inefficient
+            for sourceindex in range(fromstart, fromend):
+                char = ord(w_from.getitem(sourceindex))
+                assert char < 128 # XXX
+                target[index] = chr(char)
+                index += 1
+        else:
+            self.make_unicode(w_str)
+            return w_str.setslice(index, w_from, fromstart, fromend)
 
     def upper(self, w_str):
         # XXX inefficient
