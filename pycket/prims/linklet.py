@@ -783,17 +783,18 @@ def write_linklet_bundle_hash(ht, out_port):
     from pycket.racket_entry import get_primitive
     console_log("BUNDLE AST TO BE SERIALIZED: %s" % ht.tostring(), 7)
 
-    l = ht.length()
-    keys = [None]*l
-    vals = [None]*l
+    with PerfRegion("ast->sexp"):
+        l = ht.length()
+        keys = [None]*l
+        vals = [None]*l
 
-    i = 0
-    for k, v in ht.iteritems():
-        keys[i] = k
-        vals[i] = ast_to_sexp(v)
-        i += 1
+        i = 0
+        for k, v in ht.iteritems():
+            keys[i] = k
+            vals[i] = ast_to_sexp(v)
+            i += 1
 
-    bundle_s_exp = make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
+        bundle_s_exp = make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
 
     console_log("WRITING BUNDLE SEXP : %s" % bundle_s_exp.tostring(), 7)
 
