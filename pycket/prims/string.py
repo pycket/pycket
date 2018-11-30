@@ -735,3 +735,11 @@ def char_whitespace_huh(w_char):
 def char_numeric_huh(w_char):
     c = ord(w_char.value)
     return values.w_true if unicodedb.isnumeric(c) else values.w_false
+
+
+@expose("sha1-bytes", [values.W_Bytes])
+def sha1_bytes(bs):
+    from rpython.rlib import rsha
+    data = bs.as_str()
+    digest = rsha.new(data).digest()
+    return values.W_Bytes.from_string(digest, immutable=False)
