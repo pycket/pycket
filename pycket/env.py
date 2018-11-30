@@ -111,6 +111,7 @@ class GlobalConfig(object):
                        'debug_active':0,
                        'boot_done':0,
                        'linklet_mode':1}
+        self.verbose_keywords = []
         self.environment_vars = {}
         self.pycketconfig = None
 
@@ -141,6 +142,22 @@ class GlobalConfig(object):
 
     def no_linklet_mode(self):
         self.config['linklet_mode'] = 0
+
+    def get_verbose_keywords(self):
+        return self.verbose_keywords
+
+    def set_verbose_keywords(self, new_keywords):
+        self.verbose_keywords = new_keywords
+
+    def is_keyword_active(self, keyword):
+        return keyword in self.verbose_keywords
+
+    def activate_keyword(self, keyword):
+        self.verbose_keywords.append(keyword)
+
+    def deactivate_keyword(self, keyword):
+        if keyword in self.verbose_keywords:
+            self.verbose_keywords.remove(keyword)
 
     def get_config(self):
         return self.config

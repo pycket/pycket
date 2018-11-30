@@ -345,14 +345,17 @@ def parse_args(argv):
 
         elif argv[i] == "--verbose":
             config['verbose'] = True
-            add_name(names, 'verbosity_level', '0')
+            add_name(names, 'verbosity_level', '-1')
             if to > i + 1 and not is_rkt_file(argv[i+1]) and argv[i+1] not in all_opts:
                 vl = argv[i+1]
-                if not vl.isdigit() or int(vl) < 0:
-                    print("--verbose <level> can only be a natural number, given : %s" % vl)
+                if vl.isdigit() and int(vl) < 0:
+                    print("--verbose <level> can only be a positive number, given : %s" % vl)
                     retval = MISSING_ARG
                     break
-                add_name(names, 'verbosity_level', vl, replace=True)
+                elif not vl.isdigit():
+                    add_name(names, 'verbosity_keywords', vl)
+                else:
+                    add_name(names, 'verbosity_level', vl, replace=True)
                 i += 1
 
         elif argv[i] == "--just-init":

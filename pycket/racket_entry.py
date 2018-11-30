@@ -365,6 +365,8 @@ def get_options(names, config):
     debug = config['verbose']
     version = config['version']
     compile_any = config['compile-machine-independent']
+    verbosity_lvl = int(names['verbosity_level'][0]) if debug else -1
+    verbosity_keywords = names['verbosity_keywords'] if 'verbosity_keywords' in names else []
 
     loads_print_str = []
     loads = []
@@ -375,17 +377,19 @@ def get_options(names, config):
 
     log_str = """Options :
 
-loads            : %s
-set-run-file     : %s
-set-collects-dir : %s
-set-config-dir   : %s
-set-addon-dir    : %s
-init_library     : %s
-is_repl          : %s
-no_lib           : %s
-just-#%%kernel    : %s
-just-init        : %s
-use-compiled     : %s
+loads              : %s
+set-run-file       : %s
+set-collects-dir   : %s
+set-config-dir     : %s
+set-addon-dir      : %s
+init_library       : %s
+is_repl            : %s
+no_lib             : %s
+just-#%%kernel      : %s
+just-init          : %s
+use-compiled       : %s
+verbosity-level    : %s
+verbosity-keywords : %s
 """ % (loads_print_str,
        set_run_file,
        set_collects_dir,
@@ -396,8 +400,10 @@ use-compiled     : %s
        no_lib,
        just_kernel,
        just_init,
-       use_compiled)
+       use_compiled,
+       verbosity_lvl,
+       verbosity_keywords)
 
-    console_log(log_str)
+    console_log(log_str, debug=debug)
 
     return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any

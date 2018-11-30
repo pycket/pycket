@@ -66,6 +66,9 @@ def make_entry_point(pycketconfig=None):
             level = int(names['verbosity_level'][0])
             w_global_config.set_config_val('verbose', level)
 
+            if 'verbosity_keywords' in names:
+                w_global_config.set_verbose_keywords(names['verbosity_keywords'])
+
             if 'not-implemented' in names:
                 print("These flags are not implemented yet : %s" % names['not-implemented'])
 

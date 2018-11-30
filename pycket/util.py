@@ -9,24 +9,6 @@ from rpython.rlib.listsort import make_timsort_class
 from rpython.rlib        import jit, objectmodel, rtime
 from rpython.rlib.unroll import unrolling_iterable
 
-def active_break():
-    from pycket.env import w_global_config as glob
-
-    if glob.is_debug_active():
-        import pdb;pdb.set_trace()
-
-def active_log(print_str, given_verbosity_level=0, debug=False):
-    from pycket.env import w_global_config as glob
-
-    if glob.is_debug_active():
-        console_log(print_str, given_verbosity_level, debug)
-
-def console_log_after_boot(print_str, given_verbosity_level=0, debug=False):
-    from pycket.env import w_global_config as glob
-
-    if glob.is_boot_completed():
-        console_log(print_str, given_verbosity_level, debug)
-
 def os_check_env_var(var_str):
     from pycket.env import w_global_config
     return w_global_config.env_var_exists(var_str)
@@ -34,6 +16,10 @@ def os_check_env_var(var_str):
 def os_get_env_var(var_str):
     from pycket.env import w_global_config
     return w_global_config.get_env_var(var_str)
+
+##############################################
+# Performance Region
+##############################################
 
 ## this code is a port of cs/linklet/performance.ss
 
@@ -189,12 +175,31 @@ def sum_values(ht, keys, key, subs):
     return sum
 
 
+##############################################
+# Debug Outputs
+##############################################
 
+def active_break():
+    from pycket.env import w_global_config as glob
 
+    if glob.is_debug_active():
+        import pdb;pdb.set_trace()
 
-def console_log(print_str, given_verbosity_level=0, debug=False):
+def active_log(print_str, given_verbosity_level=0, debug=False, keyword=""):
+    from pycket.env import w_global_config as glob
+
+    if glob.is_debug_active():
+        console_log(print_str, given_verbosity_level, debug, keyword)
+
+def console_log_after_boot(print_str, given_verbosity_level=0, debug=False, keyword=""):
+    from pycket.env import w_global_config as glob
+
+    if glob.is_boot_completed():
+        console_log(print_str, given_verbosity_level, debug, keyword)
+
+def console_log(print_str, given_verbosity_level=0, debug=False, keyword=""):
     # use the given_verbosity_level argument to control at which level
-    # of verbosity you want this log to appear. Default is 0.
+    # of verbosity you want this log to appear. Default is -1.
 
     # i.e. For a console log with a given_verbosity_level = 5 , the
     # user has to give "--verbose 5" at the entry for it to
@@ -206,10 +211,26 @@ def console_log(print_str, given_verbosity_level=0, debug=False):
     # logs you want. Don't provide "--verbose" flag at the entry, and
     # only the ones having debug=True will appear.
 
-    from pycket.env import w_global_config
-    current_v_level = w_global_config.get_config_val('verbose')
+    # The keyword parameterizes the logging. Each console_log can have
+    # a keyword associated with it. Instead of a numeric
+    # verbosity_level, a string keyword can be supplied at the boot
+    # with the --verbose flag, and the console_logs that have that
+    # keyword will appear at runtime.
 
-    if given_verbosity_level <= current_v_level or debug:
+    # The keywords and numeric verbosity_levels are not mutually
+    # exclusive. Both can be used together at the same time with
+    # multiple --verbose flags:
+
+    # $$ pycket --verbose 2 --verbose keyword
+
+    # Mutliple keywords can be supplied too:
+
+    # $$ pycket --verbose regexp --verbose prims --verbose 2
+
+    from pycket.env import w_global_config as glob
+    current_v_level = glob.get_config_val('verbose')
+
+    if given_verbosity_level <= current_v_level or debug or glob.is_keyword_active(keyword):
         current_str = str(rtime.time()) # str will trim it to 2 decimals
         decimal = len(current_str.split(".")[1])
         # decimal cannot be 0, since we know rtime.time() will always
@@ -218,6 +239,10 @@ def console_log(print_str, given_verbosity_level=0, debug=False):
             current_str += "0"
 
         print("[%s] %s" % (current_str, print_str))
+
+##############################################
+# MISC
+##############################################
 
 def snake_case(str):
     if not str:
