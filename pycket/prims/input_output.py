@@ -1473,6 +1473,14 @@ def format(form, vals, name):
             s == 'A' or
             s == 's' or
             s == 'S' or
+            s == 'x' or
+            s == 'X' or
+            s == 'b' or
+            s == 'B' or
+            s == 'c' or
+            s == 'C' or
+            s == 'o' or
+            s == 'O' or
             s == 'v' or
             s == 'V' or
             s == 'e' or
