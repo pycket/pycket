@@ -1404,6 +1404,9 @@ class W_Prim(W_Procedure):
         return self.result_arity
 
     def call_with_extra_info(self, args, env, cont, extra_call_info):
+        # from pycket.util import active_log
+        ## logging here is useful for debugging, but it's very expensive to keep it uncommented
+        # active_log("%s is called with" % self.name.variable_name(), keyword="prims")
         jit.promote(self)
         return self.code(args, env, cont, extra_call_info)
 

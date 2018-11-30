@@ -1934,6 +1934,14 @@ def get_verbosity():
 def set_verbosity(v):
     w_global_config.set_config_val('verbose', v.value)
 
+@expose("pycket:activate-keyword", [values.W_Symbol])
+def activate_debug_keyword(v):
+    w_global_config.activate_keyword(v.variable_name())
+
+@expose("pycket:deactivate-keyword", [values.W_Symbol])
+def deactivate_debug_keyword(v):
+    w_global_config.deactivate_keyword(v.variable_name())
+
 addr_sym = values.W_Symbol.make("mem-address")
 
 @expose("pycket:print", [values.W_Object, default(values.W_Symbol, addr_sym)])

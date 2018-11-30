@@ -512,7 +512,8 @@ kernel_str = ["*", "+", "-",
 
 pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug",
                     "pycket:get-verbosity", "pycket:set-verbosity",
-                    "pycket:is-debug-active", "pycket:print"]
+                    "pycket:is-debug-active", "pycket:print",
+                    "pycket:activate-keyword", "pycket:deactivate-keyword"]
 
 place = make_primitive_table(place_str)
 paramz = make_primitive_table(paramz_str)
