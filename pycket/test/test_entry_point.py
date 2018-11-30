@@ -32,6 +32,22 @@ class TestOptions(object):
         assert names['verbosity_level'] == ['2']
         assert retval == RETURN_OK
 
+    def test_verbose_keywords(self):
+        config, names, args, retval = parse_args(['arg0', '--verbose', 'regexp'])
+        assert config['verbose']
+        assert names['verbosity_level'] == ['-1']
+        assert names['verbosity_keywords'] == ['regexp']
+
+        config, names, args, retval = parse_args(['arg0', '--verbose', 'regexp', '--verbose', 'prims'])
+        assert config['verbose']
+        assert names['verbosity_level'] == ['-1']
+        assert names['verbosity_keywords'] == ['regexp', 'prims']
+
+        config, names, args, retval = parse_args(['arg0', '--verbose', 'regexp', '--verbose', '5', '--verbose', 'prims'])
+        assert config['verbose']
+        assert names['verbosity_level'] == ['5']
+        assert names['verbosity_keywords'] == ['regexp', 'prims']
+
     def test_one_args(self, cool_mod):
         config, names, args, retval = parse_args(['arg0', "cool-module.rkt"])
         assert retval == RETURN_OK

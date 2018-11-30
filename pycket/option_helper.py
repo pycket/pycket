@@ -345,7 +345,8 @@ def parse_args(argv):
 
         elif argv[i] == "--verbose":
             config['verbose'] = True
-            add_name(names, 'verbosity_level', '-1')
+            if 'verbosity_level' not in names:
+                add_name(names, 'verbosity_level', '-1')
             if to > i + 1 and not is_rkt_file(argv[i+1]) and argv[i+1] not in all_opts:
                 vl = argv[i+1]
                 if vl.isdigit() and int(vl) < 0:
