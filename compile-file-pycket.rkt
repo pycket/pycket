@@ -104,6 +104,7 @@
             "compiler/private/mach-o"
             "compiler/private/winutf16"
             "planet/private/define-config"
+            "planet/config"
             "racket/cmdline"
             "setup/path-relativize"
             "pkg/path"
@@ -113,6 +114,7 @@
             "racket/fixnum"
             "syntax/private/boundmap"
             "syntax/srcloc"
+            "syntax/stx"
             "syntax/location"
             "racket/path"
             "racket/file"
@@ -129,6 +131,7 @@
             "racket/contract/private/prop"
             "racket/contract/private/blame"
             "racket/contract/private/generate-base"
+            "racket/contract/private/generate"
             "racket/contract/private/guts"
             "racket/contract/private/misc"
             "racket/contract/private/arrow-common"
@@ -148,6 +151,7 @@
             "racket/contract/private/kwd-info-struct"
             "racket/contract/private/box"
             "racket/contract/private/basic-opters"
+            "racket/contract/private/opters"
             "racket/contract/private/arrow-val-first"
             "racket/contract/private/case-arrow" ;; fail
             "racket/contract/private/hash"
@@ -156,6 +160,7 @@
             "racket/contract/private/out" ;; fail
             "racket/contract/private/object" ;; needs classes
             "racket/contract/private/parametric"
+            "racket/contract/parametric"
             "racket/contract/private/provide" ;; fail
             "racket/contract/private/struct-dc" ;; infinite exn:fail : abort-current-continuation: no such prompt exists
             "racket/contract/private/struct-prop"
@@ -164,7 +169,10 @@
             "racket/contract/private/types"
             "racket/contract/private/unconstrained-domain-arrow"
             "racket/contract/private/vector"
-
+            "racket/contract/private/base"
+            "racket/contract/private/exists"
+            "racket/contract/combinator"
+            "racket/contract/base"
             "racket/private/serialize-structs"
             "racket/private/so-search"
             "racket/private/runtime-path-table"
