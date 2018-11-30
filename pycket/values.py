@@ -1282,11 +1282,10 @@ class W_Symbol(W_Object):
 
     @jit.elidable
     def is_interned(self):
+        if self.unreadable:
+            return False
         string = self.utf8value
         symbol = W_Symbol.all_symbols.get(string, None)
-        if symbol is self:
-            return True
-        symbol = W_Symbol.unreadable_symbols.get(string, None)
         if symbol is self:
             return True
         return False
