@@ -25,7 +25,7 @@ class TestOptions(object):
     def test_verbose(self):
         config, names, args, retval = parse_args(['arg0', '--verbose'])
         assert config['verbose']
-        assert names['verbosity_level'] == ['0']
+        assert names['verbosity_level'] == ['-1']
 
         config, names, args, retval = parse_args(['arg0', '--verbose', '2'])
         assert config['verbose']
