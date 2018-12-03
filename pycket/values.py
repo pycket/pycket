@@ -1985,9 +1985,9 @@ class W_FileInputPort(W_InputPort):
         return self.stdin
 
     def close(self):
-        self.closed = True
-        self.file.close()
-        #self.file = None
+        if not self.closed:
+            self.closed = True
+            self.file.close()
 
     def read(self, n):
         return self.file.read(n)
@@ -2085,9 +2085,10 @@ class W_FileOutputPort(W_OutputPort):
         self.file.flush()
 
     def close(self):
-        self.closed = True
-        self.file.close()
-        #self.file = None
+        if not self.closed:
+            self.closed = True
+            self.file.close()
+            #self.file = None
 
     def seek(self, offset, end=False):
         if end:
