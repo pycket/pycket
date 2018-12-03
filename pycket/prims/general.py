@@ -110,10 +110,8 @@ for args in [
         ("impersonator-property?", imp.W_ImpPropertyDescriptor),
         ("parameter?", values_parameter.W_BaseParameter),
         ("parameterization?", values_parameter.W_Parameterization),
-        # FIXME: Assumes we only have eq-hashes
-        # XXX tests tests tests tests!
         ("hash?", W_HashTable),
-        ("hash-weak?", W_HashTable),
+        ("hash-weak?", W_HashTable), # FIXME
         ("cpointer?", W_CPointer),
         ("ctype?", W_CType),
         ("continuation-prompt-tag?", values.W_ContinuationPromptTag),
@@ -122,6 +120,16 @@ for args in [
         ("evt?", values.W_Evt),
         ("unquoted-printing-string?", values.W_UnquotedPrintingString),
         ("port?", values.W_Port),
+        ("security-guard?", values.W_SecurityGuard),
+        # FIXME
+        ("bytes-converter?", values.W_Impossible),
+        ("fsemaphore?", values.W_Impossible),
+        ("thread-group?", values.W_Impossible),
+        ("udp?", values.W_Impossible),
+        ("extflonum?", values.W_Impossible),
+        ("custodian-box?", values.W_Impossible),
+        ("custodian?", values.W_Impossible),
+        ("future?", values.W_Impossible),
         ]:
     make_pred(*args)
 
@@ -1523,6 +1531,14 @@ def load(lib, env, cont):
 
 expose_val("current-load-relative-directory", values_parameter.W_Parameter(values.w_false))
 expose_val("current-write-relative-directory", values_parameter.W_Parameter(values.w_false))
+
+initial_security_guard = values.W_SecurityGuard()
+
+expose_val("current-security-guard", values_parameter.W_Parameter(initial_security_guard))
+
+@expose("make-security-guard", [values.W_SecurityGuard, values.W_Procedure, values.W_Procedure, default(values.W_Procedure, values.w_false)])
+def make_security_guard(parent, file, network, link):
+    return values.W_SecurityGuard()
 
 @make_procedure("current-directory-guard", [values.W_Object], simple=False)
 def current_directory_guard(path, env, cont):

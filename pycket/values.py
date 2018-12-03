@@ -2148,3 +2148,21 @@ class W_UnquotedPrintingString(W_Object):
 
     def tostring(self):
         return self.string.tostring()
+
+
+class W_SecurityGuard(W_Object):
+    errorname = "security-guard"
+
+    def __init__(self):
+        pass
+    
+class W_Channel(W_Object):
+    errorname = "channel"
+    def __init__(self):
+        pass
+
+# for things we don't implement yet
+class W_Impossible(W_Object):
+    errorname = "impossible"
+    def __init__(self):
+        pass
