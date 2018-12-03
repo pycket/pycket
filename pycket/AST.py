@@ -31,7 +31,7 @@ class AST(object):
 
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct
-        from pycket.prims.control import convert_runtime_exception
+        from pycket.prims.control import convert_runtime_exception, convert_os_error
         from pycket.error import SchemeException
         # default implementation for simple AST forms
         assert self.simple
@@ -41,6 +41,8 @@ class AST(object):
             val = self.interpret_simple(env)
         except SchemeException, exn:
             return convert_runtime_exception(exn, env, cont)
+        except OSError, exn:
+            return convert_os_error(exn, env, cont)
         return return_value_direct(val, env, cont)
 
     def interpret_simple(self, env):

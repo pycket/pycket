@@ -197,7 +197,7 @@ def _make_result_handling_func(func_arg_unwrap, simple):
     if simple:
         def func_result_handling(*args):
             from pycket.interpreter   import return_multi_vals, return_value_direct
-            from pycket.prims.control import convert_runtime_exception
+            from pycket.prims.control import convert_runtime_exception, convert_os_error
             from pycket               import values
             env = args[-2]
             cont = args[-1]
@@ -206,6 +206,8 @@ def _make_result_handling_func(func_arg_unwrap, simple):
                 result = func_arg_unwrap(*args)
             except SchemeException, exn:
                 return convert_runtime_exception(exn, env, cont)
+            except OSError, exn:
+                return convert_os_error(exn, env, cont)
             if result is None:
                 result = values.w_void
             if isinstance(result, values.Values):
@@ -215,7 +217,7 @@ def _make_result_handling_func(func_arg_unwrap, simple):
         return func_result_handling
     else:
         def func_error_handling(*args):
-            from pycket.prims.control import convert_runtime_exception
+            from pycket.prims.control import convert_runtime_exception, convert_os_error
             from pycket.cont import BaseCont
             from pycket.env import Env
             # Fixme : It's difficult to figure out when there's
@@ -235,6 +237,9 @@ def _make_result_handling_func(func_arg_unwrap, simple):
                 return func_arg_unwrap(*args)
             except SchemeException, exn:
                 return convert_runtime_exception(exn, env, cont)
+            except OSError, exn:
+                return convert_os_error(exn, env, cont)
+
         return func_error_handling
 
 

@@ -10,7 +10,7 @@ from pycket.cont              import Cont, NilCont, label, continuation
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.error             import SchemeException
 from pycket.prims.expose      import prim_env, make_call_method
-from pycket.prims.control     import convert_runtime_exception
+from pycket.prims.control     import convert_runtime_exception, convert_os_error
 from pycket.prims.parameter   import current_cmd_args_param
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
@@ -1081,6 +1081,9 @@ class App(AST):
                 w_callable = w_callable.closure
         except SchemeException, exn:
             return convert_runtime_exception(exn, env, cont)
+        except OSError, exn:
+            return convert_os_error(exn, env, cont)
+
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def normalize(self, context):
@@ -1138,6 +1141,8 @@ class SimplePrimApp1(App):
             result = self.run(env)
         except SchemeException, exn:
             return convert_runtime_exception(exn, env, cont)
+        except OSError, exn:
+                return convert_os_error(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
 class SimplePrimApp2(App):
@@ -1173,6 +1178,8 @@ class SimplePrimApp2(App):
             result = self.run(env)
         except SchemeException, exn:
             return convert_runtime_exception(exn, env, cont)
+        except OSError, exn:
+            return convert_os_error(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):

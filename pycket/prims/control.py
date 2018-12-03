@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket                    import values, values_parameter, values_string, values_struct
+from pycket                    import values, values_parameter, values_string, values_struct, prims
 from pycket.arity              import Arity
 from pycket.cont               import continuation, loop_label, call_cont, Barrier, Cont, NilCont, Prompt
 from pycket.error              import SchemeException
@@ -56,8 +56,19 @@ def convert_runtime_exception(exn, env, cont):
     message = values_string.W_String.fromstr_utf8(exn.msg)
     marks   = W_ContinuationMarkSet(cont, values.w_default_continuation_prompt_tag)
     cont    = post_build_exception(env, cont)
+    args    = exn.extra_args
 
-    return exn.get_exn_type().constructor.call([message, marks], env, cont)
+    return exn.get_exn_type().constructor.call([message, marks] + args, env, cont)
+
+def convert_os_error(exn, env, cont):
+    from pycket               import values_string
+    from pycket.values        import W_ContinuationMarkSet
+    from pycket.prims.control import raise_exception
+    message = values_string.W_String.fromstr_utf8(exn.strerror)
+    marks   = W_ContinuationMarkSet(cont, values.w_default_continuation_prompt_tag)
+    cont    = post_build_exception(env, cont)
+
+    return prims.general.exn_fail.constructor.call([message, marks], env, cont)
 
 @jit.unroll_safe
 def scan_continuation(curr, prompt_tag, look_for=None, escape=False):
