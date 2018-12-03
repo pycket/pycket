@@ -129,3 +129,8 @@ def logger_name(logger):
 
 w_current_logger = values_parameter.W_Parameter(w_main_logger)
 expose_val("current-logger", w_current_logger)
+
+
+@expose("make-log-receiver")
+def make_log_reciever(args):
+    return values.W_LogReciever()
