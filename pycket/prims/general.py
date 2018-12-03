@@ -447,7 +447,7 @@ for args in [ ("subprocess?",),
               ]:
     define_nyi(*args)
 
-if not w_global_config.is_expander_loaded():
+if w_global_config.no_linklet_mode():
     define_nyi("liberal-define-context?")
     define_nyi("readtable?")
     define_nyi("namespace-anchor?")
@@ -1850,22 +1850,16 @@ def make_stub_predicates(*names):
             return values.w_false
         predicate.__name__ = "stub_predicate(%s)" % name
 
-make_stub_predicates(
-    "bytes-converter?",
-    "fsemaphore?",
-    "thread-group?",
-    "udp?",
-    "extflonum?",
-    "special-comment?",
+def make_stub_predicates_no_linklet(*names):
+    if not w_global_config.no_linklet_mode():
+        make_stub_predicates(*names)
+        
+make_stub_predicates_no_linklet(
     "compiled-expression?",
-    "custodian-box?",
-    "custodian?",
-    "future?",
+    "special-comment?",
     "internal-definition-context?",
     "namespace?",
-    "security-guard?",
-    "compiled-module-expression?",
-    "channel?")
+    "compiled-module-expression?")
 
 @expose("unsafe-start-atomic", [])
 def unsafe_start_atomic():
