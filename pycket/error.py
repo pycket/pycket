@@ -13,12 +13,13 @@ class ExitException(Exception):
 
 class SchemeException(Exception):
 
-    def __init__(self, msg, w_exn_type=None):
+    def __init__(self, msg, w_exn_type=None, extra_args=[]):
         if not we_are_translated():
             Exception.__init__(self, msg)
         self.msg = msg
         self.context_ast = None
         self.context_module = None
+        self.extra_args = []
         if w_exn_type is None:
             from pycket.prims.general import exn_fail
             self.w_exn_type = exn_fail
@@ -53,3 +54,19 @@ class UserException(SchemeException):
 
     def is_user(self):
         return True
+
+class ContractException(SchemeException):
+    def __init__(self, msg):
+        from pycket.prims.general import exn_fail_contract
+        SchemeException.__init__(self, msg, exn_fail_contract)
+
+
+class FSException(SchemeException):
+    def __init__(self, msg):
+        from pycket.prims.general import exn_fail_fs
+        SchemeException.__init__(self, msg, exn_fail_fs)
+class ArityException(SchemeException):
+    def __init__(self, msg):
+        from pycket.prims.general import exn_fail_contract_arity
+        SchemeException.__init__(self, msg, exn_fail_contract_arity)
+

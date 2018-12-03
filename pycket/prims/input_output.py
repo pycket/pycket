@@ -21,7 +21,7 @@ from pycket.hash.base    import W_HashTable
 from pycket              import impersonators as imp
 from pycket.hash.equal   import W_EqualHashTable
 from pycket              import values_string
-from pycket.error        import SchemeException
+from pycket.error        import SchemeException, FSException, ContractException, ArityException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
 
 from sys import platform
@@ -582,7 +582,7 @@ w_error_sym  = values.W_Symbol.make("error")
                             default(values.W_Symbol, w_none_sym)])
 def open_input_file(path, mode, mod_mode):
     if not isinstance(path, values_string.W_String) and not isinstance(path, values.W_Path):
-        raise SchemeException("open-input-file: expected path-string for argument 0")
+        raise ContractException("open-input-file: expected path-string for argument 0")
     m = "r" if mode is w_text_sym else "rb"
     return open_infile(path, m)
 
@@ -598,7 +598,7 @@ w_truncate_replace_sym = values.W_Symbol.make("truncate/replace")
                              default(values.W_Symbol, w_error_sym)])
 def open_output_file(path, mode, exists):
     if not isinstance(path, values_string.W_String) and not isinstance(path, values.W_Path):
-        raise SchemeException("open-input-file: expected path-string for argument 0")
+        raise ContractException("open-input-file: expected path-string for argument 0")
     m = "w" if mode is w_text_sym else "wb"
     return open_outfile(path, m, exists)
 
@@ -611,7 +611,11 @@ def close_input_port(port, env, cont):
 def close_port_cont(env, cont, _vals):
     from pycket.interpreter import check_one_val
     port = check_one_val(_vals)
-    port.close()
+    try:
+        port.close()
+    except OSError, err:
+        #import pdb; pdb.set_trace()
+        raise FSException("close-*-port: cannot close port : %s %s" % (port,err.strerror))
     return return_void(env, cont)
 
 @expose("close-output-port", [values.W_Object], simple=False)
@@ -640,7 +644,7 @@ def extract_path(obj):
     elif isinstance(obj, values.W_Bytes):
         result = obj.as_str()
     else:
-        raise SchemeException("expected path-like values but got %s" % obj.tostring())
+        raise ContractException("expected path-like values but got %s" % obj.tostring())
     return result if result is not None else "."
 
 @expose("directory-exists?", [values.W_Object])
@@ -650,15 +654,14 @@ def directory_exists(w_str):
 
 @expose("make-directory", [values.W_Object])
 def make_directory(p):
-    from pycket.prims.general import exn_fail_fs
     s = extract_path(p)
     if os.path.isdir(s):
-        raise SchemeException("make-directory: cannot make directory; path already exists : %s" % s, exn_fail_fs)
+        raise FSException("make-directory: cannot make directory; path already exists : %s" % s)
 
     try:
         os.mkdir(s)
     except OSError:
-        raise SchemeException("make-directory: cannot make directory : %s" % s, exn_fail_fs)
+        raise FSException("make-directory: cannot make directory : %s" % s)
 
     return values.w_void
 
@@ -682,7 +685,7 @@ def file_or_dir_mod_seconds(w_path, secs_n, fail, env, cont):
         if fail is not None:
             return fail.call([], env, cont)
         else:
-            raise SchemeException("No such file or directory exists : %s" % path_str)
+            raise FSException("No such file or directory exists : %s" % path_str)
 
     # secs_n can also be w_false
     if secs_n is not None and isinstance(secs_n, values.W_Fixnum):
@@ -811,7 +814,7 @@ def build_path(args):
     # XXX Does not check that we are joining absolute paths
     # Sorry again Windows
     if not args:
-        raise SchemeException("build-path: expected at least 1 argument")
+        raise ContractException("build-path: expected at least 1 argument")
     normalize_on = True
     result = [None] * len(args)
     for i, s in enumerate(args):
@@ -824,7 +827,7 @@ def build_path(args):
         else:
             part = extract_path(s)
         if not part:
-            raise SchemeException("build-path: path element is empty")
+            raise ContractException("build-path: path element is empty")
         if part == os.path.sep:
             part = ""
         result[i] = part
@@ -895,7 +898,7 @@ def absolute_path(obj):
 def resolve_path(obj):
     if (not isinstance(obj, values_string.W_String) and
         not isinstance(obj, values.W_Path)):
-        raise SchemeException("resolve-path: expected path-string")
+        raise ContractException("resolve-path: expected path-string")
     str = extract_path(obj)
     return values.W_Path(os.path.normpath(str))
 
@@ -908,7 +911,7 @@ def path_stringp(v):
 @expose("complete-path?", [values.W_Object])
 def complete_path(v):
     if not isinstance(v, values_string.W_String) and not isinstance(v, values.W_Path):
-        raise SchemeException("complete-path?: expected a path? or path-string?")
+        raise ContractException("complete-path?: expected a path? or path-string?")
 
     path_str = extract_path(v)
     if path_str[0] == os.path.sep:
@@ -922,7 +925,7 @@ def expand_user_path(p):
     elif isinstance(p, values_string.W_String):
         path_str = p.tostring()
     else:
-        raise SchemeException("expand_user_path expects a string or a path")
+        raise ContractException("expand_user_path expects a string or a path")
 
     if "~" in path_str:
         if os.environ.get('HOME') is None:
@@ -948,7 +951,7 @@ def cleanse_path(p):
         return values.W_Path(p.as_str_ascii())
     if isinstance(p, values.W_Path):
         return p
-    raise SchemeException("cleanse-path expects string or path")
+    raise ContractException("cleanse-path expects string or path")
 
 def _path_elementp(p):
     """
@@ -968,7 +971,7 @@ def _path_elementp(p):
 @expose("path-element->string", [values.W_Object])
 def path_element2string(p):
     if not _path_elementp(p):
-        raise SchemeException("path-element->string expects path")
+        raise ContractException("path-element->string expects path")
 
     path = extract_path(p)
     return values_string.W_String.fromstr_utf8(path)
@@ -976,7 +979,7 @@ def path_element2string(p):
 @expose("path-element->bytes", [values.W_Object])
 def path_element2bytes(p):
     if not _path_elementp(p):
-        raise SchemeException("path-element->string expects path")
+        raise ContractException("path-element->string expects path")
     path = extract_path(p)
     return values.W_Bytes.from_string(path)
 
@@ -989,7 +992,7 @@ def close_cont(port, env, cont, vals):
 def open_infile(w_str, mode):
     s = extract_path(w_str)
     if not os.path.exists(s):
-        raise SchemeException("No such file or directory : %s" % s)
+        raise FSException("No such file or directory : %s" % s)
 
     return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21), path=os.path.abspath(s))
 
@@ -997,7 +1000,7 @@ def open_outfile(w_str, mode, exists):
     from pycket.prims.general import exn_fail_fs
     s = extract_path(w_str)
     if exists is w_error_sym and os.path.exists(s):
-        raise SchemeException("File exists : %s" % s, exn_fail_fs)
+        raise FSException("File exists : %s" % s)
     if not os.path.exists(s):
         # then touch the file
         # it's not clear to me at the moment how to create while
@@ -1005,7 +1008,7 @@ def open_outfile(w_str, mode, exists):
         try:
             open(s, 'a').close()
         except OSError:
-            raise SchemeException("open-output-file : cannot open file : %s" % s, exn_fail_fs)
+            raise FSException("open-output-file : cannot open file : %s" % s)
 
     # FIXME : handle different exists modes (e.g. replace)
     return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode), path=os.path.abspath(s))
@@ -1024,19 +1027,19 @@ def rename_file_or_directory(o, n, exists_ok):
     # directory, and vice versa.
 
     if exists_ok is values.w_false and os.path.exists(new):
-        raise SchemeException("%s already exists" % new, exn_fail_fs)
+        raise FSException("%s already exists" % new)
 
     if exists_ok is not values.w_false:
         if os.path.isdir(old) and os.path.isfile(new):
-            raise SchemeException("%s is an existing file while %s is a directory" % (new, old), exn_fail_fs)
+            raise FSException("%s is an existing file while %s is a directory" % (new, old))
 
         if os.path.isdir(new) and os.path.isfile(old):
-            raise SchemeException("%s is an existing file while %s is a directory" % (old, new), exn_fail_fs)
+            raise FSException("%s is an existing file while %s is a directory" % (old, new))
 
     try:
         os.rename(old, new)
     except OSError:
-        raise SchemeException("rename-file-or-directory : cannot move file : %s to %s" % (old, new), exn_fail_fs)
+        raise FSException("rename-file-or-directory : cannot move file : %s to %s" % (old, new))
 
     return values.w_void
 
@@ -1046,12 +1049,12 @@ def delete_file(p):
 
     path = extract_path(p)
     if not os.path.exists(path):
-        raise SchemeException("No such file : %s" % (path), exn_fail_fs)
+        raise FSException("No such file : %s" % (path))
 
     try:
         os.remove(path)
     except OSError:
-        raise SchemeException("cannot remove file : %s" % (path), exn_fail_fs)
+        raise FSException("cannot remove file : %s" % (path))
 
     return values.w_void
 
@@ -1132,7 +1135,7 @@ def file_position(args):
         return values.w_void
 
 
-    raise SchemeException(
+    raise ContractException(
         "printf expected one or two arguments, got %s" % len(args))
 
 ###############################################################################
@@ -1453,7 +1456,7 @@ def format(form, vals, name):
             break
         result.append(fmt[start:i])
         if i+1 == len_fmt:
-            raise SchemeException(name + ": bad format string")
+            raise ContractException(name + ": bad format string")
         s = fmt[i+1]
         if (s == '.'):
             i += 1
@@ -1466,7 +1469,7 @@ def format(form, vals, name):
                 s == 'V'):
                 #FIXME: use error-print-width
                 if j >= len(vals):
-                    raise SchemeException(name + ": not enough arguments for format string")
+                    raise ContractException(name + ": not enough arguments for format string")
                 result.append(vals[j].tostring())
                 j += 1
         elif (s == 'a' or # turns into switch
@@ -1487,7 +1490,7 @@ def format(form, vals, name):
             s == 'E' or
             s == '.'):
             if j >= len(vals):
-                raise SchemeException(name + ": not enough arguments for format string")
+                raise ContractException(name + ": not enough arguments for format string")
             result.append(vals[j].tostring())
             j += 1
         elif s == 'n' or s == '%':
@@ -1495,37 +1498,37 @@ def format(form, vals, name):
         elif s == '~':
             result.append("~")
         else:
-            raise SchemeException("%s: undexpected format character '%s'" % (name, s))
+            raise ContractException("%s: undexpected format character '%s'" % (name, s))
         i += 2
     if j != len(vals):
-        raise SchemeException(name + ": not all values used")
+        raise ContractException(name + ": not all values used")
     return "".join(result)
 
 @expose("printf", simple=False)
 def printf(args, env, cont):
     if not args:
-        raise SchemeException("printf: expected at least one argument, got 0")
+        raise ArityException("printf: expected at least one argument, got 0")
     fmt = args[0]
     if not isinstance(fmt, values_string.W_String):
-        raise SchemeException("printf: expected a format string, got something else")
+        raise ContractException("printf: expected a format string, got something else")
     return do_print(format(fmt, args[1:], "printf"), None, env, cont)
 
 @expose("eprintf", simple=False)
 def eprintf(args, env, cont):
     if not args:
-        raise SchemeException("eprintf: expected at least one argument, got 0")
+        raise ArityException("eprintf: expected at least one argument, got 0")
     fmt = args[0]
     if not isinstance(fmt, values_string.W_String):
-        raise SchemeException("eprintf: expected a format string, got something else")
+        raise ContractException("eprintf: expected a format string, got something else")
     return do_print(format(fmt, args[1:], "eprintf"), current_error_param.get(cont), env, cont)
 
 @expose("format")
 def do_format(args):
     if len(args) == 0:
-        raise SchemeException("format: expects format string")
+        raise ContractException("format: expects format string")
     fmt = args[0]
     if not isinstance(fmt, values_string.W_String):
-        raise SchemeException("format: expected a format string, got something else")
+        raise ContractException("format: expected a format string, got something else")
     vals = args[1:]
     return values_string.W_String.fromstr_utf8(format(fmt, vals, "format"))
 
@@ -1639,12 +1642,12 @@ def is_path_string(path):
 @expose("file-size", [values.W_Object])
 def file_size(obj):
     if not is_path_string(obj):
-        raise SchemeException("file-size: expected path string")
+        raise ContractException("file-size: expected path string")
     path = extract_path(obj)
     try:
         size = os.path.getsize(path)
     except OSError:
-        raise SchemeException("file-size: file %s does not exists" % path)
+        raise FSException("file-size: file %s does not exists" % path)
 
     intsize = intmask(size)
     if intsize == size:
@@ -1658,7 +1661,7 @@ def read_bytes(amt, w_port, env, cont):
 
     n = amt.value
     if n < 0:
-        raise SchemeException("read-bytes: expected non-negative integer for argument 0")
+        raise ContractException("read-bytes: expected non-negative integer for argument 0")
     if n == 0:
         return return_value(values.W_Bytes.from_string(""), env, cont)
 
@@ -1683,7 +1686,7 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
 
     # FIXME: custom ports
     if w_bstr.immutable():
-        raise SchemeException("read-bytes-avail!: given immutable byte string")
+        raise ContractException("read-bytes-avail!: given immutable byte string")
     if w_port is None:
         w_port = current_in_param.get(cont)
     start = w_start.value
@@ -1726,7 +1729,7 @@ def do_write_string(w_str, port, start_pos, end_pos, env, cont):
     if end_pos:
         end_pos = end_pos.value
         if end_pos < 0 or end_pos > w_str.length():
-            raise SchemeException("write-string: ending index out of range")
+            raise ContractException("write-string: ending index out of range")
     else:
         end_pos = w_str.length()
     cont = write_string_cont(w_str, start, end_pos, env, cont)
@@ -1783,7 +1786,7 @@ def get_port_from_property(port, env, cont, _vals):
 def write_byte(b, out, env, cont):
     s = b.value
     if s < 0 or s > 255:
-        raise SchemeException("%s is not a byte"%s)
+        raise ContractException("%s is not a byte"%s)
     return do_print(chr(s), out, env, cont)
 
 @expose("write-char",
