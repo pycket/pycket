@@ -279,6 +279,14 @@
             "racket/struct" ;; needs contracts
             "syntax/strip-context" ;; needs contracts
             "compiler/compile-file"
+            "syntax/private/modhelp"
+            "compiler/private/dep"
+            "compiler/compilation-path"
+            "setup/collects"
+            "syntax/private/modresolve-noctc"
+            "syntax/private/modcode-noctc"
+            "file/sha1"
+            "compiler/private/cm-minimal"
             )))
 
 
