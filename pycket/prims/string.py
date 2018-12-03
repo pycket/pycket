@@ -737,9 +737,40 @@ def char_numeric_huh(w_char):
     return values.w_true if unicodedb.isnumeric(c) else values.w_false
 
 
-@expose("sha1-bytes", [values.W_Bytes])
-def sha1_bytes(bs):
+@expose("sha1-bytes", [values.W_Object, default(values.W_Fixnum, values.W_Fixnum.ZERO), default(values.W_Object, values.w_false)])
+def sha1_bytes(input, start, end):
     from rpython.rlib import rsha
-    data = bs.as_str()
-    digest = rsha.new(data).digest()
+    if isinstance(input, values.W_Bytes):
+        data = input.as_str()
+    if isinstance(input, values.W_InputPort):
+        data = ""
+        while True:
+            line = input.readline()
+            stop = len(line) - 1
+            if stop >= 0:
+                data += line
+            else:
+                break
+    else:
+        raise SchemeException("sha1-bytes: expected (or/c bytes? input-port?), got %s"%input)
+
+    # FIXME: lots of problems with start/end and ports
+    s = start.value
+    if s < 0:
+        raise SchemeException("sha1-bytes: start index out of bounds: %s"%s)
+    l = len(data)
+    if end is values.w_false:
+        e = l
+    elif isinstance(end, values.W_Fixnum):
+        e = end.value
+    else:
+        raise SchemeException("sha1-bytes: bad end index"%end)
+    if s > e:
+        raise SchemeException("sha1-bytes: start index larger than end: %s %s"%(s,e))
+    if s > l:
+        raise SchemeException("sha1-bytes: start index larger than data: %s %s"%(s,l))
+    if e > l:
+        raise SchemeException("sha1-bytes: end index larger than data: %s %s"%(e,l))
+
+    digest = rsha.new(data[s:e]).digest()
     return values.W_Bytes.from_string(digest, immutable=False)
