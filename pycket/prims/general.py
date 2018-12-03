@@ -1605,6 +1605,7 @@ w_fs_supported = values.W_Symbol.make("supported")
 w_fs_scalable = values.W_Symbol.make("scalable")
 w_fs_low_latency = values.W_Symbol.make("low-latency")
 w_fs_file_level = values.W_Symbol.make("file-level")
+w_target_machine_sym = values.W_Symbol.make("target-machine")
 
 def system_type(w_what):
     # os
@@ -1659,7 +1660,11 @@ def system_type(w_what):
     if w_what is w_cross_sym:
         return values.W_Symbol.make("infer")
 
-    raise SchemeException("unexpected system-type symbol %s" % w_what.utf8value)
+    # cross
+    if w_what is w_target_machine_sym:
+        return values.W_Symbol.make("pycket")
+
+    raise SchemeException("unexpected system-type symbol '%s" % w_what.utf8value)
 
 expose("system-type", [default(values.W_Symbol, w_os_sym)])(system_type)
 
