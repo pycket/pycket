@@ -742,7 +742,7 @@ def sha1_bytes(input, start, end):
     from rpython.rlib import rsha
     if isinstance(input, values.W_Bytes):
         data = input.as_str()
-    if isinstance(input, values.W_InputPort):
+    elif isinstance(input, values.W_InputPort):
         data = ""
         while True:
             line = input.readline()
