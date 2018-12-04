@@ -1430,7 +1430,6 @@ def test_procedure_specialize(doctest):
     6
     """
 
-@pytest.mark.m
 def test_symbol_less_than(doctest):
     """
     > (symbol<? 'a 'b)
