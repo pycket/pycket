@@ -23,9 +23,11 @@ from pycket.hash.simple import (W_EqImmutableHashTable, W_EqvImmutableHashTable,
 
 
 class ExpandException(SchemeException):
+    _immutable_ = True
     pass
 
 class PermException(SchemeException):
+    _immutable_ = True
     pass
 
 #### ========================== Utility functions

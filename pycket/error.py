@@ -12,6 +12,8 @@ class ExitException(Exception):
         return False
 
 class SchemeException(Exception):
+    _attrs_ = ["msg", "w_exn_type", "context_ast", "context_module", "extra_args"]
+    _immutable_ = True
 
     def __init__(self, msg, w_exn_type=None, extra_args=[]):
         if not we_are_translated():
@@ -47,6 +49,8 @@ class SchemeException(Exception):
         return result
 
 class UserException(SchemeException):
+    _attrs_ = ["msg"]
+    _immutable_ = True
 
     def __init__(self, msg):
         from pycket.prims.general import exn_fail_user
@@ -56,17 +60,26 @@ class UserException(SchemeException):
         return True
 
 class ContractException(SchemeException):
+    _attrs_ = ["msg"]
+    _immutable_ = True
+
     def __init__(self, msg):
         from pycket.prims.general import exn_fail_contract
         SchemeException.__init__(self, msg, exn_fail_contract)
 
 
 class FSException(SchemeException):
+    _attrs_ = ["msg"]
+    _immutable_ = True
+
     def __init__(self, msg):
         from pycket.prims.general import exn_fail_fs
         SchemeException.__init__(self, msg, exn_fail_fs)
+
 class ArityException(SchemeException):
+    _attrs_ = ["msg"]
+    _immutable_ = True
+
     def __init__(self, msg):
         from pycket.prims.general import exn_fail_contract_arity
         SchemeException.__init__(self, msg, exn_fail_contract_arity)
-
