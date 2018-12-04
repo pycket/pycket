@@ -971,15 +971,14 @@ def _path_elementp(p):
 @expose("path-element->string", [values.W_Object])
 def path_element2string(p):
     if not _path_elementp(p):
-        raise ContractException("path-element->string expects path")
-
+        raise ContractException("path-element->string expects path, got %s"%p)
     path = extract_path(p)
     return values_string.W_String.fromstr_utf8(path)
 
 @expose("path-element->bytes", [values.W_Object])
 def path_element2bytes(p):
     if not _path_elementp(p):
-        raise ContractException("path-element->string expects path")
+        raise ContractException("path-element->bytes expects path, got %s"%p)
     path = extract_path(p)
     return values.W_Bytes.from_string(path)
 
