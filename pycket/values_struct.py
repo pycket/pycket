@@ -638,23 +638,39 @@ class W_RootStruct(values.W_Object):
 
     def hash_equal(self, info=None):
         struct_type = self.struct_type()
+        prop_equal_hash = struct_type.read_prop(w_prop_equal_hash)
+
         if not struct_type.is_transparent():
             # if not transparent, eqv?
-            if struct_type.read_prop(w_prop_equal_hash):
-                raise UnhashableType
+            if prop_equal_hash:
+                from pycket.prims.hash import equal_hash_code
+                w_hash_proc = prop_equal_hash.cdr().car()
+                w_hash_proc_recur = equal_hash_code.w_prim # equal-hash-code to recur
+                h = w_hash_proc.call_interpret([self, w_hash_proc_recur])
+                assert isinstance(h, values.W_Fixnum)
+                return h.value
+
             return values.W_Object.hash_equal(self, info)
         else:
-            # if transparent, equal?
-            size = self._get_size_list()
-            struct_name = struct_type.name
-            total_hash_val = struct_name.hash_equal()
-            for n in range(0, size):
-                try:
-                    field_hash = self._get_list(n).hash_equal()
-                    total_hash_val = int((field_hash*total_hash_val)%sys.maxint)
-                except UnhashableType:
-                    continue
-            return total_hash_val
+            if not prop_equal_hash:
+                # if transparent, equal?
+                size = self._get_size_list()
+                struct_name = struct_type.name
+                total_hash_val = struct_name.hash_equal()
+                for n in range(0, size):
+                    try:
+                        field_hash = self._get_list(n).hash_equal()
+                        total_hash_val = int((field_hash*total_hash_val)%sys.maxint)
+                    except UnhashableType:
+                        continue
+                return total_hash_val
+            else:
+                from pycket.prims.hash import equal_hash_code
+                w_hash_proc = prop_equal_hash.cdr().car()
+                w_hash_proc_recur = equal_hash_code.w_prim
+                h = w_hash_proc.call_interpret([self, w_hash_proc_recur])
+                assert isinstance(h, values.W_Fixnum)
+                return h.value
 
 @inline_small_list(immutable=True, attrname="storage", unbox_num=True)
 class W_Struct(W_RootStruct):
