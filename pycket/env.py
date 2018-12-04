@@ -147,7 +147,7 @@ class GlobalConfig(object):
     def are_we_in_linklet_mode(self):
         return self.config['linklet_mode']
 
-    def no_linklet_mode(self):
+    def set_linklet_mode_off(self):
         self.config['linklet_mode'] = 0
 
     def get_verbose_keywords(self):

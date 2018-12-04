@@ -125,7 +125,7 @@ def make_entry_point(pycketconfig=None):
         module_name, json_ast = ensure_json_ast(config, names)
 
         from pycket.env import w_global_config
-        w_global_config.no_linklet_mode()
+        w_global_config.set_linklet_mode_off()
 
         entry_flag = 'byte-expand' in names
         multi_mod_flag = 'multiple-modules' in names
