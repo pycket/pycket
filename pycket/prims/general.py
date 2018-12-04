@@ -58,7 +58,7 @@ def make_dummy_char_pred(name):
     def predicate_(a):
         return values.w_false
     predicate_.__name__ +=  name
-    
+
 def make_pred_eq(name, val):
     typ = type(val)
     @expose(name, [values.W_Object], simple=True)
@@ -165,23 +165,30 @@ def hash_eqv(obj):
     eqv_immutable = isinstance(inner, W_EqvImmutableHashTable)
     return values.W_Bool.make(eqv_mutable or eqv_immutable)
 
-def struct_port_huh(s, in_p=True):
+def struct_port_huh(s):
+    i, o = struct_port_prop_huh(s)
+    return (i is not None) or (o is not None)
+
+def struct_port_prop_huh(s):
     st = s.struct_type()
+    in_p = None
+    out_p = None
     for prop in st.props:
         p, v = prop
-        if in_p:
-            if p is values_struct.w_prop_input_port:
-                return True
-        else:
-            if p is values_struct.w_prop_output_port:
-                return True
-    return False
+        if p is values_struct.w_prop_input_port:
+            in_p = v
+        elif p is values_struct.w_prop_output_port:
+            out_p = v
+
+    return in_p, out_p
 
 def struct_input_port_huh(s):
-    return struct_port_huh(s)
+    i, o = struct_port_prop_huh(s)
+    return i is not None
 
 def struct_output_port_huh(s):
-    return struct_port_huh(s, in_p=False)
+    i, o = struct_port_prop_huh(s)
+    return o is not None
 
 @expose("input-port?", [values.W_Object], simple=True)
 def input_port_huh(a):
@@ -272,7 +279,7 @@ for name in ["exn:srclocs",
     expose_val("prop:"+name, prop)
     expose_val(name+"?", values_struct.W_StructPropertyPredicate(prop))
     expose_val(name+"-accessor", values_struct.W_StructPropertyAccessor(prop))
-    
+
 
 
 expose_val("prop:authentic", values_struct.w_prop_authentic)
@@ -1359,33 +1366,61 @@ def unsafe_mcdr(p):
     return p.cdr()
 
 @continuation
-def struct_port_loc_cont(env, cont, _vals):
+def struct_port_loc_cont(input_huh, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_multi_vals
     pr = check_one_val(_vals)
 
+    if not isinstance(pr, values.W_Port):
+        if input_huh:
+            # empty string input port is used for prop:input-port
+            pr = values.W_StringInputPort("")
+        else:
+            # a port that discards all data is used for prop:output-port
+            pr = values.W_StringOutputPort()
+
+    assert isinstance(pr, values.W_Port)
     lin = pr.get_line()
     col = pr.get_column()
     pos = pr.get_position()
-    return return_multi_vals(values.Values.make([lin, col, pos]),
-                             env, cont)
+    return return_multi_vals(values.Values.make([lin, col, pos]), env, cont)
+
 
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
     from pycket.interpreter import return_multi_vals
-
+    lin = col = pos = values.w_false
     if isinstance(p, values_struct.W_Struct):
-        if struct_input_port_huh(p):
-            port_index = 0
-        else:
-            port_index = 1
+        i, o = struct_port_prop_huh(p)
+        if (i is None) and (o is None):
+            raise SchemeException("given struct doesn't have neither prop:input-port nor prop:output-port")
 
-        return p.struct_type().accessor.call([p, values.W_Fixnum(port_index)], env, struct_port_loc_cont(env, cont))
+        if i:
+            if isinstance(i, values.W_InputPort):
+                lin = i.get_line()
+                col = i.get_column()
+                pos = i.get_position()
+            elif isinstance(i, values.W_Fixnum):
+                port_index = i.value
+                return p.struct_type().accessor.call([p, values.W_Fixnum(port_index)], env, struct_port_loc_cont(True, env, cont))
+            else:
+                raise SchemeException("invalid value %s for prop:input-port of the given struct : %s" % (i, p.tostring()))
+        elif o:
+            if isinstance(o, values.W_OutputPort):
+                lin = o.get_line()
+                col = o.get_column()
+                pos = o.get_position()
+            elif isinstance(o, values.W_Fixnum):
+                port_index = o.value
+                return p.struct_type().accessor.call([p, values.W_Fixnum(port_index)], env, struct_port_loc_cont(False, env, cont))
+            else:
+                raise SchemeException("invalid value %s for prop:output-port of the given struct : %s" % (o, p.tostring()))
+    else:
+        assert isinstance(p, values.W_Port)
+        lin = p.get_line()
+        col = p.get_column()
+        pos = p.get_position()
 
-    lin = p.get_line()
-    col = p.get_column()
-    pos = p.get_position()
-    return return_multi_vals(values.Values.make([lin, col, pos]),
-                             env, cont)
+    return return_multi_vals(values.Values.make([lin, col, pos]), env, cont)
 
 @expose("port-writes-special?", [values.W_Object])
 def port_writes_special(v):
@@ -1874,7 +1909,7 @@ def make_stub_predicates(*names):
 def make_stub_predicates_no_linklet(*names):
     if not w_global_config.no_linklet_mode():
         make_stub_predicates(*names)
-        
+
 make_stub_predicates_no_linklet(
     "compiled-expression?",
     "special-comment?",
