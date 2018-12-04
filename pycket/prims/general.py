@@ -462,7 +462,7 @@ for args in [ ("subprocess?",),
               ]:
     define_nyi(*args)
 
-if not w_global_config.is_expander_loaded():
+if not w_global_config.are_we_in_linklet_mode():
     define_nyi("liberal-define-context?")
     define_nyi("readtable?")
     define_nyi("namespace-anchor?")
@@ -1921,7 +1921,7 @@ def make_stub_predicates(*names):
         predicate.__name__ = "stub_predicate(%s)" % name
 
 def make_stub_predicates_no_linklet(*names):
-    if not w_global_config.no_linklet_mode():
+    if not w_global_config.are_we_in_linklet_mode():
         make_stub_predicates(*names)
 
 make_stub_predicates_no_linklet(
