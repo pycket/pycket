@@ -48,28 +48,41 @@ class PerfRegionCPS(PerfRegion):
             return None # using False here confuses rtyper
 
 def start_perf_region(label):
+    from pycket.prims.general import current_gc_time
     if os_check_env_var("PLT_LINKLET_TIMES"):
         linklet_perf.current_start_time.append(rtime.time())
+        linklet_perf.current_gc_start_time.append(current_gc_time())
 
 def finish_perf_region(label):
+    from pycket.prims.general import current_gc_time
     if os_check_env_var("PLT_LINKLET_TIMES"):
         assert (len(linklet_perf.current_start_time) > 0)
         delta = rtime.time() - linklet_perf.current_start_time[-1]
+        delta_gc = current_gc_time() - linklet_perf.current_gc_start_time[-1]
         table_add(linklet_perf.region_times, label, delta)
+        table_add(linklet_perf.region_gc_times, label, delta_gc)
         table_add(linklet_perf.region_counts, label, 1)
         linklet_perf.current_start_time.pop()
+        linklet_perf.current_gc_start_time.pop()
         for i in range(len(linklet_perf.current_start_time)):
             linklet_perf.current_start_time[i] += delta
+            linklet_perf.current_gc_start_time[i] += delta_gc
 
 
 class LinkletPerf(object):
     def __init__(self):
         self.region_times = {}
+        self.region_gc_times = {}
         self.region_counts = {}
         self.current_start_time = []
+        self.current_gc_start_time = []
         self.name_len = 0
+        self.total = 0
+        self.total_gc = 0
         self.total_len = 0
+        self.total_gc_len = 0
         self.region_subs = {}
+        self.region_gc_subs = {}
         self.categories = {"read" : ["fasl->s-exp", "s-exp->ast", "assign-convert-deserialize"],
                            "run" : ["instantiate-linklet" "outer"],
                            "startup" : ["expander-linklet", "json-load", "json-to-ast",
@@ -80,50 +93,60 @@ class LinkletPerf(object):
 
     def init(self):
         self.region_times["boot"] = rtime.clock()
+        self.region_gc_times["boot"] = 0
 
-    def report_time(self, level, label, n):
+    def report_time(self, level, label, n, gc_ht):
         counts = self.region_counts.get(label,0)
         assert not(isinstance(counts,str))
         if counts == 0:
             c = ""
         else:
             c = " ; %d times"%int(counts)
-        self.report(level, label, n, " [gc]", "ms", c)
+        self.report(level, label, n,
+                    pad_left(" [%s]"%(gc_ht.get(label, 0)), self.total_gc_len),
+                    "ms", c)
 
     def report(self, level, label, n, nextra, units, extra):
         lprintf(";; %s%s%s  %s%s %s%s\n",
                 (spaces(level*2),
                  pad_right(label,self.name_len),
                  spaces((3-level) * 2),
-                 pad_left(n,self.total_len),
+                 pad_left(str(n),self.total_len),
                  nextra,
                  units,
                  extra))
 
-    def loop(self, ht, level):
+    def loop(self, ht, gc_ht, level):
         for label in ht:  # Fixme I can't sort
-            self.report_time(level, label, int(1000*ht[label]))
+            self.report_time(level, label, int(1000*ht[label]), gc_ht)
             sub_ht = self.region_subs.get(label, None)
+            sub_gc_ht = self.region_gc_subs.get(label, None)
             if sub_ht:
-                self.loop(sub_ht, level+1)
+                self.loop(sub_ht, sub_gc_ht, level+1)
 
     def print_report(self):
         if os_check_env_var("PLT_LINKLET_TIMES"):
             total = 0
+            total_gc = 0
             self.name_len = 0
             for k in self.region_times:
                 self.name_len = max(self.name_len,len(k))
                 total += self.region_times[k]
+                total_gc += self.region_gc_times[k]
             self.total = int(1000*total)
+            self.total_gc = int(total_gc)
             self.total_len = len(str(total))
-
+            self.gc_len = len(str(total_gc))
+            
             for cat in self.categories:
                 t = sum_values(self.region_times, self.categories[cat], cat, self.region_subs)
-                if not(0 == t):
+                t_gc = sum_values(self.region_gc_times, self.categories[cat], cat, self.region_gc_subs)
+                if not(0 == t) and not(0 == t_gc):
                     self.region_times[cat] = t
+                    self.region_gc_times[cat] = t_gc
 
-            self.loop(self.region_times, 0)
-            self.report(0, "total", self.total, " [gc]", "ms", "")
+            self.loop(self.region_times, self.region_gc_times, 0)
+            self.report(0, "total", self.total, " [%s]"%total_gc, "ms", "")
 
 linklet_perf = LinkletPerf()
 
@@ -155,7 +178,7 @@ def spaces(n):
     return " "*n
 
 def pad_left(v,w):
-    s = str(v)
+    s = v
     return spaces(max(0, w - (len(s)))) + (s)
 
 def pad_right(v,w):
