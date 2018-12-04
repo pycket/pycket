@@ -843,7 +843,7 @@ def build_path(args):
 
 @expose("simplify-path", [values.W_Object, default(values.W_Bool, values.w_false)])
 def simplify_path(path, use_filesystem):
-    path_str = extract_path(path)
+    path_str = os.path.normpath(extract_path(path))
     return values.W_Path(path_str)
 
 @expose("path<?", [values.W_Path, values.W_Path])
