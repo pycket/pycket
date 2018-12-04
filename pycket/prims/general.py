@@ -462,7 +462,7 @@ for args in [ ("subprocess?",),
               ]:
     define_nyi(*args)
 
-if w_global_config.no_linklet_mode():
+if not w_global_config.is_expander_loaded():
     define_nyi("liberal-define-context?")
     define_nyi("readtable?")
     define_nyi("namespace-anchor?")
