@@ -111,6 +111,7 @@ class GlobalConfig(object):
                        'debug_active':0,
                        'boot_done':0,
                        'linklet_mode':1}
+        self.error_exit = None
         self.verbose_keywords = []
         self.environment_vars = {}
         self.pycketconfig = None
@@ -136,6 +137,12 @@ class GlobalConfig(object):
 
     def boot_is_completed(self):
         self.config['boot_done'] = 1
+
+    def set_error_exit(self, exn):
+        self.error_exit = exn
+
+    def is_error_triggered(self):
+        return self.error_exit
 
     def are_we_in_linklet_mode(self):
         return self.config['linklet_mode']

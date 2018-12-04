@@ -2585,6 +2585,9 @@ def interpret_one(ast, env=None, cont=None):
     else:
         inner_interpret = inner_interpret_one_state
 
+    from pycket.env import w_global_config
+    w_global_config.set_error_exit(None)
+
     if cont is None:
         cont = NilCont()
 
@@ -2597,6 +2600,9 @@ def interpret_one(ast, env=None, cont=None):
     try:
         inner_interpret(ast, env, cont)
     except Done, e:
+        if w_global_config.is_error_triggered():
+            from pycket.error import ExitException
+            raise ExitException(e.values)
         return e.values
     except SchemeException, e:
         if e.context_ast is None:

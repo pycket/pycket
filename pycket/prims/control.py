@@ -450,6 +450,8 @@ def display_escape_cont(exn, env, cont, _vals):
 
 @make_procedure("default-uncaught-exception-handler", [values.W_Object], simple=False)
 def default_uncaught_exception_handler(exn, env, cont):
+    from pycket.env import w_global_config
+    w_global_config.set_error_exit(exn)
     # racket/src/cs/rumble/error.ss
 
     #FIXME : handle Breaks
