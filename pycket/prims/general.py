@@ -23,7 +23,7 @@ from pycket.prims.primitive_tables import *
 from pycket.prims import string
 from pycket.racket_paths import racket_sys_paths
 from pycket.env import w_global_config
-from rpython.rlib         import jit, objectmodel, unroll
+from rpython.rlib         import jit, objectmodel, unroll, rgc
 from rpython.rlib.rsre    import rsre_re as re
 
 # import for side effects
@@ -808,20 +808,33 @@ def call_with_values (producer, consumer, env, cont, extra_call_info):
     return producer.call_with_extra_info([], env, call_cont(consumer, env, cont), extra_call_info)
 
 @continuation
-def time_apply_cont(initial, env, cont, vals):
+def time_apply_cont(initial, initial_user, initial_gc, env, cont, vals):
     from pycket.interpreter import return_multi_vals
     final = time.clock()
+    final_gc = current_gc_time()
+    (final_user, system, cuser, csystem, real) = os.times()    
     ms = values.W_Fixnum(int((final - initial) * 1000))
+    ms_gc = values.W_Fixnum(int((final_gc - initial_gc)))
+    ms_user = values.W_Fixnum(int((final_user - initial_user) * 1000))
     vals_w = vals.get_all_values()
     results = values.Values.make([values.to_list(vals_w),
-                                  ms, ms, values.W_Fixnum.ZERO])
+                                  ms_user, ms, ms_gc])
     return return_multi_vals(results, env, cont)
 
+def current_gc_time():
+    if objectmodel.we_are_translated():
+        memory = rgc.get_stats(rgc.TOTAL_GC_TIME)
+    else:
+        memory = 0
+    return memory
+     
 @expose("time-apply", [procedure, values.W_List], simple=False, extra_info=True)
 def time_apply(a, args, env, cont, extra_call_info):
     initial = time.clock()
+    (initial_user, system, cuser, csystem, real) = os.times()
+    initial_gc = current_gc_time()
     return  a.call_with_extra_info(values.from_list(args),
-                                   env, time_apply_cont(initial, env, cont),
+                                   env, time_apply_cont(initial, initial_user, initial_gc, env, cont),
                                    extra_call_info)
 
 @expose("apply", simple=False, extra_info=True)
