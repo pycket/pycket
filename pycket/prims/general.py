@@ -1284,12 +1284,12 @@ def assoc(v, lst, is_equal):
 
 @expose("current-seconds", [])
 def current_seconds():
-    tick = int(time.clock())
+    tick = int(time.time())
     return values.W_Fixnum(tick)
 
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
-    return values.W_Flonum(time.clock() * 1000.0)
+    return values.W_Flonum(time.time() * 1000.0)
 
 @expose("seconds->date", [values.W_Fixnum])
 def seconds_to_date(s):
