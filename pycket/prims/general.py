@@ -2015,3 +2015,7 @@ def pycket_print(o, sym):
         console_log("PYCKET:PRINT : %s" % o, debug=True)
     else:
         console_log("PYCKET:PRINT : %s" % o.tostring(), debug=True)
+
+@expose("pycket:eq?", [values.W_Object, values.W_Object])
+def pycket_eq(o1, o2):
+    return values.W_Bool.make(o1 is o2)
