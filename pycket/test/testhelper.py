@@ -13,7 +13,7 @@ from pycket.env import ToplevelEnv
 from pycket import values
 from pycket.error import SchemeException
 from pycket.cont import continuation
-from pycket.values import to_list, w_false, w_true, W_Fixnum, W_Object, W_Flonum, W_Void, w_null
+from pycket.values import to_list, w_false, w_true, W_Fixnum, W_Object, W_Flonum, W_Void, w_null, W_Bool
 from pycket.hash.base import W_HashTable
 from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive
 from pycket.prims.linklet import *
@@ -113,6 +113,13 @@ def eval_fixnum(linkl, target, imports=[], just_return=False):
     r, t = eval(linkl, target, imports=imports, just_return=just_return)
     if isinstance(r, W_Fixnum):
         r = r.value
+    # o/w don't care it's not used
+    return r, t
+
+def eval_bool(linkl, target, imports=[], just_return=False):
+    r, t = eval(linkl, target, imports=imports, just_return=just_return)
+    if isinstance(r, W_Bool):
+        r = r is not w_false
     # o/w don't care it's not used
     return r, t
 

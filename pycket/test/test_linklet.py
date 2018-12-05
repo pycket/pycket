@@ -6,7 +6,7 @@ from pycket.values import W_Symbol, w_false, w_true
 from pycket.error import SchemeException
 from pycket.prims.linklet import W_LinkletInstance, w_uninitialized
 
-from pycket.test.testhelper import (make_linklet, inst, get_val, defines, variables, get_var_val, eval_fixnum, empty_target, make_instance, check_val)
+from pycket.test.testhelper import (make_linklet, inst, get_val, defines, variables, get_var_val, eval_fixnum, eval_bool, empty_target, make_instance, check_val)
 
 
 @pytest.mark.linkl
@@ -489,5 +489,5 @@ def test_make_prefab_predicate():
  (define-values (v0) (make-prefab-struct (quote a) 1 2))
  (a? v0))
 """
-    r, t = eval(l, target=empty_target())
-    assert r == w_true
+    r, t = eval_bool(make_linklet(l), empty_target())
+    assert r
