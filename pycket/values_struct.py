@@ -93,13 +93,17 @@ class W_StructType(values.W_Object):
         This method returns an instance of W_StructType only.
         It does not support properties.
         """
+        ret_w_struct_type = W_StructType(name, super_type, init_field_cnt, auto_field_cnt,
+            auto_v, inspector, proc_spec, immutables, guard, constr_name)
+
         if inspector is PREFAB:
             prefab_key = W_PrefabKey.from_raw_params(name, init_field_cnt,\
                 auto_field_cnt, auto_v, immutables, super_type)
             if prefab_key in W_StructType.unbound_prefab_types:
                 return W_StructType.unbound_prefab_types.pop(prefab_key)
-        return W_StructType(name, super_type, init_field_cnt, auto_field_cnt,
-            auto_v, inspector, proc_spec, immutables, guard, constr_name)
+            W_StructType.unbound_prefab_types[prefab_key] = ret_w_struct_type
+
+        return ret_w_struct_type
 
     @staticmethod
     @jit.elidable
