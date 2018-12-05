@@ -491,3 +491,57 @@ def test_make_prefab_predicate():
 """
     r, t = eval_bool(make_linklet(l), empty_target())
     assert r
+
+@pytest.mark.linkl
+def test_make_prefab_predicate2():
+    l2 = """
+(linklet
+ ()
+ ()
+ (define-values
+  (struct:a make-a a? a-b a-c)
+  (let-values (((struct: make- ? -ref -set!)
+                (make-struct-type
+                 (quote a)
+                 #f
+                 2
+                 0
+                 #f
+                 null
+                 (quote prefab)
+                 #f
+                 (quote (0 1))
+                 #f
+                 (quote a))))
+    (values
+     struct:
+     make-
+     ?
+     (make-struct-field-accessor -ref 0 (quote b))
+     (make-struct-field-accessor -ref 1 (quote c)))))
+ (define-values
+  (-struct:a -make-a -a? -a-b -a-c)
+  (let-values (((struct: make- ? -ref -set!)
+                (make-struct-type
+                 (quote a)
+                 #f
+                 2
+                 0
+                 #f
+                 null
+                 (quote prefab)
+                 #f
+                 (quote (0 1))
+                 #f
+                 (quote a))))
+    (values
+     struct:
+     make-
+     ?
+     (make-struct-field-accessor -ref 0 (quote b))
+     (make-struct-field-accessor -ref 1 (quote c)))))
+  (-a? (make-prefab-struct (quote a) 1 2)))
+"""
+    r2, t2 = eval_bool(make_linklet(l2), empty_target())
+    print r2
+    assert r2
