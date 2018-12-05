@@ -100,7 +100,7 @@ class W_StructType(values.W_Object):
             prefab_key = W_PrefabKey.from_raw_params(name, init_field_cnt,\
                 auto_field_cnt, auto_v, immutables, super_type)
             if prefab_key in W_StructType.unbound_prefab_types:
-                return W_StructType.unbound_prefab_types.pop(prefab_key)
+                return W_StructType.unbound_prefab_types[prefab_key]
             W_StructType.unbound_prefab_types[prefab_key] = ret_w_struct_type
 
         return ret_w_struct_type
