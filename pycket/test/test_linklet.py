@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pytest
-from pycket.values import W_Symbol
+from pycket.values import W_Symbol, w_false, w_true
 from pycket.error import SchemeException
 from pycket.prims.linklet import W_LinkletInstance, w_uninitialized
 
@@ -457,3 +457,37 @@ def test_continuation_marks_across_linklets():
      )""")
     result, _ = eval_fixnum(l2, empty_target(), [l1])
     assert result == 1
+
+
+@pytest.mark.linkl
+def test_make_prefab_predicate():
+    l = """
+(linklet
+ ()
+ ()
+ (define-values
+  (struct:a make-a a? a-b a-c)
+  (let-values (((struct: make- ? -ref -set!)
+                (make-struct-type
+                 (quote a)
+                 #f
+                 2
+                 0
+                 #f
+                 null
+                 (quote prefab)
+                 #f
+                 (quote (0 1))
+                 #f
+                 (quote a))))
+    (values
+     struct:
+     make-
+     ?
+     (make-struct-field-accessor -ref 0 (quote b))
+     (make-struct-field-accessor -ref 1 (quote c)))))
+ (define-values (v0) (make-prefab-struct (quote a) 1 2))
+ (a? v0))
+"""
+    r, t = eval(l)
+    assert r == w_true

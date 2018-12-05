@@ -109,7 +109,7 @@ def check_result(result, expected, equal_huh=False):
 
 ### Linklet Utils ###
 
-def eval(linkl, target, imports=[], just_return=False):
+def eval(linkl, target=empty_target(), imports=[], just_return=False):
     result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
     return result, target
 
