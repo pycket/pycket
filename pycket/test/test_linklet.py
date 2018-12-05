@@ -489,5 +489,5 @@ def test_make_prefab_predicate():
  (define-values (v0) (make-prefab-struct (quote a) 1 2))
  (a? v0))
 """
-    r, t = eval(l)
+    r, t = eval(l, target=empty_target())
     assert r == w_true

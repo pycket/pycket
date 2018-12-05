@@ -159,7 +159,7 @@ def empty_target(l_name="test_empty_instance"):
     # creates an empty target
     return make_instance("(linklet () ())", l_name=l_name)
 
-def eval(linkl, target=empty_target(), imports=[], just_return=False):
+def eval(linkl, target, imports=[], just_return=False):
     result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
     return result, target
 
