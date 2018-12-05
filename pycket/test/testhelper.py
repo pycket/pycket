@@ -109,10 +109,6 @@ def check_result(result, expected, equal_huh=False):
 
 ### Linklet Utils ###
 
-def eval(linkl, target=empty_target(), imports=[], just_return=False):
-    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
-    return result, target
-
 def eval_fixnum(linkl, target, imports=[], just_return=False):
     r, t = eval(linkl, target, imports=imports, just_return=just_return)
     if isinstance(r, W_Fixnum):
@@ -145,10 +141,6 @@ def inst(linkl, imports=[], target=None):
 
     return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
 
-def empty_target(l_name="test_empty_instance"):
-    # creates an empty target
-    return make_instance("(linklet () ())", l_name=l_name)
-
 def make_instance(linkl_str, imports=[], l_name="test_linklet_sexp"):
     instance = inst(make_linklet(linkl_str, l_name), imports)
     return instance
@@ -162,6 +154,14 @@ def make_linklet(linkl_str, l_name="test_linklet_sexp"):
         l = e.values # W_Linklet
         return l
     raise Exception("do_compile_linklet didn't raised a Done exception")
+
+def empty_target(l_name="test_empty_instance"):
+    # creates an empty target
+    return make_instance("(linklet () ())", l_name=l_name)
+
+def eval(linkl, target=empty_target(), imports=[], just_return=False):
+    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+    return result, target
 
 
 ##############################
