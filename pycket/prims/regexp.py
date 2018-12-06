@@ -54,11 +54,11 @@ def regexp_match(w_re, w_str, inp_start, inp_end, output_port, prefix):
           isinstance(w_re, values_regex.W_Regexp) or \
           isinstance(w_re, values_string.W_String)):
         return values.to_list([values_string.W_String.fromstr_utf8(r)
-                               if r else values.w_false
+                               if r is not None else values.w_false
                                for r in result])
     else:
         return values.to_list([values.W_Bytes.from_string(r)
-                               if r else values.w_false
+                               if r is not None else values.w_false
                                for r in result])
 
 def promote_to_regexp(w_re):
@@ -206,7 +206,7 @@ def rmpe(pat, input, inp_start, inp_end, output_port, prefix, count, env, cont):
 @expose("regexp-match?", [values.W_Object, values.W_Object])
 def regexp_matchp(w_r, w_o):
     result = match(w_r, w_o)
-    if result:
+    if result is not None:
         return values.w_true
     else:
         return values.w_false
@@ -224,7 +224,7 @@ def regexp_max_lookbehind(obj):
          default(values.W_Bytes, EMPTY_BYTES)])
 def regexp_replace(pattern, input, insert, prefix):
     matches = match_positions(pattern, input)
-    if not matches:
+    if matches is None:
         return input
     if isinstance(input, values_string.W_String):
         str = input.as_unicode()
@@ -258,7 +258,7 @@ def regexp_replace(pattern, input, insert, prefix):
 def regexp_replace_star(pattern, input, insert, start, end, prefix):
     # FIXME : start end
     matches = match_all_positions("regexp-replace*", pattern, input)
-    if not matches:
+    if matches is None:
         return input
     if isinstance(input, values_string.W_String):
         str = input.as_unicode()

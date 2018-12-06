@@ -37,6 +37,8 @@ def test_regexp_match(doctest):
     '(#"abc")
     > (regexp-match #"[a-zA-Z]+" #"")
     #f
+    > (regexp-match #rx"^([^:]*):(.+)$" ":x")
+    '(":x" "" "x")
     """
 
 def test_regexp_match_character_negation(doctest):
