@@ -2021,3 +2021,9 @@ def pycket_eq(o1, o2):
     return values.W_Bool.make(o1 is o2)
 
 expose_val("error-print-width", values_parameter.W_Parameter(values.W_Fixnum.make(256)))
+
+@expose("banner", [])
+def banner():
+    from pycket.env import w_version
+    version = w_version.get_version()
+    return values_string.W_String.make("Welcome to Pycket %s.\n"%version)
