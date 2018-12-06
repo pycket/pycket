@@ -545,3 +545,32 @@ def test_make_prefab_predicate2():
     r2, t2 = eval_bool(make_linklet(l2), empty_target())
     print r2
     assert r2
+
+
+def test_wcm_make_env():
+    l = """
+(linklet
+ ()
+ ()
+ (define-values (p) (lambda (x y) (+ x y)))
+ (define-values
+  (last)
+  (lambda (l)
+    ((letrec-values (((loop)
+                      (lambda (l x) (if (pair? x) (loop x (cdr x)) (car l)))))
+       loop)
+     l
+     (cdr l))))
+ (define-values
+  (h)
+  (lambda args
+    (with-continuation-mark
+     (make-continuation-mark-key (quote xxxxx))
+     (last args)
+     (apply p args))))
+ (h 1 2))
+"""
+    r2, t2 = eval_fixnum(make_linklet(l), empty_target())
+    print r2
+    assert r2 == 3
+    
