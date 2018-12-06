@@ -2019,3 +2019,5 @@ def pycket_print(o, sym):
 @expose("pycket:eq?", [values.W_Object, values.W_Object])
 def pycket_eq(o1, o2):
     return values.W_Bool.make(o1 is o2)
+
+expose_val("error-print-width", values_parameter.W_Parameter(values.W_Fixnum.make(256)))
