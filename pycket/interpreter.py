@@ -609,7 +609,7 @@ class WCMValCont(Cont):
         key = self.key
 
         if isinstance(key, values.W_ContinuationMarkKey):
-            body = values.W_ThunkBodyCMK(self.ast.body)
+            body = values.W_ThunkBodyCMK(self.ast.body, self.env)
             return key.set_cmk(body, val, self.prev, env, self.prev)
 
         # Perform a shallow copying of the continuation to ensure any marks

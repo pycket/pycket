@@ -1361,14 +1361,15 @@ class W_AssignmentTransformer(W_Object):
 # This is needed because with-continuation-mark operates over the AST while
 # W_InterposeProcedure can do a `set_cmk` with a closure.
 class W_ThunkBodyCMK(W_Procedure):
-    _attrs_ = _immutable_fields_ = ["body"]
+    _attrs_ = _immutable_fields_ = ["body", "env"]
 
-    def __init__(self, body):
+    def __init__(self, body, env):
         self.body = body
+        self.env = env
 
     @make_call_method([], simple=False)
     def call(self, env, cont):
-        return self.body, env, cont
+        return self.body, self.env, cont
 
 class W_ThunkProcCMK(W_Procedure):
     _attrs_ = _immutable_fields_ = ["proc", "args"]
