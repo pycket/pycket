@@ -1001,8 +1001,8 @@ def do_set_mcdr(a, b):
 @expose("map", simple=False, arity=Arity.geq(2))
 def do_map(args, env, cont):
     # XXX this is currently not properly jitted
-    if not args:
-        raise SchemeException("map expected at least two argument, got 0")
+    if len(args) < 2:
+        raise SchemeException("map expected at least two argument, got %s"%len(args))
     fn, lists = args[0], args[1:]
     if not fn.iscallable():
         raise SchemeException("map expected a procedure, got something else")

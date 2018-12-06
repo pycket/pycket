@@ -110,6 +110,9 @@ def test_map(doctest):
            '(1 2 3 4)
            '(10 100 1000 10000))
     '(11 102 1003 10004)
+    E (map)
+    E (map (lambda (x) 1))
+    E (map (lambda (x) 1) (list 1 2) (list 2 3))
     """
     assert doctest
 
