@@ -26,6 +26,7 @@
     [`(#%require ,_ ...) #f]
     [`(#%provide ,_ ...) #f]
     [`(define-values ,n ,e) `(define-values ,n ,(simplify-expr e))]
+    [`(#%app call-with-values (lambda () ,e) print-values) (simplify-expr e)]
     [e (simplify-expr e)]))
 
 (define (simplify-expr e)
