@@ -415,9 +415,17 @@ def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     dest_len = w_dest.length()
     dest_max = (dest_len - dest_start)
 
+    src_len = w_src.length()
     src_start =  w_src_start.value
     src_end = w_src.length() if w_src_end is None else w_src_end.value
-
+    if src_start >= src_len:
+        raise SchemeException("string-copy!: source start too large")
+    if src_end > src_len:
+        raise SchemeException("string-copy!: source end too large")
+    if src_end < src_start:
+        raise SchemeException("string-copy!: source end before start")
+    if dest_start >= dest_len:
+        raise SchemeException("string-copy!: destination start too large")
     if src_end - src_start > dest_max:
         raise SchemeException("string-copy!: not enough room in target string")
     w_dest.setslice(dest_start, w_src, src_start, src_end)

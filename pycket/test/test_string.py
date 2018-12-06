@@ -26,11 +26,13 @@ def test_substring(doctest):
 def test_string_copy_bang(doctest):
     r"""
     > (define s (string #\A #\p #\p #\l #\e))
+    > (define s2 (make-string 10 #\x))
     > (string-copy! s 4 "y")
     > (string-copy! s 0 s 3 4)
     > s
     "lpply"
     E (let ([s (string #\a #\b #\c)]) (string-copy! s 0 "abde" 0) s)
+    E (string-copy! s 1 "hello" 3 6)
     """
 
 def test_string_comparison(doctest):
