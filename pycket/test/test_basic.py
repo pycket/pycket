@@ -696,3 +696,12 @@ def test_wrap_values():
     assert isinstance(wrap(1.0, w_null), W_UnwrappedFlonumConsProper)
     assert isinstance(wrap(True, 2), W_WrappedCons)
     assert isinstance(wrap(True, w_null), W_WrappedConsProper)
+
+@pytest.mark.xfail
+def test_let_too_many_values(doctest):
+    """
+    ! (require racket/private/more-scheme)
+    > (with-handlers ([void (lambda (x) 1)]) (let ([x (values 1 2)]) x))
+    1
+    """
+    assert doctest
