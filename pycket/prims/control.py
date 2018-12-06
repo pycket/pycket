@@ -430,7 +430,19 @@ def default_error_display_handler(msg, exn_object, env, cont):
         port.write("%s : %s\n" % (exn_object.struct_type().name.tostring(), msg.tostring()))
     else:
         port.write("exception : %s\n" % (msg.tostring()))
-    # FIXME : FIX the continuation-mark-set->context and extract a stack trace using it
+
+    from pycket.prims.continuation_marks import cms_context
+    context = cms_context.w_prim.call_interpret([values.W_ContinuationMarkSet(cont, values.w_default_continuation_prompt_tag)])
+    if isinstance(context, values.W_Cons):
+        port.write("Error Trace:\n")
+        total_frames_to_show = 10
+        count = 0
+        while isinstance(context, values.W_Cons):
+            if count >= total_frames_to_show:
+                break
+            port.write("-- %s\n" % context.car().tostring())
+            context = context.cdr()
+            count += 1
     return return_void(env, cont)
 
 error_display_handler_param = values_parameter.W_Parameter(default_error_display_handler)
