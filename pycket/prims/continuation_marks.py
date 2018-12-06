@@ -4,7 +4,7 @@
 from pycket              import impersonators as imp
 from pycket              import values
 from pycket              import vector
-from pycket.cont         import call_cont
+from pycket.cont         import call_cont, Cont
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, make_callable_label, procedure
 
@@ -70,10 +70,46 @@ def continuation_mark_set_to_list_star(mark_set, key_list, none_v, prompt_tag):
     keys = values.from_list(key_list)
     return get_marks_all(cont, keys, none_v, upto=[prompt_tag])
 
+def is_ast_cont(k):
+    from pycket import interpreter as i
+    cs = [i.LetCont,
+          i.LetrecCont,
+          i.BeginCont,
+          i.Begin0Cont,
+          i.Begin0BodyCont,
+          i.WCMKeyCont,
+          i.WCMValCont]
+    # the ones having the method "get_next_executed_ast"
+    for c in cs:
+        if isinstance(k, c):
+            return True
+    return False
+
 @expose("continuation-mark-set->context", [values.W_ContinuationMarkSet])
 def cms_context(marks):
+    from pycket.values_string import W_String
     # TODO: Pycket does not have a mark to denote context. We need to fix that.
-    return values.w_null
+
+    k = marks.cont
+    n = 0
+    # find out the length
+    while isinstance(k, Cont):
+        if is_ast_cont(k):
+            n += 1
+        k = k.get_previous_continuation()
+
+    # second traversal saves us from reversing it later
+    ls = [None]*n
+    k = marks.cont
+    i = n-1
+    while isinstance(k, Cont):
+        if is_ast_cont(k):
+            frame = values.W_Cons.make(W_String.make(k.get_ast().surrounding_lambda.tostring()), values.w_false)
+            ls[i] = frame
+            i -= 1
+        k = k.get_previous_continuation()
+
+    return values.to_list(ls)
 
 @expose("continuation-mark-set-first",
         [values.W_Object,
@@ -118,4 +154,3 @@ def cwicm(key, proc, default, env, cont):
     if isinstance(key, values.W_ContinuationMarkKey):
         return key.get_cmk(val, env, call_cont(proc, env, cont))
     return proc.call([val], env, cont)
-
