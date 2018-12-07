@@ -36,8 +36,7 @@ def locate_linklet(file_name):
 
     return file_path
 
-def load_bootstrap_linklets(pycketconfig, debug=False):
-
+def load_expander(pycketconfig, debug):
     with PerfRegion("expander-linklet"):
         console_log("Loading the expander linklet...")
         expander_file_path = locate_linklet("expander.rktl.linklet")
@@ -49,7 +48,9 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
         console_log("Expander loading complete.")
         from pycket.env import w_global_config
         w_global_config.set_config_val('expander_loaded', 1)
+        return sys_config
 
+def load_fasl(pycketconfig, debug):
     with PerfRegion("fasl-linklet"):
         console_log("Loading the fasl linklet...")
         fasl_file_path = locate_linklet("fasl.rktl.linklet")
@@ -59,6 +60,14 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
         fasl_instance.provide_all_exports_to_prim_env()
 
         console_log("fasl loading complete.")
+        return sys_config
+
+def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False):
+
+    if not dev_mode:
+        sys_config = load_expander(pycketconfig, debug)
+
+    sys_config = load_fasl(pycketconfig, debug)
 
     return sys_config
 
@@ -91,11 +100,40 @@ def set_path(kind_str, path_str):
 
     racket_sys_paths.set_path(W_Symbol.make(kind_str), W_Path(path_str))
 
-def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False):
+def sample_sexp():
+    from pycket.values import to_list
+    # unfortunately rpython doesn't like string_to_sexp
+    # string_to_sexp("(linklet ((a b) (c)) (d) (define-values (d) (* a b c)))")
+    li = W_Symbol.make("linklet")
+    imp_1 = to_list([W_Symbol.make("a"), W_Symbol.make("b")])
+    imp_2 = to_list([W_Symbol.make("c")])
+    imp = to_list([imp_1, imp_2])
+    exp = to_list([W_Symbol.make("d")])
+    def_val_sym = W_Symbol.make("define-values")
+    mult_exp = to_list([W_Symbol.make("*"), W_Symbol.make("a"), W_Symbol.make("b"), W_Symbol.make("c")])
+    def_val = to_list([def_val_sym, exp, mult_exp])
+    return to_list([li, imp, exp, def_val])
+
+def dev_mode_entry():
+    from pycket.values import W_Fixnum
+    from pycket.error import ExitException
+
+    sexp_to_fasl = get_primitive("s-exp->fasl")
+    fasl_to_sexp = get_primitive("fasl->s-exp")
+    sexp = sample_sexp()
+    fasl = sexp_to_fasl.call_interpret([sexp])
+    print(fasl.tostring())
+    sexp_out = fasl_to_sexp.call_interpret([fasl])
+    print(sexp_out.tostring())
+    raise ExitException(sexp_out)
+
+def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False):
     from pycket.env import w_version
 
-    sysconfig = load_bootstrap_linklets(pycketconfig, debug)
+    sysconfig = load_bootstrap_linklets(pycketconfig, debug, dev_mode=dev_mode)
 
+    if dev_mode:
+        dev_mode_entry()
 
     with PerfRegion("set-params"):
 
@@ -206,11 +244,11 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     linklet_perf.init()
 
-    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a = get_options(names, config)
+    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode = get_options(names, config)
 
 
     with PerfRegion("startup"):
-        initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a)
+        initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, dev_mode=dev_mode)
 
     if just_init:
         return 0
@@ -368,6 +406,8 @@ def get_options(names, config):
     verbosity_lvl = int(names['verbosity_level'][0]) if debug else -1
     verbosity_keywords = names['verbosity_keywords'] if 'verbosity_keywords' in names else []
 
+    dev_mode = config['dev-mode']
+
     loads_print_str = []
     loads = []
     for index, rator in enumerate(load_rators):
@@ -390,6 +430,7 @@ just-init          : %s
 use-compiled       : %s
 verbosity-level    : %s
 verbosity-keywords : %s
+dev-mode           : %s
 """ % (loads_print_str,
        set_run_file,
        set_collects_dir,
@@ -402,8 +443,9 @@ verbosity-keywords : %s
        just_init,
        use_compiled,
        verbosity_lvl,
-       verbosity_keywords)
+       verbosity_keywords,
+       dev_mode)
 
     console_log(log_str, debug=debug)
 
-    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any
+    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode

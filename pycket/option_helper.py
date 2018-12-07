@@ -46,6 +46,7 @@ def print_help(argv):
   --save-callgraph                   : save the jit output
 
  Meta options:
+  --dev                              : Flag to be used in development, behavior depends
   --just-init                        : Ignore all parameters, initialize the bootstrap linklets and exit
   --verbose <level>                  : Print the debug logs. <level> : natural number (defaults to 0)
   --jit <jitargs>                    : Set RPython JIT options may be 'default', 'off',
@@ -90,7 +91,7 @@ conf_opts = ["-c", "--no-compiled",
              "-L", "--syslog",
              "--kernel",
              "--save-callgraph"]
-meta_opts = ["--just-init", "--verbose", "--jit", "-h"]
+meta_opts = ["--dev", "--just-init", "--verbose", "--jit", "-h"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
 
@@ -108,6 +109,7 @@ config = {
     'just_kernel' : False,
     'verbose' : False,
     'just-init' : False,
+    'dev-mode' : False,
     'use-compiled' : True,
     'compile-machine-independent' : False
 }
@@ -358,6 +360,10 @@ def parse_args(argv):
                 else:
                     add_name(names, 'verbosity_level', vl, replace=True)
                 i += 1
+
+        elif argv[i] == "--dev":
+            config['dev-mode'] = True
+            retval = RETURN_OK
 
         elif argv[i] == "--just-init":
             config['just-init'] = True
