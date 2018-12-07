@@ -332,6 +332,8 @@ def test_use_equal(doctest):
     1
     > (hash-ref hteqv (cons 'a 'b) 2)
     2
+    > (hash-remove! (make-hash) 1)
+    (void)
     """
 
 def test_hash_tableau(doctest):

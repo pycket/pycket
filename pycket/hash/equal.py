@@ -75,6 +75,9 @@ class HashmapStrategy(object):
     def rem(self, w_dict, w_key, env, cont):
         raise NotImplementedError("abstract base class")
 
+    def rem_inplace(self, w_dict, w_key, env, cont):
+        raise NotImplementedError("abstract base class")
+
     def items(self, w_dict):
         raise NotImplementedError("abstract base class")
 
@@ -161,6 +164,17 @@ class UnwrappedHashmapStrategyMixin(object):
         key = self.unwrap(w_key)
         storage[key] = w_val
 
+    def rem_inplace(self, w_dict, w_key, env, cont):
+        from pycket.interpreter import return_value
+        if not self.is_correct_type(w_key):
+            raise KeyError
+        storage = self.unerase(w_dict.hstorage)
+        key = self.unwrap(w_key)
+        if key in storage:
+            del storage[key]
+        return return_value(values.w_void, env, cont)
+
+
     def items(self, w_dict):
         return [(self.wrap(key), w_val) for key, w_val in self.unerase(w_dict.hstorage).iteritems()]
 
@@ -209,6 +223,10 @@ class EmptyHashmapStrategy(HashmapStrategy):
     def _set(self, w_dict, w_key, w_val):
         self.switch_to_correct_strategy(w_dict, w_key)
         return w_dict._set(w_key, w_val)
+
+    def rem_inplace(self, w_dict, w_key, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(values.w_void, env, cont) # there's nothing to remove
 
     def items(self, w_dict):
         return []
@@ -533,6 +551,9 @@ class W_EqualHashTable(W_HashTable):
     def hash_remove(self, key, env, cont):
         return self.strategy.rem(self, key, env, cont)
 
+    def hash_remove_inplace(self, key, env, cont):
+        return self.strategy.rem_inplace(self, key, env, cont)
+
     def get_item(self, i):
         return self.strategy.get_item(self, i)
 
@@ -551,4 +572,3 @@ class W_EqualHashTable(W_HashTable):
     def tostring(self):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.hash_items()]
         return "#hash(%s)" % " ".join(lst)
-
