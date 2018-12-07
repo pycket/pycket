@@ -237,6 +237,8 @@ def namespace_require_plus(spec, pycketconfig):
         dynamic_require.call_interpret([main, w_false], pycketconfig)
 
 def racket_entry(names, config, pycketconfig, command_line_arguments):
+    from pycket.prims.general import executable_yield_handler
+    from pycket.values import W_Fixnum
 
     linklet_perf.init()
 
@@ -302,6 +304,10 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
 
     linklet_perf.print_report()
+
+    # we just want the global value anyway
+    eyh = executable_yield_handler.call_interpret([], pycketconfig)
+    eyh.call_interpret([W_Fixnum.ZERO], pycketconfig)
 
     exit = get_primitive("exit")
     exit.call_interpret([], pycketconfig)

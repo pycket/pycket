@@ -2025,3 +2025,7 @@ def banner():
     from pycket.env import w_version
     version = w_version.get_version()
     return values_string.W_String.make("Welcome to Pycket %s.\n"%version)
+
+executable_yield_handler = values_parameter.W_Parameter(do_void.w_prim)
+
+expose_val("executable-yield-handler", executable_yield_handler)
