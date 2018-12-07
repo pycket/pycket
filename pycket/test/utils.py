@@ -42,7 +42,7 @@ term_regex = r'''(?mx)
         (?P<compnum>\-?(\d+[/.])?\d+[+-](\d+[/.])?\d+[ij])|
         (?P<rational>\-?\d+/\d+)|
         (?P<num>(\-?\d+\.\d+|\-?\d+)|\+inf.0|-inf.0|\+nan.0)|
-        (?P<bool>\btrue\b|\bfalse\b|\#[tTfF]\b)|
+        (?P<bool>\btrue\b|\bfalse\b|\#[tTfF]\b|\#true\b|\#false\b)|
         (?P<string>"[^"]*")|
         (?P<sym>[^(^)\s]+)
        )'''
@@ -120,7 +120,7 @@ def string_to_sexp(sexp):
             c = W_Character(value[2:])
             out.append(c)
         elif term == 'bool':
-            if value in ['#t', '#T', 'true']:
+            if value in ['#t', '#T', 'true', '#true']:
                 b = w_true
             else:
                 b = w_false
