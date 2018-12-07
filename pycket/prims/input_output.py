@@ -1879,6 +1879,10 @@ def mock_prompt_thunk_worker(env, cont):
 def mock_current_prompt_read():
     return mock_prompt_thunk
 
+@expose("file-stream-port?", [values.W_Port])
+def file_stream_port_p(p):
+    return values.W_Bool.make(isinstance(p, values.W_FileOutputPort) or
+                              isinstance(p, values.W_FileInputPort))
 
 print_graph_param = values_parameter.W_Parameter(values.w_false)
 print_struct_param = values_parameter.W_Parameter(values.w_false)
