@@ -187,7 +187,7 @@ def test_random():
             assert 0 <= x < i + 5
 
 def test_random_seed():
-    run("(begin (random-seed 142) (let ((x (random))) (random-seed 142) (= (random) x)))", w_true)
+    run("(begin (random-seed 142) (let-values (((x) (random))) (random-seed 142) (= (random) x)))", w_true)
 
 def test_byte_huh(doctest):
     """
