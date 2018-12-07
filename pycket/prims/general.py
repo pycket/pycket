@@ -126,7 +126,7 @@ for args in [
         ("fsemaphore?", values.W_Impossible),
         ("thread-group?", values.W_Impossible),
         ("udp?", values.W_Impossible),
-        ("extflonum?", values.W_Impossible),
+        ("extflonum?", values.W_ExtFlonum),
         ("custodian-box?", values.W_Impossible),
         ("custodian?", values.W_Impossible),
         ("future?", values.W_Impossible),

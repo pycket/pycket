@@ -244,6 +244,9 @@ def test_zero(doctest):
 
 def test_string_to_number(doctest):
     """
+    ! (require racket/extflonum)
+    > (extflonum? (string->number "3.0t0"))
+    #t
     ; not yet supported
     ;> (string->number "3.0+2.5i")
     ;3.0+2.5i
