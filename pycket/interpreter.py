@@ -699,6 +699,14 @@ class Module(AST):
     def _tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
+    def to_sexp(self):
+        mod_sym = values.W_Symbol.make("module")
+        name_s_exp = values_string.W_String.fromstr_utf8(self.name)
+        lang_s_exp = self.lang.to_sexp()
+        bodies_s_exp = values.to_list([b.to_sexp() for b in self.body])
+        cons = values.W_Cons.make
+        return cons(mod_sym, cons(name_s_exp, cons(lang_s_exp, bodies_s_exp)))
+
     def interpret_simple(self, env):
         """ Interpretation of a module is a no-op from the outer module.
             Modules must be executed explicitly by |interpret_mod|, usually via
@@ -818,6 +826,10 @@ class Require(AST):
 
     def _tostring(self):
         return "(require %s)" % self.fname
+
+    def to_sexp(self):
+        req_sym = values.W_Symbol.make("require")
+        return values.to_list([req_sym, values_string.W_String.fromstr_utf8(self.fname)])
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make1(w_val), env, cont)

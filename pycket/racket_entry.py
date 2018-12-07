@@ -101,30 +101,26 @@ def set_path(kind_str, path_str):
     racket_sys_paths.set_path(W_Symbol.make(kind_str), W_Path(path_str))
 
 def sample_sexp():
-    from pycket.values import to_list
-    # unfortunately rpython doesn't like string_to_sexp
-    # string_to_sexp("(linklet ((a b) (c)) (d) (define-values (d) (* a b c)))")
-    li = W_Symbol.make("linklet")
-    imp_1 = to_list([W_Symbol.make("a"), W_Symbol.make("b")])
-    imp_2 = to_list([W_Symbol.make("c")])
-    imp = to_list([imp_1, imp_2])
-    exp = to_list([W_Symbol.make("d")])
-    def_val_sym = W_Symbol.make("define-values")
-    mult_exp = to_list([W_Symbol.make("*"), W_Symbol.make("a"), W_Symbol.make("b"), W_Symbol.make("c")])
-    def_val = to_list([def_val_sym, exp, mult_exp])
-    return to_list([li, imp, exp, def_val])
+    from pycket.expand import readfile_rpython, getkey
+    from pycket import pycket_json
+
+    data = readfile_rpython('sample-module.json')
+    json = pycket_json.loads(data)
+    ast = JsonLoader().to_ast(json) #module
+    return ast.to_sexp()
 
 def dev_mode_entry():
     from pycket.values import W_Fixnum
     from pycket.error import ExitException
+    from pycket.util import console_log
 
     sexp_to_fasl = get_primitive("s-exp->fasl")
     fasl_to_sexp = get_primitive("fasl->s-exp")
     sexp = sample_sexp()
     fasl = sexp_to_fasl.call_interpret([sexp])
-    print(fasl.tostring())
+    console_log(fasl.tostring(), 1)
     sexp_out = fasl_to_sexp.call_interpret([fasl])
-    print(sexp_out.tostring())
+    console_log(sexp_out.tostring(), 1)
     raise ExitException(sexp_out)
 
 def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False):
