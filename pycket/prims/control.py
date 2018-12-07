@@ -412,6 +412,10 @@ def is_exn(v):
     from pycket.prims.general import exn
     return (isinstance(v, values_struct.W_Struct) and (exn.has_subtype(v.struct_type())))
 
+def is_user_exn(v):
+    from pycket.prims.general import exn_fail_user
+    return (isinstance(v, values_struct.W_Struct) and (exn_fail_user.has_subtype(v.struct_type())))
+
 def get_exn_message(exn, env, cont):
     offset = exn.struct_type().get_offset(exn.struct_type())
     original_field_num = 0 # this is for the message field in exceptions
@@ -419,6 +423,19 @@ def get_exn_message(exn, env, cont):
 
     return exn.struct_type().accessor.call([exn, message_field_index], env, display_escape_cont(exn, env, cont))
 
+def display_stack_trace(port, cont):
+    from pycket.prims.continuation_marks import cms_context
+    context = cms_context.w_prim.call_interpret([values.W_ContinuationMarkSet(cont, values.w_default_continuation_prompt_tag)])
+    if isinstance(context, values.W_Cons):
+        port.write("Error Trace:\n")
+        total_frames_to_show = 10
+        count = 0
+        while isinstance(context, values.W_Cons):
+            if count >= total_frames_to_show:
+                break
+            port.write("-- %s\n" % context.car().tostring()[:1000])
+            context = context.cdr()
+            count += 1
 
 @make_procedure("default-error-display-handler", [values_string.W_String, values.W_Object], simple=False)
 def default_error_display_handler(msg, exn_object, env, cont):
@@ -431,18 +448,8 @@ def default_error_display_handler(msg, exn_object, env, cont):
     else:
         port.write("exception : %s\n" % (msg.tostring()))
 
-    from pycket.prims.continuation_marks import cms_context
-    context = cms_context.w_prim.call_interpret([values.W_ContinuationMarkSet(cont, values.w_default_continuation_prompt_tag)])
-    if isinstance(context, values.W_Cons):
-        port.write("Error Trace:\n")
-        total_frames_to_show = 10
-        count = 0
-        while isinstance(context, values.W_Cons):
-            if count >= total_frames_to_show:
-                break
-            port.write("-- %s\n" % context.car().tostring())
-            context = context.cdr()
-            count += 1
+    if not is_user_exn(exn_object):
+        display_stack_trace(port, cont)
     return return_void(env, cont)
 
 error_display_handler_param = values_parameter.W_Parameter(default_error_display_handler)
