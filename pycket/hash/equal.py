@@ -291,10 +291,13 @@ class ObjectHashmapStrategy(HashmapStrategy):
         bucket = self.get_bucket(w_dict, w_key, nonull=True)
         return equal_hash_set_loop(bucket, 0, w_key, w_val, env, cont)
 
+    def rem_inplace(self, w_dict, w_key, env, cont):
+        raise NotImplementedError("hash-remove! not supported for ObjectHashmapStrategy")
+
     def rem(self, w_dict, w_key, env, cont):
         from pycket.interpreter import return_value
         if not w_dict.immutable():
-            raise Exception("Expected an immutable hash table")
+            raise SchemeException("Expected an immutable hash table")
 
         new_keys = []
         new_vals = []
