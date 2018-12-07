@@ -17,7 +17,8 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 PYFILES := $(shell find . -name '*.py' -type f)
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets
-.PHONY: setup test coverage expander test-expander test-one test-one-expander test-mark test-mark-expander test-random
+.PHONY: setup test coverage test-expander test-one test-one-expander test-mark test-mark-expander test-random
+.PHONY: expander regexp fasl
 
 PYPY_EXECUTABLE := $(shell which pypy)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
@@ -135,9 +136,12 @@ update-pypy: pull-pypy
 
 setup-old-pycket: setup-racket-for-old-pycket update-pypy
 
+regexp:
+	$(MAKE) -C linklet-extractor regexp
+
 expander:
 	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	$(MAKE) -C linklet-extractor
+	$(MAKE) -C linklet-extractor expander
 
 fasl:
 	$(MAKE) -C linklet-extractor fasl

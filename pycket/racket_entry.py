@@ -36,31 +36,30 @@ def locate_linklet(file_name):
 
     return file_path
 
-def load_expander(pycketconfig, debug):
-    with PerfRegion("expander-linklet"):
-        console_log("Loading the expander linklet...")
-        expander_file_path = locate_linklet("expander.rktl.linklet")
+def load_bootstrap_linklet(which_str, pycketconfig, debug, is_it_expander=False):
+    with PerfRegion("%s-linklet" % which_str):
+        console_log("Loading the %s linklet..." % which_str)
+        linklet_file_path = locate_linklet("%s.rktl.linklet" % which_str)
 
-        # load the expander linklet
-        expander_instance, sys_config = load_inst_linklet_json(expander_file_path, pycketconfig, debug, set_version=True)
-        expander_instance.provide_all_exports_to_prim_env(excludes=syntax_primitives)
+        # load the linklet
+        _instance, sys_config = load_inst_linklet_json(linklet_file_path, pycketconfig, debug, set_version=is_it_expander)
+        _instance.provide_all_exports_to_prim_env(excludes=syntax_primitives)
 
-        console_log("Expander loading complete.")
-        from pycket.env import w_global_config
-        w_global_config.set_config_val('expander_loaded', 1)
+        console_log("%s loading complete." % which_str)
+        if is_it_expander:
+            from pycket.env import w_global_config
+            w_global_config.set_config_val('expander_loaded', 1)
+
         return sys_config
+
+def load_expander(pycketconfig, debug):
+    load_bootstrap_linklet("expander", pycketconfig, debug, is_it_expander=True)
 
 def load_fasl(pycketconfig, debug):
-    with PerfRegion("fasl-linklet"):
-        console_log("Loading the fasl linklet...")
-        fasl_file_path = locate_linklet("fasl.rktl.linklet")
+    load_bootstrap_linklet("fasl", pycketconfig, debug)
 
-        # load the fasl linklet
-        fasl_instance, sys_config = load_inst_linklet_json(fasl_file_path, pycketconfig, debug)
-        fasl_instance.provide_all_exports_to_prim_env()
-
-        console_log("fasl loading complete.")
-        return sys_config
+def load_regexp(pycketconfig, debug):
+    load_bootstrap_linklet("regexp", pycketconfig, debug)
 
 def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False):
 
@@ -68,6 +67,7 @@ def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False):
         sys_config = load_expander(pycketconfig, debug)
 
     sys_config = load_fasl(pycketconfig, debug)
+    #sys_config = load_regexp(pycketconfig, debug)
 
     return sys_config
 
