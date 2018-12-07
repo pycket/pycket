@@ -106,10 +106,10 @@ class TestRegressions(object):
         m = run_mod(source)
 
     def test_constr_arity_check(self):
-        with pytest.raises(SchemeException):
+        with pytest.raises(Exception):
             run_mod("""#lang racket/base
             (struct x (a)) (x)""")
-        with pytest.raises(SchemeException):
+        with pytest.raises(Exception):
             run_mod("""#lang racket/base
             (struct x ()) (x 2)""")
 
