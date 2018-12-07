@@ -1526,13 +1526,25 @@ def gensym(init):
 def keyword_less_than(a_keyword, b_keyword):
     return values.W_Bool.make(a_keyword.value < b_keyword.value)
 
-@expose("current-environment-variables", [])
-def cur_env_vars():
-    return values.W_EnvVarSet()
+initial_env_vars = values.W_EnvVarSet({}, True)
+
+expose_val("current-environment-variables", values_parameter.W_Parameter(initial_env_vars))
 
 @expose("environment-variables-ref", [values.W_EnvVarSet, values.W_Bytes])
 def env_var_ref(set, name):
-    return values.w_false
+    r = set.get(name.as_str())
+    if r is None:
+        return values.w_false
+    else:
+        return values.W_Bytes.from_string(r)
+
+@expose("environment-variables-set!", [values.W_EnvVarSet, values.W_Bytes, values.W_Bytes, default(values.W_Object, None)])
+def env_var_ref(set, name, val, fail):
+    return set.set(name.as_str(), val.as_str())
+
+@expose("make-environment-variables")
+def make_env_var(args):
+    return values.W_EnvVarSet({}, False)
 
 @expose("check-for-break", [])
 def check_for_break():

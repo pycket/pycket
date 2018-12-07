@@ -1748,9 +1748,23 @@ class W_PromotableClosure(W_Procedure):
 
 class W_EnvVarSet(W_Object):
     errorname = "environment-variable-set"
-    _attrs_ = []
-    def __init__(self):
-        pass
+    _attrs_ = ["table", "is_system"]
+    def __init__(self, t, is_system):
+        self.table = t
+        self.is_system = is_system
+
+    def get(self, s):
+        import os
+        if self.is_system:
+            return os.environ.get(s)
+        else:
+            return self.table.get(s, None)
+
+    def set(self, s, val):
+        import os
+        if self.is_system:
+            os.environ[s] = val
+        self.table[s] = val
 
 class W_EOF(W_Object):
     errorname = "eof"
