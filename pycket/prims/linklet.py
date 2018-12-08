@@ -712,6 +712,10 @@ def instance_variable_value(instance, name, fail_k, env, cont):
     var = instance.get_var(name)
     return return_value(var.get_value_direct(), env, cont)
 
+@expose("instance-describe-variable!", [W_LinkletInstance, W_Symbol, W_Object])
+def instance_describe_variable(inst, name, desc_v):
+    return w_void
+
 @expose("instance-data", [W_LinkletInstance])
 def instance_data(inst):
     return inst.get_data()

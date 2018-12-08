@@ -104,7 +104,7 @@ linklet_str = ["linklet?", "compile-linklet", "recompile-linklet", "eval-linklet
                "linklet-bundle->hash", "variable-reference?", "variable-reference->instance", "variable-reference-constant?",
                "primitive-table", "variable-reference-from-unsafe?",
                "compiled-position->primitive", "linklet-virtual-machine-bytes",
-               "read-linklet-bundle-hash", "write-linklet-bundle-hash"]
+               "read-linklet-bundle-hash", "write-linklet-bundle-hash", "instance-describe-variable!"]
 
 unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-list-ref", "unsafe-cons-list", "unsafe-fx+",
