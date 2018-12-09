@@ -162,6 +162,7 @@ def string_to_bytes_locale(w_str, errbyte, w_start, w_end):
         s_val = w_start.value
         e_val = w_end.value if w_end else w_str.length()
         # FIXME: check the bounds
+        assert s_val >= 0 and e_val <= w_str.length() and e_val >= 0
         w_sub_str = w_str.getslice(s_val, e_val)
 
     # FIXME: This ignores the locale
@@ -362,6 +363,7 @@ def string_utf_8_length(w_str, w_start, w_end):
     if s_val == 0 and w_end is None:
         w_sub_str = w_str
     else:
+        assert s_val >= 0 and e_val <= w_str.length() and e_val >= 0
         w_sub_str = w_str.getslice(s_val, e_val)
 
     sub_str_char_list = w_sub_str.as_charlist_utf8()
