@@ -627,7 +627,7 @@ class JsonLoader(object):
 
                     elif "source-linklet" in target:
                         source = target["source-linklet"].value_object()["quote"].value_object()
-                        var = LinkletVar(srcname)
+                        var = LinkletVar(srcname, is_transparent=True)
                     else:
                         srcmod = "#%kernel"
                         path   = None
@@ -730,7 +730,7 @@ class JsonLoader(object):
                 modsym = mksym(modname) if modname else srcsym
                 if "source-linklet" in obj:
                     source = obj["source-linklet"].value_object()["quote"].value_object()
-                    return LinkletVar(srcsym)
+                    return LinkletVar(srcsym, is_transparent=True)
                 elif "source-module" in obj:
                     if obj["source-module"].is_array:
                         path_arr = obj["source-module"].value_array()

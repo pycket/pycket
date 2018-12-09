@@ -63,11 +63,12 @@ def load_regexp(pycketconfig, debug):
 
 def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False):
 
+    sys_config = load_regexp(pycketconfig, debug)
+
     if not dev_mode:
         sys_config = load_expander(pycketconfig, debug)
 
     sys_config = load_fasl(pycketconfig, debug)
-    #sys_config = load_regexp(pycketconfig, debug)
 
     return sys_config
 
