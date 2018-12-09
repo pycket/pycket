@@ -355,6 +355,18 @@ def string_append(args):
 def string_length(s1):
     return values.W_Fixnum(s1.length())
 
+@expose("string-utf-8-length", [W_String, default(values.W_Fixnum, values.W_Fixnum.ZERO), default(values.W_Fixnum, None)])
+def string_utf_8_length(w_str, w_start, w_end):
+    s_val = w_start.value
+    e_val = w_end.value if w_end else w_str.length()
+    if s_val == 0 and w_end is None:
+        w_sub_str = w_str
+    else:
+        w_sub_str = w_str.getslice(s_val, e_val)
+
+    sub_str_char_list = w_sub_str.as_charlist_utf8()
+    return values.W_Fixnum(len(sub_str_char_list))
+
 @expose("string-copy", [W_String])
 def string_copy(s):
     return get_substring(s, values.W_Fixnum.make(0), None)

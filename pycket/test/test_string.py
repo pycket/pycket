@@ -438,3 +438,18 @@ def test_string_to_number(doctest):
     > (string->number "1111111112983718926391623986912350912395612093409182368590812")
     1111111112983718926391623986912350912395612093409182368590812
     """
+
+def test_string_utf_8_length(doctest):
+    """
+    ! (define-values (h) (string-append "caner" (bytes->string/utf-8 (bytes 195 167 195 176 195 182 194 163))))
+    > (string-length h)
+    9
+    > (string-utf-8-length h)
+    13
+    > (string-utf-8-length h 1 5)
+    4
+    > (string-utf-8-length h 2 7)
+    7
+    > (string-utf-8-length (substring h 2 7))
+    7
+    """
