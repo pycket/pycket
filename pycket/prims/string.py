@@ -152,13 +152,20 @@ def string_to_symbol(v):
          default(values.W_Object, values.w_false),
          default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
-def string_to_bytes_locale(str, errbyte, start, end):
+def string_to_bytes_locale(w_str, errbyte, w_start, w_end):
     # assert errbyte is values.w_false
     # ignore for now
-    assert start.value == 0
-    assert end is None
+
+    if w_start.value == 0 and w_end is None:
+        w_sub_str = w_str
+    else:
+        s_val = w_start.value
+        e_val = w_end.value if w_end else w_str.length()
+        # FIXME: check the bounds
+        w_sub_str = w_str.getslice(s_val, e_val)
+
     # FIXME: This ignores the locale
-    return values.W_Bytes.from_charlist(str.as_charlist_utf8())
+    return values.W_Bytes.from_charlist(w_sub_str.as_charlist_utf8())
 
 @expose("bytes->string/latin-1",
         [values.W_Bytes,
