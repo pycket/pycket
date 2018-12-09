@@ -1715,6 +1715,47 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
         bytes[start + i] = res[i]
     return return_value(values.W_Fixnum(reslen), env, cont)
 
+@expose("peek-bytes-avail!", [values.W_Bytes, values.W_Fixnum, 
+                              default(values.W_Object, values.w_false),
+                              default(values.W_InputPort, None),
+                              default(values.W_Fixnum, values.W_Fixnum.ZERO),
+                              default(values.W_Fixnum, None)], simple=False)
+def peek_bytes_avail_bang(w_bstr, skip_bytes_amt, progress, w_in, start_pos, end_pos, env, cont):
+    from pycket.interpreter import return_value
+    w_port = w_in if w_in else current_in_param.get(cont)
+    start = start_pos.value
+    stop = end_pos.value if end_pos else w_bstr.length()
+    if w_bstr.immutable():
+        raise ContractException("peek-bytes-avail!: given immutable byte string")
+    # FIXME : implementation
+    bytes = w_bstr.as_bytes_list()
+
+    if stop == start:
+        return return_value(values.W_Fixnum.ZERO, env, cont)
+
+    # FIXME: assert something on indices
+    assert start >= 0 and stop <= len(bytes)
+    n = stop - start
+
+    old = w_port.tell()
+    res = w_port.read(n)
+    w_port.seek(old)
+    reslen = len(res)
+
+    # shortcut without allocation when complete replace
+    if isinstance(w_bstr, values.W_MutableBytes):
+        if start == 0 and stop == len(bytes) and reslen == n:
+            w_bstr.value = list(res)
+            return return_value(values.W_Fixnum(reslen), env, cont)
+
+    if reslen == 0:
+        return return_value(values.eof_object, env, cont)
+
+    for i in range(0, reslen):
+        bytes[start + i] = res[i]
+    return return_value(values.W_Fixnum(reslen), env, cont)
+
+
 # FIXME: implementation
 @expose("write-string",
         [values_string.W_String, default(values.W_Object, None),
