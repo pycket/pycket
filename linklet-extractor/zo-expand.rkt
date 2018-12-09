@@ -95,7 +95,7 @@
                               (hash-values primitive-table2)))
 
 (define (value? form)
-  (ormap (λ (f) (f form)) (list path? list? box? pair? hash? vector? number? string? symbol? char? keyword? regexp? byte-regexp? bytes? extflonum?)))
+  (ormap (λ (f) (f form)) (list path? list? box? pair? hash? vector? number? string? symbol? char? keyword? bytes? extflonum?)))
 
 (define (compile-json config language topmod body1 top-reqs-provs body-forms pycket?)
   (let ([whole-body (append top-reqs-provs body-forms)])
@@ -207,11 +207,16 @@
 (define (handle-keyword racket-kw)
   (hash* 'keyword (keyword->string racket-kw)))
 
-(define (handle-regexp racket-regexp)
-  (hash* 'regexp (object-name racket-regexp)))
+(define (handle-regexp racket-regexp [linklet? #f])
+  (let ([r-str (object-name racket-regexp)])
+    (hash* 'operator (hash* 'source-name "regexp")
+           'operands (list (hash* 'quote (handle-string r-str))))))
 
-(define (handle-byte-regexp racket-byte-regexp)
-  (hash* 'byte-regexp (bytes->list (object-name racket-byte-regexp))))
+(define (handle-byte-regexp racket-byte-regexp [linklet? #f])
+  (let ([r-bytes-list (bytes->list (object-name racket-byte-regexp))])
+    (hash* 'operator (hash* 'source-name "byte-regexp")
+           'operands (list (hash* 'operator (hash* 'source-name "list->bytes")
+                                  'operands (list (hash* 'quote (to-ast-val r-bytes-list linklet?))))))))
 
 (define (handle-bytes racket-bytes)
   (hash* 'bytes (bytes->list racket-bytes)))
@@ -1089,10 +1094,6 @@ put the usual application-rands to the operands
      (handle-char val-form))
     ((keyword? val-form)
      (handle-keyword val-form))
-    ((regexp? val-form)
-     (handle-regexp val-form))
-    ((byte-regexp? val-form)
-     (handle-byte-regexp val-form))
     ((bytes? val-form)
      (handle-bytes val-form))
     #;((stx-obj? val-form)
@@ -1139,6 +1140,10 @@ put the usual application-rands to the operands
        (hash* 'quote (to-ast-val body-form linklet? importss)))
       
       ;; specially handled vals
+      ((regexp? body-form)
+       (handle-regexp body-form linklet?))
+      ((byte-regexp? body-form)
+       (handle-byte-regexp body-form linklet?))
       ((void? body-form) 
        (handle-void body-form))
       ((boolean? body-form) ;; note it uses hash (instead of hash*)
