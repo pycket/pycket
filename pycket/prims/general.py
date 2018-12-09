@@ -1546,6 +1546,11 @@ def env_var_ref(set, name, val, fail):
 def make_env_var(args):
     return values.W_EnvVarSet({}, False)
 
+@expose("environment-variables-names", [values.W_EnvVarSet])
+def env_var_names(set):
+    names = set.get_names()
+    return values.to_list([values.W_Bytes.from_string(n) for n in names])
+
 @expose("check-for-break", [])
 def check_for_break():
     return values.w_false

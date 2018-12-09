@@ -1766,6 +1766,13 @@ class W_EnvVarSet(W_Object):
             os.environ[s] = val
         self.table[s] = val
 
+    def get_names(self):
+        import os
+        if self.is_system:
+            return os.environ.keys()
+        else:
+            return self.table.keys()
+
 class W_EOF(W_Object):
     errorname = "eof"
     _attrs_ = []
