@@ -1884,6 +1884,25 @@ def file_stream_port_p(p):
     return values.W_Bool.make(isinstance(p, values.W_FileOutputPort) or
                               isinstance(p, values.W_FileInputPort))
 
+MIP_ARGS = [
+    values.W_Object, # name
+    values.W_Object, # read_in : (or input-port (bytes -> (or number eof procedure event)))
+    values.W_Object, # peek : (or input-port (bytes number (or evt #f) -> (or number eof procedure evt #f)))
+    values.W_Object, # close : (-> any)
+    default(values.W_Object, values.w_false), # get_progress_evt : (or (-> evt) #f)
+    default(values.W_Object, values.w_false), # commit : (or (number evt evt -> any) #f)
+    default(values.W_Object, values.w_false), # get_location : (or (-> (values number/#f number/#f number/#f)) #f)
+    default(values.W_Object, values.w_void), # count_lines! : (-> any)
+    default(values.W_Object, values.W_Fixnum.ONE), # init_position : (or number port #f (-> (or number #f)))
+    default(values.W_Object, values.w_false), # buffer_mode : (or (case-> ((or 'block 'none) -> any) (-> (or 'block 'none #f))) #f)
+    ]
+
+@expose("make-input-port", MIP_ARGS)
+def make_input_port(name, read_in, peek, close,
+                    get_progress_evt, commit, get_location, count_lines_bang, init_position, buffer_mode):
+    # FIXME : implementation (or get the IO linklet)
+    return values.W_StringInputPort("")
+
 print_graph_param = values_parameter.W_Parameter(values.w_false)
 print_struct_param = values_parameter.W_Parameter(values.w_false)
 print_box_param = values_parameter.W_Parameter(values.w_false)
