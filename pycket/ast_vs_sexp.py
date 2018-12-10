@@ -122,7 +122,8 @@ def def_vals_to_ast(def_vals_sexp, exports, linkl_toplevels, linkl_imports):
     names_ls_ = to_rpython_list(names)
     names_ls = [n.get_obj() if isinstance(n, W_Correlated) else n for n in names_ls_]
 
-    body = sexp_to_ast(def_vals_sexp.cdr().cdr().car(), [], exports, linkl_toplevels, linkl_imports, disable_conversions=False, cell_ref=[], name=names_ls[0].variable_name())
+    the_name = names_ls[0].variable_name() if len(names_ls) > 0 else ""
+    body = sexp_to_ast(def_vals_sexp.cdr().cdr().car(), [], exports, linkl_toplevels, linkl_imports, disable_conversions=False, cell_ref=[], name=the_name)
 
     return interp.DefineValues(names_ls, body, names_ls)
 
