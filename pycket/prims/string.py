@@ -765,6 +765,11 @@ def char_numeric_huh(w_char):
     c = ord(w_char.value)
     return values.w_true if unicodedb.isnumeric(c) else values.w_false
 
+@expose("char-general-category", [values.W_Character])
+def char_category(w_char):
+    c = ord(w_char.value)
+    cat = unicodedb.category(c)
+    return values.W_Symbol.make(cat.lower())
 
 @expose("sha1-bytes", [values.W_Object, default(values.W_Fixnum, values.W_Fixnum.ZERO), default(values.W_Object, values.w_false)])
 def sha1_bytes(input, start, end):

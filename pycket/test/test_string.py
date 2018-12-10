@@ -215,6 +215,20 @@ def test_char_integer(doctest):
     65
     """
 
+def test_char_general_category(doctest):
+    """
+    > (char-general-category #\ )
+    zs
+    > (char-general-category #\c)
+    ll
+    > (char-general-category #\.)
+    po
+    > (char-general-category #\\)
+    po
+    > (char-general-category #\|)
+    sm
+    """
+
 def test_string_change_case(doctest):
     """
     > (string-upcase "abc")
