@@ -2021,6 +2021,11 @@ def activate_debug_keyword(v):
 def deactivate_debug_keyword(v):
     w_global_config.deactivate_keyword(v.variable_name())
 
+@expose("pycket:report-undefined-prims", [])
+def report_undefined_prims():
+    from pycket.prims.primitive_tables import report_undefined_prims
+    report_undefined_prims()
+
 addr_sym = values.W_Symbol.make("mem-address")
 
 @expose("pycket:print", [values.W_Object, default(values.W_Symbol, addr_sym)])

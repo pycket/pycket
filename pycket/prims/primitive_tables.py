@@ -1,5 +1,5 @@
 from pycket.values import W_Symbol
-from pycket.prims.expose import define_nyi
+from pycket.prims.expose import define_nyi, prim_env
 
 DEBUG = False
 
@@ -515,7 +515,7 @@ pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug",
                     "pycket:get-verbosity", "pycket:set-verbosity",
                     "pycket:is-debug-active", "pycket:print",
                     "pycket:activate-keyword", "pycket:deactivate-keyword",
-                    "pycket:eq?"]
+                    "pycket:eq?", "pycket:report-undefined-prims"]
 
 place = make_primitive_table(place_str)
 paramz = make_primitive_table(paramz_str)
@@ -558,4 +558,55 @@ if DEBUG:
     print("\n\nPriming all primitives in : linklet + kernel + paramz + unsafe + foreign + futures + place + flfxnum + extfl + network\n")
 
 for prim_name_str in all_prims:
-    define_nyi(prim_name_str)
+    if W_Symbol.make(prim_name_str) not in prim_env:
+        define_nyi(prim_name_str)
+
+def report_undefined_prims():
+    linklets = get_undef_prims_in(linklet_str)
+    kernel = get_undef_prims_in(kernel_str)
+    paramz = get_undef_prims_in(paramz_str)
+    unsafe = get_undef_prims_in(unsafe_str)
+    foreign = get_undef_prims_in(foreign_str)
+    futures = get_undef_prims_in(futures_str)
+    places = get_undef_prims_in(place_str)
+    flfxnum = get_undef_prims_in(flfxnum_str)
+    extfl = get_undef_prims_in(extfl_str)
+    network = get_undef_prims_in(network_str)
+
+    total = linklets + kernel + paramz + unsafe + foreign + futures + places + flfxnum + extfl + network
+
+    report = """
+    linklets   : %s -- %s
+    kernel     : %s -- %s
+    paramz     : %s -- %s
+    unsafe     : %s -- %s
+    foreign    : %s -- %s
+    futures    : %s -- %s
+    places     : %s -- %s
+    flfxnum    : %s -- %s
+    extfl      : %s -- %s
+    network    : %s -- %s
+    TOTAL      : %s
+    """ % (len(linklets), linklets,
+           len(kernel), kernel,
+           len(paramz), paramz,
+           len(unsafe), unsafe,
+           len(foreign), foreign,
+           len(futures), futures,
+           len(places), places,
+           len(flfxnum), flfxnum,
+           len(extfl), extfl,
+           len(network), network, len(total))
+
+    print(report)
+    return 0
+
+def get_undef_prims_in(table):
+    from pycket.prims.expose import prim_env
+    from pycket.values import W_Symbol, W_Prim
+    ls = []
+    for name in table:
+        p = prim_env[W_Symbol.make(name)]
+        if isinstance(p, W_Prim) and not p.is_implemented():
+            ls.append(name)
+    return ls

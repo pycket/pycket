@@ -375,17 +375,3 @@ def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):
                 from pycket import values
                 print "NOT YET IMPLEMENTED: %s" % name
                 return values.w_false
-
-def get_undefined_prims():
-    from pycket.prims.primitive_tables import all_prims
-    from pycket.values import W_Symbol
-
-    ls = []
-    for name in all_prims:
-        if W_Symbol.make(name) in prim_env:
-            print("%s in prim_env" % name)
-        elif W_Symbol.make(name) not in prim_env:
-            ls.append(name)
-        else:
-            raise Exception("what?")
-    return ls
