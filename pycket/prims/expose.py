@@ -4,6 +4,7 @@ from pycket.error import SchemeException
 from pycket.arity import Arity
 
 prim_env = {}
+prim_src = {} # str : (or 'linklet' 'rpython')
 
 SAFE = 0
 UNSAFE = 1
@@ -317,6 +318,7 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
             if sym in prim_env and prim_env[sym].is_implemented():
                 raise SchemeException("name %s already defined" % nam)
             prim_env[sym] = p
+            prim_src[sym.variable_name()] = 'rpython'
         func_arg_unwrap.w_prim = p
         return func_arg_unwrap
     return wrapper
@@ -358,6 +360,7 @@ def expose_val(name, w_v):
     if sym in prim_env and prim_env[sym].is_implemented():
         raise Error("name %s already defined" % name)
     prim_env[sym] = w_v
+    prim_src[sym.variable_name()] = 'rpython'
 
 def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):
     from pycket import values
@@ -372,3 +375,17 @@ def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):
                 from pycket import values
                 print "NOT YET IMPLEMENTED: %s" % name
                 return values.w_false
+
+def get_undefined_prims():
+    from pycket.prims.primitive_tables import all_prims
+    from pycket.values import W_Symbol
+
+    ls = []
+    for name in all_prims:
+        if W_Symbol.make(name) in prim_env:
+            print("%s in prim_env" % name)
+        elif W_Symbol.make(name) not in prim_env:
+            ls.append(name)
+        else:
+            raise Exception("what?")
+    return ls

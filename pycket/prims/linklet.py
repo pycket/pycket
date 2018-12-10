@@ -18,7 +18,7 @@ from pycket.values_string import W_String
 from pycket.values_parameter import top_level_config
 from pycket.error import SchemeException
 from pycket import pycket_json
-from pycket.prims.expose import prim_env, expose, default, expose_val
+from pycket.prims.expose import prim_env, expose, default, expose_val, prim_src
 from pycket.prims.general import make_pred
 from pycket.prims.correlated import W_Correlated
 from pycket.prims.vector import vector
@@ -110,6 +110,7 @@ class W_LinkletInstance(W_Object):
         for name, var in self.vars.iteritems():
             if name not in excludes:
                 prim_env[name] = var.get_value_direct()
+                prim_src[name.variable_name()] = 'linklet'
 
     def lookup_var_value(self, name):
         var = self.get_var(name)
