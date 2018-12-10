@@ -418,16 +418,16 @@ def looks_like_linklet(sexp):
         return False
     if sexp.car() is not linklet_sym:
         return False
-    if not isinstance(sexp.cdr() , values.W_Cons):
+    if not isinstance(sexp.cdr(), values.W_Cons):
         return False
-    if not isinstance(sexp.cdr().cdr() , values.W_Cons):
+    if not isinstance(sexp.cdr().cdr(), values.W_Cons):
         return False
 
     # check the imports/exports
     _imports = sexp.cdr().car()
     _exports = sexp.cdr().cdr().car()
     # FIXME : also check the imports and exports' inner structures
-    if not isinstance(_imports, values.W_Cons) or not isinstance(_exports, values.W_Cons):
+    if not isinstance(_imports, values.W_List) or not isinstance(_exports, values.W_List):
         return False
 
     return True
