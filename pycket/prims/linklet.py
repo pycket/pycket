@@ -769,21 +769,27 @@ def var_ref_from_unsafe_huh(varref):
     """
     return varref.is_unsafe()
 
-@expose("read-linklet-bundle-hash", [values.W_InputPort])
-def read_linklet_bundle_hash(in_port):
-    from pycket.util import console_log
-    from pycket.racket_entry import get_primitive
-    fasl_to_s_exp = get_primitive("fasl->s-exp")
-    with PerfRegion("fasl->s-exp"):
-        bundle_map = fasl_to_s_exp.call_interpret([in_port, values.w_true])
-    console_log("BUNDLE FASL->S-EXPR : %s" % bundle_map.tostring(), 7)
+@continuation
+def read_linklet_cont(env, cont, _vals):
+    from pycket.util import finish_perf_region
+    bundle_map = check_one_val(_vals)
+    finish_perf_region("fasl->s-exp")
     if not isinstance(bundle_map, W_HashTable):
         raise SchemeException("got something that is not a table: %s"%bundle_map.tostring())
     with PerfRegion("s-exp->ast"):
-        return deserialize_loop(bundle_map)
+        return return_value(deserialize_loop(bundle_map), env, cont)
 
-@expose("write-linklet-bundle-hash", [W_EqImmutableHashTable, values.W_OutputPort])
-def write_linklet_bundle_hash(ht, out_port):
+
+@expose("read-linklet-bundle-hash", [values.W_InputPort], simple=False)
+def read_linklet_bundle_hash(in_port, env, cont):
+    from pycket.util import console_log
+    from pycket.racket_entry import get_primitive
+    fasl_to_s_exp = get_primitive("fasl->s-exp")
+    with PerfRegionCPS("fasl->s-exp"):
+        return fasl_to_s_exp.call([in_port, values.w_true], env, read_linklet_cont(env, cont))
+
+@expose("write-linklet-bundle-hash", [W_EqImmutableHashTable, values.W_OutputPort], simple=False)
+def write_linklet_bundle_hash(ht, out_port, env, cont):
     from pycket.util import console_log
     from pycket.racket_entry import get_primitive
     console_log("BUNDLE AST TO BE SERIALIZED: %s" % ht.tostring(), 7)
@@ -804,5 +810,6 @@ def write_linklet_bundle_hash(ht, out_port):
     console_log("WRITING BUNDLE SEXP : %s" % bundle_s_exp.tostring(), 7)
 
     s_exp_to_fasl = get_primitive("s-exp->fasl")
-    with PerfRegion("s-exp->fasl"):
-        s_exp_to_fasl.call_interpret([bundle_s_exp, out_port, values.w_false])
+    with PerfRegionCPS("s-exp->fasl"):
+        return s_exp_to_fasl.call([bundle_s_exp, out_port, values.w_false], env,
+                                  finish_perf_region_cont("s-exp->fasl", env, cont))
