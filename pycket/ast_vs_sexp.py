@@ -411,6 +411,24 @@ dir_sym = values.W_Symbol.make(":D:")
 bundle_sym = values.W_Symbol.make(":B:")
 linklet_sym = values.W_Symbol.make("linklet")
 
+def looks_like_linklet(sexp):
+    # (linklet () () ...)
+    # we know the sexp is not w_null
+
+    # pre-check
+    ls = to_rpython_list(sexp)
+    if sexp.car() is not linklet_sym or len(ls) < 3:
+        return False
+
+    # check the imports/exports
+    _imports = sexp.cdr().car()
+    _exports = sexp.cdr().cdr().car()
+    # FIXME : also check the imports and exports' inner structures
+    if not isinstance(_imports, values.W_List) or not isinstance(_exports, values.W_List):
+        return False
+
+    return True
+
 def deserialize_loop(sexp):
     from pycket.prims.linklet import W_Linklet, W_LinkletBundle, W_LinkletDirectory
     from pycket.env import w_global_config
@@ -428,7 +446,7 @@ def deserialize_loop(sexp):
             util.console_log("bundle_sym", 8)
             bundle_map = sexp.cdr()
             return W_LinkletBundle(deserialize_loop(bundle_map))
-        elif c is linklet_sym:
+        elif looks_like_linklet(sexp):
             util.console_log("linklet_sym", 8)
             # Unify this with compile_linklet
             if isinstance(sexp.cdr().car(), values.W_List):
