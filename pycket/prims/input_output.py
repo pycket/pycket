@@ -1920,6 +1920,16 @@ def mock_prompt_thunk_worker(env, cont):
 def mock_current_prompt_read():
     return mock_prompt_thunk
 
+@expose("file-stream-buffer-mode", [values.W_Port, default(values.W_Object, None)])
+def file_stream_buffer_mode(p, mode):
+    # FIXME: doesn't actually do anything
+    if mode is None:
+        # getting
+        return values.w_false
+    else:
+        # setting
+        return values.w_void
+
 @expose("file-stream-port?", [values.W_Port])
 def file_stream_port_p(p):
     return values.W_Bool.make(isinstance(p, values.W_FileOutputPort) or
