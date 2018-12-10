@@ -467,3 +467,13 @@ def test_string_utf_8_length(doctest):
     > (string-utf-8-length (substring h 2 7))
     7
     """
+
+def test_bytes_utf_8_length(doctest):
+    """
+    > (bytes-utf-8-length (bytes 195 167 195 176 195 182 194 163))
+    4
+    > (bytes-length (bytes 195 167 195 176 195 182 194 163))
+    8
+    > (bytes-utf-8-length (make-bytes 5 65))
+    5
+    """

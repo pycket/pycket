@@ -357,7 +357,7 @@ def string_length(s1):
     return values.W_Fixnum(s1.length())
 
 @expose("string-utf-8-length", [W_String, default(values.W_Fixnum, values.W_Fixnum.ZERO), default(values.W_Fixnum, None)])
-def string_utf_8_length(w_str, w_start, w_end):
+def string_utf8_length(w_str, w_start, w_end):
     s_val = w_start.value
     e_val = w_end.value if w_end else w_str.length()
     if s_val == 0 and w_end is None:
@@ -368,6 +368,23 @@ def string_utf_8_length(w_str, w_start, w_end):
 
     sub_str_char_list = w_sub_str.as_charlist_utf8()
     return values.W_Fixnum(len(sub_str_char_list))
+
+@expose("bytes-utf-8-length", [values.W_Bytes,
+                               default(values.W_Object, values.w_false),
+                               default(values.W_Fixnum, values.W_Fixnum.ZERO),
+                               default(values.W_Fixnum, None)])
+def bytes_utf8_length(w_bstr, err_char, w_start, w_end):
+    assert err_char is values.w_false #:FIXME
+    s_val = w_start.value
+    e_val = w_end.value if w_end else w_bstr.length()
+    ls = w_bstr.as_str()
+    try:
+        decoded = ls.decode('utf-8')
+        assert s_val >= 0 and e_val <= w_bstr.length() and e_val >= 0
+        return values.W_Fixnum(len(decoded[s_val:e_val]))
+    except UnicodeDecodeError:
+        # FIXME : use err_char
+        return values.w_false
 
 @expose("string-copy", [W_String])
 def string_copy(s):
