@@ -61,9 +61,10 @@ def load_fasl(pycketconfig, debug):
 def load_regexp(pycketconfig, debug):
     load_bootstrap_linklet("regexp", pycketconfig, debug)
 
-def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False):
+def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False, do_load_regexp=False):
 
-    sys_config = load_regexp(pycketconfig, debug)
+    if do_load_regexp:
+        sys_config = load_regexp(pycketconfig, debug)
 
     if not dev_mode:
         sys_config = load_expander(pycketconfig, debug)
@@ -124,10 +125,10 @@ def dev_mode_entry():
     console_log(sexp_out.tostring(), 1)
     raise ExitException(sexp_out)
 
-def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False):
+def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False, do_load_regexp=False):
     from pycket.env import w_version
 
-    sysconfig = load_bootstrap_linklets(pycketconfig, debug, dev_mode=dev_mode)
+    sysconfig = load_bootstrap_linklets(pycketconfig, debug, dev_mode=dev_mode, do_load_regexp=do_load_regexp)
 
     if dev_mode:
         dev_mode_entry()
@@ -243,11 +244,10 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     linklet_perf.init()
 
-    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode = get_options(names, config)
-
+    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp = get_options(names, config)
 
     with PerfRegion("startup"):
-        initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, dev_mode=dev_mode)
+        initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, dev_mode=dev_mode, do_load_regexp=do_load_regexp)
 
     if just_init:
         return 0
@@ -408,6 +408,7 @@ def get_options(names, config):
     compile_any = config['compile-machine-independent']
     verbosity_lvl = int(names['verbosity_level'][0]) if debug else -1
     verbosity_keywords = names['verbosity_keywords'] if 'verbosity_keywords' in names else []
+    do_load_regexp = config['load-regexp']
 
     dev_mode = config['dev-mode']
 
@@ -451,4 +452,4 @@ dev-mode           : %s
 
     console_log(log_str, debug=debug)
 
-    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode
+    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode, do_load_regexp

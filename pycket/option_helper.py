@@ -46,6 +46,7 @@ def print_help(argv):
   --save-callgraph                   : save the jit output
 
  Meta options:
+  --load-regexp                      : Loads the regexp linklet
   --dev                              : Flag to be used in development, behavior depends
   --just-init                        : Ignore all parameters, initialize the bootstrap linklets and exit
   --verbose <level>                  : Print the debug logs. <level> : natural number (defaults to 0)
@@ -111,7 +112,8 @@ config = {
     'just-init' : False,
     'dev-mode' : False,
     'use-compiled' : True,
-    'compile-machine-independent' : False
+    'compile-machine-independent' : False,
+    'load-regexp' : False,
 }
 
 def add_name(names, name, val, replace=False):
@@ -363,6 +365,10 @@ def parse_args(argv):
 
         elif argv[i] == "--dev":
             config['dev-mode'] = True
+            retval = RETURN_OK
+
+        elif argv[i] == "--load-regexp":
+            config['load-regexp'] = True
             retval = RETURN_OK
 
         elif argv[i] == "--just-init":
