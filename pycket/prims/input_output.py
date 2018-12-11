@@ -837,7 +837,7 @@ def build_path(args):
     if not path:
         return ROOT
 
-    return values.W_Path(os.path.normpath(path))
+    return values.W_Path(path)
 
 @expose("simplify-path", [values.W_Object, default(values.W_Bool, values.w_false)])
 def simplify_path(path, use_filesystem):
