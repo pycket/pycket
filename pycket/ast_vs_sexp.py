@@ -423,9 +423,18 @@ def looks_like_linklet(sexp):
     if not isinstance(sexp.cdr().cdr(), values.W_Cons):
         return False
 
+    maybe_name = sexp.cdr().car()
+
+    named = isinstance(maybe_name, values.W_Symbol)
+    
+    if named and not isinstance(sexp.cdr().cdr().cdr(), values.W_Cons):
+        return False
+
+    rest = sexp.cdr() if (not named) else sexp.cdr().cdr()
+    
     # check the imports/exports
-    _imports = sexp.cdr().car()
-    _exports = sexp.cdr().cdr().car()
+    _imports = rest.car()
+    _exports = rest.cdr().car()
     # FIXME : also check the imports and exports' inner structures
     if not isinstance(_imports, values.W_List) or not isinstance(_exports, values.W_List):
         return False
