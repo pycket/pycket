@@ -367,31 +367,40 @@
   (check-eq? result 60))
 
 (test-case "closure capture and reset"
-  (define l1 (instantiate-linklet (compile-linklet '(linklet () (x) (define-values (x) 1))) null))
-  (define l2 (compile-linklet '(linklet ((x)) (y g) (define-values (y) 10) (define-values (g) (lambda (p) (+ x y))) (set! y 50))))
+  (define l2 (compile-linklet '(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))))
   (define t1 (empty-target))
   (define t2 (empty-target))
   (define t3 (empty-target))
-  (define _1 (instantiate-linklet l2 (list l1) t1))
-  (define _2 (instantiate-linklet l2 (list l1) t2))
-  (define _3 (instantiate-linklet l2 (list l1) t3))
+  (define _1 (instantiate-linklet l2 (list) t1))
+  (define _2 (instantiate-linklet l2 (list) t2))
+  (define _3 (instantiate-linklet l2 (list) t3))
 
-  ; t : {y:71, g:closure}
-  (define l3 (compile-linklet '(linklet () (y g) (set! y 200) (g -1))))
+  (check-eq? (instance-variable-value t1 'y) 50)
+  (check-eq? (instance-variable-value t2 'y) 50)
+  (check-eq? (instance-variable-value t3 'y) 50)
+
+  (define l3 (compile-linklet '(linklet () (y g) (set! y 300) (g))))
   (define result1 (instantiate-linklet l3 null t1))
-  (check-eq? result1 201)
-  (check-eq? (instance-variable-value t1 'y) 200)
+  (check-eq? result1 300)
 
-  ; t2 : {y:71, g:closure}
-  (define l4 (compile-linklet '(linklet () (y g) (set! y 200) (define-values (y) 90) (g -1))))
+  (check-eq? (instance-variable-value t1 'y) 300)
+  (check-eq? (instance-variable-value t2 'y) 50)
+  (check-eq? (instance-variable-value t3 'y) 50)
+
+  (define l4 (compile-linklet '(linklet () (y g) (set! y 200) (define-values (y) 90) (g))))
   (define result2 (instantiate-linklet l4 null t2))
-  (check-eq? result2 91)
-  (check-eq? (instance-variable-value t2 'y) 90)
+  (check-eq? result2 90)
 
-  ; t3 : {y:71, g:closure}
-  (define l5 (compile-linklet '(linklet () (g) (define-values (y) 90) (+ y (g -1)))))
+  (check-eq? (instance-variable-value t1 'y) 300)
+  (check-eq? (instance-variable-value t2 'y) 90)
+  (check-eq? (instance-variable-value t3 'y) 50)
+
+  (define l5 (compile-linklet '(linklet () (g) (define-values (y) 90) (+ y (g)))))
   (define result3 (instantiate-linklet l5 null t3))
-  (check-eq? result3 141)
+  (check-eq? result3 140)
+
+  (check-eq? (instance-variable-value t1 'y) 300)
+  (check-eq? (instance-variable-value t2 'y) 90)
   (check-eq? (instance-variable-value t3 'y) 50))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

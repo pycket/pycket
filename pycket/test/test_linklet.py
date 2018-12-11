@@ -273,8 +273,7 @@ def test_instantiate_set_bang():
     assert check_val(t, "x", 5)
     assert result == 10
 
-@pytest.mark.linkl
-def test_instantiate_closure_capture_and_reset():
+def test_instantiate_closure_capture_and_reset1():
     l1 = make_instance("(linklet () (x) (define-values (x) -1))")
     l2 = make_instance("(linklet ((x)) (g) (define-values (g) (lambda (p) x)))", [l1])
     l3 = make_linklet("(linklet ((g)) (x) (set! x 5) (g 1000))")
@@ -283,39 +282,47 @@ def test_instantiate_closure_capture_and_reset():
     assert check_val(t, "x", 5)
     assert result == -1
 
+def test_instantiate_closure_capture_and_reset2():
     l1 = make_instance("(linklet () (x) (define-values (x) -11))")
     l2 = make_instance("(linklet ((x)) (g) (define-values (y) 131) (define-values (g) (lambda (p) (+ x y))) (set! y 71))", [l1])
     l3 = make_linklet("(linklet ((g)) () (g -1))")
     result, t = eval_fixnum(l3, empty_target(), [l2])
     assert result == 60
 
-    l1 = make_instance("(linklet () (x) (define-values (x) 1))", l_name="l1")
-    l2 = make_linklet("(linklet ((x)) (y g) (define-values (y) 10) (define-values (g) (lambda (p) (+ x y))) (set! y 50))", "l2")
+def test_instantiate_closure_capture_and_reset():
+    l2 = make_linklet("(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))", "l2")
     t1 = empty_target("t1")
     t2 = empty_target("t2")
     t3 = empty_target("t3")
-    _, t1 = eval_fixnum(l2, t1, [l1])
-    _, t2 = eval_fixnum(l2, t2, [l1])
-    _, t3 = eval_fixnum(l2, t3, [l1])
 
-    # at this point:
-    # t : {y:50, g:closure}
-    l3 = make_linklet("(linklet () (y g) (set! y 200) (g -1))", "l3")
+    _, t1 = eval_fixnum(l2, t1, [])
+    _, t2 = eval_fixnum(l2, t2, [])
+    _, t3 = eval_fixnum(l2, t3, [])
+
+    assert check_val(t1, "y", 50)
+    assert check_val(t2, "y", 50)
+    assert check_val(t3, "y", 50)
+
+    l3 = make_linklet("(linklet () (y g) (set! y 300) (g))", "l3")
     result, t1 = eval_fixnum(l3, t1)
-    assert result == 201 # result1530
+    assert result == 300
     # here's an interesting one:
-    assert check_val(t1, "y", 200)
+    assert check_val(t1, "y", 300)
+    assert check_val(t2, "y", 50)
+    assert check_val(t3, "y", 50)
 
-    # t2 : {y:50, g:closure}
-    l4 = make_linklet("(linklet () (y g) (set! y 200) (define-values (y) 90) (g -1))", "l4")
+    l4 = make_linklet("(linklet () (y g) (set! y 200) (define-values (y) 90) (g))", "l4")
     result, t2 = eval_fixnum(l4, t2)
-    assert result == 91 # racket - result1531
+    assert result == 90
+    assert check_val(t1, "y", 300)
     assert check_val(t2, "y", 90)
+    assert check_val(t3, "y", 50)
 
-    # t3 : {y:50, g:closure}
-    l5 = make_linklet("(linklet () (g) (define-values (y) 90) (+ y (g -1)))", "l5")
+    l5 = make_linklet("(linklet () (g) (define-values (y) 90) (+ y (g)))", "l5")
     result, t3 = eval_fixnum(l5, t3)
-    assert result == 141 # racket - result1532
+    assert result == 140
+    assert check_val(t1, "y", 300)
+    assert check_val(t2, "y", 90)
     assert check_val(t3, "y", 50)
 
 @pytest.mark.linkl
