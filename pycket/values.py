@@ -62,8 +62,8 @@ class Values(W_ProtoObject):
             return vals[0].tostring()
         if len(vals) == 0:
             return "(values)"
-        else: #fixme
-            return "MULTIPLE VALUES"
+        else: # This shouldn't be called in real code
+            return "\n".join([v.tostring() for v in vals])
 
 
 class W_Cell(W_Object): # not the same as Racket's box
