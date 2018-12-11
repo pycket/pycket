@@ -36,13 +36,16 @@ instantiate_linklet = get_primitive("instantiate-linklet")
 
 # This is where all the work happens
 
-if pytest.config.load_expander:
-    # get the expander
-    print("Loading and initializing the expander")
-    initiate_boot_sequence(None, [], False)
-    # load the '#%kernel
-    print("(namespace-require '#%%kernel)")
-    namespace_require_kernel(None)
+try:
+    if pytest.config.load_expander:
+        # get the expander
+        print("Loading and initializing the expander")
+        initiate_boot_sequence(None, [], False)
+        # load the '#%kernel
+        print("(namespace-require '#%%kernel)")
+        namespace_require_kernel(None)
+except:
+    pass
 
 def run_sexp(body_sexp_str, v=None, just_return=False, extra="", equal_huh=False, expect_to_fail=False):
     linkl_str = "(linklet () () %s %s)" % (extra, body_sexp_str)
@@ -371,3 +374,14 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
         assert 0, u"%s is %s, which is different from %s" % (
             pairs_of_equal_stuff[res.value * 2], wrong.tostring(),
             pairs_of_equal_stuff[res.value * 2 + 1])
+
+def dumb_repl():
+    import sys
+    print "Simple repl. One expression per line. Run inside an empty linklet."
+    while True:
+        print "linklet> ",
+        line = sys.stdin.readline()
+        if not line:
+            break
+        result = run_sexp(line, just_return=True)
+        print result.tostring()
