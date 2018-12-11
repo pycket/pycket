@@ -9,13 +9,11 @@ from pycket.prims.linklet import W_LinkletInstance, w_uninitialized
 from pycket.test.testhelper import (make_linklet, inst, get_val, defines, variables, get_var_val, eval_fixnum, eval_bool, empty_target, make_instance, check_val)
 
 
-@pytest.mark.linkl
 def test_instantiate_basic():
     l = make_instance("(linklet () (x) (define-values (x) 4))")
     assert isinstance(l, W_LinkletInstance)
     assert check_val(l, "x", 4)
 
-@pytest.mark.linkl
 def test_instantiate_target():
     l = make_linklet("(linklet () (x) (define-values (x) 4) (+ x x))")
     result, t = eval_fixnum(l, empty_target())
@@ -28,7 +26,6 @@ def test_instantiate_target():
     assert result2 == 8
     assert check_val(t2, "x", 4)
 
-@pytest.mark.linkl
 def test_instantiate_target_transfer_set_banged():
     l2 = make_linklet("(linklet () (y) (define-values (y) 10) (set! y 50))", "l2")
     t1 = empty_target("t1")
@@ -37,7 +34,6 @@ def test_instantiate_target_transfer_set_banged():
     _, t2 = eval_fixnum(l2, t2, [])
     assert check_val(t2, "y", 50)
 
-@pytest.mark.linkl
 def test_instantiate_target_def_overwrite():
     l = make_linklet("(linklet () (x) (define-values (x) 4) (+ x x))")
     t = make_instance("(linklet () () (define-values (x) 1) (define-values (y) 2))")
@@ -46,7 +42,6 @@ def test_instantiate_target_def_overwrite():
     assert check_val(t, "x", 4)
     assert check_val(t, "y", 2)
 
-@pytest.mark.linkl
 def test_instantiate_target_always_overwrite():
     # if target doesn't have it, then it doesn't matter if linklet exports or not,
     # put the variable in the target
@@ -55,7 +50,6 @@ def test_instantiate_target_always_overwrite():
     assert result == 4
     assert check_val(t, "z", 4)
 
-@pytest.mark.linkl
 def test_instantiate_target_def_stays_the_same():
     # if linklet doesn't export, then target's def stay the same
     l = make_linklet("(linklet () () (define-values (x) 4) (+ x x))")
@@ -90,7 +84,6 @@ def test_instantiate_target_def_stays_the_same():
     assert result == 8
     assert check_val(t, "x", 1)
 
-@pytest.mark.linkl
 def test_instantiate_defs_export_names():
     l = make_instance("(linklet () ((x x15)) (define-values (x) 4))")
     assert not defines(l, "x")
@@ -103,7 +96,6 @@ def test_instantiate_defs_export_names():
     assert not defines(t, "x")
     assert defines(t, "x15")
 
-@pytest.mark.linkl
 def test_instantiate_discarding_defs():
     l = make_instance("(linklet () ((x x15)) (define-values (x) 4) (define-values (x15) 75))")
     assert not defines(l, "x")
@@ -118,7 +110,6 @@ def test_instantiate_discarding_defs():
     k,v = get_var_val(l, "x15.1")
     assert v.value == 75
 
-@pytest.mark.linklh
 def test_instantiate_use_targets_def():
     l = make_linklet("(linklet () (x) (+ x x))")
     t = make_instance("(linklet () () (define-values (x) 10))")
@@ -132,7 +123,6 @@ def test_instantiate_use_targets_def():
     assert result == 8
     assert check_val(t, "x", 10)
 
-@pytest.mark.linkl
 def test_instantiate_basic_import():
     l1 = make_instance("(linklet () (x) (define-values (x) 4))")
     l2 = make_linklet("(linklet ((x)) () (+ x x))")
@@ -173,7 +163,6 @@ def test_instantiate_basic_import():
     assert check_val(t, "x", 1000)
     assert check_val(t, "x2", 2000)
 
-@pytest.mark.linkl
 def test_instantiate_basic_export():
     l1 = make_instance("(linklet () (a) (define-values (a) 4))")
     l2 = make_linklet("(linklet ((a)) () (+ a a))")
@@ -185,7 +174,6 @@ def test_instantiate_basic_export():
     result, _ = eval_fixnum(l2, empty_target(), [l1])
     assert result == 8
 
-@pytest.mark.linkl
 def test_instantiate_uninitialize_undefined_exports():
     l = make_linklet("(linklet () (x))")
     _, t = eval_fixnum(l, empty_target())
@@ -205,7 +193,6 @@ def test_instantiate_uninitialize_undefined_exports():
     assert check_val(t, "x2", 10)
     assert not defines(t, "x")
 
-@pytest.mark.linkl
 def test_instantiate_export_rename():
     l1 = make_instance("(linklet () ((x1 x)) (define-values (x1) 4))")
     l2 = make_linklet("(linklet ((x)) ((y1 y)) (define-values (y1) x) (+ x y1))")
@@ -215,7 +202,6 @@ def test_instantiate_export_rename():
     assert check_val(t, "y", 4)
     assert not defines(t, "x")
 
-@pytest.mark.linkl
 def test_instantiate_import_rename():
     l1 = make_instance("(linklet () (x) (define-values (x) 4))")
     l2 = make_instance("(linklet () (x) (define-values (x) 10))")
@@ -223,7 +209,6 @@ def test_instantiate_import_rename():
     result, _ = eval_fixnum(l3, empty_target(), [l1,l2])
     assert result == 14
 
-@pytest.mark.linkl
 def test_instantiate_eval_define_values():
     l = make_linklet("(linklet () ((x x15)) (define-values (x) 4) (+ x x))")
     t = make_instance("(linklet () ((x x16)) (define-values (x) 1000))")
@@ -232,7 +217,6 @@ def test_instantiate_eval_define_values():
     assert check_val(t, "x15", 4)
     assert check_val(t, "x16", 1000)
 
-@pytest.mark.linkl
 def test_instantiate_closures_and_variables():
     l1 = make_instance("(linklet () (x) (define-values (x) 4))")
     l2 = make_linklet("(linklet ((x)) (g) (define-values (g) (lambda (y) x)))")
@@ -251,14 +235,12 @@ def test_instantiate_closures_and_variables():
     result, _ = eval_fixnum(l4, empty_target(), [l2])
     assert result == 4
 
-@pytest.mark.linkl
 def test_instantiate_cannot_mutate_imported():
     # mutating an imported variable is a *compilation* error
     with pytest.raises(SchemeException) as e:
         make_linklet("(linklet ((x)) () (set! x 5) (+ x x))")
     assert "cannot mutate imported variable" in str(e.value)
 
-@pytest.mark.linkl
 def test_instantiate_set_bang():
     l = make_linklet("(linklet () () (define-values (x) 3) (set! x 5) (+ x x))")
     t = make_instance("(linklet () () (define-values (x) 6))")
@@ -325,7 +307,6 @@ def test_instantiate_closure_capture_and_reset():
     assert check_val(t2, "y", 90)
     assert check_val(t3, "y", 50)
 
-@pytest.mark.linkl
 def test_instantiate_small_list():
     # boxed immutable hash table (small-list.rkt)
     l1 = make_instance("(linklet () (h) (define-values (h) (box (hasheq))))")
@@ -335,7 +316,6 @@ def test_instantiate_small_list():
     result, _ = eval_fixnum(make_linklet("(linklet ((h)) () (hash-ref (unbox h) \"a\" #f))"), t, [l1])
     assert result == 5
 
-@pytest.mark.linkl
 def test_instantiate_hashes():
     l1 = make_instance("(linklet () (h) (define-values (h) (hasheq \"a\" 4 \"b\" 5)))")
     l2 = make_linklet("(linklet ((h)) (h2) (define-values (h2) (hash-copy h)) (hash-ref h2 \"b\"))")
@@ -380,7 +360,6 @@ def test_instantiate_hashes():
     result, _ = eval_fixnum(l12, t)
     assert result == -1
 
-@pytest.mark.linkl
 def test_instantiate_lets_and_scopes():
     l = make_linklet("(linklet () () (letrec-values (((fact) (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))) (fact 5)))")
     result, _ = eval_fixnum(l, empty_target())
@@ -399,7 +378,6 @@ def test_instantiate_lets_and_scopes():
     result, _ = eval_fixnum(l, empty_target())
     assert result == 8
 
-@pytest.mark.linkl
 def test_instantiate_letrec_rhs_cells():
     l1 = make_linklet("(linklet () () (define-values (k) (lambda (stx_32) (letrec-values (((e) 1)((x) (+ stx_32 e))) x))) (k 5))")
     result1, _ = eval_fixnum(l1, empty_target())
@@ -429,7 +407,6 @@ def test_compilation_context_normalize_term():
     assert result == 56
 
 
-@pytest.mark.marks
 def test_continuation_marks_across_linklets():
     l1 = make_instance("""(linklet () (f)
                             (define-values (f)
@@ -466,7 +443,6 @@ def test_continuation_marks_across_linklets():
     assert result == 1
 
 
-@pytest.mark.linkl
 def test_make_prefab_predicate():
     l = """
 (linklet
@@ -499,7 +475,6 @@ def test_make_prefab_predicate():
     r, t = eval_bool(make_linklet(l), empty_target())
     assert r
 
-@pytest.mark.linkl
 def test_make_prefab_predicate2():
     l2 = """
 (linklet
