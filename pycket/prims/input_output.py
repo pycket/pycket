@@ -744,8 +744,11 @@ def _explode_element(s):
 def explode_path(w_path):
     sep = os.sep
     path = extract_path(w_path)
-    parts = [_explode_element(p) for p in path.split(sep)]
-    return values.to_list(parts)
+    parts = [_explode_element(p) for p in path.split(sep) if p]
+    if path[0] == sep:
+        return values.W_Cons.make(SEP, values.to_list(parts))
+    else:
+        return values.to_list(parts)
 
 def _strip_path_seps(path):
     i = len(path)
@@ -815,15 +818,12 @@ def build_path(args):
     # Sorry again Windows
     if not args:
         raise ArityException("build-path: expected at least 1 argument")
-    normalize_on = True
     result = [None] * len(args)
     for i, s in enumerate(args):
         if s is UP:
             part = ".."
-            normalize_on = False
         elif s is SAME:
             part = "."
-            normalize_on = False
         else:
             part = extract_path(s)
         if not part:
@@ -837,9 +837,7 @@ def build_path(args):
     if not path:
         return ROOT
 
-    if normalize_on:
-        path = os.path.normpath(os.path.sep.join(result))
-    return values.W_Path(path)
+    return values.W_Path(os.path.normpath(path))
 
 @expose("simplify-path", [values.W_Object, default(values.W_Bool, values.w_false)])
 def simplify_path(path, use_filesystem):

@@ -867,15 +867,20 @@ def test_path_to_complete_path():
     assert full == p.path
 
 def test_explode_path(doctest):
+    # we use kernel's map to save loading
     """
-    ! (require racket/base)
-    ! (define (unpath p) (if (path? p) (path->string p) p))
+    ! (require '#%kernel)
+    ! (define-values (unpath) (lambda (p) (if (path? p) (path->string p) p)))
     > (map path->string (explode-path "/home/spenser/src/pycket"))
     '("/" "home" "spenser" "src" "pycket")
     > (map unpath (explode-path "/home/spenser/src/pycket/.././."))
     '("/" "home" "spenser" "src" "pycket" up same same)
     > (map unpath (explode-path "home/spenser/src/pycket/.././."))
     '("home" "spenser" "src" "pycket" up same same)
+    > (map unpath (explode-path "a//b"))
+    '("a" "b")
+    > (map unpath (explode-path "a//"))
+    '("a")
     """
     assert doctest
 
