@@ -1183,6 +1183,9 @@ def test_split_path(doctest):
     (string->path "etc")
     > must-be-dir10
     #t
+    > (let-values ([(a b c) (split-path (build-path "b" (quote up)))])
+        (list (path->string a) b c))
+    '("b/" up #t)
     """
 
 def test_fail_user_simple(doctest):

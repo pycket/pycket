@@ -799,6 +799,9 @@ def _split_path(path):
         else:
             name = values.W_Path(dirname + os.path.sep)
         must_be_dir = values.w_true
+    elif basename == ".." or basename == ".":
+        base = values.W_Path(dirname + os.path.sep)
+        must_be_dir = values.w_true
     else:
         base = values.W_Path(dirname + os.path.sep)
         must_be_dir = values.w_false
