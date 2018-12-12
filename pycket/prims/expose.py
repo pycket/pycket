@@ -271,7 +271,7 @@ def make_remove_extra_info(func):
     remove_extra_info.__name__ += func.__name__
     return remove_extra_info
 
-def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False):
+def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, only_old=False):
     """
     n:          names that the function should be exposed under
     argstypes:  if None, the list of args is passed directly to the function
@@ -285,9 +285,19 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
                 do with it is to pass it into a w_value.call_with_extra_info as
                 the last argument. This will ensure that the call graph
                 information stays correct.
+    only_old:   this only should be exposed for old pycket
     """
     def wrapper(func):
         from pycket import values
+        from pycket.env import w_global_config
+        if only_old and w_global_config.are_we_in_linklet_mode() or w_global_config.is_expander_loaded():
+            def func_arg_unwrap(*args):
+                raise SchemeException("never called in new pycket")
+            func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
+            p = values.W_Prim("never called", func_result_handling)
+            func_arg_unwrap.w_prim = p
+            return func_arg_unwrap
+
         names = [n] if isinstance(n, str) else n
         name = names[0]
         if extra_info:
@@ -354,8 +364,13 @@ def make_callable_label(argstypes=None, arity=None, name="<label>"):
     return wrapper
 
 
-def expose_val(name, w_v):
+def expose_val(name, w_v, only_old=False):
     from pycket import values
+    from pycket.env import w_global_config
+
+    if only_old and w_global_config.are_we_in_linklet_mode() or w_global_config.is_expander_loaded():
+        return 
+
     sym = values.W_Symbol.make(name)
     if sym in prim_env and prim_env[sym].is_implemented():
         raise Error("name %s already defined" % name)

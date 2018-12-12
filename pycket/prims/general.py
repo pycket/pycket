@@ -243,15 +243,15 @@ def true_object_huh(val):
 def procedurep(n):
     return values.W_Bool.make(n.iscallable())
 
-@expose("syntax-original?", [values.W_Object])
+@expose("syntax-original?", [values.W_Object], only_old=True)
 def syntax_original(v):
     return values.w_false
 
-@expose("syntax-tainted?", [values.W_Object])
+@expose("syntax-tainted?", [values.W_Object], only_old=True)
 def syntax_tainted(v):
     return values.w_false
 
-@expose("syntax-source-module", [values.W_Object, default(values.W_Object, values.w_false)])
+@expose("syntax-source-module", [values.W_Object, default(values.W_Object, values.w_false)], only_old=True)
 def syntax_source_module(stx, src):
     # XXX Obviously not correct
     return values.W_ResolvedModulePath(values.W_Symbol.make("fake symbol"))
@@ -293,9 +293,9 @@ expose_val("prop:custom-write", values_struct.w_prop_custom_write)
 expose_val("prop:equal+hash", values_struct.w_prop_equal_hash)
 expose_val("prop:chaperone-unsafe-undefined",
            values_struct.w_prop_chaperone_unsafe_undefined)
-expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer)
-expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
-expose_val("prop:expansion-contexts", values_struct.w_prop_expansion_contexts)
+expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer, only_old=True)
+expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer, only_old=True)
+expose_val("prop:expansion-contexts", values_struct.w_prop_expansion_contexts, only_old=True)
 expose_val("prop:output-port", values_struct.w_prop_output_port)
 expose_val("prop:input-port", values_struct.w_prop_input_port)
 
@@ -474,7 +474,7 @@ def unsafe_make_place_local(p, env, cont):
 def unsafe_make_place_local(p, v, env, cont):
     return p.set_box(v, env, cont)
 
-@expose("set!-transformer?", [values.W_Object])
+@expose("set!-transformer?", [values.W_Object], only_old=True)
 def set_bang_transformer(v):
     if isinstance(v, values.W_AssignmentTransformer):
         return values.w_true
@@ -746,28 +746,28 @@ def varref_const(varref, env, cont):
                         env, cont)
 
 @expose("variable-reference->resolved-module-path",
-        [values.W_VariableReference])
+        [values.W_VariableReference], only_old=True)
 def varref_rmp(varref):
     return values.W_ResolvedModulePath(values.W_Path(varref.varref.path))
 
-@expose("variable-reference->module-source",  [values.W_VariableReference])
+@expose("variable-reference->module-source",  [values.W_VariableReference], only_old=True)
 def varref_ms(varref):
     # FIXME: not implemented
     return values.W_Symbol.make("dummy_module")
 
-@expose("variable-reference->module-path-index", [values.W_VariableReference])
+@expose("variable-reference->module-path-index", [values.W_VariableReference], only_old=True)
 def varref_to_mpi(ref):
     from pycket.interpreter import ModuleVar
     if not isinstance(ref, ModuleVar):
         return values.w_false
     return values.W_ModulePathIndex()
 
-@expose("variable-reference->module-base-phase", [values.W_VariableReference])
+@expose("variable-reference->module-base-phase", [values.W_VariableReference], only_old=True)
 def varref_to_mbp(ref):
     # XXX Obviously not correct
     return values.W_Fixnum.ZERO
 
-@expose("resolved-module-path-name", [values.W_ResolvedModulePath])
+@expose("resolved-module-path-name", [values.W_ResolvedModulePath], only_old=True)
 def rmp_name(rmp):
     return rmp.name
 
@@ -788,7 +788,7 @@ def is_module_path(v):
     # FIXME
     return False
 
-@expose("module-path?", [values.W_Object])
+@expose("module-path?", [values.W_Object], only_old=True)
 def module_pathp(v):
     return values.W_Bool.make(is_module_path(v))
 
@@ -1564,19 +1564,19 @@ def find_main_collects():
     return values.w_false
 
 @expose("module-path-index-join",
-        [values.W_Object, values.W_Object, default(values.W_Object, None)])
+        [values.W_Object, values.W_Object, default(values.W_Object, None)], only_old=True)
 def mpi_join(a, b, c):
     return values.W_ModulePathIndex()
 
 @expose("module-path-index-resolve",
-        [values.W_ModulePathIndex])
+        [values.W_ModulePathIndex], only_old=True)
 def mpi_resolve(a):
     return values.W_ResolvedModulePath(values.W_Path("."))
 
 # Loading
 
 # FIXME: Proper semantics.
-@expose("load", [values_string.W_String], simple=False)
+@expose("load", [values_string.W_String], simple=False, only_old=True)
 def load(lib, env, cont):
     from pycket.expand import ensure_json_ast_run
     lib_name = lib.tostring()
@@ -1912,12 +1912,12 @@ def cache_configuration(index, proc, env, cont):
 
     return proc.call([], env, thunk_cont(index, env, cont))
 
-@expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure])
+@expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure], only_old=True)
 def make_readtable(parent, char, sym, proc):
     print "making readtable", [parent, char, sym, proc]
     return values.W_ReadTable(parent, char, sym, proc)
 
-@expose("read/recursive")
+@expose("read/recursive", only_old=True)
 def read_recursive(args):
     return values.w_false
 
@@ -1932,7 +1932,7 @@ def make_stub_predicates(*names):
         predicate.__name__ = "stub_predicate(%s)" % name
 
 def make_stub_predicates_no_linklet(*names):
-    if not w_global_config.are_we_in_linklet_mode() or not w_global_config.is_expander_loaded():
+    if not w_global_config.are_we_in_linklet_mode() and not w_global_config.is_expander_loaded():
         make_stub_predicates(*names)
 
 make_stub_predicates_no_linklet(
