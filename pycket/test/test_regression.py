@@ -113,3 +113,16 @@ class TestRegressions(object):
             run_mod("""#lang racket/base
             (struct x ()) (x 2)""")
 
+
+
+    def test_paramz_guard(self, doctest):
+        """
+        ! (define-values (b) (box 0))
+        ! (define-values (p) (make-parameter 0 (lambda (n) (set-box! b n) n)))
+        > (p 5)
+        > (unbox b)
+        5
+        > (parameterize ([p 6]) (unbox b))
+        6
+        """
+        assert doctest
