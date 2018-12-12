@@ -790,7 +790,8 @@ put the usual application-rands to the operands
        (begin
          1#;(displayln (format "TOPLEVEL id : ~a --- linklet? : ~a --- importss : ~a" toplevel-id linklet? importss))
        (if linklet?
-           (hash* 'source-name toplevel-id-str
+           (hash* 'source-linklet toplevel-id-str)
+           #;(hash* 'source-name toplevel-id-str
                   'source-linklet
                   (let ([import-instance-number (find-import-instance-of toplevel-id importss 0)])
                     (if (< import-instance-number 0)

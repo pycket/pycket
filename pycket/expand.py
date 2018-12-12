@@ -613,7 +613,10 @@ class JsonLoader(object):
             if ast_elem == "set!":
                 target = arr[1].value_object()
                 var = None
-                if "source-name" in target:
+                if "source-linklet" in target:
+                    srcname = mksym(target["source-linklet"].value_string())
+                    var = LinkletVar(srcname, defined=True)
+                elif "source-name" in target:
                     srcname = mksym(target["source-name"].value_string())
                     if "source-module" in target:
                         if target["source-module"].is_array:
@@ -624,18 +627,12 @@ class JsonLoader(object):
 
                         modname = mksym(target["module"].value_string()) if "module" in target else srcname
                         var = ModuleVar(modname, srcmod, srcname, path)
-
-                    elif "source-linklet" in target:
-                        source = target["source-linklet"].value_object()["quote"].value_object()
-                        var = LinkletVar(srcname, is_transparent=True)
                     else:
                         srcmod = "#%kernel"
                         path   = None
 
                         modname = mksym(target["module"].value_string()) if "module" in target else srcname
                         var = ModuleVar(modname, srcmod, srcname, path)
-
-
                 elif "lexical" in target:
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 else:
@@ -723,15 +720,15 @@ class JsonLoader(object):
                 return Quote(to_value(obj["quote"]))
             if "quote-syntax" in obj:
                 return QuoteSyntax(to_value(obj["quote-syntax"]))
+            if "source-linklet" in obj:
+                srcsym = mksym(obj["source-linklet"].value_string())
+                return LinkletVar(srcsym, defined=True)
             if "source-name" in obj:
                 srcname = obj["source-name"].value_string()
                 modname = obj["module"].value_string() if "module" in obj else None
                 srcsym = mksym(srcname)
                 modsym = mksym(modname) if modname else srcsym
-                if "source-linklet" in obj:
-                    source = obj["source-linklet"].value_object()["quote"].value_object()
-                    return LinkletVar(srcsym, is_transparent=True)
-                elif "source-module" in obj:
+                if "source-module" in obj:
                     if obj["source-module"].is_array:
                         path_arr = obj["source-module"].value_array()
                         srcmod, path = parse_path(path_arr)
