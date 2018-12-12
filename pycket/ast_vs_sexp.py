@@ -238,11 +238,11 @@ def is_val_type(form, extra=[]):
     return False
 
 def is_imported(id_sym, linkl_importss):
-    for imports_dict in linkl_importss:
+    for imp_index, imports_dict in enumerate(linkl_importss):
         for ext_id, int_id in imports_dict.iteritems():
             if id_sym is int_id:
-                return True
-    return False
+                return imp_index
+    return -1
 
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
 
@@ -252,19 +252,20 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
     elif is_val_type(form):
         form = interp.Quote(form)
     elif isinstance(form, values.W_Symbol):
-
-        if form in cell_ref:
+        imp_index = is_imported(form, linkl_importss)
+        if imp_index >= 0:
+            form = interp.LinkletVar(form, None, values.W_Symbol.make("constant"), import_source=imp_index)
+        elif form in cell_ref:
             form = interp.CellRef(form)
         elif form in lex_env:
             form = interp.LexicalVar(form)
-        # toplevel linklet var
-        elif is_imported(form, linkl_importss):
-            form = interp.LinkletVar(form, None, values.W_Symbol.make("constant"), is_transparent=True)
         elif (form in linkl_toplevels) or (form in exports):
             if form in linkl_toplevels:
+                # defined toplevel linklet var
                 form = linkl_toplevels[form]
             else:
-                form = interp.LinkletVar(form, is_transparent=True)
+                # exported uninitialized linklet var
+                form = interp.LinkletVar(form, exp_uninit=True)
         else:
             # kernel primitive ModuleVar
             form = interp.ModuleVar(form, "#%kernel", form, None)
@@ -355,7 +356,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
         elif form.car() is values.W_Symbol.make("letrec-values"):
             form = let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, True, cell_ref)
         elif form.car() is values.W_Symbol.make("set!"):
-            if is_imported(form.cdr().car(), linkl_importss):
+            if is_imported(form.cdr().car(), linkl_importss) != -1:
                 raise SchemeException("cannot mutate imported variable : %s" % form.tostring())
             cr = cell_ref
             target = form.cdr().car()
@@ -403,7 +404,7 @@ def create_toplevel_linklet_vars(forms_ls):
                 id = id_.get_obj() if isinstance(id_, W_Correlated) else id_
                 if id in linkl_toplevels:
                     raise SchemeException("duplicate binding name : %s" % id.tostring())
-                linkl_toplevels[id] = interp.LinkletVar(id, is_transparent=True)
+                linkl_toplevels[id] = interp.LinkletVar(id, defined=True)
 
     return linkl_toplevels
 
