@@ -1,5 +1,6 @@
 
 from pycket                 import values
+from pycket.cont            import call_cont, continuation, BaseCont
 from pycket                 import values_parameter
 from pycket                 import vector
 from pycket.argument_parser import ArgParser
@@ -23,9 +24,10 @@ def make_parameter(init, guard):
 def make_derived_parameter(param, guard, wrap):
     return values_parameter.W_DerivedParameter(param, guard, wrap)
 
-@expose("extend-parameterization", arity=Arity.geq(1))
+@expose("extend-parameterization", arity=Arity.geq(1), simple=False)
 @jit.unroll_safe
-def scheme_extend_parameterization(args):
+def scheme_extend_parameterization(args, env, cont):
+    from pycket.interpreter import return_value
     if len(args) == 0:
         raise SchemeException("extend-parameterization: expected 1 or more arguments")
 
@@ -33,15 +35,20 @@ def scheme_extend_parameterization(args):
     argc = len(args)
 
     if argc < 2 or argc % 2 != 1: # or not isinstance(config, values_parameter.W_Parameterization):
-        return config
+        return return_value(config, env, cont)
+
 
     parser = ArgParser("extend-parameterization", args, start_at=1)
+    params = [None]*((argc-1)/2)
+    keys = [None]*((argc-1)/2)
+    i = 0
     while parser.has_more():
-        param  = parser.expect(values_parameter.W_BaseParameter)
-        key    = parser.expect(values.W_Object)
-        config = config.extend([param], [key])
+        params[i]  = parser.expect(values_parameter.W_BaseParameter)
+        keys[i]    = parser.expect(values.W_Object)
+        i += 1
 
-    return config
+    assert isinstance(config, values_parameter.W_Parameterization)
+    return config.extend(params, keys, env, cont)
 
 def call_with_parameterization(f, args, paramz, env, cont):
     cont.update_cm(values.parameterization_key, paramz)
@@ -52,13 +59,18 @@ def call_with_parameterization(f, args, paramz, env, cont):
 def call_w_paramz(paramz, f, env, cont):
     return call_with_parameterization(f, [], paramz, env, cont)
 
+@continuation
+def call_with_paramz_cont(f, args, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    paramz  = check_one_val(_vals)
+    return call_with_parameterization(f, args, paramz, env, cont)
+
+# only used in input_output.py
 def call_with_extended_paramz(f, args, keys, vals, env, cont):
     from pycket.values import parameterization_key
-    # XXX seems untested?
     paramz = cont.get_mark_first(parameterization_key)
-    assert isinstance(paramz, values_parameter.W_Parameterization) # XXX is this always right?
-    paramz_new = paramz.extend(keys, vals)
-    return call_with_parameterization(f, args, paramz_new, env, cont)
+    assert isinstance(paramz, values_parameter.W_Parameterization)
+    return paramz.extend(keys, vals, env, call_with_paramz_cont(f, args, env, cont))
 
 @make_procedure("eval-jit-enabled-guard", [values.W_Object], simple=False)
 def eval_jit_enabled_guard(arg, env, cont):

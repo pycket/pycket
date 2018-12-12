@@ -32,6 +32,29 @@ class RootParameterization(object):
         # This table maps ParamKey -> W_ThreadCell
         self.table = {}
 
+@continuation
+def extend_cont(paramz, i, eventual_vals, vals, params, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    new_val = check_one_val(_vals)
+    eventual_vals[i] = new_val
+    i += 1
+    if i == len(vals):
+        new_paramz = paramz._extend(params, vals)
+        return return_value(new_paramz, env, cont)
+    else:
+        return step_extend(paramz, i, eventual_vals, vals, params, env, cont)
+
+def step_extend(paramz, i, eventual_vals, vals, params, env, cont):
+    from pycket.interpreter import check_one_val, return_value
+    this_param = params[i]
+    assert isinstance(this_param, W_BaseParameter)
+    new_cont = extend_cont(paramz, i, eventual_vals, vals, params, env, cont)
+    guard = this_param.guard
+    if guard is None:
+        return return_value(vals[i], env, new_cont)
+    else:
+        return guard.call([vals[i]], env, new_cont)
+
 # This is a Scheme_Config in Racket
 # Except that Scheme_Config uses a functional hash table and this uses a list that we copy
 class W_Parameterization(W_Object):
@@ -45,13 +68,22 @@ class W_Parameterization(W_Object):
     @jit.look_inside_iff(lambda self, params, vals: \
             jit.loop_unrolling_heuristic(params, len(params), values.UNROLLING_CUTOFF) and
             jit.loop_unrolling_heuristic(vals, len(vals), values.UNROLLING_CUTOFF))
-    def extend(self, params, vals):
+    def _extend(self, params, vals):
         assert len(params) == len(vals)
         map = self.map
         for i, param in enumerate(params):
             cell = values.W_ThreadCell(vals[i], True)
             map = map.assoc(param.get_key(), cell)
         return W_Parameterization(self.root, map)
+
+    def extend(self, params, vals, env, cont):
+        from pycket.interpreter import check_one_val, return_value
+        assert len(params) == len(vals)
+        if len(params) == 0:
+            return return_value(self, env, cont)
+
+        eventual_vals = [None] * len(vals)
+        return step_extend(self, 0, eventual_vals, vals, params, env, cont)
 
     @jit.elidable
     def get(self, param):
