@@ -10,9 +10,9 @@ from pycket.error           import SchemeException
 from pycket.prims.expose    import expose, expose_val, default, procedure, make_procedure
 from rpython.rlib           import jit
 
-@expose("reparameterize")
-def reparameterize(args):
-    return values.w_void
+@expose("reparameterize", [values_parameter.W_Parameterization])
+def reparameterize(p):
+    return p
 
 @expose("make-parameter",
         [values.W_Object, default(values.W_Object, values.w_false)])
