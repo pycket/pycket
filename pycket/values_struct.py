@@ -640,6 +640,14 @@ class W_RootStruct(values.W_Object):
     def vals(self):
         raise NotImplementedError("abstract base class")
 
+    def get_hash_proc(self, prop):
+        if isinstance(prop, values.W_Cons):
+            return prop.cdr().car()
+        elif isinstance(prop, values_vector.W_Vector):
+            return prop.ref(1)
+        else:
+            raise SchemeException("unexpected property value for prop:equal+hash: %s"%prop.tostring())
+    
     def hash_equal(self, info=None):
         struct_type = self.struct_type()
         prop_equal_hash = struct_type.read_prop(w_prop_equal_hash)
@@ -648,7 +656,7 @@ class W_RootStruct(values.W_Object):
             # if not transparent, eqv?
             if prop_equal_hash:
                 from pycket.prims.hash import equal_hash_code
-                w_hash_proc = prop_equal_hash.cdr().car()
+                w_hash_proc = self.get_hash_proc(prop_equal_hash)
                 w_hash_proc_recur = equal_hash_code.w_prim # equal-hash-code to recur
                 h = w_hash_proc.call_interpret([self, w_hash_proc_recur])
                 assert isinstance(h, values.W_Fixnum)
