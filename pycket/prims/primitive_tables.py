@@ -10,7 +10,7 @@ def make_primitive_table(ls_str):
 
     return table
 
-place_str = ["place-break", "place-channel-get", "place-channel-put", "place-sleep",
+place_str = ["place-break", "place-channel-get", "place-channel-put",
              "place?", "place-enabled?", "place-channel", "place-dead-evt",
              "place-kill", "place-message-allowed?", "place-channel?", "dynamic-place",
              "place-wait", "place-pumper-threads", "place-shared?"]
@@ -183,7 +183,7 @@ unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
 kernel_str = ["*", "+", "-",
               "/", "<", "<=",
               "=", ">", ">=",
-              "quotient", "quotient/remainder", "remainder", "compiled-expression?",
+              "quotient", "quotient/remainder", "remainder", 
               "abort-current-continuation", "abs", "absolute-path?",
               "add1", "acos", "alarm-evt",
               "always-evt", "andmap", "angle",
@@ -192,7 +192,7 @@ kernel_str = ["*", "+", "-",
               "assv", "atan", "banner",
               "bitwise-and", "bitwise-bit-set?", "bitwise-bit-field",
               "bitwise-ior", "bitwise-not", "bitwise-xor",
-              "boolean?", "bound-identifier=?", "box",
+              "boolean?", "box",
               "box-cas!", "box-immutable", "box?",
               "break-enabled", "break-thread", "build-path",
               "build-path/convention-type", "byte-ready?", "byte-pregexp",
@@ -206,7 +206,7 @@ kernel_str = ["*", "+", "-",
               "bytes-open-converter", "bytes-ref", "bytes-set!",
               "bytes-utf-8-index", "bytes-utf-8-length", "bytes-utf-8-ref",
               "bytes>?", "bytes<?", "bytes=?",
-              "bytes<=?", "bytes>=?", "bytes?",
+              "bytes?",
               "caadr", "call-in-nested-thread", "call-with-composable-continuation",
               "call-with-continuation-barrier", "call-with-continuation-prompt", "call-with-current-continuation",
               "call-with-escape-continuation", "call-with-immediate-continuation-mark", "call-with-input-file",
@@ -229,7 +229,7 @@ kernel_str = ["*", "+", "-",
               "char-ci<?", "char-ci=?", "char-ci>=?",
               "char-ci>?", "checked-procedure-check-and-extract", "choice-evt",
               "cleanse-path", "close-input-port", "close-output-port",
-              "collect-garbage", "compile", "complex?",
+              "collect-garbage", "complex?",
               "compile-allow-set!-undefined", "compile-enforce-module-constants", "compile-context-preservation-enabled",
               "complete-path?", "continuation-marks", "continuation-mark-key?",
               "continuation-mark-set?", "continuation-mark-set-first", "continuation-mark-set->list",
@@ -250,11 +250,11 @@ kernel_str = ["*", "+", "-",
               "current-thread-initial-stack-size", "current-write-relative-directory", "custodian?",
               "custodian-box?", "custodian-box-value", "custodian-limit-memory",
               "custodian-managed-list", "custodian-memory-accounting-available?", "custodian-require-memory",
-              "custodian-shutdown-all", "custom-print-quotable?", "custom-print-quotable-accessor",
+              "custodian-shutdown-all", "custodian-shut-down?", "custom-print-quotable?", "custom-print-quotable-accessor",
               "custom-write?", "custom-write-accessor", "datum-intern-literal",
               "default-continuation-prompt-tag", "delete-directory", "delete-file",
               "denominator", "directory-exists?", "directory-list",
-              "display", "double-flonum?", "dump-memory-stats",
+              "display", "dump-memory-stats",
               "dynamic-wind", "environment-variables-ref", "environment-variables-set!",
               "environment-variables-copy", "environment-variables-names", "environment-variables?",
               "eof", "eof-object?", "ephemeron?",
@@ -354,7 +354,7 @@ kernel_str = ["*", "+", "-",
               "port-write-handler", "port-writes-atomic?", "port-writes-special?",
               "positive?", "prefab-key->struct-type", "prefab-key?",
               "prefab-struct-key", "pregexp", "pregexp?",
-              "primitive-table", "primitive?", "primitive-closure?",
+              "primitive?", "primitive-closure?",
               "primitive-result-arity", "printf", "print",
               "print-as-expression", "print-boolean-long-form", "print-box",
               "print-graph", "print-hash-table", "print-mpair-curly-braces",
@@ -427,7 +427,7 @@ kernel_str = ["*", "+", "-",
               "time-apply", "thread", "thread/suspend-to-kill",
               "thread?", "thread-cell?", "thread-cell-ref",
               "thread-cell-set!", "thread-cell-values?", "thread-dead?",
-              "thread-dead-evt", "thread-dead-evt?", "thread-group?",
+              "thread-dead-evt", "thread-group?",
               "thread-receive", "thread-receive-evt", "thread-resume",
               "thread-resume-evt", "thread-rewind-receive", "thread-running?",
               "thread-send", "thread-receive", "thread-suspend",
@@ -465,6 +465,7 @@ kernel_str = ["*", "+", "-",
               "mcdr", "set-mcar!", "set-mcdr!",
               "raise-argument-error", "raise-arguments-error", "raise-result-error",
               "raise-mismatch-error", "raise-range-error", "raise-arity-error",
+              "raise-result-arity-error", "raise-arity-mask-error",
               "raise-type-error", "struct:exn", "exn",
               "exn?", "exn-message", "exn-continuation-marks",
               "struct:exn:break", "exn:break", "exn:break?",
@@ -495,18 +496,18 @@ kernel_str = ["*", "+", "-",
               "srcloc", "srcloc?", "srcloc-source",
               "srcloc-line", "srcloc-column", "srcloc-position",
               "srcloc-span", "srcloc->string", "struct:date",
-              "date?", "date", "make-date",
+              "date?", "date",
               "date-second", "date-minute", "date-hour",
               "date-day", "date-month", "date-year",
               "date-week-day", "date-year-day", "date-dst?",
               "date-time-zone-offset", "struct:date*", "date*?",
-              "date*", "make-date*", "date*-nanosecond",
+              "date*", "date*-nanosecond",
               "date*-time-zone-name", "struct:arity-at-least", "arity-at-least",
               "arity-at-least?", "arity-at-least-value", "syntax?",
               "syntax-source", "syntax-line", "syntax-column",
               "syntax-position", "syntax-span", "syntax-e",
               "syntax->datum", "datum->syntax", "syntax-property",
-              "syntax-property-symbol-keys", "syntax-binding-set-extend",
+              "syntax-property-symbol-keys",
               "current-compile-target-machine",
               "compile-target-machine?",
               "sha1-bytes", "sha224-bytes", "sha256-bytes"]
@@ -528,7 +529,8 @@ foreign = make_primitive_table(foreign_str)
 linklet = make_primitive_table(linklet_str)
 unsafe = make_primitive_table(unsafe_str)
 # FIXME : make it a #%pycket-extra, instead of piggybacking on the #%kernel
-kernel = make_primitive_table(kernel_str + pycket_extra_str)
+kernel = make_primitive_table(kernel_str)
+pycket = make_primitive_table(pycket_extra_str)
 
 
 
@@ -541,6 +543,7 @@ select_prim_table = {W_Symbol.make("#%linklet"): linklet,
                      W_Symbol.make("#%place"): place,
                      W_Symbol.make("#%flfxnum"): flfxnum,
                      W_Symbol.make("#%extfl"): extfl,
+                     W_Symbol.make("#%pycket"): pycket,
                      W_Symbol.make("#%network"): network}
 
 all_prims = linklet_str + \
@@ -552,6 +555,7 @@ all_prims = linklet_str + \
             place_str + \
             flfxnum_str + \
             extfl_str + \
+            pycket_extra_str + \
             network_str
 
 if DEBUG:
