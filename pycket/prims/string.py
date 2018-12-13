@@ -33,9 +33,16 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
     from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
     from rpython.rlib.rsre import rsre_re as re
     import math
-
+    radix = radix.toint()
     s = w_s.as_str_utf8()
     try:
+        if ((radix == 16 and re.match("^[0-9A-Fa-f]+$", s)) or
+            (radix == 8 and re.match("^[0-7]+$", s)) or
+            (radix == 10 and re.match("^[0-9]+$", s))):
+            try:
+                return values.W_Fixnum(rarithmetic.string_to_int(s, base=radix))
+            except ParseStringOverflowError:
+                return values.W_Bignum(rbigint.rbigint.fromstr(s, base=radix))
         if re.match("[+-]?([\d]+)?.?\d+[tT]\d", s):
             # it's an extflonum
             return values.W_ExtFlonum(s)
@@ -55,7 +62,7 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
                 numb = float(f_parts[0])
                 prec = int(f_parts[1])
                 p = math.pow(10, prec)
-            except ValueError:
+            except ValueError, e:
                 return values.w_false
 
             return values.W_Flonum.make(numb*p, True)
@@ -69,20 +76,20 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
                 num = float(e_parts[0])
                 exp = int(e_parts[1])
                 p = math.pow(10, exp)
-            except ValueError:
+            except ValueError, e:
                 return values.w_false
 
             return values.W_Flonum(num*p)
 
         if "." in s or re.match("[+-]?([\d]+)(\.[\d]+)?e[+-][\d]+$", s):
-            if not radix.equal(values.W_Fixnum(10)): # FIXME
-                raise SchemeException("string->number : floats with base different than 10 are not supported yet : given number : %s - radix : %s" % (w_s.tostring(), radix.tostring()))
+            if not radix == 10: # FIXME
+                raise SchemeException("string->number : floats with base different than 10 are not supported yet : given number : %s - radix : %s" % (w_s.tostring(), str(radix)))
             return values.W_Flonum(rfloat.string_to_float(s))
         else:
             try:
-                return values.W_Fixnum(rarithmetic.string_to_int(s, base=radix.toint()))
+                return values.W_Fixnum(rarithmetic.string_to_int(s, base=radix))
             except ParseStringOverflowError:
-                return values.W_Bignum(rbigint.rbigint.fromstr(s))
+                return values.W_Bignum(rbigint.rbigint.fromstr(s, base=radix))
     except ParseStringError as e:
         return values.w_false
 
