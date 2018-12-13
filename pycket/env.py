@@ -287,7 +287,7 @@ class ToplevelEnv(Env):
             w_res = w_res.get_val()
         return w_res
 
-    def toplevel_lookup_unstripped(self, sym):
+    def toplevel_lookup_get_cell(self, sym):
         from pycket.values import W_Cell
         jit.promote(self)
         w_res = self._lookup(sym, jit.promote(self.version))
