@@ -1488,13 +1488,19 @@ class Gensym(object):
 
 class LinkletVar(Var):
     visitable = True
-    _immutable_fields_ = ["w_value?", "sym", "constance", "is_transparent"]
+    _immutable_fields_ = ["w_value?", "sym", "constance", "is_imported", "import_rename", "is_exported_uninit", "is_defined"]
 
-    def __init__(self, sym, w_value=None, constance=values.w_false, is_transparent=False):
+    def __init__(self, sym, w_value=None, constance=values.w_false, is_imported=-1, import_rename=None, exp_uninit=False, is_defined=False):
         self.sym = sym
         self.w_value = w_value
-        self.is_transparent = is_transparent
         self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
+
+        self.is_imported = is_imported
+        self.import_rename = import_rename
+        self.is_exported_uninit = exp_uninit
+        self.is_defined = is_defined
+
+        self.valuating_instance = None
 
     def tostring(self):
         val_str = self.get_value_direct().tostring() if self.w_value else "NO-VAL"
@@ -1526,12 +1532,23 @@ class LinkletVar(Var):
         self._set(w_val, env)
 
     def _set(self, w_val, env):
-        c = self.w_value
-        if not c:
-            c = self._get_cell(env)
+        assert self.is_imported < 0 # it's not import
 
-        assert isinstance(c, values.W_Cell)
-        c.set_val(w_val)
+        if self.is_defined:
+
+            if self.w_value and self.valuating_instance and self.valuating_instance is env.toplevel_env().current_linklet_instance:
+                self.w_value.set_val(w_val)
+            else:
+                self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
+                self.w_value.set_val(w_val)
+
+        else: # exported_undefined
+            assert not self.w_value
+            val_inst = env.toplevel_env().current_linklet_instance
+            w_cell = val_inst.lookup_var_cell(self.sym)
+            self.w_value = w_cell
+            self.valuating_instance = val_inst
+            w_cell.set_val(w_val)
 
     def set_bang(self, w_val):
         assert isinstance(self.w_value, values.W_Cell)
@@ -1554,25 +1571,47 @@ class LinkletVar(Var):
         return self.w_value is None
 
     def _lookup(self, env):
-        w_res = self.w_value
+        if self.is_imported >= 0:
+            ## imported
+            if self.w_value:
+                assert self.valuating_instance
+                imp_inst = env.toplevel_env().import_instances[self.is_imported]
+                if imp_inst is self.valuating_instance:
+                    return self.w_value
 
-        if w_res is None:
-            w_res = self._get_cell(env)
+            ## actual lookup for imported
+            imp_inst = env.toplevel_env().import_instances[self.is_imported]
+            lookup_sym = self.import_rename if self.import_rename else self.sym
+            w_val = imp_inst.lookup_var_value(lookup_sym) # value, not cell
+            self.w_value = w_val
+            self.valuating_instance = imp_inst
+            return w_val
+        elif self.is_defined:
+            # defined within the linklet, the value should be in the
+            # toplevel env
+            if self.w_value and self.valuating_instance:
+                current_inst = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
+                if current_inst is self.valuating_instance:
+                    return self.w_value.get_val()
 
-            if not self.is_transparent:
-                self.w_value = w_res
+            self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
+            self.valuating_instance = env.toplevel_env().current_linklet_instance
+            return self.w_value.get_val()
 
-        if type(w_res) is values.W_Cell:
-            return w_res.get_val()
         else:
-            return w_res
+            # exported, but not defined
+            # (gonna use the target's value)
+            val_inst = env.toplevel_env().current_linklet_instance
+            if self.w_value and self.valuating_instance:
+                if val_inst is self.valuating_instance:
+                    return self.w_value.get_val()
 
-    def _get_cell(self, env):
-        try:
-            return env.toplevel_env().toplevel_lookup_unstripped(self.sym)
-        except SchemeException:
-            inst = env.toplevel_env().get_current_linklet_instance()
-            return inst.lookup_var_value(self.sym)
+            # the linklet is being instantiated over a
+            # different target than before
+            w_cell = val_inst.lookup_var_cell(self.sym)
+            self.w_value = w_cell
+            self.valuating_instance = val_inst
+            return w_cell.get_val()
 
 class LexicalVar(Var):
     visitable = True
