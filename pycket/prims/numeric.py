@@ -370,6 +370,17 @@ def positive_predicate(n):
         raise SchemeException("positive?: expected real? in argument 0")
     return n.arith_positivep()
 
+@expose("bitwise-bit-field", [values.W_Integer, values.W_Integer, values.W_Integer])
+def bitwise_bit_field(w_n, w_start, w_end):
+    if w_start.arith_negativep() is values.w_true:
+        raise SchemeException("bitwise-bit-field: second argument must be non-negative")
+    if w_end.arith_negativep() is values.w_true:
+        raise SchemeException("bitwise-bit-field: third argument must be non-negative")
+    
+    v = arith_shift(values.W_Fixnum.ONE, w_end.arith_sub(w_start)).arith_sub1().arith_and(
+        arith_shift(w_n, values.W_Fixnum.ZERO.arith_sub(w_start)))
+    return v
+    
 @expose("bitwise-bit-set?", [values.W_Integer, values.W_Integer])
 def bitwise_bit_setp(w_n, w_m):
     if w_m.arith_negativep() is values.w_true:
