@@ -136,7 +136,7 @@ class LinkletPerf(object):
             self.total = int(1000*total)
             self.total_gc = int(total_gc)
             self.total_len = len(str(total))
-            self.gc_len = len(str(total_gc))
+            self.total_gc_len = len(str(self.total_gc))
             
             for cat in self.categories:
                 t = sum_values(self.region_times, self.categories[cat], cat, self.region_subs)
