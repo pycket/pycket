@@ -254,7 +254,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
     elif isinstance(form, values.W_Symbol):
         imp_index, renamed_sym = is_imported(form, linkl_importss)
         if imp_index >= 0:
-            return interp.LinkletVar(form, w_value=None, constance=values.W_Symbol.make("constant"), is_imported=imp_index, import_rename=renamed_sym)
+            return interp.LinkletImportedVar(form, import_index=imp_index, import_rename=renamed_sym, constance=values.W_Symbol.make("constant"))
         elif form in cell_ref:
             return interp.CellRef(form)
         elif form in lex_env:
@@ -265,7 +265,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
                 return linkl_toplevels[form]
             else:
                 # exported uninitialized linklet var
-                return interp.LinkletVar(form, exp_uninit=True)
+                return interp.LinkletExpUninitVar(form)
         else:
             # kernel primitive ModuleVar
             return interp.ModuleVar(form, "#%kernel", form, None)
@@ -469,7 +469,7 @@ def process_w_body_sexp(w_body, importss_list, exports):
                 id = id_.get_obj() if isinstance(id_, W_Correlated) else id_
                 if id in toplevel_defined_linklet_vars:
                     raise SchemeException("duplicate binding name : %s" % id.tostring())
-                toplevel_defined_linklet_vars[id] = interp.LinkletVar(id, is_defined=True)
+                toplevel_defined_linklet_vars[id] = interp.LinkletDefinedVar(id)
 
             ast = def_vals_to_ast(b, exports, toplevel_defined_linklet_vars, importss_list)
         else:
