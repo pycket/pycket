@@ -271,6 +271,25 @@ def test_instantiate_closure_capture_and_reset2():
     result, t = eval_fixnum(l3, empty_target(), [l2])
     assert result == 60
 
+
+def test_instantiate_closure_capture_and_reset3():
+    l2 = make_linklet("(linklet () (y) (define-values (y) 10) (set! y 50))", "l2")
+    t2 = empty_target("t2")
+    _, t2 = eval_fixnum(l2, t2, [])
+    l4 = make_linklet("(linklet () (y) (define-values (z) (+ y y)) (set! y 200) (define-values (y) 90) z)")
+    result, t2 = eval_fixnum(l4, t2)
+    assert result == 100
+    assert check_val(t2, "y", 90)
+
+def test_instantiate_closure_capture_and_reset4():
+    l2 = make_linklet("(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))", "l2")
+    t2 = empty_target("t2")
+    _, t2 = eval_fixnum(l2, t2, [])
+    l4 = make_linklet("(linklet () (y g) (set! y 200) (define-values (y) 90) (g))")
+    result, t2 = eval_fixnum(l4, t2)
+    assert result == 90
+    assert check_val(t2, "y", 90)
+
 def test_instantiate_closure_capture_and_reset():
     l2 = make_linklet("(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))", "l2")
     t1 = empty_target("t1")

@@ -350,7 +350,7 @@
 ;; closure capture and reset
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(test-case "closure capture and reset"
+(test-case "closure capture and reset1"
   (define l1 (instantiate-linklet (compile-linklet '(linklet () (x) (define-values (x) -1))) null))
   (define l2 (instantiate-linklet (compile-linklet '(linklet ((x)) (g) (define-values (g) (lambda (p) x)))) (list l1)))
   (define l3 (compile-linklet '(linklet ((g)) (x) (set! x 5) (g 1000))))
@@ -359,20 +359,42 @@
   (check-eq? (instance-variable-value t 'x) 5)
   (check-eq? result -1))
 
-(test-case "closure capture and reset"
+(test-case "closure capture and reset2"
   (define l1 (instantiate-linklet (compile-linklet '(linklet () (x) (define-values (x) -11))) null))
   (define l2 (instantiate-linklet (compile-linklet '(linklet ((x)) (g) (define-values (y) 131) (define-values (g) (lambda (p) (+ x y))) (set! y 71))) (list l1)))
   (define l3 (compile-linklet '(linklet ((g)) () (g -1))))
   (define result (instantiate-linklet l3 (list l2) (empty-target)))
   (check-eq? result 60))
 
+(test-case "closure capture and reset3"
+  (define l2 (compile-linklet '(linklet () (y) (define-values (y) 10) (set! y 50))))
+  (define t2 (empty-target))
+  (define _2 (instantiate-linklet l2 (list) t2))
+  (define l4 (compile-linklet '(linklet () (y) (define-values (z) (+ y y)) (set! y 200) (define-values (y) 90) z)))
+  (define result2 (instantiate-linklet l4 null t2))
+  (check-eq? result2 100)
+  (check-eq? (instance-variable-value t2 'y) 90))
+
+(test-case "closure capture and reset4"
+  (define l2 (compile-linklet '(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))))
+  (define t2 (empty-target))
+  (define _2 (instantiate-linklet l2 (list) t2))
+  (define l4 (compile-linklet '(linklet () (y g) (set! y 200) (define-values (y) 90) (g))))
+  (define result2 (instantiate-linklet l4 null t2))
+  (check-eq? result2 90)
+  (check-eq? (instance-variable-value t2 'y) 90))
+
+
+
 (test-case "closure capture and reset"
   (define l2 (compile-linklet '(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))))
   (define t1 (empty-target))
   (define t2 (empty-target))
+  (define t2-2 (empty-target))
   (define t3 (empty-target))
   (define _1 (instantiate-linklet l2 (list) t1))
   (define _2 (instantiate-linklet l2 (list) t2))
+  (define _2-2 (instantiate-linklet l2 (list) t2-2))
   (define _3 (instantiate-linklet l2 (list) t3))
 
   (check-eq? (instance-variable-value t1 'y) 50)
@@ -390,6 +412,10 @@
   (define l4 (compile-linklet '(linklet () (y g) (set! y 200) (define-values (y) 90) (g))))
   (define result2 (instantiate-linklet l4 null t2))
   (check-eq? result2 90)
+
+  (define l4-2 (compile-linklet '(linklet () (y g) (define-values (y) 90) (set! y 200) (g))))
+  (define result2-2 (instantiate-linklet l4-2 null t2-2))
+  (check-eq? result2-2 200)
 
   (check-eq? (instance-variable-value t1 'y) 300)
   (check-eq? (instance-variable-value t2 'y) 90)
