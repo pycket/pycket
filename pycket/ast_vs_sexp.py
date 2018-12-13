@@ -42,7 +42,7 @@ def to_rpython_list(r_list):
 def ast_to_sexp(form):
     from pycket.prims.linklet import W_Linklet, W_LinkletBundle, W_LinkletDirectory
 
-    util.console_log("ast->sexp is called with form : %s" % form.tostring(), 8)
+    #util.console_log("ast->sexp is called with form : %s" % form.tostring(), 8)
 
     if is_val_type(form, extra=[vector.W_Vector, base.W_HashTable, values.W_List, values.W_Symbol]):
         return form
@@ -241,69 +241,69 @@ def is_imported(id_sym, linkl_importss):
     for imp_index, imports_dict in enumerate(linkl_importss):
         for ext_id, int_id in imports_dict.iteritems():
             if id_sym is int_id:
-                return imp_index
-    return -1
+                return imp_index, ext_id
+    return -1, None
 
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
 
-    util.console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
+    #util.console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
     elif is_val_type(form):
-        form = interp.Quote(form)
+        return interp.Quote(form)
     elif isinstance(form, values.W_Symbol):
-        imp_index = is_imported(form, linkl_importss)
+        imp_index, renamed_sym = is_imported(form, linkl_importss)
         if imp_index >= 0:
-            form = interp.LinkletVar(form, None, values.W_Symbol.make("constant"), import_source=imp_index)
+            return interp.LinkletVar(form, w_value=None, constance=values.W_Symbol.make("constant"), is_imported=imp_index, import_rename=renamed_sym)
         elif form in cell_ref:
-            form = interp.CellRef(form)
+            return interp.CellRef(form)
         elif form in lex_env:
-            form = interp.LexicalVar(form)
+            return interp.LexicalVar(form)
         elif (form in linkl_toplevels) or (form in exports):
             if form in linkl_toplevels:
                 # defined toplevel linklet var
-                form = linkl_toplevels[form]
+                return linkl_toplevels[form]
             else:
                 # exported uninitialized linklet var
-                form = interp.LinkletVar(form, exp_uninit=True)
+                return interp.LinkletVar(form, exp_uninit=True)
         else:
             # kernel primitive ModuleVar
-            form = interp.ModuleVar(form, "#%kernel", form, None)
+            return interp.ModuleVar(form, "#%kernel", form, None)
     elif isinstance(form, values.W_List):
         if form.car() is values.W_Symbol.make("begin"):
-            form = interp.Begin.make([sexp_to_ast(f, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name) for f in to_rpython_list(form.cdr())])
+            return interp.Begin.make([sexp_to_ast(f, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name) for f in to_rpython_list(form.cdr())])
         elif form.car() is values.W_Symbol.make("p+"):
             path_str = form.cdr().car().tostring()
-            form = interp.Quote(values.W_Path(path_str))
+            return interp.Quote(values.W_Path(path_str))
         elif form.car() is values.W_Symbol.make("begin0"):
             fst = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             rst = [sexp_to_ast(f, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name) for f in to_rpython_list(form.cdr().cdr())]
             if len(rst) == 0:
-                form = fst
+                return fst
             else:
-                form = interp.Begin0.make(fst, rst)
-        elif form.car() is values.W_Symbol.make("define-values"):
-            form = def_vals_to_ast(form, exports, linkl_toplevels, linkl_importss)
+                return interp.Begin0.make(fst, rst)
+        # elif form.car() is values.W_Symbol.make("define-values"):
+        #     return def_vals_to_ast(form, exports, linkl_toplevels, linkl_importss)
         elif form.car() is values.W_Symbol.make("with-continuation-mark"):
             if len(to_rpython_list(form)) != 4:
                 raise SchemeException("Unrecognized with-continuation-mark form : %s" % form.tostring())
             key = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             val = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             body = sexp_to_ast(form.cdr().cdr().cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
-            form = interp.WithContinuationMark(key, val, body)
+            return interp.WithContinuationMark(key, val, body)
         elif form.car() is values.W_Symbol.make("#%variable-reference"):
             if form.cdr() is values.w_null: # (variable-reference)
-                form = interp.VariableReference(None, None)
+                return interp.VariableReference(None, None)
             elif form.cdr().cdr() is values.w_null: # (variable-reference id)
                 if isinstance(form.cdr().car(), values.W_Symbol):
                     var = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
-                    form = interp.VariableReference(var, "dummy-path.rkt") # FIXME
+                    return interp.VariableReference(var, "dummy-path.rkt") # FIXME
                 elif isinstance(form.cdr().car(), values.W_Fixnum):
                     # because we're 'writing' variable-reference with is_mutable information
                     is_mut = False
                     if form.cdr().car().toint() != 0:
                         is_mut = True
-                    form = interp.VariableReference(None, None, is_mut)
+                    return interp.VariableReference(None, None, is_mut)
                 else:
                     raise SchemeException("Invalid variable-reference form : %s -- arg type : %s" % (form.tostring(), form.cdr().car()))
             elif form.cdr().cdr().cdr() is values.w_null: # (variable-reference 1 2)
@@ -329,7 +329,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
                 if mut_ is values.w_true:
                     mut = True
 
-                form = interp.VariableReference(var, path, mut)
+                return interp.VariableReference(var, path, mut)
 
         elif form.car() is values.W_Symbol.make("case-lambda"):
             maybe_rec_sym_part = values.w_null
@@ -348,15 +348,16 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
                         new_lex_env = lex_env + [rec_sym]
 
             lams = [lam_to_ast(f, new_lex_env, exports, linkl_toplevels, linkl_importss, True, cell_ref, name) for f in to_rpython_list(lams_part)]
-            form = interp.CaseLambda(lams, rec_sym)
+            return interp.CaseLambda(lams, rec_sym)
         elif form.car() is values.W_Symbol.make("lambda"):
-            form = interp.CaseLambda([lam_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, cell_ref, name)])
+            return interp.CaseLambda([lam_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, cell_ref, name)])
         elif form.car() is values.W_Symbol.make("let-values"):
-            form = let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, False, cell_ref)
+            return let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, False, cell_ref)
         elif form.car() is values.W_Symbol.make("letrec-values"):
-            form = let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, True, cell_ref)
+            return let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, True, cell_ref)
         elif form.car() is values.W_Symbol.make("set!"):
-            if is_imported(form.cdr().car(), linkl_importss) != -1:
+            index, rename = is_imported(form.cdr().car(), linkl_importss)
+            if index != -1:
                 raise SchemeException("cannot mutate imported variable : %s" % form.tostring())
             cr = cell_ref
             target = form.cdr().car()
@@ -365,11 +366,11 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             var = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref=cr, name=name)
             rhs = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             assert isinstance(var, interp.Var)
-            form = interp.SetBang(var, rhs)
+            return interp.SetBang(var, rhs)
         elif form.car() is values.W_Symbol.make("quote"):
             if form.cdr() is values.w_null or form.cdr().cdr() is not values.w_null:
                 raise SchemeException("malformed quote form : %s" % form.tostring())
-            form = interp.Quote(form.cdr().car())
+            return interp.Quote(form.cdr().car())
         elif form.car() is values.W_Symbol.make("if"):
             tst_w = form.cdr().car()
             thn_w = form.cdr().cdr().car()
@@ -529,11 +530,11 @@ def deserialize_loop(sexp):
                     b_form = assign_convert(bf)
                 body_forms[i] = b_form
 
-            util.console_log("body forms are done", 8)
+            #util.console_log("body forms are done", 8)
 
             return W_Linklet(w_name, importss_list, exports, body_forms)
         else:
-            util.console_log("ELSE", 8)
+            #util.console_log("ELSE", 8)
             is_improper = False
             new_rev = values.w_null
             while sexp is not values.w_null:
@@ -557,7 +558,7 @@ def deserialize_loop(sexp):
 
             return new
     elif isinstance(sexp, simple.W_EqImmutableHashTable):
-        util.console_log("it's a W_EqImmutableHashTable", 8)
+        #util.console_log("it's a W_EqImmutableHashTable", 8)
         l = sexp.length()
         keys = [None]*l
         vals = [None]*l
@@ -569,7 +570,7 @@ def deserialize_loop(sexp):
 
         return simple.make_simple_immutable_table(simple.W_EqImmutableHashTable, keys, vals)
     elif isinstance(sexp, equal.W_EqualHashTable):
-        util.console_log("it's a W_EqualHashTable", 8)
+        #util.console_log("it's a W_EqualHashTable", 8)
         l = sexp.length()
         keys = [None]*l
         vals = [None]*l
@@ -581,7 +582,7 @@ def deserialize_loop(sexp):
 
         return equal.W_EqualHashTable(keys, vals, immutable=True)
     elif isinstance(sexp, vector.W_Vector):
-        util.console_log("it's a W_Vector", 8)
+        #util.console_log("it's a W_Vector", 8)
         new = [None]*sexp.length()
         items = sexp.get_strategy().ref_all(sexp)
         for index, obj in enumerate(items):
@@ -589,5 +590,5 @@ def deserialize_loop(sexp):
 
         return vector.W_Vector.fromelements(new, sexp.immutable())
     else:
-        util.console_log("it's something else", 8)
+        #util.console_log("it's something else", 8)
         return sexp
