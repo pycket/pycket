@@ -444,6 +444,10 @@ def unsafe_fxior(w_a, w_b):
 def unsafe_fxxor(w_a, w_b):
     return w_a.arith_xor(w_b)
 
+@expose("unsafe-fxnot", [unsafe(values.W_Fixnum)])
+def unsafe_fxnot(w_a):
+    return w_a.arith_not()
+
 @expose("unsafe-fx+", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxplus(a, b):
     return values.W_Fixnum(a.value + b.value)
