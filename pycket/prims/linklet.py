@@ -593,7 +593,6 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
                 _body_forms = process_w_body_sexp(w_body, importss_list, exports)
 
             # Postprocess the body
-            # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):
                 with PerfRegion("compile-normalize"):
