@@ -651,12 +651,11 @@ def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, en
     if use_prompt is w_true: # use-prompt? : any/c = #t - what happens when it is 3 ?
         prompt = True
 
-    im_list = to_rpython_list(import_instances)
+    im_list, im_length = to_rpython_list(import_instances)
     expected = len(linkl.importss)
-    given = len(im_list)
 
-    if expected != given:
-        raise SchemeException("The number of instances in import-instances must match the number of import sets in linklet. Expected %s but got %s" % (expected, given))
+    if expected != im_length:
+        raise SchemeException("The number of instances in import-instances must match the number of import sets in linklet. Expected %s but got %s" % (expected, im_length))
 
     if target_instance is None or target_instance is w_false:
         target = None
