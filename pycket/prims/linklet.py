@@ -31,6 +31,89 @@ from pycket.util import PerfRegion, PerfRegionCPS
 
 from pycket.ast_vs_sexp import *
 
+class W_LinkletVar(W_Object):
+
+    _immutable_fields_ = ["w_value?", "sym", "constance"]
+
+    def __init__(self, sym, w_value=None, constance=values.w_false):
+        self.sym = sym
+        self.w_value = w_value
+        self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
+
+    def tostring(self):
+        val_str = self.get_value_direct().tostring() if self.w_value else "NO-VAL"
+        return "LinkletVar(%s:%s)" % (self.sym.tostring(), val_str)
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
+
+    def is_constant(self):
+        # FIXME : investigate 'consistent
+        if self.constance is values.w_false or self.constance is values.W_Symbol.make("consistent"):
+            return False
+        elif self.constance is values.W_Symbol.make("constant"):
+            return True
+        else:
+            raise SchemeException("Something's wrong with the constance : %s" % self.constance.tostring())
+
+    def set(self, w_val, env, mode=None):
+        const = values.W_Symbol.make("constant")
+        if self.constance is const:
+            raise SchemeException("Cannot mutate a constant : %s" % self.sym.tostring())
+        if mode is const:
+            self.constance = const
+
+        self._set(w_val, env)
+
+    def _set(self, w_val, env):
+        c = self.w_value
+        if not c:
+            c = self._get_cell(env)
+
+        assert isinstance(c, values.W_Cell)
+        c.set_val(w_val)
+
+    def set_bang(self, w_val):
+        assert isinstance(self.w_value, values.W_Cell)
+        self.w_value.set_val(w_val)
+
+    def get_value_direct(self):
+        w_res = self.get_value_unstripped()
+        if isinstance(w_res, values.W_Cell):
+            return w_res.get_val()
+        return w_res
+
+    # get the value possibly with the W_Cell
+    def get_value_unstripped(self):
+        w_res = self.w_value
+        if w_res is None:
+            raise SchemeException("Reference to an uninitialized variable : %s" % self.sym.tostring())
+        return w_res
+
+    def is_uninitialized(self):
+        return self.w_value is None
+
+    def _lookup(self, env):
+        w_res = self.w_value
+
+        if w_res is None:
+            w_res = self._get_cell(env)
+            self.w_value = w_res
+
+        if type(w_res) is values.W_Cell:
+            return w_res.get_val()
+        else:
+            return w_res
+
+    def _get_cell(self, env):
+        try:
+            return env.toplevel_env().toplevel_lookup_unstripped(self.sym)
+        except SchemeException:
+            inst = env.toplevel_env().get_current_linklet_instance()
+            return inst.lookup_var_value(self.sym)
+
+
 class W_Uninitialized(W_Object):
     errorname = "uninitialized"
     _attrs_ = []
@@ -218,11 +301,10 @@ def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, e
 
         # modify target
         ext_name = exports[name] if name in exports else name
-
         c = W_Cell(value)
         env.toplevel_env().toplevel_set(name, c, already_celled=True)
 
-        var = LinkletVar(ext_name, c)
+        var = W_LinkletVar(ext_name, c)
         if name in exports or not target.has_var(ext_name): # variable is definitely going into target
             if target.has_var(ext_name) and not target.is_var_uninitialized(ext_name):
                 target.overwrite_var(ext_name, value)
@@ -373,7 +455,7 @@ class W_Linklet(W_Object):
             # Defined name ids are changed in compilation based on renames
             if external_name not in linklet_defined_names:
                 if not target.has_var(external_name):
-                    target.add_var(external_name, LinkletVar(external_name))
+                    target.add_var(external_name, W_LinkletVar(external_name))
 
         if len(self.forms) == 0:
             # no need for any evaluation, just return the instance or the value
@@ -693,7 +775,7 @@ def make_instance(args): # name, data, *vars_vals
         for i in range(0, len(vars_vals), 2):
             n = vars_vals[i]
             v = vars_vals[i+1]
-            vars_vals_dict[n] = LinkletVar(n, v, mode)
+            vars_vals_dict[n] = W_LinkletVar(n, v, mode)
 
         return W_LinkletInstance(name, vars_vals_dict, {}, data)
 
@@ -736,7 +818,7 @@ def instance_set_variable_value(instance, name, val, mode):
         # FIXME : change to be constant?
         instance.overwrite_var(name, val)
     else:
-        instance.add_var(name, LinkletVar(name, val, mode))
+        instance.add_var(name, W_LinkletVar(name, val, mode))
 
     return w_void
 
