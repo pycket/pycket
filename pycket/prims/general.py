@@ -1326,6 +1326,14 @@ def error(args):
 def error(args):
     return _error(args, True)
 
+@expose("raise-arity-error", arity=Arity.geq(2))
+def raise_arity_error(args):
+    return _error(args, False)
+
+@expose("raise-result-arity-error", arity=Arity.geq(3))
+def raise_result_arity_error(args):
+    return _error(args, False)
+
 
 @expose("list->vector", [values.W_List])
 def list2vector(l):
