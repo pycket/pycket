@@ -137,7 +137,7 @@ def defines(inst, name_str):
     return inst.has_var(W_Symbol.make(name_str))
 
 def get_val(inst, name_str):
-    return inst.lookup_var_value(values.W_Symbol.make(name_str)).get_val()
+    return inst.lookup_var_value(values.W_Symbol.make(name_str))
 
 def check_val(inst, var_str, val):
     return get_val(inst, var_str).value == val
