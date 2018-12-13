@@ -352,11 +352,11 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, cell_re
             lams = [lam_to_ast(f, new_lex_env, exports, linkl_toplevels, linkl_importss, True, cell_ref, name) for f in to_rpython_list(lams_part)]
             return interp.CaseLambda(lams, rec_sym)
         elif form.car() is values.W_Symbol.make("lambda"):
-            return interp.CaseLambda([lam_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, cell_ref, name)])
+            return interp.CaseLambda([lam_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, cell_ref, name)])
         elif form.car() is values.W_Symbol.make("let-values"):
-            return let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, False, cell_ref)
+            return let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, False, cell_ref)
         elif form.car() is values.W_Symbol.make("letrec-values"):
-            return let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, True, cell_ref)
+            return let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, cell_ref)
         elif form.car() is values.W_Symbol.make("set!"):
             index, rename = is_imported(form.cdr().car(), linkl_importss)
             if index != -1:
