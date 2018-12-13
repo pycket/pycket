@@ -23,8 +23,7 @@ Funcions inside are:
 - deserialize_loop
 """
 
-# FIXME: make it also return the length
-def to_rpython_list(r_list, open_correlated=False):
+def to_rpython_list(r_list, open_correlated=False, reverse=False):
     # assumes r_list is proper
     length = 0
     acc = r_list
@@ -32,13 +31,15 @@ def to_rpython_list(r_list, open_correlated=False):
         length += 1
         acc = acc.cdr()
     acc = r_list
-    py_ls = []
+    py_ls = [None]*length
     for n in range(length):
         a = acc.car().get_obj() if (open_correlated and isinstance(acc.car(), W_Correlated)) else acc.car()
-        py_ls.append(a)
+        if reverse:
+            py_ls[length-n-1] = a
+        else:
+            py_ls[n] = a
         acc = acc.cdr()
-
-    return py_ls
+    return py_ls, length
 
 def ast_to_sexp(form):
     from pycket.prims.linklet import W_Linklet, W_LinkletBundle, W_LinkletDirectory
