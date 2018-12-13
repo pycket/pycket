@@ -2062,3 +2062,7 @@ expose_val("executable-yield-handler", executable_yield_handler)
 
 current_load_extension = values_parameter.W_Parameter(do_void.w_prim)
 expose_val("current-load-extension", current_load_extension)
+
+@expose("system-language+country", [])
+def lang_country():
+    return values_string.W_String.make("en_US.UTF-8")
