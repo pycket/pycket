@@ -103,7 +103,7 @@ class LinkletPerf(object):
         else:
             c = " ; %d times"%int(counts)
         self.report(level, label, n,
-                    pad_left(" [%s]"%(int(gc_ht.get(label, 0))), self.total_gc_len),
+                    " [%s]"%(pad_left(str(int(gc_ht.get(label, 0))), self.total_gc_len)),
                     "ms", c)
 
     def report(self, level, label, n, nextra, units, extra):
