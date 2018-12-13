@@ -426,19 +426,19 @@ class W_Linklet(W_Object):
         """
         Process the imports, get them into the toplevel environment
         """
-        for instance_index, imports_dict in enumerate(self.importss):
-            for ext_name, int_name in imports_dict.iteritems():
-                # (linklet (((x x1))) () (define-values (x) 14) (+ x1 x))
-                if int_name in self.exports:
-                    raise SchemeException("export duplicates import : %s" % int_name.tostring())
+        # for instance_index, imports_dict in enumerate(self.importss):
+        #     for ext_name, int_name in imports_dict.iteritems():
+        #         # (linklet (((x x1))) () (define-values (x) 14) (+ x1 x))
+        #         if int_name in self.exports:
+        #             raise SchemeException("export duplicates import : %s" % int_name.tostring())
 
-                imported_var = w_imported_instances[instance_index].get_var(ext_name)
-                if imported_var.is_uninitialized():
-                    raise SchemeException("Trying to import a variable that is uninitialized : %s" % ext_name.tostring())
+        #         imported_var = w_imported_instances[instance_index].get_var(ext_name)
+        #         if imported_var.is_uninitialized():
+        #             raise SchemeException("Trying to import a variable that is uninitialized : %s" % ext_name.tostring())
 
-                # imports never get into the target
-                # put the into the toplevel env
-                env.toplevel_env().toplevel_set(int_name, imported_var.get_value_direct())
+        #         # imports never get into the target
+        #         # put the into the toplevel env
+        #         env.toplevel_env().toplevel_set(int_name, imported_var.get_value_direct())
 
         """
         Collect the ids defined in the given linklet's forms
