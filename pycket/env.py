@@ -246,9 +246,9 @@ class Version(object):
 w_version = Version()
 
 class ToplevelEnv(Env):
-    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig', 'current_linklet_instance']
+    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig', 'current_linklet_instance', 'import_instances']
     _immutable_fields_ = ["version?", "module_env"]
-    def __init__(self, pycketconfig=None, current_linklet_instance=None):
+    def __init__(self, pycketconfig=None, current_linklet_instance=None, import_instances=[]):
         from rpython.config.config import Config
         self.bindings = {}
         self.version = w_version
@@ -262,6 +262,7 @@ class ToplevelEnv(Env):
         assert isinstance(pycketconfig, Config)
         self._pycketconfig = pycketconfig
         self.current_linklet_instance = current_linklet_instance
+        self.import_instances = import_instances
 
     def get_commandline_arguments(self):
         return self.commandline_arguments
