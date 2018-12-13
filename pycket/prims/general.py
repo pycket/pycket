@@ -2059,3 +2059,6 @@ def banner():
 executable_yield_handler = values_parameter.W_Parameter(do_void.w_prim)
 
 expose_val("executable-yield-handler", executable_yield_handler)
+
+current_load_extension = values_parameter.W_Parameter(do_void.w_prim)
+expose_val("current-load-extension", current_load_extension)
