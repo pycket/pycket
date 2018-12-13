@@ -114,6 +114,10 @@ class W_LinkletInstance(W_Object):
 
     def lookup_var_value(self, name):
         var = self.get_var(name)
+        return var.get_value_direct()
+
+    def lookup_var_cell(self, name):
+        var = self.get_var(name)
         return var.get_value_unstripped()
 
 class W_LinkletBundle(W_Object):
@@ -324,9 +328,7 @@ class W_Linklet(W_Object):
         # to that variable (whenever the target's variable is
         # modified, the one in the environment has to be updated too)
         from pycket.env import ToplevelEnv
-        env = ToplevelEnv(config)
-
-        env.set_current_linklet_instance(target)
+        env = ToplevelEnv(config, current_linklet_instance=target, import_instances=w_imported_instances)
 
         if not cont:
             cont = NilCont()
