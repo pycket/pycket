@@ -60,7 +60,7 @@ def ast_to_sexp(form):
             importss_inst = [None]*len_dict
             i = 0
             for k, v in rdict.iteritems():
-                importss_inst[i] = values.W_Cons.make(k, v)
+                importss_inst[i] = values.W_Cons.make(k, values.W_Cons.make(v, values.w_null))
                 i += 1
             importss_rlist[index] = values.to_list(importss_inst)
         importss_list = values.to_list(importss_rlist)
@@ -377,36 +377,16 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             tst = sexp_to_ast(tst_w, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             thn = sexp_to_ast(thn_w, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             els = sexp_to_ast(els_w, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
-            form = interp.If.make(tst, thn, els)
+            return interp.If.make(tst, thn, els)
         else:
             form_rator = sexp_to_ast(form.car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref)
 
             rands_ls = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name) for r in rands_ls]
 
-            form = interp.App.make(form_rator, rands)
+            return interp.App.make(form_rator, rands)
     else:
         raise SchemeException("Don't know what to do with this form yet : %s" % form.tostring())
-
-    return form
-
-# collect the ids in define-values forms
-def create_toplevel_linklet_vars(forms_ls):
-    linkl_toplevels = {} # {W_Symbol:LinkletVar}
-    for form in forms_ls:
-        if isinstance(form, W_Correlated):
-            form = form.get_obj()
-        if isinstance(form, values.W_List) and form.car() is values.W_Symbol.make("define-values"):
-            ids = form.cdr().car()
-            ids_ls = to_rpython_list(ids)
-            # create LinkletVar for each id
-            for id_ in ids_ls:
-                id = id_.get_obj() if isinstance(id_, W_Correlated) else id_
-                if id in linkl_toplevels:
-                    raise SchemeException("duplicate binding name : %s" % id.tostring())
-                linkl_toplevels[id] = interp.LinkletVar(id, defined=True)
-
-    return linkl_toplevels
 
 dir_sym = values.W_Symbol.make(":D:")
 bundle_sym = values.W_Symbol.make(":B:")
@@ -430,25 +410,91 @@ def looks_like_linklet(sexp):
 
     return True
 
+def get_imports_from_w_importss_sexp(w_importss):
+    importss_acc = to_rpython_list(w_importss)
+    importss_list = [None]*len(importss_acc)
+    for index, importss_current in enumerate(importss_acc):
+        inner_acc = {}
+        while (importss_current is not values.w_null):
+            c = importss_current.car()
+            if isinstance(c, values.W_Symbol):
+                inner_acc[c] = c
+            elif isinstance(c, values.W_List):
+                if c.cdr().cdr() is not values.w_null:
+                    raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
+                external_id = c.car().get_obj() if isinstance(c.car(), W_Correlated) else c.car()
+                internal_id = c.cdr().car().get_obj() if isinstance(c.cdr().car(), W_Correlated) else c.cdr().car()
+
+                assert isinstance(external_id, values.W_Symbol) and isinstance(internal_id, values.W_Symbol)
+                inner_acc[external_id] = internal_id
+            elif isinstance(c, W_Correlated):
+                cc = c.get_obj()
+                inner_acc[cc] = cc
+            else:
+                raise SchemeException("uncrecognized import : %s" % c.tostring())
+
+            importss_current = importss_current.cdr()
+
+        importss_list[index] = inner_acc
+    return importss_list
+
+def get_exports_from_w_exports_sexp(w_exports):
+    exports = {}
+    r_exports = to_rpython_list(w_exports)
+
+    for exp in r_exports:
+        if isinstance(exp, values.W_WrappedConsProper):
+            car = exp.car()
+            internal_name = car.get_obj() if isinstance(car, W_Correlated) else car
+            cadr =  exp.cdr().car()
+            external_name = cadr.get_obj() if isinstance(cadr, W_Correlated) else cadr
+            exports[internal_name] = external_name
+        else:
+            exports[exp] = exp.get_obj() if isinstance(exp, W_Correlated) else exp
+    return exports
+
+def process_w_body_sexp(w_body, importss_list, exports):
+    body_forms_ls = to_rpython_list(w_body)
+    toplevel_defined_linklet_vars = {}
+
+    _body_forms = [None]*len(body_forms_ls)
+    for index, b in enumerate(body_forms_ls):
+        if isinstance(b, W_Correlated):
+            b = b.get_obj()
+        if isinstance(b, values.W_List) and  b.car() is values.W_Symbol.make("define-values"):
+            ids = b.cdr().car()
+            ids_ls = to_rpython_list(ids)
+            for id_ in ids_ls:
+                id = id_.get_obj() if isinstance(id_, W_Correlated) else id_
+                if id in toplevel_defined_linklet_vars:
+                    raise SchemeException("duplicate binding name : %s" % id.tostring())
+                toplevel_defined_linklet_vars[id] = interp.LinkletVar(id, is_defined=True)
+
+            ast = def_vals_to_ast(b, exports, toplevel_defined_linklet_vars, importss_list)
+        else:
+            ast = sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list)
+        _body_forms[index] = ast
+    return _body_forms
+
 def deserialize_loop(sexp):
     from pycket.prims.linklet import W_Linklet, W_LinkletBundle, W_LinkletDirectory
     from pycket.env import w_global_config
 
-    util.console_log("deserialize_loop -- s-exp : %s -- %s" % (sexp, sexp.tostring()), 8)
+    #util.console_log("deserialize_loop -- s-exp : %s -- %s" % (sexp, sexp.tostring()), 8)
     if isinstance(sexp, values.W_Cons):
-        util.console_log("it's a W_Cons", 8)
+        #util.console_log("it's a W_Cons", 8)
         c = sexp.car()
-        util.console_log("c is : %s" % c.tostring(), 8)
+        #util.console_log("c is : %s" % c.tostring(), 8)
         if c is dir_sym:
-            util.console_log("dir_sym", 8)
+            #util.console_log("dir_sym", 8)
             dir_map = sexp.cdr()
             return W_LinkletDirectory(deserialize_loop(dir_map))
         elif c is bundle_sym:
-            util.console_log("bundle_sym", 8)
+            #util.console_log("bundle_sym", 8)
             bundle_map = sexp.cdr()
             return W_LinkletBundle(deserialize_loop(bundle_map))
         elif looks_like_linklet(sexp):
-            util.console_log("linklet_sym", 8)
+            #util.console_log("linklet_sym", 8)
             # Unify this with compile_linklet
             if isinstance(sexp.cdr().car(), values.W_List):
                 w_name = values.W_Symbol.make("anonymous")
@@ -461,59 +507,20 @@ def deserialize_loop(sexp):
                 w_exports = sexp.cdr().cdr().cdr().car()
                 w_body = sexp.cdr().cdr().cdr().cdr()
 
-            util.console_log("-- w_name : %s\n-- w_imports : %s\n-- w_exports : %s\n-- w_body : %s" % (w_name.tostring(), w_importss.tostring(), w_exports.tostring(), w_body.tostring()), 8)
+            #util.console_log("-- w_name : %s\n-- w_imports : %s\n-- w_exports : %s\n-- w_body : %s" % (w_name.tostring(), w_importss.tostring(), w_exports.tostring(), w_body.tostring()), 8)
 
-            importss_acc = to_rpython_list(w_importss)
-            importss_list = [None]*len(importss_acc)
-            for index, importss_current in enumerate(importss_acc):
-                inner_acc = {}
-                util.console_log("imports_current : %s" % importss_current.tostring(), 8)
-                while (importss_current is not values.w_null):
-                    c = importss_current.car()
-                    if isinstance(c, values.W_Symbol):
-                        inner_acc[c] = c
-                    elif isinstance(c, values.W_List):
-                        external_id = c.car().get_obj() if isinstance(c.car(), W_Correlated) else c.car()
-                        internal_id = c.cdr().get_obj() if isinstance(c.car(), W_Correlated) else c.cdr()
+            importss_list = get_imports_from_w_importss_sexp(w_importss)
 
-                        assert isinstance(external_id, values.W_Symbol) and isinstance(internal_id, values.W_Symbol)
-                        inner_acc[external_id] = internal_id
-                    elif isinstance(c, W_Correlated):
-                        cc = c.get_obj()
-                        inner_acc[cc] = cc
-                    else:
-                        raise SchemeException("uncrecognized import : %s" % c.tostring())
-
-                    importss_current = importss_current.cdr()
-
-                importss_list[index] = inner_acc
-
-            util.console_log("imports are done", 8)
+            #util.console_log("imports are done", 8)
 
             # Process the exports
-            exports = {}
-            r_exports = to_rpython_list(w_exports)
-
-            for exp in r_exports:
-                if isinstance(exp, values.W_WrappedConsProper):
-                    car = exp.car()
-                    internal_name = car.get_obj() if isinstance(car, W_Correlated) else car
-                    cadr =  exp.cdr().car()
-                    external_name = cadr.get_obj() if isinstance(cadr, W_Correlated) else cadr
-                    exports[internal_name] = external_name
-                else:
-                    exports[exp] = exp.get_obj() if isinstance(exp, W_Correlated) else exp
-
-            util.console_log("exports are done", 8)
+            exports = get_exports_from_w_exports_sexp(w_exports)
+            #util.console_log("exports are done", 8)
 
             # Process the body
-            body_forms_ls = to_rpython_list(w_body)
+            _body_forms = process_w_body_sexp(w_body, importss_list, exports)
 
-            toplevel_defined_linklet_vars = create_toplevel_linklet_vars(body_forms_ls)
-
-            _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
-
-            util.console_log("body forms -> ASTs are done, postprocessing begins...", 8)
+            #util.console_log("body forms -> ASTs are done, postprocessing begins...", 8)
 
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)

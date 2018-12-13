@@ -581,56 +581,18 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
         else:
             # Process the imports
             w_importss = form.cdr().car()
-
-            importss_acc = to_rpython_list(w_importss)
-            importss_list = [None]*len(importss_acc)
-            for index, importss_current in enumerate(importss_acc):
-                inner_acc = {}
-                while (importss_current is not w_null):
-                    c = importss_current.car()
-                    if isinstance(c, W_Symbol):
-                        inner_acc[c] = c
-                    elif isinstance(c, W_List):
-                        if c.cdr().cdr() is not w_null:
-                            raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
-                        external_id = c.car().get_obj() if isinstance(c.car(), W_Correlated) else c.car()
-                        internal_id = c.cdr().car().get_obj() if isinstance(c.cdr().car(), W_Correlated) else c.cdr().car()
-
-                        assert isinstance(external_id, W_Symbol) and isinstance(internal_id, W_Symbol)
-                        inner_acc[external_id] = internal_id
-                    elif isinstance(c, W_Correlated):
-                        cc = c.get_obj()
-                        inner_acc[cc] = cc
-                    else:
-                        raise SchemeException("uncrecognized import : %s" % c.tostring())
-
-                    importss_current = importss_current.cdr()
-
-                importss_list[index] = inner_acc
+            importss_list = get_imports_from_w_importss_sexp(w_importss)
 
             # Process the exports
             w_exports = form.cdr().cdr().car()
-
-            exports = {}
-            r_exports = to_rpython_list(w_exports)
-
-            for exp in r_exports:
-                if isinstance(exp, W_WrappedConsProper):
-                    car = exp.car()
-                    internal_name = car.get_obj() if isinstance(car, W_Correlated) else car
-                    cadr =  exp.cdr().car()
-                    external_name = cadr.get_obj() if isinstance(cadr, W_Correlated) else cadr
-                    exports[internal_name] = external_name
-                else:
-                    exports[exp] = exp.get_obj() if isinstance(exp, W_Correlated) else exp
+            exports = get_exports_from_w_exports_sexp(w_exports)
 
             # Process the body
             w_body = form.cdr().cdr().cdr()
-            body_forms_ls = to_rpython_list(w_body)
-
-            toplevel_defined_linklet_vars = create_toplevel_linklet_vars(body_forms_ls)
             with PerfRegion("compile-sexp-to-ast"):
-                _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
+                _body_forms = process_w_body_sexp(w_body, importss_list, exports)
+
+            # Postprocess the body
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):
