@@ -1529,8 +1529,7 @@ class LinkletDefinedVar(LinkletVar):
         # defined within the linklet, the value should be in the
         # toplevel env
         if self.w_value and self.valuating_instance:
-            current_inst = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
-            if current_inst is self.valuating_instance:
+            if env.toplevel_env().current_linklet_instance is self.valuating_instance:
                 return self.w_value.get_val()
 
         self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
