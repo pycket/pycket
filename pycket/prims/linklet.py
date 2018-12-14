@@ -57,23 +57,6 @@ class W_LinkletVar(W_Object):
         else:
             raise SchemeException("Something's wrong with the constance : %s" % self.constance.tostring())
 
-    def set(self, w_val, env, mode=None):
-        const = values.W_Symbol.make("constant")
-        if self.constance is const:
-            raise SchemeException("Cannot mutate a constant : %s" % self.sym.tostring())
-        if mode is const:
-            self.constance = const
-
-        self._set(w_val, env)
-
-    def _set(self, w_val, env):
-        c = self.w_value
-        if not c:
-            c = self._get_cell(env)
-
-        assert isinstance(c, values.W_Cell)
-        c.set_val(w_val)
-
     def set_bang(self, w_val):
         self.w_value.set_val(w_val)
 
@@ -92,26 +75,6 @@ class W_LinkletVar(W_Object):
 
     def is_uninitialized(self):
         return self.w_value is None
-
-    def _lookup(self, env):
-        w_res = self.w_value
-
-        if w_res is None:
-            w_res = self._get_cell(env)
-            self.w_value = w_res
-
-        if type(w_res) is values.W_Cell:
-            return w_res.get_val()
-        else:
-            return w_res
-
-    def _get_cell(self, env):
-        try:
-            return env.toplevel_env().toplevel_lookup_unstripped(self.sym)
-        except SchemeException:
-            inst = env.toplevel_env().get_current_linklet_instance()
-            return inst.lookup_var_value(self.sym)
-
 
 class W_Uninitialized(W_Object):
     errorname = "uninitialized"
