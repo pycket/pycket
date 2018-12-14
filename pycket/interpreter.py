@@ -1488,7 +1488,7 @@ class Gensym(object):
 
 class LinkletVar(Var):
     visitable = True
-    _immutable_fields_ = ["w_value?", "sym", "constance", "is_imported", "import_rename", "is_exported_uninit", "is_defined"]
+    _immutable_fields_ = ["w_value?", "sym", "constance", "valuating_instance?"]
 
     def __init__(self, sym, w_value=None, constance=values.w_false):
         self.sym = sym
@@ -1538,6 +1538,7 @@ class LinkletDefinedVar(LinkletVar):
         return self.w_value.get_val()
 
 class LinkletImportedVar(LinkletVar):
+    _immutable_fields_ = ["sym", "constance", "import_index", "import_rename"]
     def __init__(self, sym, import_index, import_rename=None, w_value=None, constance=values.w_false):
         LinkletVar.__init__(self, sym, w_value, constance)
         self.import_index = import_index
