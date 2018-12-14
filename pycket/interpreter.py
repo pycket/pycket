@@ -1583,14 +1583,14 @@ class LinkletExpUninitVar(LinkletVar):
         val_inst = env.toplevel_env().current_linklet_instance
         if self.w_value and self.valuating_instance:
             if val_inst is self.valuating_instance:
-                return self.w_value.get_val()
+                return self.w_value.get_val() if isinstance(self.w_value, values.W_Cell) else self.w_value
 
         # the linklet is being instantiated over a
         # different target than before
-        w_cell = val_inst.lookup_var_cell(self.sym)
-        self.w_value = w_cell
+        w_maybe_cell = val_inst.lookup_var_cell(self.sym)
+        self.w_value = w_maybe_cell
         self.valuating_instance = val_inst
-        return w_cell.get_val()
+        return w_maybe_cell.get_val() if isinstance(w_maybe_cell, values.W_Cell) else w_maybe_cell
 
 class LexicalVar(Var):
     visitable = True

@@ -75,7 +75,6 @@ class W_LinkletVar(W_Object):
         c.set_val(w_val)
 
     def set_bang(self, w_val):
-        assert isinstance(self.w_value, values.W_Cell)
         self.w_value.set_val(w_val)
 
     def get_value_direct(self):
@@ -735,8 +734,7 @@ def make_instance(args): # name, data, *vars_vals
         for i in range(0, len(vars_vals), 2):
             n = vars_vals[i]
             v = vars_vals[i+1]
-            c = W_Cell(v)
-            vars_vals_dict[n] = W_LinkletVar(n, c, mode)
+            vars_vals_dict[n] = W_LinkletVar(n, v, mode)
 
         return W_LinkletInstance(name, vars_vals_dict, {}, data)
 
@@ -779,7 +777,7 @@ def instance_set_variable_value(instance, name, val, mode):
         # FIXME : change to be constant?
         instance.overwrite_var(name, val)
     else:
-        instance.add_var(name, W_LinkletVar(name, W_Cell(val), mode))
+        instance.add_var(name, W_LinkletVar(name, val, mode))
 
     return w_void
 
