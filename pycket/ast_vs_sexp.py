@@ -141,13 +141,15 @@ def lam_to_ast(lam_sexp, lex_env, exports, linkl_toplevels, linkl_imports, cell_
 
     formals_ = lam_sexp.car()
     rest = None
-    # FIXME : optimize away the 'formals' array entirely
-    formals = values.w_null
+    formals_ls = []
+    formals_len = 0
     if isinstance(formals_, values.W_Symbol):
         # check for a "rest"
         rest = formals_
         lex_env.append(rest)
     else:
+        # two passes over the formals
+        # 1) determine the rest arg and the number of formal args
         while (formals_ is not values.w_null):
             if isinstance(formals_, values.W_Symbol):
                 rest = formals_
@@ -160,13 +162,17 @@ def lam_to_ast(lam_sexp, lex_env, exports, linkl_toplevels, linkl_imports, cell_
                 rest = formals_.cdr().car()
                 lex_env.append(rest)
                 break
-            f = formals_.car()
-            if f in cell_ref:
-                cell_ref.remove(f)
-            formals = values.W_Cons.make(f, formals)
+            formals_len += 1
             formals_ = formals_.cdr()
 
-    formals_ls, formals_len = to_rpython_list(formals, reverse=True)
+        # 2) make the r_list for formals
+        formals_ls = [None]*formals_len
+        formals_ = lam_sexp.car() # reset
+        index = 0
+        while isinstance(formals_, values.W_Cons) and formals_.car() is not values.W_Symbol.make("."):
+            formals_ls[index] = formals_.car()
+            index += 1
+            formals_ = formals_.cdr()
 
     body = sexp_to_ast(lam_sexp.cdr().car(), formals_ls + lex_env, exports, linkl_toplevels, linkl_imports, cell_ref=[], name=name)
     dummy = 1
