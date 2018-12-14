@@ -552,10 +552,10 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             # Process the body
             w_body = form.cdr().cdr().cdr()
             with PerfRegion("compile-sexp-to-ast"):
-                _body_forms = process_w_body_sexp(w_body, importss_list, exports)
+                _body_forms, _body_length = process_w_body_sexp(w_body, importss_list, exports)
 
             # Postprocess the body
-            body_forms = [None]*len(_body_forms)
+            body_forms = [None]*_body_length
             for i, bf in enumerate(_body_forms):
                 with PerfRegion("compile-normalize"):
                     b_form = Context.normalize_term(bf)

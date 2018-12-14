@@ -490,7 +490,7 @@ def process_w_body_sexp(w_body, importss_list, exports):
         else:
             ast = sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list)
         _body_forms[index] = ast
-    return _body_forms
+    return _body_forms, body_length
 
 def deserialize_loop(sexp):
     from pycket.prims.linklet import W_Linklet, W_LinkletBundle, W_LinkletDirectory
@@ -534,11 +534,11 @@ def deserialize_loop(sexp):
             #util.console_log("exports are done", 8)
 
             # Process the body
-            _body_forms = process_w_body_sexp(w_body, importss_list, exports)
+            _body_forms, _body_length = process_w_body_sexp(w_body, importss_list, exports)
 
             #util.console_log("body forms -> ASTs are done, postprocessing begins...", 8)
 
-            body_forms = [None]*len(_body_forms)
+            body_forms = [None]*_body_length
             for i, bf in enumerate(_body_forms):
                 with util.PerfRegion("assign-convert-deserialize"):
                     b_form = assign_convert(bf)
