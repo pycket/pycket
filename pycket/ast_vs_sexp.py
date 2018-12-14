@@ -182,22 +182,17 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
 
     varss_rhss, varss_len = to_rpython_list(let_ls[1])
 
-    varss_list = [None] * varss_len
-    rhss_list = [None] * varss_len
-    cells_for_the_body = list(cell_ref) if is_letrec else cell_ref
-    cells_for_the_rhss = list(cell_ref) if is_letrec else cell_ref
-
     if is_letrec:
-        # populate lex_env // cell_refs for rhss ahead of time
+        # populate lex_env
         for rhs in varss_rhss: # rhs : ((id ...) rhs-expr)
             ids, ids_len = to_rpython_list(rhs.car(), open_correlated=True) # (id ...)
-            cells_for_the_rhss += ids
-            lex_env += ids #[i.get_obj() if isinstance(i, W_Correlated) else i for i in ids]
+            lex_env += ids
 
+    varss_list = [None] * varss_len
+    rhss_list = [None] * varss_len
     num_ids = 0
     i = 0
     for w_vars_rhss in varss_rhss:
-        #varr = [v.get_obj() if isinstance(v, W_Correlated) else v for v in to_rpython_list(w_vars_rhss.car())]
         varr, varr_len = to_rpython_list(w_vars_rhss.car(), open_correlated=True)
         varss_list[i] = varr
 
@@ -223,7 +218,7 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
         return interp.Begin.make(body_ls)
 
     if is_letrec:
-        return interp.make_letrec(list(varss_list), list(rhss_list), body_ls)
+        return interp.make_letrec(varss_list, rhss_list, body_ls)
     else:
         return interp.make_let(varss_list, rhss_list, body_ls)
 
