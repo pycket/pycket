@@ -61,12 +61,12 @@ def load_fasl(pycketconfig, debug):
 def load_regexp(pycketconfig, debug):
     load_bootstrap_linklet("regexp", pycketconfig, debug)
 
-def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False, do_load_regexp=False):
+def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False, do_load_regexp=False, eval_sexp=None):
 
     if do_load_regexp:
         sys_config = load_regexp(pycketconfig, debug)
 
-    if not dev_mode:
+    if not dev_mode or eval_sexp:
         sys_config = load_expander(pycketconfig, debug)
 
     sys_config = load_fasl(pycketconfig, debug)
@@ -111,27 +111,47 @@ def sample_sexp():
     ast = JsonLoader().to_ast(json) #module
     return ast.to_sexp()
 
-def dev_mode_entry():
+def dev_mode_entry(eval_sexp_str):
     from pycket.values import W_Fixnum
     from pycket.error import ExitException
     from pycket.util import console_log
+    from pycket.prims.linklet import W_LinkletInstance
 
-    sexp_to_fasl = get_primitive("s-exp->fasl")
-    fasl_to_sexp = get_primitive("fasl->s-exp")
-    sexp = sample_sexp()
-    fasl = sexp_to_fasl.call_interpret([sexp])
-    console_log(fasl.tostring(), 1)
-    sexp_out = fasl_to_sexp.call_interpret([fasl])
-    console_log(sexp_out.tostring(), 1)
-    raise ExitException(sexp_out)
+    if eval_sexp_str:
+        from pycket.prims.linklet import do_compile_linklet
+        from pycket.env import ToplevelEnv
+        from pycket.cont import NilCont
 
-def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False, do_load_regexp=False):
+        linkl_sexp = racket_read_str(eval_sexp_str)
+        linkl = None
+        try:
+            do_compile_linklet(linkl_sexp, W_Symbol.make("linkl"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
+        except Done, e:
+            linkl = e.values
+
+        instantiate_linklet = get_primitive("instantiate-linklet")
+        target = W_LinkletInstance(W_Symbol.make("target"), {}, {}, w_false)
+
+        res = instantiate_linklet.call_interpret([linkl, w_null, target, w_false])
+        print("result : %s" % res.tostring())
+        raise ExitException(linkl_sexp)
+    else:
+        sexp_to_fasl = get_primitive("s-exp->fasl")
+        fasl_to_sexp = get_primitive("fasl->s-exp")
+        sexp = sample_sexp()
+        fasl = sexp_to_fasl.call_interpret([sexp])
+        console_log(fasl.tostring(), 1)
+        sexp_out = fasl_to_sexp.call_interpret([fasl])
+        console_log(sexp_out.tostring(), 1)
+        raise ExitException(sexp_out)
+
+def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False, do_load_regexp=False, eval_sexp=None):
     from pycket.env import w_version
 
-    sysconfig = load_bootstrap_linklets(pycketconfig, debug, dev_mode=dev_mode, do_load_regexp=do_load_regexp)
+    sysconfig = load_bootstrap_linklets(pycketconfig, debug, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp)
 
     if dev_mode:
-        dev_mode_entry()
+        dev_mode_entry(eval_sexp)
 
     with PerfRegion("set-params"):
 
@@ -244,10 +264,10 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     linklet_perf.init()
 
-    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp = get_options(names, config)
+    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp, eval_sexp = get_options(names, config)
 
     with PerfRegion("startup"):
-        initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, dev_mode=dev_mode, do_load_regexp=do_load_regexp)
+        initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp)
 
     if just_init:
         return 0
@@ -316,17 +336,17 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
     return 0
 
 
-def racket_read(input_port, pycketconfig):
+def racket_read(input_port):
     read_prim = get_primitive("read")
 
-    return check_one_val(read_prim.call_interpret([input_port], pycketconfig))
+    return check_one_val(read_prim.call_interpret([input_port]))
 
-def racket_read_str(expr_str, pycketconfig):
+def racket_read_str(expr_str):
     ois = get_primitive("open-input-string")
 
-    str_port = check_one_val(ois.call_interpret([W_String.make(expr_str)], pycketconfig))
+    str_port = check_one_val(ois.call_interpret([W_String.make(expr_str)]))
 
-    return racket_read(str_port, pycketconfig)
+    return racket_read(str_port)
 
 def racket_read_file(file_name, pycketconfig):
     oif = get_primitive("open-input-file")
@@ -360,7 +380,7 @@ def racket_print(results, pycketconfig):
 
 def read_eval_print_string(expr_str, pycketconfig, return_val=False, debug=False):
     # read
-    sexp = racket_read_str(expr_str, pycketconfig)
+    sexp = racket_read_str(expr_str)
 
     # expand
     #expanded = racket_expand(sexp, pycketconfig)
@@ -411,6 +431,7 @@ def get_options(names, config):
     do_load_regexp = config['load-regexp']
 
     dev_mode = config['dev-mode']
+    eval_sexp = names['eval-sexp'][0] if 'eval-sexp' in names else ""
 
     loads_print_str = []
     loads = []
@@ -435,6 +456,7 @@ use-compiled       : %s
 verbosity-level    : %s
 verbosity-keywords : %s
 dev-mode           : %s
+eval-s-sexp        : %s
 """ % (loads_print_str,
        set_run_file,
        set_collects_dir,
@@ -448,8 +470,9 @@ dev-mode           : %s
        use_compiled,
        verbosity_lvl,
        verbosity_keywords,
-       dev_mode)
+       dev_mode,
+       eval_sexp)
 
     console_log(log_str, debug=debug)
 
-    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode, do_load_regexp
+    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode, do_load_regexp, eval_sexp
