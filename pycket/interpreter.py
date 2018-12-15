@@ -40,6 +40,7 @@ BUILTIN_MODULES = [
     "#%futures",
     "#%core",
     "#%linklet",
+    "#%linklet-primitive",
     "#%network" ]
 
 class BindingFormMixin(object):
