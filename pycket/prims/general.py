@@ -2066,3 +2066,8 @@ expose_val("current-load-extension", current_load_extension)
 @expose("system-language+country", [])
 def lang_country():
     return values_string.W_String.make("en_US.UTF-8")
+
+
+@expose("unsafe-add-post-custodian-shutdown", [values.W_Object])
+def add_post(p):
+    return values.w_void
