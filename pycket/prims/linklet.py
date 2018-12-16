@@ -23,7 +23,7 @@ from pycket.prims.general import make_pred
 from pycket.prims.correlated import W_Correlated
 from pycket.prims.vector import vector
 from pycket.AST import AST
-from pycket.cont import Prompt, NilCont, continuation
+from pycket.cont import Prompt, NilCont, continuation, loop_label
 from pycket.prims.control import default_error_escape_handler, default_uncaught_exception_handler
 from pycket.hash.base import W_HashTable
 from pycket.hash.simple import W_EqImmutableHashTable, make_simple_immutable_table
@@ -279,6 +279,7 @@ def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, e
 
     return return_value(w_void, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont))
 
+@loop_label
 def instantiate_loop(forms, index, gensym_count, return_val, target, exports, env, cont):
     form = forms[index]
     if isinstance(form, DefineValues):
