@@ -535,6 +535,7 @@ def compile_linklet(form, name, import_keys, get_import, options, env, cont):
         cont_ = finish_perf_region_cont("compile-linklet", env, cont)
         return do_compile_linklet(form, name, import_keys, get_import, options, env, cont_)
 
+@loop_label
 def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
 
     if isinstance(form, W_WrappedConsProper): # s-expr
@@ -776,6 +777,7 @@ def var_ref_from_unsafe_huh(varref):
     """
     return varref.is_unsafe()
 
+@loop_label
 @expose("read-linklet-bundle-hash", [values.W_InputPort])
 def read_linklet_bundle_hash(in_port):
     from pycket.util import console_log
@@ -789,6 +791,7 @@ def read_linklet_bundle_hash(in_port):
     with PerfRegion("s-exp->ast"):
         return deserialize_loop(bundle_map)
 
+@loop_label
 @expose("write-linklet-bundle-hash", [W_EqImmutableHashTable, values.W_OutputPort])
 def write_linklet_bundle_hash(ht, out_port):
     from pycket.util import console_log
