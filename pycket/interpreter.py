@@ -1522,6 +1522,7 @@ class LinkletDefinedVar(LinkletVar):
     def _set(self, w_val, env):
         if not self.w_value or not self.valuating_instance or self.valuating_instance is not env.toplevel_env().current_linklet_instance:
             self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
+            self.valuating_instance = env.toplevel_env().current_linklet_instance
 
         self.w_value.set_val(w_val)
 
