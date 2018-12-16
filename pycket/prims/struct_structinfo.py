@@ -102,7 +102,7 @@ def do_make_struct_type(name, super_type, w_init_field_cnt, w_auto_field_cnt,
         raise SchemeException("make-struct-type: constructor name mustbe be symbol? or #f")
 
     if not isinstance(super_type, values_struct.W_StructType) and super_type is not values.w_false:
-        raise SchemeException("make-struct-type: expected a struct-type? or #f")
+        raise SchemeException("make-struct-type: expected a struct-type? or #f for the super type , but got %s : %s" % (super_type, super_type.tostring()))
 
     init_field_cnt = w_init_field_cnt.value
     auto_field_cnt = w_auto_field_cnt.value

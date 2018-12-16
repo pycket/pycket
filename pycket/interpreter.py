@@ -1489,16 +1489,16 @@ class Gensym(object):
 
 class LinkletVar(Var):
     visitable = True
-    _immutable_fields_ = ["w_value?", "sym", "constance", "is_transparent"]
+    _immutable_fields_ = ["w_value?", "sym", "constance", "valuating_instance?"]
 
-    def __init__(self, sym, w_value=None, constance=values.w_false, is_transparent=False):
+    def __init__(self, sym, w_value=None, constance=values.w_false):
         self.sym = sym
         self.w_value = w_value
-        self.is_transparent = is_transparent
         self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
+        self.valuating_instance = None
 
     def tostring(self):
-        val_str = self.get_value_direct().tostring() if self.w_value else "NO-VAL"
+        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
         return "LinkletVar(%s:%s)" % (self.sym.tostring(), val_str)
 
     def write(self, port, env):
@@ -1508,72 +1508,91 @@ class LinkletVar(Var):
     def _free_vars(self, cache):
         return SymbolSet.EMPTY()
 
-    def is_constant(self):
-        # FIXME : investigate 'consistent
-        if self.constance is values.w_false or self.constance is values.W_Symbol.make("consistent"):
-            return False
-        elif self.constance is values.W_Symbol.make("constant"):
-            return True
-        else:
-            raise SchemeException("Something's wrong with the constance : %s" % self.constance.tostring())
-
-    def set(self, w_val, env, mode=None):
-        const = values.W_Symbol.make("constant")
-        if self.constance is const:
-            raise SchemeException("Cannot mutate a constant : %s" % self.sym.tostring())
-        if mode is const:
-            self.constance = const
-
-        self._set(w_val, env)
-
     def _set(self, w_val, env):
-        c = self.w_value
-        if not c:
-            c = self._get_cell(env)
-
-        assert isinstance(c, values.W_Cell)
-        c.set_val(w_val)
-
-    def set_bang(self, w_val):
-        assert isinstance(self.w_value, values.W_Cell)
-        self.w_value.set_val(w_val)
-
-    def get_value_direct(self):
-        w_res = self.get_value_unstripped()
-        if isinstance(w_res, values.W_Cell):
-            return w_res.get_val()
-        return w_res
-
-    # get the value possibly with the W_Cell
-    def get_value_unstripped(self):
-        w_res = self.w_value
-        if w_res is None:
-            raise SchemeException("Reference to an uninitialized variable : %s" % self.sym.tostring())
-        return w_res
-
-    def is_uninitialized(self):
-        return self.w_value is None
+        raise NotImplementedError("abstract base class")
 
     def _lookup(self, env):
-        w_res = self.w_value
+        raise NotImplementedError("base class")
 
-        if w_res is None:
-            w_res = self._get_cell(env)
+class LinkletDefinedVar(LinkletVar):
 
-            if not self.is_transparent:
-                self.w_value = w_res
+    def tostring(self):
+        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
+        return "LinkletDefinedVar(%s:%s)" % (self.sym.tostring(), val_str)
 
-        if type(w_res) is values.W_Cell:
-            return w_res.get_val()
-        else:
-            return w_res
+    def _set(self, w_val, env):
+        if not self.w_value or not self.valuating_instance or self.valuating_instance is not env.toplevel_env().current_linklet_instance:
+            self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
+            self.valuating_instance = env.toplevel_env().current_linklet_instance
 
-    def _get_cell(self, env):
-        try:
-            return env.toplevel_env().toplevel_lookup_unstripped(self.sym)
-        except SchemeException:
-            inst = env.toplevel_env().get_current_linklet_instance()
-            return inst.lookup_var_value(self.sym)
+        self.w_value.set_val(w_val)
+
+    def _lookup(self, env):
+        # defined within the linklet, the value should be in the
+        # toplevel env
+        if self.w_value and self.valuating_instance:
+            if env.toplevel_env().current_linklet_instance is self.valuating_instance:
+                return self.w_value.get_val()
+
+        self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
+        self.valuating_instance = env.toplevel_env().current_linklet_instance
+        return self.w_value.get_val()
+
+class LinkletImportedVar(LinkletVar):
+    _immutable_fields_ = ["sym", "constance", "import_index", "import_rename"]
+    def __init__(self, sym, import_index, import_rename=None, w_value=None, constance=values.w_false):
+        LinkletVar.__init__(self, sym, w_value, constance)
+        self.import_index = import_index
+        self.import_rename = import_rename
+
+    def tostring(self):
+        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
+        return "LinkletImportedVar(%s:%s:%s:%s)" % (self.sym.tostring(), val_str, self.import_index, self.import_rename)
+
+    def _lookup(self, env):
+        ## imported
+        if self.w_value:
+            assert self.valuating_instance
+            imp_inst = env.toplevel_env().import_instances[self.import_index]
+            if imp_inst is self.valuating_instance:
+                return self.w_value
+
+        ## actual lookup for imported
+        imp_inst = env.toplevel_env().import_instances[self.import_index]
+        lookup_sym = self.import_rename if self.import_rename else self.sym
+        w_val = imp_inst.lookup_var_value(lookup_sym) # value, not cell
+        self.w_value = w_val
+        self.valuating_instance = imp_inst
+        return w_val
+
+class LinkletExpUninitVar(LinkletVar):
+
+    def tostring(self):
+        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
+        return "LinkletExpUninitVar(%s:%s)" % (self.sym.tostring(), val_str)
+
+    def _set(self, w_val, env):
+        assert not self.w_value
+        val_inst = env.toplevel_env().current_linklet_instance
+        w_cell = val_inst.lookup_var_cell(self.sym)
+        self.w_value = w_cell
+        self.valuating_instance = val_inst
+        w_cell.set_val(w_val)
+
+    def _lookup(self, env):
+        # exported, but not defined
+        # (gonna use the target's value)
+        val_inst = env.toplevel_env().current_linklet_instance
+        if self.w_value and self.valuating_instance:
+            if val_inst is self.valuating_instance:
+                return self.w_value.get_val() # if isinstance(self.w_value, values.W_Cell) else self.w_value
+
+        # the linklet is being instantiated over a
+        # different target than before
+        w_maybe_cell = val_inst.lookup_var_cell(self.sym)
+        self.w_value = w_maybe_cell
+        self.valuating_instance = val_inst
+        return w_maybe_cell.get_val() # if isinstance(w_maybe_cell, values.W_Cell) else w_maybe_cell
 
 class LexicalVar(Var):
     visitable = True

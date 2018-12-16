@@ -48,6 +48,7 @@ def print_help(argv):
  Meta options:
   --load-regexp                      : Loads the regexp linklet
   --dev                              : Flag to be used in development, behavior depends
+  --eval-linklet                     : puts the given expression in a linklet and evaluates over empty target
   --just-init                        : Ignore all parameters, initialize the bootstrap linklets and exit
   --verbose <level>                  : Print the debug logs. <level> : natural number (defaults to 0)
   --jit <jitargs>                    : Set RPython JIT options may be 'default', 'off',
@@ -92,7 +93,7 @@ conf_opts = ["-c", "--no-compiled",
              "-L", "--syslog",
              "--kernel",
              "--save-callgraph"]
-meta_opts = ["--dev", "--just-init", "--verbose", "--jit", "-h"]
+meta_opts = ["--dev", "--eval-linklet", "--just-init", "--verbose", "--jit", "-h"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
 
@@ -366,6 +367,15 @@ def parse_args(argv):
         elif argv[i] == "--dev":
             config['dev-mode'] = True
             retval = RETURN_OK
+
+        elif argv[i] == "--eval-linklet":
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            config['dev-mode'] = True
+            i += 1
+            add_name(names, 'eval-sexp', argv[i])
 
         elif argv[i] == "--load-regexp":
             config['load-regexp'] = True

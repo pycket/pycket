@@ -23,13 +23,58 @@ from pycket.prims.general import make_pred
 from pycket.prims.correlated import W_Correlated
 from pycket.prims.vector import vector
 from pycket.AST import AST
-from pycket.cont import Prompt, NilCont, continuation
+from pycket.cont import Prompt, NilCont, continuation, loop_label
 from pycket.prims.control import default_error_escape_handler, default_uncaught_exception_handler
 from pycket.hash.base import W_HashTable
 from pycket.hash.simple import W_EqImmutableHashTable, make_simple_immutable_table
 from pycket.util import PerfRegion, PerfRegionCPS
 
 from pycket.ast_vs_sexp import *
+
+class W_LinkletVar(W_Object):
+
+    _immutable_fields_ = ["w_value?", "sym", "constance"]
+
+    def __init__(self, sym, w_value=None, constance=values.w_false):
+        self.sym = sym
+        self.w_value = w_value
+        self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
+
+    def tostring(self):
+        val_str = self.get_value_direct().tostring() if self.w_value else "NO-VAL"
+        return "LinkletVar(%s:%s)" % (self.sym.tostring(), val_str)
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
+
+    def is_constant(self):
+        # FIXME : investigate 'consistent
+        if self.constance is values.w_false or self.constance is values.W_Symbol.make("consistent"):
+            return False
+        elif self.constance is values.W_Symbol.make("constant"):
+            return True
+        else:
+            raise SchemeException("Something's wrong with the constance : %s" % self.constance.tostring())
+
+    def set_bang(self, w_val):
+        self.w_value.set_val(w_val)
+
+    def get_value_direct(self):
+        w_res = self.get_value_unstripped()
+        if isinstance(w_res, values.W_Cell):
+            return w_res.get_val()
+        return w_res
+
+    # get the value possibly with the W_Cell
+    def get_value_unstripped(self):
+        w_res = self.w_value
+        if w_res is None:
+            raise SchemeException("Reference to an uninitialized variable : %s" % self.sym.tostring())
+        return w_res
+
+    def is_uninitialized(self):
+        return self.w_value is None
 
 class W_Uninitialized(W_Object):
     errorname = "uninitialized"
@@ -113,6 +158,10 @@ class W_LinkletInstance(W_Object):
                 prim_src[name.variable_name()] = 'linklet'
 
     def lookup_var_value(self, name):
+        var = self.get_var(name)
+        return var.get_value_direct()
+
+    def lookup_var_cell(self, name):
         var = self.get_var(name)
         return var.get_value_unstripped()
 
@@ -214,11 +263,10 @@ def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, e
 
         # modify target
         ext_name = exports[name] if name in exports else name
-
         c = W_Cell(value)
         env.toplevel_env().toplevel_set(name, c, already_celled=True)
 
-        var = LinkletVar(ext_name, c)
+        var = W_LinkletVar(ext_name, c)
         if name in exports or not target.has_var(ext_name): # variable is definitely going into target
             if target.has_var(ext_name) and not target.is_var_uninitialized(ext_name):
                 target.overwrite_var(ext_name, value)
@@ -231,6 +279,7 @@ def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, e
 
     return return_value(w_void, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont))
 
+@loop_label
 def instantiate_loop(forms, index, gensym_count, return_val, target, exports, env, cont):
     form = forms[index]
     if isinstance(form, DefineValues):
@@ -324,9 +373,7 @@ class W_Linklet(W_Object):
         # to that variable (whenever the target's variable is
         # modified, the one in the environment has to be updated too)
         from pycket.env import ToplevelEnv
-        env = ToplevelEnv(config)
-
-        env.set_current_linklet_instance(target)
+        env = ToplevelEnv(config, current_linklet_instance=target, import_instances=w_imported_instances)
 
         if not cont:
             cont = NilCont()
@@ -342,19 +389,19 @@ class W_Linklet(W_Object):
         """
         Process the imports, get them into the toplevel environment
         """
-        for instance_index, imports_dict in enumerate(self.importss):
-            for ext_name, int_name in imports_dict.iteritems():
-                # (linklet (((x x1))) () (define-values (x) 14) (+ x1 x))
-                if int_name in self.exports:
-                    raise SchemeException("export duplicates import : %s" % int_name.tostring())
+        # for instance_index, imports_dict in enumerate(self.importss):
+        #     for ext_name, int_name in imports_dict.iteritems():
+        #         # (linklet (((x x1))) () (define-values (x) 14) (+ x1 x))
+        #         if int_name in self.exports:
+        #             raise SchemeException("export duplicates import : %s" % int_name.tostring())
 
-                imported_var = w_imported_instances[instance_index].get_var(ext_name)
-                if imported_var.is_uninitialized():
-                    raise SchemeException("Trying to import a variable that is uninitialized : %s" % ext_name.tostring())
+        #         imported_var = w_imported_instances[instance_index].get_var(ext_name)
+        #         if imported_var.is_uninitialized():
+        #             raise SchemeException("Trying to import a variable that is uninitialized : %s" % ext_name.tostring())
 
-                # imports never get into the target
-                # put the into the toplevel env
-                env.toplevel_env().toplevel_set(int_name, imported_var.get_value_direct())
+        #         # imports never get into the target
+        #         # put the into the toplevel env
+        #         env.toplevel_env().toplevel_set(int_name, imported_var.get_value_direct())
 
         """
         Collect the ids defined in the given linklet's forms
@@ -371,7 +418,7 @@ class W_Linklet(W_Object):
             # Defined name ids are changed in compilation based on renames
             if external_name not in linklet_defined_names:
                 if not target.has_var(external_name):
-                    target.add_var(external_name, LinkletVar(external_name))
+                    target.add_var(external_name, W_LinkletVar(external_name))
 
         if len(self.forms) == 0:
             # no need for any evaluation, just return the instance or the value
@@ -488,6 +535,7 @@ def compile_linklet(form, name, import_keys, get_import, options, env, cont):
         cont_ = finish_perf_region_cont("compile-linklet", env, cont)
         return do_compile_linklet(form, name, import_keys, get_import, options, env, cont_)
 
+@loop_label
 def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
 
     if isinstance(form, W_WrappedConsProper): # s-expr
@@ -497,58 +545,19 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
         else:
             # Process the imports
             w_importss = form.cdr().car()
-
-            importss_acc = to_rpython_list(w_importss)
-            importss_list = [None]*len(importss_acc)
-            for index, importss_current in enumerate(importss_acc):
-                inner_acc = {}
-                while (importss_current is not w_null):
-                    c = importss_current.car()
-                    if isinstance(c, W_Symbol):
-                        inner_acc[c] = c
-                    elif isinstance(c, W_List):
-                        if c.cdr().cdr() is not w_null:
-                            raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
-                        external_id = c.car().get_obj() if isinstance(c.car(), W_Correlated) else c.car()
-                        internal_id = c.cdr().car().get_obj() if isinstance(c.cdr().car(), W_Correlated) else c.cdr().car()
-
-                        assert isinstance(external_id, W_Symbol) and isinstance(internal_id, W_Symbol)
-                        inner_acc[external_id] = internal_id
-                    elif isinstance(c, W_Correlated):
-                        cc = c.get_obj()
-                        inner_acc[cc] = cc
-                    else:
-                        raise SchemeException("uncrecognized import : %s" % c.tostring())
-
-                    importss_current = importss_current.cdr()
-
-                importss_list[index] = inner_acc
+            importss_list = get_imports_from_w_importss_sexp(w_importss)
 
             # Process the exports
             w_exports = form.cdr().cdr().car()
-
-            exports = {}
-            r_exports = to_rpython_list(w_exports)
-
-            for exp in r_exports:
-                if isinstance(exp, W_WrappedConsProper):
-                    car = exp.car()
-                    internal_name = car.get_obj() if isinstance(car, W_Correlated) else car
-                    cadr =  exp.cdr().car()
-                    external_name = cadr.get_obj() if isinstance(cadr, W_Correlated) else cadr
-                    exports[internal_name] = external_name
-                else:
-                    exports[exp] = exp.get_obj() if isinstance(exp, W_Correlated) else exp
+            exports = get_exports_from_w_exports_sexp(w_exports)
 
             # Process the body
             w_body = form.cdr().cdr().cdr()
-            body_forms_ls = to_rpython_list(w_body)
-
-            toplevel_defined_linklet_vars = create_toplevel_linklet_vars(body_forms_ls)
             with PerfRegion("compile-sexp-to-ast"):
-                _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
-            # FIXME : remove "disable_conversions" argument entirely
-            body_forms = [None]*len(_body_forms)
+                _body_forms, _body_length = process_w_body_sexp(w_body, importss_list, exports)
+
+            # Postprocess the body
+            body_forms = [None]*_body_length
             for i, bf in enumerate(_body_forms):
                 with PerfRegion("compile-normalize"):
                     b_form = Context.normalize_term(bf)
@@ -602,18 +611,17 @@ def instance_name(l_inst):
 @expose("instantiate-linklet", [W_Linklet, W_List, default(W_Object, w_false), default(W_Object, w_true)], simple=False)
 def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, env, cont):
     from pycket.util import console_log
-    console_log("instantiating linklet : %s" % linkl.name.tostring(), 3)
+    #console_log("instantiating linklet : %s" % linkl.name.tostring(), 3)
 
     prompt = False
     if use_prompt is not w_false: # use-prompt? : any/c = #t - what happens when it is 3 ?
         prompt = True
 
-    im_list = to_rpython_list(import_instances)
+    im_list, im_length = to_rpython_list(import_instances)
     expected = len(linkl.importss)
-    given = len(im_list)
 
-    if expected != given:
-        raise SchemeException("The number of instances in import-instances must match the number of import sets in linklet. Expected %s but got %s" % (expected, given))
+    if expected != im_length:
+        raise SchemeException("The number of instances in import-instances must match the number of import sets in linklet. Expected %s but got %s" % (expected, im_length))
 
     if target_instance is None or target_instance is w_false:
         target = None
@@ -693,7 +701,7 @@ def make_instance(args): # name, data, *vars_vals
         for i in range(0, len(vars_vals), 2):
             n = vars_vals[i]
             v = vars_vals[i+1]
-            vars_vals_dict[n] = LinkletVar(n, v, mode)
+            vars_vals_dict[n] = W_LinkletVar(n, W_Cell(v), mode)
 
         return W_LinkletInstance(name, vars_vals_dict, {}, data)
 
@@ -736,7 +744,7 @@ def instance_set_variable_value(instance, name, val, mode):
         # FIXME : change to be constant?
         instance.overwrite_var(name, val)
     else:
-        instance.add_var(name, LinkletVar(name, val, mode))
+        instance.add_var(name, W_LinkletVar(name, W_Cell(val), mode))
 
     return w_void
 
@@ -780,7 +788,6 @@ def read_linklet_cont(env, cont, _vals):
         raise SchemeException("got something that is not a table: %s"%bundle_map.tostring())
     with PerfRegion("s-exp->ast"):
         return return_value(deserialize_loop(bundle_map), env, cont)
-
 
 @expose("read-linklet-bundle-hash", [values.W_InputPort], simple=False)
 def read_linklet_bundle_hash(in_port, env, cont):
