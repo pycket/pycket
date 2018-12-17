@@ -221,7 +221,7 @@ def test_regexp_replace_star(doctest):
     "my cerveza My Mi Mi"
     > (regexp-replace* #rx"x" "12x4x6" "\\\\")
     "12\\4\\6"
-    > (eq? sample (regexp-replace* #rx"z" sample "Z"))
+    > (equal? sample (regexp-replace* #rx"z" sample "Z"))
     #t
     """
 
