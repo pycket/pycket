@@ -218,15 +218,15 @@ def test_char_integer(doctest):
 def test_char_general_category(doctest):
     """
     > (char-general-category #\ )
-    zs
+    'zs
     > (char-general-category #\c)
-    ll
+    'll
     > (char-general-category #\.)
-    po
-    > (char-general-category #\\)
-    po
+    'po
+    > (char-general-category #\\\\)
+    'po
     > (char-general-category #\|)
-    sm
+    'sm
     """
 
 def test_string_change_case(doctest):
