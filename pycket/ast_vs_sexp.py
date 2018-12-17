@@ -548,27 +548,37 @@ def deserialize_loop(sexp):
 
             return W_Linklet(w_name, importss_list, exports, body_forms)
         else:
-            #util.console_log("ELSE", 8)
+            # get the length
+            ls = sexp
+            length = 0
             is_improper = False
-            new_rev = values.w_null
-            while sexp is not values.w_null:
-                if isinstance(sexp, values.W_Cons):
-                    new_rev = values.W_Cons.make(deserialize_loop(sexp.car()), new_rev)
-                    sexp = sexp.cdr()
+            while ls is not values.w_null:
+                if isinstance(ls, values.W_Cons):
+                    length += 1
+                    ls = ls.cdr()
                 else:
                     is_improper = True
-                    new_rev = values.W_Cons.make(deserialize_loop(sexp), new_rev)
-                    sexp = values.w_null
-            # double reverse
-            # FIXME : do this without the double space
-            new = values.w_null
-            if is_improper:
-                new = new_rev.car()
-                new_rev = new_rev.cdr()
+                    ls = values.w_null
 
-            while new_rev is not values.w_null:
-                new = values.W_Cons.make(new_rev.car(), new)
-                new_rev = new_rev.cdr()
+            # allocate an r_list (to avoid reversing w_list)
+            if is_improper:
+                sexp_ls = [None]*(length+1)
+            else:
+                sexp_ls = [None]*length
+
+            # second pass, get the elements
+            ls = sexp
+            for i in range(length):
+                sexp_ls[i] = ls.car()
+                ls = ls.cdr()
+
+            if is_improper:
+                sexp_ls[length] = ls
+
+            # make the new list
+            new = values.w_null
+            for s in sexp_ls:
+                new = values.W_Cons.make(deserialize_loop(s), new)
 
             return new
     elif isinstance(sexp, simple.W_EqImmutableHashTable):
