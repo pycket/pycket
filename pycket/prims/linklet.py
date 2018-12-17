@@ -535,7 +535,6 @@ def compile_linklet(form, name, import_keys, get_import, options, env, cont):
         cont_ = finish_perf_region_cont("compile-linklet", env, cont)
         return do_compile_linklet(form, name, import_keys, get_import, options, env, cont_)
 
-@loop_label
 def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
 
     if isinstance(form, W_WrappedConsProper): # s-expr
