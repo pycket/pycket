@@ -242,8 +242,22 @@ def namespace_require_kernel(pycketconfig):
                                       W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
     namespace_require.call_interpret([kernel], pycketconfig)
 
-def namespace_require_plus(spec, pycketconfig):
+need_runtime_configure = [True]
 
+def configure_runtime(m, pycketconfig):
+    dynamic_require = get_primitive("dynamic-require")
+    module_declared = get_primitive("module-declared?")
+    join = get_primitive("module-path-index-join")
+    submod = W_WrappedConsProper.make(W_Symbol.make("submod"),
+                                      W_WrappedConsProper.make(W_String.make("."),
+                                                               W_WrappedConsProper(W_Symbol.make("configure-runtime"), w_null)))
+
+    config_m = join.call_interpret([submod, m], pycketconfig)
+    if module_declared.call_interpret([config_m, w_true], pycketconfig) is w_true:
+        dynamic_require.call_interpret([config_m, w_false], pycketconfig)
+    # FIXME: doesn't do the old-style language-info stuff
+
+def namespace_require_plus(spec, pycketconfig):
     namespace_require = get_primitive("namespace-require")
     dynamic_require = get_primitive("dynamic-require")
     module_declared = get_primitive("module-declared?")
@@ -253,6 +267,9 @@ def namespace_require_plus(spec, pycketconfig):
                                       W_WrappedConsProper.make(W_String.make("."),
                                                                W_WrappedConsProper(W_Symbol.make("main"), w_null)))
     # FIXME: configure-runtime
+    if need_runtime_configure[0]:
+        configure_runtime(m, pycketconfig)
+        need_runtime_configure[0] = False
     namespace_require.call_interpret([m], pycketconfig)
     main = join.call_interpret([submod, m], pycketconfig)
     if module_declared.call_interpret([main, w_true], pycketconfig) is w_true:
