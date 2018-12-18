@@ -1929,30 +1929,29 @@ def make_readtable(parent, char, sym, proc):
 def read_recursive(args):
     return values.w_false
 
-def make_stub_predicates(*names):
+def make_stub_predicates(names):
     for name in names:
-        message = "%s: not yet implemented" % name
-        @expose(name, [values.W_Object])
-        def predicate(obj):
-            if not objectmodel.we_are_translated():
-                print message
-            return values.w_false
-        predicate.__name__ = "stub_predicate(%s)" % name
+        if values.W_Symbol.make(name) not in prim_env:
+            message = "%s: not yet implemented" % name
+            @expose(name, [values.W_Object])
+            def predicate(obj):
+                if not objectmodel.we_are_translated():
+                    print message
+                return values.w_false
+            predicate.__name__ = "stub_predicate(%s)" % name
 
-def make_stub_predicates_no_linklet(*names):
-    if not w_global_config.are_we_in_linklet_mode() and not w_global_config.is_expander_loaded():
-        make_stub_predicates(*names)
-
-make_stub_predicates_no_linklet(
-    "namespace-anchor?",
-    "rename-transformer?",
-    "readtable?",
-    "liberal-define-context?",
-    "compiled-expression?",
-    "special-comment?",
-    "internal-definition-context?",
-    "namespace?",
-    "compiled-module-expression?")
+def make_stub_predicates_no_linklet():
+    assert not w_global_config.are_we_in_linklet_mode() or not w_global_config.is_expander_loaded()
+    STUB_PREDICATES_NO_LINKLET = ["namespace-anchor?",
+                                  "rename-transformer?",
+                                  "readtable?",
+                                  "liberal-define-context?",
+                                  "compiled-expression?",
+                                  "special-comment?",
+                                  "internal-definition-context?",
+                                  "namespace?",
+                                  "compiled-module-expression?"]
+    make_stub_predicates(STUB_PREDICATES_NO_LINKLET)
 
 @expose("unsafe-start-atomic", [])
 def unsafe_start_atomic():
