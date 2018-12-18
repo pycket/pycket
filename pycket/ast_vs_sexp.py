@@ -568,7 +568,7 @@ def deserialize_loop(sexp):
 
             # second pass, get the elements
             ls = sexp
-            for i in range(length):
+            for i in range(length-1, -1, -1):
                 sexp_ls[i] = ls.car()
                 ls = ls.cdr()
 
