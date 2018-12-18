@@ -387,7 +387,7 @@ def test_eqv():
                            ((g) (lambda () (if (eqv? f g) 'g 'both))))
              (eqv? f g))""",
         w_false)
-    run("(eqv? (quote a) (quote a))", w_false) #racket
+    run("(eqv? (quote a) (quote a))", w_true) #racket
     # run('(eqv? "a" "a")', w_true) #racket
     run("(eqv? (quote b) (cdr (quote (a b))))", w_false) #racket
     run("""(let-values (((x) (quote a)))
