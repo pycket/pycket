@@ -70,7 +70,7 @@ def continuation_mark_set_to_list_star(mark_set, key_list, none_v, prompt_tag):
     keys = values.from_list(key_list)
     return get_marks_all(cont, keys, none_v, upto=[prompt_tag])
 
-def is_ast_cont(k):
+def is_ast_cont_with_surrounding_lambda(k):
     from pycket import interpreter as i
     cs = [i.LetCont,
           i.LetrecCont,
@@ -81,7 +81,7 @@ def is_ast_cont(k):
           i.WCMValCont]
     # the ones having the method "get_next_executed_ast"
     for c in cs:
-        if isinstance(k, c):
+        if isinstance(k, c) and k.get_ast().surrounding_lambda:
             return True
     return False
 
@@ -94,7 +94,7 @@ def cms_context(marks):
     n = 0
     # find out the length
     while isinstance(k, Cont):
-        if is_ast_cont(k):
+        if is_ast_cont_with_surrounding_lambda(k):
             n += 1
         k = k.get_previous_continuation()
 
@@ -103,9 +103,10 @@ def cms_context(marks):
     k = marks.cont
     i = n-1
     while isinstance(k, Cont):
-        if is_ast_cont(k):
-            frame = values.W_Cons.make(W_String.make(k.get_ast().surrounding_lambda.tostring()), values.w_false)
-            ls[i] = frame
+        if is_ast_cont_with_surrounding_lambda(k):
+            surrounding_lam = k.get_ast().surrounding_lambda
+            lam_str = W_String.make(surrounding_lam.tostring())
+            ls[i] = values.W_Cons.make(lam_str, values.w_false)
             i -= 1
         k = k.get_previous_continuation()
 
