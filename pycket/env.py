@@ -314,28 +314,18 @@ class ToplevelEnv(Env):
 class ConsEnv(Env):
     _immutable_ = True
     _immutable_fields_ = ["_prev"]
-    _attrs_ = ["_prev", "current_linklet_instance"]
-    def __init__ (self, prev, current_linklet_instance=None):
+    _attrs_ = ["_prev"]
+    def __init__ (self, prev):
         assert isinstance(prev, Env)
         self._prev = prev
-        if not current_linklet_instance:
-            self.current_linklet_instance = prev.get_current_linklet_instance()
-        else:
-            self.current_linklet_instance = current_linklet_instance
-
-    def get_current_linklet_instance(self):
-        return self.current_linklet_instance
-
-    def set_current_linklet_instance(self, inst):
-        self.current_linklet_instance = inst
 
     def consenv_get_size(self):
         return self._get_size_list()
 
     @staticmethod
-    def make(vals, prev, curr_linkl_inst=None):
+    def make(vals, prev):
         if vals:
-            return ConsEnv._make(vals, prev, curr_linkl_inst)
+            return ConsEnv._make(vals, prev)
         return prev
 
     @staticmethod
@@ -343,17 +333,17 @@ class ConsEnv(Env):
         return prev
 
     @staticmethod
-    def make1(w_val, prev, curr_linkl_inst=None):
-        return ConsEnv._make1(w_val, prev, curr_linkl_inst)
+    def make1(w_val, prev):
+        return ConsEnv._make1(w_val, prev)
 
     @staticmethod
-    def make2(w_val1, w_val2, prev, curr_linkl_inst=None):
-        return ConsEnv._make2(w_val1, w_val2, prev, curr_linkl_inst)
+    def make2(w_val1, w_val2, prev):
+        return ConsEnv._make2(w_val1, w_val2, prev)
 
     @staticmethod
-    def make_n(n_vals, prev, curr_linkl_inst=None):
+    def make_n(n_vals, prev):
         if n_vals:
-            return ConsEnv._make_n(n_vals, prev, curr_linkl_inst)
+            return ConsEnv._make_n(n_vals, prev)
         return prev
 
     @jit.unroll_safe

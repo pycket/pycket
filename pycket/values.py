@@ -1556,7 +1556,7 @@ class W_ComposableContinuation(W_Procedure):
 class W_Closure(W_Procedure):
     _immutable_ = True
     _immutable_fields_ = ["caselam"]
-    _attrs_ = ["caselam", "current_linklet_instance"]
+    _attrs_ = ["caselam"]
 
     @jit.unroll_safe
     def __init__(self, caselam, env):
@@ -1564,7 +1564,6 @@ class W_Closure(W_Procedure):
         for (i,lam) in enumerate(caselam.lams):
             vals = lam.collect_frees(caselam.recursive_sym, env, self)
             self._set_list(i, ConsEnv.make(vals, env.toplevel_env()))
-        self.current_linklet_instance = env.get_current_linklet_instance()
 
     def enable_jitting(self):
         self.caselam.enable_jitting()
@@ -1618,9 +1617,8 @@ class W_Closure(W_Procedure):
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 frees, env_structure, env)
-        curr_linkl_inst = self.current_linklet_instance
         return lam.make_begin_cont(
-            ConsEnv.make(actuals, prev, curr_linkl_inst),
+            ConsEnv.make(actuals, prev),
             cont)
 
     def call(self, args, env, cont):

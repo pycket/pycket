@@ -430,7 +430,6 @@ class LetCont(Cont):
     def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
         assert isinstance(ast, Let)
         # this is a complete mess. however, it really helps warmup a lot
-        l_inst = self.env.get_current_linklet_instance()
         if new_length == 0:
             return ConsEnv.make0(prev)
         if new_length == 1:
@@ -440,7 +439,7 @@ class LetCont(Cont):
                 assert len_self == 0 and len_vals == 1
                 elem = vals.get_value(0)
             elem = ast.wrap_value(elem, 0)
-            return ConsEnv.make1(elem, prev, l_inst)
+            return ConsEnv.make1(elem, prev)
         if new_length == 2:
             if len_self == 0:
                 assert len_vals == 2
@@ -456,8 +455,8 @@ class LetCont(Cont):
                 elem2 = self._get_list(1)
             elem1 = ast.wrap_value(elem1, 0)
             elem2 = ast.wrap_value(elem2, 1)
-            return ConsEnv.make2(elem1, elem2, prev, l_inst)
-        env = ConsEnv.make_n(new_length, prev, l_inst)
+            return ConsEnv.make2(elem1, elem2, prev)
+        env = ConsEnv.make_n(new_length, prev)
         i = 0
         for j in range(len_self):
             val = self._get_list(j)
@@ -964,7 +963,7 @@ class VariableReference(AST):
 
 
     def interpret_simple(self, env):
-        current_inst = env.get_current_linklet_instance()
+        current_inst = env.toplevel_env().current_linklet_instance
         return values.W_VariableReference(self, current_inst)
 
     def direct_children(self):
