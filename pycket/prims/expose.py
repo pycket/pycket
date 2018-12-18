@@ -289,11 +289,13 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
     """
     def wrapper(func):
         from pycket import values
-        from pycket.env import w_global_config
-        if only_old:
+        from pycket.env import w_global_config as glob
+        if only_old and (glob.are_we_in_linklet_mode() and glob.is_expander_loaded()):
             def func_arg_unwrap(*args):
                 raise SchemeException("never called in new pycket")
             func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
+            if not extra_info:
+                func_result_handling = make_remove_extra_info(func_result_handling)
             p = values.W_Prim("never called", func_result_handling)
             assert isinstance(n, str)
             prim_env[values.W_Symbol.make(n)] = p

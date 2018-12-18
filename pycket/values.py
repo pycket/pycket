@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from pycket                   import config
-from pycket.arity             import Arity
 from pycket.base              import W_Object, W_ProtoObject, UnhashableType
 from pycket.cont              import continuation, label, NilCont
 from pycket.env               import ConsEnv
@@ -1384,9 +1383,12 @@ class W_ThunkProcCMK(W_Procedure):
         return self.proc.call(self.args, env, cont)
 
 class W_Prim(W_Procedure):
+    from pycket.arity import Arity
+
     _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "simple1", "simple2", "is_nyi"]
 
     def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, simple1=None, simple2=None, is_nyi=False):
+        from pycket.arity import Arity
         self.name = W_Symbol.make(name)
         self.code = code
         assert isinstance(arity, Arity)
@@ -1517,6 +1519,7 @@ class W_Continuation(W_Procedure):
         self.prompt_tag = prompt_tag
 
     def get_arity(self, promote=False):
+        from pycket.arity import Arity
         # FIXME: see if Racket ever does better than this
         return Arity.unknown
 
@@ -1542,6 +1545,7 @@ class W_ComposableContinuation(W_Procedure):
         self.prompt_tag = prompt_tag
 
     def get_arity(self, promote=False):
+        from pycket.arity import Arity
         return Arity.unknown
 
     def call(self, args, env, cont):

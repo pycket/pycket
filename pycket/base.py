@@ -1,4 +1,3 @@
-from pycket.arity          import Arity
 from pycket.error          import SchemeException
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib          import jit, objectmodel
@@ -83,6 +82,7 @@ class W_Object(W_ProtoObject):
     # an arity is a pair of a list of numbers and either -1 or a non-negative integer
     def get_arity(self, promote=False):
         if self.iscallable():
+            from pycket.arity import Arity
             return Arity.unknown
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
@@ -170,4 +170,5 @@ class SingletonMeta(type):
 
 class SingleResultMixin(object):
     def get_result_arity(self):
+        from pycket.arity import Arity
         return Arity.ONE

@@ -49,9 +49,6 @@ try:
         # load the '#%kernel
         print("(namespace-require '#%%kernel)")
         namespace_require_kernel(None)
-    else:
-        make_stub_predicates_no_linklet()
-
 except:
     pass
 

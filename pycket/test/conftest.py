@@ -32,6 +32,8 @@ def pytest_configure(config):
         # XXX: Being able to patch we_are_jitted would be nice as well,
         # but too much code depends on it behaving deterministically
 
+    from pycket.env import w_global_config
+
     config.byte_option = False
     config.new_pycket = False
     config.load_expander = False
@@ -41,11 +43,13 @@ def pytest_configure(config):
         config.new_pycket = True
         if config.getvalue('--use-expander'):
             print("using the expander linklet...\n")
+            w_global_config.set_config_val('expander_loaded', 1)
             config.load_expander = True
         else:
             print("WITHOUT using the expander linklet...\n")
     else:
         print("\nTesting with OLD Pycket... ")
+        w_global_config.set_linklet_mode_off()
 
 def pytest_funcarg__racket_file(request):
     tmpdir = request.getfuncargvalue('tmpdir')

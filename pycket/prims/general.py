@@ -1931,17 +1931,15 @@ def read_recursive(args):
 
 def make_stub_predicates(names):
     for name in names:
-        if values.W_Symbol.make(name) not in prim_env:
-            message = "%s: not yet implemented" % name
-            @expose(name, [values.W_Object])
-            def predicate(obj):
-                if not objectmodel.we_are_translated():
-                    print message
-                return values.w_false
-            predicate.__name__ = "stub_predicate(%s)" % name
+        message = "%s: not yet implemented" % name
+        @expose(name, [values.W_Object])
+        def predicate(obj):
+            if not objectmodel.we_are_translated():
+                print message
+            return values.w_false
+        predicate.__name__ = "stub_predicate(%s)" % name
 
 def make_stub_predicates_no_linklet():
-    assert not w_global_config.are_we_in_linklet_mode() or not w_global_config.is_expander_loaded()
     STUB_PREDICATES_NO_LINKLET = ["namespace-anchor?",
                                   "rename-transformer?",
                                   "readtable?",
@@ -1952,6 +1950,9 @@ def make_stub_predicates_no_linklet():
                                   "namespace?",
                                   "compiled-module-expression?"]
     make_stub_predicates(STUB_PREDICATES_NO_LINKLET)
+
+if not w_global_config.is_expander_loaded():
+    make_stub_predicates_no_linklet()
 
 @expose("unsafe-start-atomic", [])
 def unsafe_start_atomic():
