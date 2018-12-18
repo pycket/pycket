@@ -1487,6 +1487,36 @@ class Gensym(object):
         count = counter.next_value()
         return values.W_Symbol(hint + str(count))
 
+class LinkletStaticVar(Var):
+    visitable = True
+    _immutable_fields_ = ["w_value?", "sym"]
+
+    def __init__(self, sym, w_value=None):
+        Var.__init__(self, sym)
+        self.w_value = w_value
+
+    def tostring(self):
+        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
+        return "LinkletStaticVar(%s:%s)" % (self.sym.tostring(), val_str)
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
+
+    def _free_vars(self, cache):
+        return SymbolSet.EMPTY()
+
+    def _set(self, w_val, env):
+        if not self.w_value:
+            self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
+        self.w_value.set_val(w_val)
+
+    def _lookup(self, env):
+        if self.w_value:
+            return self.w_value.get_val()
+        self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
+        return self.w_value.get_val()
+
 class LinkletVar(Var):
     visitable = True
     _immutable_fields_ = ["w_value?", "sym", "constance", "valuating_instance?"]
