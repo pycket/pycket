@@ -8,17 +8,18 @@ import os
 from tempfile import NamedTemporaryFile, gettempdir
 from pycket.expand import expand, JsonLoader, expand_string, ModTable, parse_module
 from pycket.pycket_json import loads
+from pycket.env import ToplevelEnv, w_global_config
 from pycket.interpreter import *
-from pycket.env import ToplevelEnv
 from pycket import values
 from pycket.error import SchemeException
 from pycket.cont import continuation
-from pycket.values import to_list, w_false, w_true, W_Fixnum, W_Object, W_Flonum, W_Void, w_null, W_Bool
+from pycket.values import *
 from pycket.hash.base import W_HashTable
 from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive
 from pycket.prims.linklet import *
 from pycket.test.utils import *
 from pycket.config import get_testing_config
+from pycket.prims.general import make_stub_predicates_no_linklet
 
 #
 # basic runners
@@ -37,13 +38,20 @@ instantiate_linklet = get_primitive("instantiate-linklet")
 # This is where all the work happens
 
 try:
+    if not pytest.config.new_pycket:
+        w_global_config.set_linklet_mode_off()
+
     if pytest.config.load_expander:
+        w_global_config.set_config_val('expander_loaded', 1)
         # get the expander
         print("Loading and initializing the expander")
         initiate_boot_sequence(None, [], False)
         # load the '#%kernel
         print("(namespace-require '#%%kernel)")
         namespace_require_kernel(None)
+    else:
+        make_stub_predicates_no_linklet()
+
 except:
     pass
 
@@ -75,7 +83,10 @@ def run_string(expr_str, v=None, just_return=False, equal_huh=False, expect_to_f
 
     return check_result(result, v, equal_huh)
 
-def run_expr_result(expr_str, expect_to_fail=False):
+def run_expr_result(expr_str, expect_to_fail=False, v=None):
+    if v:
+        equal_huh = isinstance(v, W_List) or isinstance(v, W_Bignum)
+        return run_expr(expr_str, v, equal_huh=equal_huh, expect_to_fail=expect_to_fail)
     return run_expr(expr_str, just_return=True, expect_to_fail=expect_to_fail)
 
 def run_expr(expr_str, v=None, just_return=False, extra="", equal_huh=False, expect_to_fail=False):
@@ -98,13 +109,32 @@ def check_result(result, expected, equal_huh=False):
         check = True
     elif result is w_false:
         check = False
+    elif result is w_null:
+        check = ()
+    elif result is w_void:
+        check = "void"
     elif isinstance(result, W_HashTable):
         check = result
+    elif isinstance(result, W_Keyword):
+        check = result.tostring()
+    elif isinstance(result, W_Symbol):
+        check = result.variable_name()
     else:
         raise Exception("I don't know this type yet : %s -- actual value: %s" % (result, result.tostring()))
 
     if expected is None:
         return result
+
+    if expected is w_true:
+        expected = True
+    elif expected is w_false:
+        expected = False
+    elif expected is w_void:
+        expected = "void"
+    elif expected is w_null:
+        expected = ()
+    elif isinstance(expected, W_Keyword):
+        expected = "#:" + expected.value
 
     assert check == expected
 
@@ -256,7 +286,7 @@ def run_flo(p, v=None, stdlib=False, extra=""):
 
 def run(p, v=None, stdlib=False, extra="", expect_to_fail=False):
     if pytest.config.new_pycket:
-        return run_expr_result(p, expect_to_fail=expect_to_fail)
+        return run_expr_result(p, expect_to_fail=expect_to_fail, v=v)
     return run_mod_expr(p,v=v,stdlib=stdlib, extra=extra)
 
 def run_top(p, v=None, stdlib=False, extra=""):
