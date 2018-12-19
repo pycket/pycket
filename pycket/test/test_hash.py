@@ -1,10 +1,116 @@
 import operator as op
 from pycket                          import values
 from pycket.hash.base                import ll_get_dict_item, get_dict_item
-from pycket.hash.equal               import ByteHashmapStrategy, StringHashmapStrategy
+from pycket.hash.equal               import MutableByteHashmapStrategy, StringHashmapStrategy
 from pycket.hash.persistent_hash_map import make_persistent_hash_type, validate_persistent_hash
 from pycket.test.testhelper          import run_mod_expr, run_mod
 from rpython.rlib.rarithmetic        import r_uint
+from rpython.jit.metainterp.test.support import LLJitMixin, noConst
+
+import pytest
+
+@pytest.mark.skip(reason="FIXME")
+def test_hash_weak(doctest):
+    """
+    > (hash-weak? (impersonate-hash (make-hash) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #f
+    """
+
+def test_hash_equal(doctest):
+    """
+    > (hash-equal? (hash))
+    #t
+    > (hash-equal? (hasheq))
+    #f
+    > (hash-equal? (hasheqv))
+    #f
+    > (hash-equal? (make-hash))
+    #t
+    > (hash-equal? (make-hasheq))
+    #f
+    > (hash-equal? (make-hasheqv))
+    #f
+    > (hash-equal? #hash())
+    #t
+    > (hash-equal? #hasheq())
+    #f
+    > (hash-equal? #hasheqv())
+    #f
+    > (hash-equal? (impersonate-hash (make-hash) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    > (hash-equal? (chaperone-hash (hash) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    > (hash-equal? (make-weak-hash))
+    #t
+    > (hash-equal? (make-weak-hasheq))
+    #f
+    > (hash-equal? (make-weak-hasheqv))
+    #f
+    """
+
+def test_hash_eq(doctest):
+    """
+    > (hash-eq? (hash))
+    #f
+    > (hash-eq? (hasheq))
+    #t
+    > (hash-eq? (hasheqv))
+    #f
+    > (hash-eq? (make-hash))
+    #f
+    > (hash-eq? (make-hasheq))
+    #t
+    > (hash-eq? (make-hasheqv))
+    #f
+    > (hash-eq? #hash())
+    #f
+    > (hash-eq? #hasheq())
+    #t
+    > (hash-eq? #hasheqv())
+    #f
+    > (hash-eq? (impersonate-hash (make-hasheq) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    > (hash-eq? (chaperone-hash (hasheq) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    > (hash-eq? (make-weak-hash))
+    #f
+    > (hash-eq? (make-weak-hasheq))
+    #t
+    > (hash-eq? (make-weak-hasheqv))
+    #f
+    """
+
+def test_hash_eqv(doctest):
+    """
+    > (hash-eqv? (hash))
+    #f
+    > (hash-eqv? (hasheq))
+    #f
+    > (hash-eqv? (hasheqv))
+    #t
+    > (hash-eqv? (make-hash))
+    #f
+    > (hash-eqv? (make-hasheq))
+    #f
+    > (hash-eqv? (make-hasheqv))
+    #t
+    > (hash-eqv? #hash())
+    #f
+    > (hash-eqv? #hasheq())
+    #f
+    > (hash-eqv? #hasheqv())
+    #t
+    > (hash-eqv? (impersonate-hash (make-hasheqv) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    > (hash-eqv? (chaperone-hash (hasheqv) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #t
+    > (hash-eqv? (make-weak-hash))
+    #f
+    > (hash-eqv? (make-weak-hasheq))
+    #f
+    > (hash-eqv? (make-weak-hasheqv))
+    #t
+    """
 
 def test_hash_simple(doctest):
     """
@@ -52,6 +158,7 @@ def test_hasheqv(doctest):
 
 def test_immutable_hasheqv(doctest):
     """
+    ! (require racket/private/for)
     ! (define h (for/fold ([acc (make-immutable-hasheqv)]) ([i (in-range 0 100)]) (hash-set acc i (+ i 1))))
     ! (define h^ (hash-set h 2.0 'a))
     > (hash-ref h 0)
@@ -177,6 +284,7 @@ def test_hash_for_each(doctest):
 
 def test_persistent_eqhash_for_each(doctest):
     """
+    ! (require racket/private/for)
     ! (define x 1)
     ! (define h (for/fold ([acc (make-immutable-hasheq)]) ([i (in-range 1 4)]) (hash-set acc i (+ i 1))))
     ! (define (fe c v) (set! x (+ x (* c v))))
@@ -224,6 +332,8 @@ def test_use_equal(doctest):
     1
     > (hash-ref hteqv (cons 'a 'b) 2)
     2
+    > (hash-remove! (make-hash) 1)
+    (void)
     """
 
 def test_hash_tableau(doctest):
@@ -257,18 +367,18 @@ def test_get_item():
         dct = {str(a): b, str(c): d}
         i = 0
         while 1:
-            print i
             try:
                 x, y = get_dict_item(dct, i)
-                print x, y
                 assert (x == str(a) and y == b) or (x == str(c) and y == d)
             except KeyError:
                 pass
             except IndexError:
                 break
             i += 1
-    tg("1", 2, "3", 4)
-    interpret(tg, [1, 2, 334, 4])
+        return i
+    assert tg("1", 2, "3", 4) == interpret(tg, ["1", 2, "3", 4])
+    assert tg(1, 2, 334, 4)   == interpret(tg, [1, 2, 334, 4])
+    assert tg(1, 2, 3, 4)     == interpret(tg, [1, 2, 3, 4])
 
 def test_ll_get_dict_item():
     """
@@ -344,14 +454,14 @@ def test_whitebox_bytes(source):
     r"""
     (let ([ht (make-hash)] [st (bytes 65 66)])
         (bytes-set! st 0 67)
-        (hash-set! ht #"a" '(red round))
-        (hash-set! ht #"b" '(yellow long))
+        (hash-set! ht (bytes 1 2 3) '(red round))
+        (hash-set! ht (bytes 4 5 6) '(yellow long))
         (hash-set! ht st 77)
-        (hash-ref ht #"c" "not there")
+        (hash-ref ht (bytes 7 8 9) "not there")
         ht)
     """
     result = run_mod_expr(source)
-    assert result.strategy is ByteHashmapStrategy.singleton
+    assert result.strategy is MutableByteHashmapStrategy.singleton
 
 def test_hash_for(doctest):
     """
@@ -368,7 +478,7 @@ def test_hash_for(doctest):
 
 def test_persistent_hash():
     HashTable = make_persistent_hash_type()
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -384,7 +494,7 @@ def test_persistent_hash():
 
 def test_persistent_hash2():
     HashTable = make_persistent_hash_type()
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -404,7 +514,7 @@ def test_persistent_hash2():
 
 def test_persistent_hash_collisions():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(42))
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -420,7 +530,7 @@ def test_persistent_hash_collisions():
 
 def test_persistent_hash_collisions2():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(hash(x)) % 8)
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(2048):
         validate_persistent_hash(acc)
@@ -433,7 +543,7 @@ def test_persistent_hash_collisions2():
 
 def test_persistent_hash_removal():
     HashTable = make_persistent_hash_type()
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -456,7 +566,7 @@ def test_persistent_hash_removal():
 
 def test_persistent_hash__collisions_removal():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(42))
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -479,7 +589,7 @@ def test_persistent_hash__collisions_removal():
 
 def test_persistent_hash__collisions_removal2():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(hash(x) % 8))
-    acc = HashTable.EMPTY
+    acc = HashTable.EMPTY()
 
     for i in range(1000):
         validate_persistent_hash(acc)
@@ -499,3 +609,92 @@ def test_persistent_hash__collisions_removal2():
         assert v >= 990
         assert v % 10 == k
         assert acc.val_at(k, None) is v
+
+def test_persistent_hash_union():
+    HashTable = make_persistent_hash_type()
+    acc1 = HashTable.EMPTY()
+    acc2 = HashTable.EMPTY()
+
+    for i in range(128):
+        acc1 = acc1.assoc(i, i)
+
+    for i in range(128, 256):
+        acc2 = acc2.assoc(i, i)
+
+    assert len(acc1) == 128
+    assert len(acc2) == 128
+
+    acc3 = acc1 + acc2
+    assert len(acc3) == 256
+    for i in range(256):
+        assert i in acc3
+
+def test_without_many():
+    HashTable = make_persistent_hash_type()
+    acc = HashTable.EMPTY()
+
+    for i in range(256):
+        acc = acc.assoc(i, i)
+
+    acc = acc.without_many(range(256))
+    assert len(acc) == 0
+
+def test_hash_iterate_functions(doctest):
+    """
+    ! (define eq-table (hasheq (cons 1 2) 3))
+    ! (define equal-table1 (hash (cons 1 2) 3))
+    ! (define equal-table2 (hash 'hello 'bye))
+    ! (define equal-table3 (hash "hello" "bye"))
+    > (hash-iterate-next eq-table (hash-iterate-first eq-table))
+    #f
+    > (hash-iterate-next equal-table1 (hash-iterate-first equal-table1))
+    #f
+    > (hash-iterate-next equal-table2 (hash-iterate-first equal-table2))
+    #f
+    > (hash-iterate-next equal-table3 (hash-iterate-first equal-table3))
+    #f
+    """
+
+def test_hash_keys_subset(doctest):
+    """
+    ! (struct a (n m) #:property prop:equal+hash (list (lambda (a b eql) (and (= (a-n a) (a-n b)) (= (a-m a) (a-m b)))) (lambda (a hc) (a-n a)) (lambda (a hc) (a-n a))))
+    ! (define ht0 (hash (a 1 0) #t))
+    ! (define ht1 (hash (a 1 0) #t (a 1 2) #t))
+    ! (define ht2 (hash (a 1 0) #t (a 1 2) #t (a 33 0) #t))
+    ! (define ht3 (hash (a 1 0) #t (a 33 0) #t))
+    > (hash-keys-subset? ht1 ht2)
+    #t
+    > (hash-keys-subset? ht3 ht2)
+    #t
+    > (hash-keys-subset? ht0 ht3)
+    #t
+    > (hash-keys-subset? ht0 ht2)
+    #t
+    > (hash-keys-subset? ht0 ht1)
+    #t
+    > (hash-keys-subset? ht2 ht1)
+    #f
+    > (hash-keys-subset? ht2 ht0)
+    #f
+    > (hash-keys-subset? ht1 ht0)
+    #f
+    > (hash-keys-subset? ht1 ht3)
+    #f
+    E (hash-keys-subset? ht0 (hasheq (a 1 0) #t))
+    """
+
+def test_hash_equal_hash_codes(doctest):
+    """
+    > (equal? (hash (hash) 1) (hash (hash) 1))
+    #t
+    > (hash-ref (make-hash '((#hasheq() . 1))) #hasheq() #f)
+    1
+    > (hash-ref (make-hash '((#hasheq((a . 3)) . 1))) #hasheq((a . 3)) #f)
+    1
+    > (hash-ref (make-hash (list (cons (hasheq) 1))) (hasheq) #f)
+    1
+    > (hash-ref (make-hash (list (cons (hash) 1))) (hash) #f)
+    1
+    > (hash-ref (hash (hash) 1) (hash) #f)
+    1
+    """

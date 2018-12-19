@@ -1,53 +1,179 @@
-from pycket                    import values, error
+from pycket                    import values
 from pycket.error              import SchemeException
-from rpython.rlib              import rarithmetic, jit
+from rpython.rlib              import rarithmetic, jit, objectmodel
+from rpython.rlib.rarithmetic  import r_int, r_uint, intmask, int_c_div
 from rpython.rlib.objectmodel  import specialize
 from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
-from rpython.rtyper.raisingops import int_floordiv_ovf
+
 import math
+import sys
+
+def int_floordiv_ovf(x, y):
+    # JIT: intentionally not short-circuited to produce only one guard
+    # and to remove the check fully if one of the arguments is known
+    if (x == -sys.maxint - 1) & (y == -1):
+        raise OverflowError("integer division")
+    return int_c_div(x, y)
+
+@jit.elidable
+def count_trailing_zeros(u):
+    """
+    Computes the number of lower order zero bits in the given rbigint.
+    This information is used in the gcd algorithm which only works on odd integers.
+    This is a nasty bit of hackery, as we inspect the internal representation of the
+    rbigint (rather than using their nice interface). This method is much faster
+    than performing iterated shifting, however.
+    """
+    from rpython.rlib.rbigint import UDIGIT_TYPE, SHIFT
+
+    shift = 0
+    bit = 1
+    digit = 0
+    mask = UDIGIT_TYPE(0x1)
+
+    while digit < u.numdigits() and (u.udigit(digit) & mask) == 0:
+        shift += 1
+        if bit == SHIFT:
+            bit = 1
+            digit += 1
+            mask = UDIGIT_TYPE(0x1)
+        else:
+            bit += 1
+            mask = mask << 1
+
+    return shift
+
+@jit.elidable
+def gcd1(u, v):
+    """
+    Single word variant of the gcd function. Expects u and v to be positive.
+    """
+
+    assert u > 0
+    assert v > 0
+
+    shift = 0
+    while not (u & 1) and not (v & 1):
+        shift += 1
+        u >>= 1
+        v >>= 1
+    while not (u & 1):
+        u >>= 1
+
+    while True:
+        while not (v & 0x1):
+            v >>= 1
+
+        if u > v:
+            u, v = v, u
+
+        v -= u
+        if not v:
+            break
+
+    result = u << shift
+    return result
 
 @jit.elidable
 def gcd(u, v):
+    from rpython.rlib.rbigint import _v_isub, _v_rshift, SHIFT
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
     if not u.tobool():
-        return v
+        return v.abs()
     if not v.tobool():
-        return u
-    if v.ge(NULLRBIGINT):
-        sign = 1
-    else:
-        sign = -1
-        v = v.abs()
-    u = u.abs()
+        return u.abs()
 
-    shift = 0
-    while (not u.and_(ONERBIGINT).toint() and
-           not v.and_(ONERBIGINT).toint()):
-        shift += 1
-        u = u.rshift(1)
-        v = v.rshift(1)
-    while not u.and_(ONERBIGINT).toint():
-        u = u.rshift(1)
+    # The result is negative iff both inputs have a common -1 factor
+    if v.sign == -1 and u.sign == -1:
+        sign = -1
+    else:
+        sign = 1
+
+    if u.size == 1 and v.size == 1:
+        result = gcd1(u.digit(0), v.digit(0))
+        return rbigint([result], sign, 1)
+
+    # Compute the factors of 2 for u and v and record the number of
+    # common 2 factors in shift.
+    shiftu = count_trailing_zeros(u)
+    shiftv = count_trailing_zeros(v)
+    shift  = min(shiftu, shiftv)
+
+    # Perform shift on each number, but guarantee that we will end up with a new
+    # digit array for each rbigint. They will be mutated
+    if shiftu:
+        u = u.rshift(shiftu, dont_invert=True)
+        if u.sign == -1:
+            u.sign = 1
+    else:
+        u = rbigint(u._digits[:], 1, u.numdigits())
+
+    if shiftv:
+        v = v.rshift(shiftv, dont_invert=True)
+        if v.sign == -1:
+            v.sign = 1
+    else:
+        v = rbigint(v._digits[:], 1, v.numdigits())
 
     # From here on, u is always odd.
     while True:
-        # remove all factors of 2 in v -- they are not common
-        # note: v is not zero, so while will terminate
-        while not v.and_(ONERBIGINT).toint():
-            v = v.rshift(1)
+
+        if u.size == 1 and v.size == 1:
+            digit = gcd1(u.digit(0), v.digit(0))
+            u = rbigint([digit], 1, 1)
+            break
 
         # Now u and v are both odd. Swap if necessary so u <= v,
         # then set v = v - u (which is even).
         if u.gt(v):
             u, v, = v, u
-        v = v.sub(u)
+
+        assert _v_isub(v, 0, v.numdigits(), u, u.numdigits()) == 0
+        v._normalize()
+
         if not v.tobool():
             break
-    # restore common factors of 2
+
+        # remove all factors of 2 in v -- they are not common
+        # note: v is not zero, so while will terminate
+        # XXX: Better to perform multiple inplace shifts, or one
+        # shift which allocates a new array?
+        rshift = count_trailing_zeros(v)
+        while rshift >= SHIFT:
+            assert _v_rshift(v, v, v.numdigits(), SHIFT - 1) == 0
+            rshift -= SHIFT - 1
+        assert _v_rshift(v, v, v.numdigits(), rshift) == 0
+        v._normalize()
+
+    # restore common factors of 2 and sign
     result = u.lshift(shift)
-    if sign == -1:
-        result = result.neg()
+    result.sign = sign
     return result
+
+if sys.maxint > 2147483647:
+    SQRT_BIT_MAX = 31
+else:
+    SQRT_BIT_MAX = 15
+
+@jit.elidable
+def fixnum_sqrt(_n):
+    # Taken from Racket implementation:
+    # https://github.com/racket/racket/blob/2a88662d01599d9c284d2fbd1f7b987d57658797/racket/src/racket/src/bignum.c#L1652
+    n      = r_uint(_n)
+    root   = r_uint(0)
+    square = r_uint(0)
+
+    for i in range(SQRT_BIT_MAX, -1, -1):
+        try_root   = root | (r_uint(0x1) << i)
+        try_square = try_root * try_root
+        if try_square <= n:
+            root = try_root
+            square = try_square
+
+    return intmask(root), intmask(n - square)
+
+def imaginary(val):
+    return values.W_Complex(values.W_Fixnum.ZERO, val)
 
 class __extend__(values.W_Object):
     # default implementations that all raise
@@ -145,7 +271,7 @@ class __extend__(values.W_Number):
         return self.arith_sub_same(other)
 
     def arith_sub1(self):
-        return self.arith_sub(values.W_Fixnum(1))
+        return self.arith_sub(values.W_Fixnum.ONE)
 
     def arith_mul(self, other):
         if isinstance(self, values.W_Fixnum) and not self.value:
@@ -248,6 +374,12 @@ class __extend__(values.W_Number):
     def arith_ge_same(self, other):
         return other.arith_le_same(self)
 
+    def arith_min_same(self, other):
+        return self if self.arith_lt_same(other) else other
+
+    def arith_max_same(self, other):
+        return other if self.arith_lt_same(other) else self
+
     def arith_exp(self):
         self = self.arith_exact_inexact()
         assert isinstance(self, values.W_Flonum)
@@ -257,17 +389,28 @@ class __extend__(values.W_Number):
         self, other = self.same_numeric_class(other)
         return other, self
 
+    def isinteger(self):
+        return False
+
 class __extend__(values.W_Integer):
+
     def arith_round(self):
         return self
+
     def arith_truncate(self):
         return self
+
     def arith_floor(self):
         return self
+
     def arith_ceiling(self):
         return self
+
     def arith_inexact_exact(self):
         return self
+
+    def isinteger(self):
+        return True
 
 class __extend__(values.W_Fixnum):
 
@@ -319,7 +462,8 @@ class __extend__(values.W_Fixnum):
             return self.arith_div(values.W_Bignum(rbigint.fromint(other.value)))
         if res * other.value == self.value:
             return values.W_Fixnum(res)
-        return values.W_Rational.fromint(self.value, other.value)
+        return values.W_Rational.fromint(
+            self.value, other.value, need_to_check=False)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Fixnum)
@@ -375,6 +519,11 @@ class __extend__(values.W_Fixnum):
 
     def arith_shl_same(self, other):
         assert isinstance(other, values.W_Fixnum)
+        if other.value >= r_int.BITS:
+            if not self.value:
+                return values.W_Fixnum.ZERO
+            val = rbigint.fromint(self.value).lshift(other.value)
+            return values.W_Integer.frombigint(val)
         try:
             res = rarithmetic.ovfcheck(self.value << other.value)
         except OverflowError:
@@ -398,34 +547,45 @@ class __extend__(values.W_Fixnum):
 
     def arith_gcd_same(self, other):
         assert isinstance(other, values.W_Fixnum)
-        if other.value:
-            try:
-                res = rarithmetic.ovfcheck(self.value % other.value)
-                return other.arith_gcd(values.W_Fixnum(res))
-            except OverflowError:
-                return values.W_Bignum(
-                    rbigint.fromint(self.value)).arith_gcd(other)
-        else:
+        u = self.value
+        v = other.value
+
+        if not u:
+            return other
+        if not v:
             return self
+
+        if u < 0 and v < 0:
+            sign = -1
+        else:
+            sign = 1
+        u = abs(u)
+        v = abs(v)
+
+        result = gcd1(u, v)
+        return values.W_Fixnum(sign * result)
 
     # ------------------ abs ------------------
     def arith_abs(self):
         if self.value >= 0:
             return self
-        return values.W_Fixnum(0).arith_sub(self)
-
-    def arith_max_same(self, other):
-        assert isinstance(other, values.W_Fixnum)
-        return values.W_Fixnum(max(self.value, other.value))
-
-    def arith_min_same(self, other):
-        assert isinstance(other, values.W_Fixnum)
-        return values.W_Fixnum(min(self.value, other.value))
+        return values.W_Fixnum.ZERO.arith_sub(self)
 
     # ------------------ trigonometry ------------------
 
     def arith_sqrt(self):
-        assert 0
+        n = abs(self.value)
+        root, rem = fixnum_sqrt(n)
+        if rem == 0:
+            result = values.W_Fixnum(root)
+        else:
+            result = values.W_Flonum(math.sqrt(float(n)))
+
+        if self.value < 0:
+            return imaginary(result)
+
+        return result
+
     def arith_log(self):
         return values.W_Flonum(math.log(self.value))
     def arith_sin(self):
@@ -450,7 +610,7 @@ class __extend__(values.W_Fixnum):
     # ------------------ miscellanous ------------------
 
     def arith_float_fractional_part(self):
-        return values.W_Fixnum(0)
+        return values.W_Fixnum.ZERO
 
     def arith_float_integer_part(self):
         return self
@@ -475,7 +635,7 @@ class __extend__(values.W_Fixnum):
 
     def arith_exp(self):
         if self.value == 0:
-            return values.W_Fixnum(1)
+            return values.W_Fixnum.ONE
         return values.W_Flonum(math.exp(self.value))
 
     # ------------------ comparisons ------------------
@@ -543,7 +703,8 @@ class __extend__(values.W_Flonum):
         v2 = other.value
         if math.floor(v1) != v1 or math.floor(v2) != v2:
             raise SchemeException("quotient: expected integer")
-        return values.W_Flonum(v1 / v2)
+        val = math.floor(v1 / v2)
+        return values.W_Flonum(val)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Flonum)
@@ -566,23 +727,35 @@ class __extend__(values.W_Flonum):
 
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Flonum)
-        return values.W_Flonum(math.pow(self.value, other.value))
+        val = math.pow(self.value, other.value)
+        return values.W_Flonum(val)
 
     def arith_abs(self):
         return values.W_Flonum(abs(self.value))
 
     def arith_max_same(self, other):
         assert isinstance(other, values.W_Flonum)
-        return values.W_Flonum(max(self.value, other.value))
+        if math.isnan(self.value):
+            return self
+        if math.isnan(other.value):
+            return other
+        return values.W_Number.arith_max_same(self, other)
 
     def arith_min_same(self, other):
         assert isinstance(other, values.W_Flonum)
-        return values.W_Flonum(min(self.value, other.value))
-
+        if math.isnan(self.value):
+            return self
+        if math.isnan(other.value):
+            return other
+        return values.W_Number.arith_min_same(self, other)
     # ------------------ trigonometry ------------------
 
     def arith_sqrt(self):
-        return values.W_Flonum(math.sqrt(self.value))
+        n = self.value
+        if n < 0.0:
+            return imaginary(values.W_Flonum(math.sqrt(-n)))
+        return values.W_Flonum(math.sqrt(n))
+
     def arith_log(self):
         return values.W_Flonum(math.log(self.value))
     def arith_sin(self):
@@ -611,7 +784,7 @@ class __extend__(values.W_Flonum):
         return values.W_Flonum(round_double(self.value, 0, half_even=True))
 
     def arith_truncate(self):
-        from rpython.rlib.rfloat import isinf
+        from math import isinf
         if isinf(self.value):
             return self
         elif self.value < 0:
@@ -620,23 +793,26 @@ class __extend__(values.W_Flonum):
             return self.arith_floor()
 
     def arith_floor(self):
-        from rpython.rlib.rfloat import isinf
+        from math import isinf
         if isinf(self.value):
             return self
         return values.W_Flonum(float(math.floor(self.value)))
 
     def arith_ceiling(self):
-        from rpython.rlib.rfloat import isinf
+        from math import isinf
         if isinf(self.value):
             return self
         return values.W_Flonum(float(math.ceil(self.value)))
 
-    def arith_float_fractional_part(self):
+    def _arith_float_fractional_part(self):
         try:
             val = rarithmetic.ovfcheck_float_to_int(self.value)
         except OverflowError:
             val = rbigint.fromfloat(self.value).tofloat()
-        return values.W_Flonum(float(self.value - val))
+        return float(self.value - val)
+
+    def arith_float_fractional_part(self):
+        return values.W_Flonum(self._arith_float_fractional_part())
 
     def arith_float_integer_part(self):
         return values.W_Integer.fromfloat(self.value)
@@ -671,7 +847,7 @@ class __extend__(values.W_Flonum):
 
     def arith_exp(self):
         if self.value == 0:
-            return values.W_Fixnum(1)
+            return values.W_Fixnum.ONE
         return values.W_Flonum(math.exp(self.value))
 
     def arith_gcd_same(self, other):
@@ -707,6 +883,12 @@ class __extend__(values.W_Flonum):
         assert isinstance(other, values.W_Flonum)
         return self.value >= other.value
 
+    def isinteger(self):
+        val = self.value
+        if math.isnan(val) or math.isinf(val):
+            return False
+        return math.floor(val) == val
+
 class __extend__(values.W_Bignum):
     def same_numeric_class(self, other):
         if isinstance(other, values.W_Fixnum):
@@ -738,7 +920,8 @@ class __extend__(values.W_Bignum):
         except ZeroDivisionError:
             raise SchemeException("zero_divisor")
         if mod.tobool():
-            return values.W_Rational.frombigint(self.value, other.value)
+            return values.W_Rational.frombigint(
+                    self.value, other.value, need_to_check=False)
         return values.W_Integer.frombigint(res)
 
     def arith_mod_same(self, other):
@@ -767,7 +950,6 @@ class __extend__(values.W_Bignum):
         except ZeroDivisionError:
             raise SchemeException("zero_divisor")
         return values.W_Integer.frombigint(div)
-
 
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Bignum)
@@ -812,18 +994,6 @@ class __extend__(values.W_Bignum):
 
 
     # ------------------ max ------------------
-    def arith_max_same(self, other):
-        assert isinstance(other, values.W_Bignum)
-        # XXX is this tested?
-        if self.value.lt(other.value):
-            return values.W_Integer.frombigint(other.value)
-        return values.W_Integer.frombigint(self.value)
-
-    def arith_min_same(self, other):
-        assert isinstance(other, values.W_Bignum)
-        if self.value.lt(other.value):
-            return values.W_Integer.frombigint(self.value)
-        return values.W_Integer.frombigint(other.value)
 
     def arith_gcd_same(self, other):
         assert isinstance(other, values.W_Bignum)
@@ -832,7 +1002,7 @@ class __extend__(values.W_Bignum):
     # ------------------ miscellanous ------------------
 
     def arith_arith_fractional_part(self):
-        return values.W_Fixnum(0)
+        return values.W_Fixnum.ZERO
 
     def arith_arith_integer_part(self):
         return self
@@ -844,12 +1014,10 @@ class __extend__(values.W_Bignum):
         return values.W_Bool.make(not self.value.tobool())
 
     def arith_negativep(self):
-        return values.W_Bool.make(
-            self.value.lt(NULLRBIGINT))
+        return values.W_Bool.make(self.value.sign == -1)
 
     def arith_positivep(self):
-        return values.W_Bool.make(
-            self.value.gt(NULLRBIGINT))
+        return values.W_Bool.make(self.value.sign == 1)
 
     def arith_evenp(self):
         return values.W_Bool.make(
@@ -920,16 +1088,13 @@ class __extend__(values.W_Rational):
 
     def arith_abs(self):
         num = self._numerator.abs()
-        den = self._denominator.abs()
-        return values.W_Rational(num, den)
+        return values.W_Rational(num, self._denominator)
 
     def arith_negativep(self):
-        return values.W_Bool.make(
-            self._numerator.lt(NULLRBIGINT))
+        return values.W_Bool.make(self._numerator.sign == -1)
 
     def arith_positivep(self):
-        return values.W_Bool.make(
-            self._numerator.gt(NULLRBIGINT))
+        return values.W_Bool.make(self._numerator.sign == 1)
 
     def arith_zerop(self):
         return values.W_Bool.make(not self._numerator.tobool())
@@ -940,11 +1105,11 @@ class __extend__(values.W_Rational):
         diff2 = diff1.add(self._denominator).abs()
         diff1 = diff1.abs()
         if diff1.gt(diff2):
-            res2 = res1.add(ONERBIGINT)
+            res2 = res1.int_add(1)
             return values.W_Integer.frombigint(res2)
         elif diff1.eq(diff2):
-            if res1.and_(ONERBIGINT).tobool():
-                res2 = res1.add(ONERBIGINT)
+            if res1.int_and_(1).tobool():
+                res2 = res1.int_add(1)
                 return values.W_Integer.frombigint(res2)
             else:
                 return values.W_Integer.frombigint(res1)
@@ -953,9 +1118,8 @@ class __extend__(values.W_Rational):
 
     def arith_ceiling(self):
         res1 = self._numerator.floordiv(self._denominator)
-        res = res1.add(ONERBIGINT)
+        res = res1.int_add(1)
         return values.W_Integer.frombigint(res)
-
 
     def arith_floor(self):
         res = self._numerator.floordiv(self._denominator)
@@ -1104,5 +1268,4 @@ class __extend__(values.W_Complex):
         return self.real.arith_eq(other.real) and self.imag.arith_eq(other.imag)
 
     def arith_lt_same(self, other):
-        from pycket.error import SchemeException
         raise SchemeException("can't compare complex numbers")

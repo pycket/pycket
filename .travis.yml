@@ -1,26 +1,33 @@
 language: python
-cache: apt
-sudo: false
-python:
-- pypy
+cache: pip
+sudo: required
+dist: trusty
 notifications:
   irc:
     channels:
     - chat.freenode.net#pycket
     use_notice: false
-    skip_join: true
 env:
   global:
   - PATH=./racket/bin:$PATH
+  - PLTHOME=./
   matrix:
-  - TEST_TYPE=tests
-  - TEST_TYPE=coverage
-  - TEST_TYPE=translate
-  - TEST_TYPE=translate_nojit_and_racket_tests
+  - TEST_TYPE=old_tests
+  - TEST_TYPE=new_tests_without_expander_linklet
+  - TEST_TYPE=new_tests_using_expander_linklet
+  - PYPY_DONT_RUN_SUBPROCESS=1 TEST_TYPE=translate_pycket_c
+  - PYPY_DONT_RUN_SUBPROCESS=1 TEST_TYPE=translate_pycket_c_linklets
+  - TEST_TYPE=translate_nojit
+  - TEST_TYPE=translate_nojit_linklets
+  - TEST_TYPE=linklets_load_racket_base
 matrix:
   fast_finish: true
-  allow_failures:
-  - env: TEST_TYPE=coverage
-before_install: ./travis.sh prepare
-install: ./travis.sh install
-script: ./travis.sh test $TEST_TYPE
+before_install:
+  - while sleep 9m; do printf "\n=====[ $SECONDS seconds still running ]=====\n"; done &
+  -  ./travis.sh prepare
+install:
+  - while sleep 9m; do printf "\n=====[ $SECONDS seconds still running ]=====\n"; done &
+  - ./travis.sh install
+script:
+  - while sleep 9m; do printf "\n=====[ $SECONDS seconds still running ]=====\n"; done &
+  - ./travis.sh test $TEST_TYPE

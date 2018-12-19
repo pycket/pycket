@@ -10,7 +10,6 @@ import sys
 from pycket        import values
 from pycket.values import w_true
 from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod, run_mod_expr
-from pycket.error import SchemeException
 
 skip = pytest.mark.skipif("True")
 
@@ -61,6 +60,8 @@ def test_equal2(doctest):
 
 def test_append_single(doctest):
     """
+    > (append #f)
+    #f
     > (append (list 1 2) (list 3 4))
     '(1 2 3 4)
     """
@@ -109,6 +110,9 @@ def test_map(doctest):
            '(1 2 3 4)
            '(10 100 1000 10000))
     '(11 102 1003 10004)
+    E (map)
+    E (map (lambda (x) 1))
+    E (map (lambda (x) 1) (list 1 2) (list 2 3))
     """
     assert doctest
 
@@ -170,21 +174,21 @@ def test_shorthands(doctest):
     '(4 3 2 1)
     > (cddddr '(4 3 2 1))
     '()
-"""
-###############################################################################
+    """
+
 def test_random():
     for i in range(100):
         x = run_flo("(random)")
         assert 0.0 <= x < 1.0
         x = run_fix("(random %s)" % (5 + i))
-        assert 0 <= x < i + 5
-
+        if pytest.config.new_pycket:
+            assert 0 <= x.value < i + 5
+        else:
+            assert 0 <= x < i + 5
 
 def test_random_seed():
-    run("(begin (random-seed 142) (let ((x (random))) (random-seed 142) (= (random) x)))", w_true)
+    run("(begin (random-seed 142) (let-values (((x) (random))) (random-seed 142) (= (random) x)))", w_true)
 
-
-#############################################################################
 def test_byte_huh(doctest):
     """
     > (byte? 65)
@@ -379,7 +383,7 @@ def test_system_type_os(source):
     """(cons (system-type) (system-type 'os))"""
     result = run_mod_expr(source, wrap=True)
     assert result.car() == result.cdr()
-    sym = result.car().asciivalue
+    sym = result.car().asciivalue()
     # Sadly, this can never cover all cases.
     if sys.platform == "darwin":
         assert sym == "macosx"
@@ -391,12 +395,13 @@ def test_system_type_os(source):
 def test_system_path_convention_type(source):
     """(system-path-convention-type)"""
     result = run_mod_expr(source, wrap=True)
-    sym = result.asciivalue
+    sym = result.asciivalue()
     if sys.platform in ['win32', 'cygwin']:
         assert sym == "windows"
     else:
         assert sym == "unix"
 
+@pytest.mark.skip(reason="will be solved when tostring is not 'write'")
 def test_number_to_string(doctest):
     """
     > (number->string 10)
@@ -595,7 +600,7 @@ def test_read(doctest):
     > (read s2)
     34
     > (rs "#'()")
-    '(quote-syntax ())
+    '(syntax ())
     > (rs "#`()")
     '(quasisyntax ())
     > (rs "#`(#,x)")
@@ -636,6 +641,19 @@ def test_port_read_peek(doctest):
     101
     > (read-byte bp)
     40
+    > (define usp (open-input-string "\u4F60\u597D,\u4E16\u754C"))
+    > (peek-byte usp)
+    228
+    > (peek-char usp)
+    #\u4F60
+    > (peek-char usp)
+    #\u4F60
+    > (read-char usp)
+    #\u4F60
+    > (read-char usp)
+    #\u597D
+    > (read-char usp)
+    #\,
     """
 
 def test_peek_bug(tmpdir):
@@ -669,6 +687,7 @@ def test_listp(doctest):
     #f
     """
 
+
 def test_format(doctest):
     r"""
     > (format "a")
@@ -686,6 +705,8 @@ def test_procedure_closure_contents_eq(doctest):
     ! (define (f x) (lambda () x))
     ! (define a "abc")
     ! (define (g x) (lambda () (g x)))
+    ! (set! f (lambda (x) (lambda () x)))
+    ! (set! g (lambda (x) (lambda () (g x))))
     > (procedure-closure-contents-eq? (f a) (f a))
     #t
     > (procedure-closure-contents-eq? (f a) (f "abc"))
@@ -740,6 +761,72 @@ def test_dynamic_wind(doctest):
     2
     """
 
+def test_dynamic_wind2():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/control)
+    (define acc 0)
+    (define v
+      (let/cc k
+        (dynamic-wind
+          (lambda () (set! acc (+ acc 1)))
+          (lambda () (set! acc (+ acc 1)) 42)
+          (lambda () (set! acc (+ acc 1))))))
+    """)
+    acc = m.defs[values.W_Symbol.make("acc")]
+    v   = m.defs[values.W_Symbol.make("v")]
+    assert isinstance(acc, values.W_Cell)
+    acc = acc.get_val()
+
+    assert isinstance(v, values.W_Fixnum) and v.value == 42
+    assert isinstance(acc, values.W_Fixnum) and acc.value == 3
+
+def test_dynamic_wind3():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/control)
+    (define val
+      (let/ec k0
+          (let/ec k1
+            (dynamic-wind
+             void
+             (lambda () (k0 'cancel))
+             (lambda () (k1 'cancel-canceled))))))
+    """)
+    val = m.defs[values.W_Symbol.make("val")]
+    assert val is values.W_Symbol.make("cancel-canceled")
+
+def test_dynamic_wind4():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/control)
+    (define val
+        (let* ([x (make-parameter 0)]
+                 [l null]
+                 [add (lambda (a b)
+                        (set! l (append l (list (cons a b)))))])
+            (let ([k (parameterize ([x 5])
+                       (dynamic-wind
+                           (lambda () (add 1 (x)))
+                           (lambda () (parameterize ([x 6])
+                                        (let ([k+e (let/cc k (cons k void))])
+                                          (add 2 (x))
+                                          ((cdr k+e))
+                                          (car k+e))))
+                           (lambda () (add 3 (x)))))])
+              (parameterize ([x 7])
+                (let/cc esc
+                  (k (cons void esc)))))
+            l))
+    (define equal (equal? val '((1 . 5) (2 . 6) (3 . 5) (1 . 5) (2 . 6) (3 . 5))))
+    """)
+    val   = m.defs[values.W_Symbol.make("val")]
+    equal = m.defs[values.W_Symbol.make("equal")]
+    assert equal is values.w_true
+
 def test_bytes_conversions():
     m = run_mod(
     """
@@ -761,6 +848,10 @@ def test_build_path(doctest):
     "/usr/bin/../bash"
     > (path->string (build-path "/usr" "bin" 'same "bash"))
     "/usr/bin/./bash"
+    > (path->string (build-path "/"))
+    "/"
+    > (path->string (build-path "/" "etc"))
+    "/etc"
     """
 
 def test_path_to_complete_path():
@@ -776,15 +867,20 @@ def test_path_to_complete_path():
     assert full == p.path
 
 def test_explode_path(doctest):
+    # we use kernel's map to save loading
     """
-    ! (require racket/base)
-    ! (define (unpath p) (if (path? p) (path->string p) p))
+    ! (require '#%kernel)
+    ! (define-values (unpath) (lambda (p) (if (path? p) (path->string p) p)))
     > (map path->string (explode-path "/home/spenser/src/pycket"))
     '("/" "home" "spenser" "src" "pycket")
     > (map unpath (explode-path "/home/spenser/src/pycket/.././."))
     '("/" "home" "spenser" "src" "pycket" up same same)
     > (map unpath (explode-path "home/spenser/src/pycket/.././."))
     '("home" "spenser" "src" "pycket" up same same)
+    > (map unpath (explode-path "a//b"))
+    '("a" "b")
+    > (map unpath (explode-path "a//"))
+    '("a")
     """
     assert doctest
 
@@ -845,6 +941,7 @@ def test_ormap(doctest):
     #f
     """
 
+@pytest.mark.skip(reason="we only do correlated")
 def test_syntax_to_datum(doctest):
     """
     > (syntax->datum #'a)
@@ -953,3 +1050,403 @@ def test_raise_exception(doctest):
     13
     """
 
+def test_ctype_basetype(doctest):
+    u"""
+    ! (require '#%foreign)
+    > (ctype-basetype #f)
+    #f
+    > (ctype-basetype _int8)
+    'int8
+    > (ctype-basetype _uint32)
+    'uint32
+    > (ctype-basetype (make-ctype _int8 #f #f))
+    'int8
+    > (ctype-basetype (make-ctype _int8 (λ (x) x) #f))
+    _int8
+    """
+
+def test_ctype_basetype(doctest):
+    u"""
+    ! (require '#%foreign)
+    > (equal? (ctype-sizeof _int8) (ctype-sizeof (make-ctype _int8 #f #f)))
+    #t
+    """
+
+def test_procedure_result_arity(doctest):
+    """
+    ! (define-struct node (x y z))
+    > (procedure-result-arity car)
+    1
+    > (procedure-result-arity cdr)
+    1
+    > (procedure-result-arity node-x)
+    1
+    """
+
+def test_string_to_keyword(doctest):
+    """
+    > (eq? (string->keyword "hello") (values '#:hello))
+    #t
+    > (eq? (string->keyword "muffin button") (values '#:|muffin button|))
+    #t
+    """
+
+def test_bytes_to_path_element(doctest):
+    """
+    > (path->string (bytes->path-element (string->bytes/locale "spenser")))
+    "spenser"
+    """
+
+def test_bytes_to_immutable_bytes(doctest):
+    """
+    > (immutable? (bytes->immutable-bytes (bytes 1 2 3)))
+    #t
+    > (equal? (bytes->immutable-bytes (bytes 1 2 3)) (bytes 1 2 3))
+    #t
+    """
+
+def test_bytes_to_list(doctest):
+    """
+    > (bytes->list #"Apple")
+    '(65  112 112 108 101)
+    """
+
+def test_split_path(doctest):
+    """
+    ! (define-values (base1 name1 must-be-dir1) (split-path "abc/def"))
+    ! (define-values (base2 name2 must-be-dir2) (split-path "./abc/def"))
+    ! (define-values (base3 name3 must-be-dir3) (split-path ".."))
+    ! (define-values (base4 name4 must-be-dir4) (split-path "."))
+    ! (define-values (base5 name5 must-be-dir5) (split-path "foo"))
+    ! (define-values (base6 name6 must-be-dir6) (split-path "bcd/"))
+    ! (define-values (base7 name7 must-be-dir7) (split-path "./"))
+    ! (define-values (base8 name8 must-be-dir8) (split-path "/etc"))
+    ! (define-values (base9 name9 must-be-dir9) (split-path "/"))
+    ! (define-values (base10 name10 must-be-dir10) (split-path "/etc/"))
+    > base1
+    (string->path "abc/")
+    > name1
+    (string->path "def")
+    > must-be-dir1
+    #f
+    > base2
+    (string->path "./abc/")
+    > name2
+    (string->path "def")
+    > must-be-dir2
+    #f
+    > base3
+    'relative
+    > name3
+    'up
+    > must-be-dir3
+    #t
+    > base4
+    'relative
+    > name4
+    'same
+    > must-be-dir4
+    #t
+    > base5
+    'relative
+    > name5
+    (string->path "foo")
+    > must-be-dir5
+    #f
+    > base6
+    'relative
+    > name6
+    (string->path "bcd")
+    > must-be-dir6
+    #t
+    > base7
+    'relative
+    > name7
+    'same
+    > must-be-dir7
+    #t
+    > base8
+    (string->path "/")
+    > name8
+    (string->path "etc")
+    > must-be-dir8
+    #f
+    > base9
+    #f
+    > name9
+    (string->path "/")
+    > must-be-dir9
+    #t
+    > base10
+    (string->path "/")
+    > name10
+    (string->path "etc")
+    > must-be-dir10
+    #t
+    > (let-values ([(a b c) (split-path (build-path "b" (quote up)))])
+        (list (path->string a) b c))
+    '("b/" up #t)
+    """
+
+def test_fail_user_simple(doctest):
+    """
+    E (raise-user-error "foo")
+    """
+
+def test_integer_to_integer_bytes(doctest):
+    r"""
+    > (integer->integer-bytes 0 2 #t)
+    #"\0\0"
+    > (integer->integer-bytes -1 2 #t)
+    #"\377\377"
+    > (integer->integer-bytes 65535 2 #f)
+    #"\377\377"
+    > (integer->integer-bytes 0 2 #t #t)
+    #"\0\0"
+    > (integer->integer-bytes -1 2 #t #t)
+    #"\377\377"
+    > (integer->integer-bytes -256 2 #t #t)
+    #"\377\0"
+    > (integer->integer-bytes -255 2 #t #t)
+    #"\377\1"
+    > (integer->integer-bytes 511 2 #t #t)
+    #"\1\377"
+    > (integer->integer-bytes 513 2 #f #f)
+    #"\1\2"
+    > (integer->integer-bytes 0 2 #t #f)
+    #"\0\0"
+    > (integer->integer-bytes -1 2 #t #f)
+    #"\377\377"
+    > (integer->integer-bytes 65535 2 #f #f)
+    #"\377\377"
+    > (integer->integer-bytes 511 2 #t #f)
+    #"\377\1"
+    > (integer->integer-bytes -255 2 #t #f)
+    #"\1\377"
+    > (integer->integer-bytes 258 2 #f #t)
+    #"\1\2"
+    > (integer->integer-bytes 0 4 #t)
+    #"\0\0\0\0"
+    > (integer->integer-bytes -1 4 #t)
+    #"\377\377\377\377"
+    > (integer->integer-bytes 4294967295 4 #f)
+    #"\377\377\377\377"
+    > (integer->integer-bytes 0 4 #t #t)
+    #"\0\0\0\0"
+    > (integer->integer-bytes -1 4 #t #t)
+    #"\377\377\377\377"
+    > (integer->integer-bytes 4294967295 4 #f #t)
+    #"\377\377\377\377"
+    > (integer->integer-bytes -16777216 4 #t #t)
+    #"\377\0\0\0"
+    > (integer->integer-bytes 255 4 #t #t)
+    #"\0\0\0\377"
+    > (integer->integer-bytes 1835103348 4 #t #t)
+    #"matt"
+    > (integer->integer-bytes 1953784173 4 #t #f)
+    #"matt"
+    > (integer->integer-bytes 0 8 #t #t)
+    #"\0\0\0\0\0\0\0\0"
+    > (integer->integer-bytes -1 8 #t #f)
+    #"\377\377\377\377\377\377\377\377"
+    > (integer->integer-bytes 4294967295 8 #t #f)
+    #"\377\377\377\377\0\0\0\0"
+    > (integer->integer-bytes -4294967296 8 #t #f)
+    #"\0\0\0\0\377\377\377\377"
+    > (integer->integer-bytes 8589934591 8 #t #f)
+    #"\377\377\377\377\1\0\0\0"
+    > (integer->integer-bytes -4294967295 8 #t #f)
+    #"\1\0\0\0\377\377\377\377"
+    > (integer->integer-bytes 0 8 #t #f)
+    #"\0\0\0\0\0\0\0\0"
+    > (integer->integer-bytes -1 8 #t #f)
+    #"\377\377\377\377\377\377\377\377"
+    > (integer->integer-bytes -4294967296 8 #t #t)
+    #"\377\377\377\377\0\0\0\0"
+    > (integer->integer-bytes 4294967295 8 #t #t)
+    #"\0\0\0\0\377\377\377\377"
+    > (integer->integer-bytes -4294967295 8 #t #t)
+    #"\377\377\377\377\0\0\0\1"
+    > (integer->integer-bytes 8589934591 8 #t #t)
+    #"\0\0\0\1\377\377\377\377"
+    """
+    # Tests for bigint
+    # > (integer->integer-bytes 18446744073709551615 8 #f #f)
+    # #"\377\377\377\377\377\377\377\377"
+    # > (integer->integer-bytes 18446744073709551615 8 #f #f)
+    # #"\377\377\377\377\377\377\377\377"
+
+def test_integer_bytes_to_integer(doctest):
+    r"""
+    > (integer-bytes->integer #"\0\0" #t)
+    0
+    > (integer-bytes->integer #"\377\377" #t)
+    -1
+    > (integer-bytes->integer #"\377\377" #f)
+    65535
+    > (integer-bytes->integer #"\0\0" #t #t)
+    0
+    > (integer-bytes->integer #"\377\377" #t #t)
+    -1
+    > (integer-bytes->integer #"\377\377" #f #t)
+    65535
+    > (integer-bytes->integer #"\377\0" #t #t)
+    -256
+    > (integer-bytes->integer #"\377\1" #t #t)
+    -255
+    > (integer-bytes->integer #"\1\377" #t #t)
+    511
+    > (integer-bytes->integer #"\1\2" #f #f)
+    513
+    > (integer-bytes->integer #"\0\0" #t #f)
+    0
+    > (integer-bytes->integer #"\377\377" #t #f)
+    -1
+    > (integer-bytes->integer #"\377\377" #f #f)
+    65535
+    > (integer-bytes->integer #"\377\1" #t #f)
+    511
+    > (integer-bytes->integer #"\1\377" #t #f)
+    -255
+    > (integer-bytes->integer #"\1\2" #f #t)
+    258
+    > (integer-bytes->integer #"\0\0\0\0" #t)
+    0
+    > (integer-bytes->integer #"\377\377\377\377" #t)
+    -1
+    > (integer-bytes->integer #"\377\377\377\377" #f)
+    4294967295
+    > (integer-bytes->integer #"\0\0\0\0" #t #t)
+    0
+    > (integer-bytes->integer #"\377\377\377\377" #t #t)
+    -1
+    > (integer-bytes->integer #"\377\377\377\377" #f #t)
+    4294967295
+    > (integer-bytes->integer #"\377\0\0\0" #t #t)
+    -16777216
+    > (integer-bytes->integer #"\0\0\0\377" #t #t)
+    255
+    > (integer-bytes->integer #"\0\0\0\0" #t #f)
+    0
+    > (integer-bytes->integer #"\377\377\377\377" #t #f)
+    -1
+    > (integer-bytes->integer #"\377\377\377\377" #f #f)
+    4294967295
+    > (integer-bytes->integer #"\377\0\0\1" #t #f)
+    16777471
+    > (integer-bytes->integer #"\0\0\0\377" #t #f)
+    -16777216
+    > (integer-bytes->integer #"\1\0\0\377" #t #f)
+    -16777215
+    > (integer-bytes->integer #"matt" #t #t)
+    1835103348
+    > (integer-bytes->integer #"matt" #t #f)
+    1953784173
+    > (integer-bytes->integer #"\0\0\0\0\0\0\0\0" #t #t)
+    0
+    > (integer-bytes->integer #"\377\377\377\377\377\377\377\377" #t #f)
+    -1
+    > (integer-bytes->integer #"\377\377\377\377\377\377\377\377" #f #f)
+    18446744073709551615
+    > (integer-bytes->integer #"\377\377\377\377\0\0\0\0" #t #f)
+    4294967295
+    > (integer-bytes->integer #"\0\0\0\0\377\377\377\377" #t #f)
+    -4294967296
+    > (integer-bytes->integer #"\377\377\377\377\1\0\0\0" #t #f)
+    8589934591
+    > (integer-bytes->integer #"\1\0\0\0\377\377\377\377" #t #f)
+    -4294967295
+    > (integer-bytes->integer #"\0\0\0\0\0\0\0\0" #t #f)
+    0
+    > (integer-bytes->integer #"\377\377\377\377\377\377\377\377" #t #f)
+    -1
+    > (integer-bytes->integer #"\377\377\377\377\377\377\377\377" #f #f)
+    18446744073709551615
+    > (integer-bytes->integer #"\377\377\377\377\0\0\0\0" #t #t)
+    -4294967296
+    > (integer-bytes->integer #"\0\0\0\0\377\377\377\377" #t #t)
+    4294967295
+    > (integer-bytes->integer #"\377\377\377\377\0\0\0\1" #t #t)
+    -4294967295
+    > (integer-bytes->integer #"\0\0\0\1\377\377\377\377" #t #t)
+    8589934591
+    """
+
+def test_logger_operations(doctest):
+    """
+    > (logger-name (make-logger 'example))
+    'example
+    """
+
+def test_path_less_than(doctest):
+    """
+    > (path<? (string->path "a") (string->path "b"))
+    #t
+    > (path<? (string->path "") (string->path ""))
+    #f
+    > (path<? (string->path "a") (string->path ""))
+    #f
+    > (path<? (string->path "") (string->path "a"))
+    #t
+    > (path<? (string->path "/home/spenser") (string->path "/home"))
+    #f
+    > (path<? (string->path "/home") (string->path "/home/spenser"))
+    #t
+    """
+
+def test_string_to_bytes_latin1(doctest):
+    u"""
+    ! (define b (bytes->string/latin-1 (bytes 254 211 209 165)))
+    > (string->bytes/latin-1 b)
+    #"\376\323\321\245"
+    > (bytes->string/latin-1 (string->bytes/latin-1 b))
+    "þÓÑ¥"
+    """
+
+def test_current_seconds(doctest):
+    """
+    > (exact-integer? (current-seconds))
+    #t
+    """
+
+def test_true_object(doctest):
+    """
+    ! (require '#%kernel)
+    > (true-object? #t)
+    #t
+    > (true-object? #f)
+    #f
+    > (true-object? 3)
+    #f
+    """
+
+def test_char_foldcase(doctest):
+    ur"""
+    > (char-foldcase #\A)
+    #\a
+    > (char-foldcase #\Σ)
+    #\σ
+    > (char-foldcase #\ς)
+    #\σ
+    > (char-foldcase #\space)
+    #\space
+    """
+
+def test_procedure_specialize(doctest):
+    """
+    ! (define f (let ([g 5]) (lambda (x) (+ g x))))
+    > (f 1)
+    6
+    > ((procedure-specialize f) 1)
+    6
+    """
+
+def test_symbol_less_than(doctest):
+    """
+    > (symbol<? 'a 'b)
+    #t
+    > (symbol<? 'a 'a)
+    #f
+    > (symbol<? 'b 'a)
+    #f
+    """

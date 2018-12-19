@@ -4,70 +4,24 @@ import inspect
 from pycket       import values
 from pycket.error import SchemeException
 from rpython.rlib import jit, objectmodel, unroll
+from rpython.rlib.objectmodel import specialize
 
 class EndOfInput(Exception):
     pass
 
-class Spec(object):
-
-    def __init__(self):
-        raise NotImplementedError("abstract base class")
-
-    def conforms(self, value):
-        raise NotImplementedError("abstract base class")
-
-    def repr(self):
-        raise NotImplementedError("abstract base class")
-
-class Value(Spec):
-    def __init__(self, value):
-        self.value = value
-
-    @objectmodel.always_inline
-    def conforms(self, value):
-        return self.value is value
-
-    @objectmodel.always_inline
-    def repr(self):
-        return self.value.tostring()
-
-class Instance(Spec):
-    def __init__(self, cls):
-        self.cls = cls
-
-    @objectmodel.always_inline
-    def conforms(self, value):
-        return isinstance(value, self.cls)
-
-    @objectmodel.always_inline
-    def repr(self):
-        return self.cls.errorname
-
-CACHE = {}
-
-class ExtensibleParser(type):
-    def __new__(cls, name, bases, attrs):
-        if name == '__extend_parser__':
-            for key, val in attrs.iteritems():
-                if key == '__module__':
-                    continue
-                add_parser_method(key, *val)
-            return None
-        return super(ExtensibleParser, cls).__new__(cls, name, bases, attrs)
-
 class ArgParser(object):
 
-    __metaclass__ = ExtensibleParser
-
+    _attrs_ = ['context', 'args', 'index']
     _immutable_fields_ = ['context', 'args']
 
     def __init__(self, context, args, start_at=0):
+        assert start_at >= 0
         self.context = context
         self.args    = args
         self.index   = start_at
 
     def __nonzero__(self):
-        return 0 <= self.index < len(self.args)
+        return self.has_more()
 
     def has_more(self):
         return 0 <= self.index < len(self.args)
@@ -77,49 +31,76 @@ class ArgParser(object):
             raise EndOfInput
         index = self.index
         val = self.args[index]
-        self.index = index + 1
         return val
 
-    def ensure_arity(self):
-        pass
+    @specialize.arg(1)
+    def expect(self, *args):
+        val = self.next()
+        if validate_arg(val, *args):
+            self.index += 1
+            return val
+        raise SchemeException(
+                "%s: expected %s at argument %d got %s" %
+                (self.context, errorname(*args), self.index, val.tostring()))
 
-def make_spec(arg):
-    return (Instance if inspect.isclass(arg) else Value)(arg)
+    @specialize.arg(1)
+    @jit.unroll_safe
+    def expect_many(self, *args):
+        length = len(self.args) - self.index
+        results = [None] * length
+        for i in range(length):
+            results[i] = self.expect(*args)
+        return results
 
-def add_parser_method(name, *_specs):
+def is_constant_class(cls):
+    return inspect.isclass(cls)
 
-    if name in CACHE:
-        otherspec, checker = CACHE[name]
-        assert otherspec == _specs
-        return checker
+@specialize.arg(1)
+def validate_arg(value, arg, *args):
+    if is_constant_class(arg):
+        if isinstance(value, arg):
+            return True
+    elif value is arg:
+        return True
+
+    return bool(args) and validate_arg(value, *args)
+
+@specialize.arg(0)
+def _errorname(arg, *args):
+    if is_constant_class(arg):
+        retval = arg.errorname
     else:
-        specs = unroll.unrolling_iterable(map(make_spec, _specs))
+        retval = arg.tostring()
+    if not args:
+        return retval
+    else:
+        return retval + " " + _errorname(*args)
 
-        def checker(self):
-            arg = self.next()
-            for spec in specs:
-                if spec.conforms(arg):
-                    return arg
-            names = " ".join([spec.repr() for spec in specs])
-            if len(_specs) == 1:
-                types = names[0]
-            else:
-                types = "(or/c %s)" % names
-            msg = "%s: expected %s at argument %d got %s" % (self.context, types, self.index, arg.tostring())
-            raise SchemeException(msg)
-        checker.__name__ = name
+@specialize.arg(0)
+def errorname(arg, *args):
+    if not args:
+        return _errorname(arg)
+    return "(or/c %s)" % _errorname(arg, *args)
 
-        @jit.unroll_safe
-        def _checker(self):
-            length = len(self.args) - self.index
-            results = [None] * length
-            for i in range(length):
-                results[i] = checker(self)
-            return results
+from rpython.rtyper.extregistry import ExtRegistryEntry
 
-    CACHE[name] = (_specs, checker)
-    setattr(ArgParser, name, checker)
-    setattr(ArgParser, "_" + name, _checker)
+class Entry(ExtRegistryEntry):
+    _about_ = is_constant_class
 
-    return checker
+    def compute_result_annotation(self, s_cls):
+        from rpython.annotator.model import SomeBool, SomePBC, SomeInstance
+        r = SomeBool()
+        assert s_cls.is_constant()
+        if isinstance(s_cls, SomePBC):
+            r.const = inspect.isclass(s_cls.const)
+        elif isinstance(s_cls, SomeInstance):
+            r.const = False
+        else:
+            assert False
+        return r
+
+    def specialize_call(self, hop):
+        from rpython.rtyper.lltypesystem import lltype
+        hop.exception_cannot_occur()
+        return hop.inputconst(lltype.Bool, hop.s_result.const)
 

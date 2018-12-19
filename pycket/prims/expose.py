@@ -4,6 +4,7 @@ from pycket.error import SchemeException
 from pycket.arity import Arity
 
 prim_env = {}
+prim_src = {} # str : (or 'linklet' 'rpython')
 
 SAFE = 0
 UNSAFE = 1
@@ -15,6 +16,7 @@ class unsafe(object):
     subtypes!)."""
 
     def __init__(self, typ):
+        assert not typ.__subclasses__()
         self.typ = typ
 
     def make_unwrapper(self):
@@ -28,7 +30,6 @@ class unsafe(object):
             jit.record_exact_class(w_arg, typ)
             return w_arg
         return unwrapper, typ.errorname
-
 
 class subclass_unsafe(object):
     """ can be used in the argtypes part of an @expose call. The corresponding
@@ -104,7 +105,7 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False, simple=False)
         func_arg_unwrap = make_list_arg_unwrapper(
             func, has_self, min_arg, max_arity, unroll_argtypes, errormsg_arity)
         call1 = call2 = None
-    _arity = Arity(range(min_arg, max_arity+1), -1)
+    _arity = Arity.oneof(*range(min_arg, max_arity+1))
     return func_arg_unwrap, _arity, call1, call2
 
 def make_direct_arg_unwrapper(func, num_args, unroll_argtypes, errormsg_arity):
@@ -197,7 +198,7 @@ def _make_result_handling_func(func_arg_unwrap, simple):
     if simple:
         def func_result_handling(*args):
             from pycket.interpreter   import return_multi_vals, return_value_direct
-            from pycket.prims.control import convert_runtime_exception
+            from pycket.prims.control import convert_runtime_exception, convert_os_error
             from pycket               import values
             env = args[-2]
             cont = args[-1]
@@ -206,6 +207,8 @@ def _make_result_handling_func(func_arg_unwrap, simple):
                 result = func_arg_unwrap(*args)
             except SchemeException, exn:
                 return convert_runtime_exception(exn, env, cont)
+            except OSError, exn:
+                return convert_os_error(exn, env, cont)
             if result is None:
                 result = values.w_void
             if isinstance(result, values.Values):
@@ -214,7 +217,32 @@ def _make_result_handling_func(func_arg_unwrap, simple):
                 return return_value_direct(result, env, cont)
         return func_result_handling
     else:
-        return func_arg_unwrap
+        def func_error_handling(*args):
+            from pycket.prims.control import convert_runtime_exception, convert_os_error
+            from pycket.cont import BaseCont
+            from pycket.env import Env
+            # Fixme : It's difficult to figure out when there's
+            # supposed to be an extra argument *after* the env, cont
+            # pair.
+            a = args[-1]
+            if isinstance(a, BaseCont):
+                assert isinstance(args[-2], Env)
+                env = args[-2]
+                cont = args[-1]
+            else:
+                assert isinstance(args[-2], BaseCont) and isinstance(args[-3], Env)
+                env = args[-3]
+                cont = args[-2]
+
+            try:
+                return func_arg_unwrap(*args)
+            except SchemeException, exn:
+                return convert_runtime_exception(exn, env, cont)
+            except OSError, exn:
+                return convert_os_error(exn, env, cont)
+
+        return func_error_handling
+
 
 # FIXME: Abstract away the common operations between this and expose
 def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
@@ -231,7 +259,9 @@ def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
             _arity = arity or Arity.unknown
             assert isinstance(_arity, Arity)
         func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
-        return values.W_Prim(name, make_remove_extra_info(func_result_handling), _arity)
+        result_arity = Arity.oneof(1) if simple else None
+        return values.W_Prim(name, make_remove_extra_info(func_result_handling),
+                             arity=_arity, result_arity=result_arity)
     return wrapper
 
 def make_remove_extra_info(func):
@@ -241,7 +271,7 @@ def make_remove_extra_info(func):
     remove_extra_info.__name__ += func.__name__
     return remove_extra_info
 
-def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False):
+def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, only_old=False):
     """
     n:          names that the function should be exposed under
     argstypes:  if None, the list of args is passed directly to the function
@@ -255,9 +285,23 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
                 do with it is to pass it into a w_value.call_with_extra_info as
                 the last argument. This will ensure that the call graph
                 information stays correct.
+    only_old:   this only should be exposed for old pycket
     """
     def wrapper(func):
         from pycket import values
+        from pycket.env import w_global_config as glob
+        if only_old and (glob.are_we_in_linklet_mode() and glob.is_expander_loaded()):
+            def func_arg_unwrap(*args):
+                raise SchemeException("never called in new pycket")
+            func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
+            if not extra_info:
+                func_result_handling = make_remove_extra_info(func_result_handling)
+            p = values.W_Prim("never called", func_result_handling)
+            assert isinstance(n, str)
+            prim_env[values.W_Symbol.make(n)] = p
+            func_arg_unwrap.w_prim = p
+            return func_arg_unwrap
+
         names = [n] if isinstance(n, str) else n
         name = names[0]
         if extra_info:
@@ -279,13 +323,16 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
         func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
         if not extra_info:
             func_result_handling = make_remove_extra_info(func_result_handling)
-        cls = values.W_Prim
-        p = cls(name, func_result_handling, _arity, call1, call2)
+        result_arity = Arity.ONE if simple else None
+        p = values.W_Prim(name, func_result_handling,
+                          arity=_arity, result_arity=result_arity,
+                          simple1=call1, simple2=call2, is_nyi=nyi)
         for nam in names:
             sym = values.W_Symbol.make(nam)
-            if sym in prim_env:
+            if sym in prim_env and prim_env[sym].is_implemented():
                 raise SchemeException("name %s already defined" % nam)
             prim_env[sym] = p
+            prim_src[sym.variable_name()] = 'rpython'
         func_arg_unwrap.w_prim = p
         return func_arg_unwrap
     return wrapper
@@ -321,21 +368,29 @@ def make_callable_label(argstypes=None, arity=None, name="<label>"):
     return wrapper
 
 
-def expose_val(name, w_v):
+def expose_val(name, w_v, only_old=False):
     from pycket import values
+    from pycket.env import w_global_config
+
+    if only_old and w_global_config.are_we_in_linklet_mode() or w_global_config.is_expander_loaded():
+        return 
+
     sym = values.W_Symbol.make(name)
-    if sym in prim_env:
+    if sym in prim_env and prim_env[sym].is_implemented():
         raise Error("name %s already defined" % name)
     prim_env[sym] = w_v
+    prim_src[sym.variable_name()] = 'rpython'
 
 def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):
-    if bail:
-        @expose(name, prim_args, nyi=True, *args, **kwargs)
-        def nyi(a):
-            pass
-    else:
-        @expose(name, prim_args, nyi=False, *args, **kwargs)
-        def nyi(a):
-            from pycket import values
-            print "NOT YET IMPLEMENTED: %s" % name
-            return values.w_false
+    from pycket import values
+    if values.W_Symbol.make(name) not in prim_env:
+        if bail:
+            @expose(name, prim_args, nyi=True, *args, **kwargs)
+            def nyi(a):
+                pass
+        else:
+            @expose(name, prim_args, nyi=False, *args, **kwargs)
+            def nyi(a):
+                from pycket import values
+                print "NOT YET IMPLEMENTED: %s" % name
+                return values.w_false

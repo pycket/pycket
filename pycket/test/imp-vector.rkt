@@ -1,5 +1,7 @@
 #lang pycket #:stdlib
 
+(require racket/private/for)
+
 (provide check my-len max-val)
 
 (define my-len 100)

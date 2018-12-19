@@ -7,7 +7,8 @@ from rpython.rlib.rsre.rsre_core import (OPCODE_LITERAL, OPCODE_LITERAL_IGNORE,
     OPCODE_SUCCESS, OPCODE_ASSERT, OPCODE_MARK, OPCODE_REPEAT, OPCODE_ANY,
     OPCODE_ANY_ALL, OPCODE_MAX_UNTIL, OPCODE_MIN_UNTIL, OPCODE_GROUPREF,
     OPCODE_AT, OPCODE_BRANCH, OPCODE_RANGE, OPCODE_JUMP, OPCODE_ASSERT_NOT,
-    OPCODE_CATEGORY, OPCODE_FAILURE, OPCODE_IN, OPCODE_NEGATE)
+    OPCODE_CATEGORY, OPCODE_FAILURE, OPCODE_IN, OPCODE_NEGATE,
+    CompiledPattern)
 from rpython.rlib.rsre.rsre_char import is_digit, is_space, is_word
 
 IGNORE_CASE = 1 << 0
@@ -161,7 +162,7 @@ class Source(object):
             self.pos = len(s)
             return u""
 
-    def match(self, substr):
+    def match(self, substr, consume=True):
         s = self.s
         pos = self.pos
 
@@ -182,7 +183,8 @@ class Source(object):
                 if s[pos] != c:
                     return False
                 pos += 1
-            self.pos = pos
+            if consume:
+                self.pos = pos
             return True
         else:
             if pos + len(substr) <= len(s):
@@ -194,7 +196,8 @@ class Source(object):
                 matches = False
             if not matches:
                 return False
-            self.pos = pos + len(substr)
+            if consume:
+                self.pos = pos + len(substr)
             return True
 
     def expect(self, substr):
@@ -279,7 +282,7 @@ class CompilerContext(object):
         self.data[pos] = value
 
     def build(self):
-        return self.data[:]
+        return CompiledPattern(self.data[:])
 
 
 class Counts(object):
@@ -1146,7 +1149,7 @@ def _parse_set_member(source, info):
 
 
 def _parse_set_item(source, info):
-    if source.match(u"\\"):
+    if source.match(u"\\", consume=False):
         return _parse_escape(source, info, in_set=True)
 
     here = source.pos
@@ -1167,7 +1170,7 @@ def _parse_escape(source, info, in_set):
     ch = source.get()
     source.ignore_space = saved_ignore
     if not ch:
-        raise RegexpError("bad escape")
+        return Character(0)
     if ch == u"g" and not in_set:
         here = source.pos
         try:

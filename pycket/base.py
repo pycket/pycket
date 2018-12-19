@@ -1,6 +1,9 @@
-from pycket.error             import SchemeException
-from rpython.tool.pairtype    import extendabletype
-from rpython.rlib import jit, objectmodel
+from pycket.error          import SchemeException
+from rpython.tool.pairtype import extendabletype
+from rpython.rlib          import jit, objectmodel
+
+class UnhashableType(Exception):
+    pass
 
 class W_ProtoObject(object):
     """ abstract base class of both actual values (W_Objects) and multiple
@@ -42,24 +45,69 @@ class W_Object(W_ProtoObject):
         return False
 
     def call(self, args, env, cont):
-        raise SchemeException("%s is not callable" % self.tostring())
+        raise SchemeException("%s is not callable\n  args were: %s" % (self.tostring(),
+                                                                       [s.tostring() for s in args]))
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         return self.call(args, env, cont)
+
+    def call_interpret(self, racket_vals, pycketconfig=None):
+        from pycket.interpreter import Done, interpret_one
+        from pycket.env import ToplevelEnv, w_global_config
+        from pycket.cont import NilCont, Prompt
+        from pycket import values, values_parameter
+        from pycket.prims.control import default_uncaught_exception_handler
+
+        __pycketconfig = w_global_config.get_pycketconfig()
+
+        t_env = ToplevelEnv(__pycketconfig)
+
+        cont = NilCont()
+        cont = Prompt(values.w_default_continuation_prompt_tag, None, t_env, cont)
+        cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+        cont.update_cm(values.exn_handler_key, default_uncaught_exception_handler)
+
+        try:
+            ast, env, cont = self.call_with_extra_info(racket_vals, t_env, cont, None)
+            return interpret_one(ast, env, cont)
+        except Done, e:
+            return e.values
+        except SchemeException, e:
+            raise e
+
 
     def enable_jitting(self):
         pass # need to override in callables that are based on an AST
 
     # an arity is a pair of a list of numbers and either -1 or a non-negative integer
-    def get_arity(self):
-        from pycket.interpreter import Arity
+    def get_arity(self, promote=False):
         if self.iscallable():
+            from pycket.arity import Arity
             return Arity.unknown
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
 
-    def is_proper_list(self):
-        return False
+    def get_result_arity(self):
+        if self.iscallable():
+            return None
+        else:
+            raise SchemeException("%s does not have result arity" % self.tostring())
+
+    # Interface for structs
+
+    def ref_with_extra_info(self, field, app, env, cont):
+        raise SchemeException("%s is not a struct" % self.tostring())
+
+    def set_with_extra_info(self, field, val, app, env, cont):
+        raise SchemeException("%s is not a struct" % self.tostring())
+
+    def struct_type(self):
+        return None
+
+    def get_prop(self, property, env, cont):
+        raise SchemeException("%s is not a struct" % self.tostring())
+
+    # Interface for proxies
 
     def is_impersonator(self):
         return self.is_chaperone()
@@ -69,9 +117,16 @@ class W_Object(W_ProtoObject):
         return self.is_chaperone() or self.is_impersonator()
     def get_proxied(self):
         return self
+    def get_base(self):
+        return self
     def get_properties(self):
         return {}
     def is_non_interposing_chaperone(self):
+        return False
+    def replace_proxied(self, other):
+        raise ValueError("Not a proxy")
+
+    def is_proper_list(self, seen=[]):
         return False
 
     def immutable(self):
@@ -84,13 +139,17 @@ class W_Object(W_ProtoObject):
         return self is other # default implementation
 
     def hash_equal(self, info=None):
-        return objectmodel.compute_hash(self) # default implementation
+        return 10
 
     def hash_eqv(self):
-        return self.hash_equal()
+        # default to hash_eq
+        return objectmodel.compute_hash(self)
 
     def tostring(self):
         return str(self)
+
+    def to_sexp(self):
+        return self
 
     def shape(self):
         from pycket.shape import in_storage_shape_instance
@@ -113,3 +172,7 @@ class SingletonMeta(type):
         result.singleton = result()
         return result
 
+class SingleResultMixin(object):
+    def get_result_arity(self):
+        from pycket.arity import Arity
+        return Arity.ONE

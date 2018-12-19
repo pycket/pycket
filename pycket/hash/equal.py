@@ -1,23 +1,38 @@
 
 from pycket                   import config
 from pycket                   import values, values_string
-from pycket.base              import SingletonMeta
-from pycket.hash.base         import W_HashTable, get_dict_item, w_missing
+from pycket.base              import SingletonMeta, UnhashableType
+from pycket.hash.base         import W_HashTable, get_dict_item, next_valid_index, w_missing
 from pycket.error             import SchemeException
 from pycket.cont              import continuation, loop_label
-from rpython.rlib             import rerased
+from rpython.rlib             import rerased, jit
+from rpython.rlib.rarithmetic import r_uint, intmask
 from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
+
+import sys
+
+def elidable_iff(pred):
+    def wrapper(func):
+        @jit.elidable
+        def elidable(*args):
+            return func(*args)
+        def inner(*args):
+            if jit.we_are_jitted() and pred(*args):
+                return elidable(*args)
+            return func(*args)
+        return inner
+    return wrapper
 
 @loop_label
 def equal_hash_ref_loop(data, idx, key, env, cont):
     from pycket.interpreter import return_value
-    from pycket.prims.equal import equal_func, EqualInfo
+    from pycket.prims.equal import equal_func_unroll_n, EqualInfo
     if idx >= len(data):
         return return_value(w_missing, env, cont)
     k, v = data[idx]
     info = EqualInfo.BASIC_SINGLETON
-    return equal_func(k, key, info, env,
-            catch_ref_is_equal_cont(data, idx, key, v, env, cont))
+    cont = catch_ref_is_equal_cont(data, idx, key, v, env, cont)
+    return equal_func_unroll_n(k, key, info, env, cont, 5)
 
 @continuation
 def catch_ref_is_equal_cont(data, idx, key, v, env, cont, _vals):
@@ -57,11 +72,26 @@ class HashmapStrategy(object):
     def set(self, w_dict, w_key, w_val, env, cont):
         raise NotImplementedError("abstract base class")
 
+    def rem(self, w_dict, w_key, env, cont):
+        raise NotImplementedError("abstract base class")
+
+    def rem_inplace(self, w_dict, w_key, env, cont):
+        raise NotImplementedError("abstract base class")
+
     def items(self, w_dict):
         raise NotImplementedError("abstract base class")
 
     def get_item(self, w_dict, i):
         raise NotImplementedError("abstract base class")
+
+    def hash_iterate_next(self, w_dict, i):
+        index = i.value
+        if index >= self.length(w_dict) - 1:
+            return values.w_false
+        return values.wrap(index + 1)
+
+    def hash_iterate_first(self, w_dict):
+        return 0
 
     def length(self, w_dict):
         raise NotImplementedError("abstract base class")
@@ -69,6 +99,9 @@ class HashmapStrategy(object):
     def create_storage(self, keys, vals):
         raise NotImplementedError("abstract base class")
 
+@jit.look_inside_iff(lambda keys:
+        jit.loop_unrolling_heuristic(
+                keys, len(keys), values.UNROLLING_CUTOFF))
 def _find_strategy_class(keys):
     if not config.strategies:
         return ObjectHashmapStrategy.singleton
@@ -85,8 +118,10 @@ def _find_strategy_class(keys):
         return SymbolHashmapStrategy.singleton
     if single_class is values_string.W_String:
         return StringHashmapStrategy.singleton
-    if single_class is values.W_Bytes:
-        return ByteHashmapStrategy.singleton
+    if single_class is values.W_ImmutableBytes:
+        return ImmutableByteHashmapStrategy.singleton
+    if single_class is values.W_MutableBytes:
+        return MutableByteHashmapStrategy.singleton
     return ObjectHashmapStrategy.singleton
 
 class UnwrappedHashmapStrategyMixin(object):
@@ -94,10 +129,20 @@ class UnwrappedHashmapStrategyMixin(object):
     # erase, unerase, is_correct_type, wrap, unwrap
     # create_storage needs to be overwritten if an r_dict is needed
 
+    @staticmethod
+    @elidable_iff(
+        lambda w_dict: jit.isconstant(w_dict) and w_dict.is_immutable)
+    def get_hstorage(w_dict):
+        return w_dict.hstorage
+
+    def get_storage(self, w_dict):
+        return self.unerase(self.get_hstorage(w_dict))
+
     def get(self, w_dict, w_key, env, cont):
         from pycket.interpreter import return_value
         if self.is_correct_type(w_key):
-            w_res = self.unerase(w_dict.hstorage).get(self.unwrap(w_key), w_missing)
+            storage = self.get_storage(w_dict)
+            w_res = storage.get(self.unwrap(w_key), w_missing)
             return return_value(w_res, env, cont)
         # XXX should not dehomogenize always
         self.switch_to_object_strategy(w_dict)
@@ -106,10 +151,29 @@ class UnwrappedHashmapStrategyMixin(object):
     def set(self, w_dict, w_key, w_val, env, cont):
         from pycket.interpreter import return_value
         if self.is_correct_type(w_key):
-            self.unerase(w_dict.hstorage)[self.unwrap(w_key)] = w_val
+            storage = self.get_storage(w_dict)
+            storage[self.unwrap(w_key)] = w_val
             return return_value(values.w_void, env, cont)
         self.switch_to_object_strategy(w_dict)
         return w_dict.hash_set(w_key, w_val, env, cont)
+
+    def _set(self, w_dict, w_key, w_val):
+        if not self.is_correct_type(w_key):
+            raise KeyError
+        storage = self.unerase(w_dict.hstorage)
+        key = self.unwrap(w_key)
+        storage[key] = w_val
+
+    def rem_inplace(self, w_dict, w_key, env, cont):
+        from pycket.interpreter import return_value
+        if not self.is_correct_type(w_key):
+            raise KeyError
+        storage = self.unerase(w_dict.hstorage)
+        key = self.unwrap(w_key)
+        if key in storage:
+            del storage[key]
+        return return_value(values.w_void, env, cont)
+
 
     def items(self, w_dict):
         return [(self.wrap(key), w_val) for key, w_val in self.unerase(w_dict.hstorage).iteritems()]
@@ -141,9 +205,8 @@ class UnwrappedHashmapStrategyMixin(object):
         w_dict.strategy = strategy
         w_dict.hstorage = storage
 
-
 class EmptyHashmapStrategy(HashmapStrategy):
-    erase, unerase = rerased.new_static_erasing_pair("object-hashmap-strategry")
+    erase, unerase = rerased.new_static_erasing_pair("object-hashmap-strategy")
 
     def get(self, w_dict, w_key, env, cont):
         from pycket.interpreter import return_value
@@ -152,6 +215,18 @@ class EmptyHashmapStrategy(HashmapStrategy):
     def set(self, w_dict, w_key, w_val, env, cont):
         self.switch_to_correct_strategy(w_dict, w_key)
         return w_dict.hash_set(w_key, w_val, env, cont)
+
+    def rem(self, w_dict, w_key, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(w_dict, env, cont) # there's nothing to remove
+
+    def _set(self, w_dict, w_key, w_val):
+        self.switch_to_correct_strategy(w_dict, w_key)
+        return w_dict._set(w_key, w_val)
+
+    def rem_inplace(self, w_dict, w_key, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(values.w_void, env, cont) # there's nothing to remove
 
     def items(self, w_dict):
         return []
@@ -174,44 +249,156 @@ class EmptyHashmapStrategy(HashmapStrategy):
             strategy = SymbolHashmapStrategy.singleton
         elif isinstance(w_key, values_string.W_String):
             strategy = StringHashmapStrategy.singleton
-        elif isinstance(w_key, values.W_Bytes):
-            strategy = ByteHashmapStrategy.singleton
+        elif isinstance(w_key, values.W_ImmutableBytes):
+            strategy = ImmutableByteHashmapStrategy.singleton
+        elif isinstance(w_key, values.W_MutableBytes):
+            strategy = MutableByteHashmapStrategy.singleton
         else:
             strategy = ObjectHashmapStrategy.singleton
         storage = strategy.create_storage([], [])
         w_dict.strategy = strategy
         w_dict.hstorage = storage
 
+UNHASHABLE_TAG = 0b0001
+
+def tagged_hash(w_object):
+    try:
+        return w_object.hash_equal() << 1
+    except UnhashableType:
+        return UNHASHABLE_TAG
 
 class ObjectHashmapStrategy(HashmapStrategy):
-    erase, unerase = rerased.new_static_erasing_pair("object-hashmap-strategry")
+    erase, unerase = rerased.new_static_erasing_pair("object-hashmap-strategy")
+
+    import_from_mixin(UnwrappedHashmapStrategyMixin)
+
+    def get_bucket(self, w_dict, w_key, nonull=False):
+        hash    = tagged_hash(w_key)
+        storage = self.get_storage(w_dict)
+        bucket  = storage.get(hash, None)
+        if nonull and bucket is None:
+            storage[hash] = bucket = []
+        return bucket
 
     def get(self, w_dict, w_key, env, cont):
-        return equal_hash_ref_loop(self.unerase(w_dict.hstorage), 0, w_key, env, cont)
+        from pycket.interpreter import return_value
+        bucket = self.get_bucket(w_dict, w_key)
+        if not bucket:
+            return return_value(w_missing, env, cont)
+        return equal_hash_ref_loop(bucket, 0, w_key, env, cont)
 
     def set(self, w_dict, w_key, w_val, env, cont):
-        return equal_hash_set_loop(self.unerase(w_dict.hstorage), 0, w_key, w_val, env, cont)
+        bucket = self.get_bucket(w_dict, w_key, nonull=True)
+        return equal_hash_set_loop(bucket, 0, w_key, w_val, env, cont)
+
+    def rem_inplace(self, w_dict, w_key, env, cont):
+        raise NotImplementedError("hash-remove! not supported for ObjectHashmapStrategy")
+
+    def rem(self, w_dict, w_key, env, cont):
+        from pycket.interpreter import return_value
+        if not w_dict.immutable():
+            raise SchemeException("Expected an immutable hash table")
+
+        new_keys = []
+        new_vals = []
+        for (k, v) in w_dict.hash_items():
+            if k is w_key:
+                continue
+            new_keys.append(k)
+            new_vals.append(v)
+
+        assert isinstance(w_dict, W_EqualHashTable)
+        new_table = W_EqualHashTable(new_keys, new_vals, True)
+        return return_value(new_table, env, cont)
+
+    def _set(self, w_dict, w_key, w_val):
+        raise NotImplementedError("Unsafe set not supported for ObjectHashmapStrategy")
 
     def items(self, w_dict):
-        return self.unerase(w_dict.hstorage)
+        items = []
+        storage = self.unerase(w_dict.hstorage)
+        for bucket in storage.itervalues():
+            for item in bucket:
+                items.append(item)
+        return items
 
-    def get_item(self, w_dict, i):
-        try:
-            return self.unerase(w_dict.hstorage)[i]
-        except IndexError:
-            raise
+    if sys.maxint == 2147483647:
+
+        def get_item(self, w_dict, i):
+            storage = self.unerase(w_dict.hstorage)
+            for bucket in storage.itervalues():
+                size = len(bucket)
+                if size > i:
+                    return bucket[i]
+                i -= size
+            raise IndexError
+
+    else:
+
+        @staticmethod
+        def _valid_bucket(v):
+            return bool(v[1])
+
+        def get_item(self, w_dict, i):
+            from pycket.hash.persistent_hash_map import MASK_32
+            storage = self.unerase(w_dict.hstorage)
+            assert i >= 0
+            i = r_uint(i)
+            index = i & MASK_32
+            subindex = (i >> 32) & MASK_32
+
+            bucket = get_dict_item(storage, index)[1]
+            if bucket is None:
+                raise IndexError
+            return bucket[subindex]
+
+        def hash_iterate_next(self, w_dict, pos):
+            from pycket.hash.persistent_hash_map import MASK_32
+            storage = self.unerase(w_dict.hstorage)
+            i = r_uint(pos.value)
+            assert i >= 0
+            index    = r_uint(i & MASK_32)
+            subindex = r_uint((i >> 32) & MASK_32)
+
+            bucket = get_dict_item(storage, index)[1]
+            subindex += 1
+            if subindex == r_uint(len(bucket)):
+                subindex = r_uint(0)
+                try:
+                    next = next_valid_index(storage, intmask(index),
+                                            valid=self._valid_bucket)
+                except IndexError:
+                    return values.w_false
+                index = r_uint(next)
+
+            next = intmask((subindex << r_uint(32)) | index)
+            return values.wrap(next)
+
+        def hash_iterate_first(self, w_dict):
+            return next_valid_index(w_dict, 0, valid=self._valid_bucket)
 
     def length(self, w_dict):
-        return len(self.unerase(w_dict.hstorage))
+        storage = self.unerase(w_dict.hstorage)
+        size = 0
+        for bucket in storage.itervalues():
+            size += len(bucket)
+        return size
 
     def create_storage(self, keys, vals):
-        return self.erase([(k, vals[i]) for i, k in enumerate(keys)])
-
+        storage = {}
+        for i, key in enumerate(keys):
+            val  = vals[i]
+            hash = tagged_hash(key)
+            bucket = storage.get(hash, None)
+            if bucket is None:
+                storage[hash] = bucket = []
+            bucket.append((key, val))
+        return self.erase(storage)
 
 class FixnumHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
 
-    erase, unerase = rerased.new_static_erasing_pair("fixnum-hashmap-strategry")
+    erase, unerase = rerased.new_static_erasing_pair("fixnum-hashmap-strategy")
 
     def is_correct_type(self, w_obj):
         return isinstance(w_obj, values.W_Fixnum)
@@ -228,7 +415,7 @@ class FixnumHashmapStrategy(HashmapStrategy):
 class SymbolHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
 
-    erase, unerase = rerased.new_static_erasing_pair("symbol-hashmap-strategry")
+    erase, unerase = rerased.new_static_erasing_pair("symbol-hashmap-strategy")
 
     def is_correct_type(self, w_obj):
         return isinstance(w_obj, values.W_Symbol)
@@ -241,6 +428,22 @@ class SymbolHashmapStrategy(HashmapStrategy):
         assert isinstance(w_val, values.W_Symbol)
         return w_val
 
+    def rem(self, w_dict, w_key, env, cont):
+        from pycket.interpreter import return_value
+        if not w_dict.immutable():
+            raise Exception("Expected an immutable hash table")
+
+        new_keys = []
+        new_vals = []
+        for (k, v) in w_dict.hash_items():
+            if k is w_key:
+                continue
+            new_keys.append(k)
+            new_vals.append(v)
+
+        assert isinstance(w_dict, W_EqualHashTable)
+        new_table = W_EqualHashTable(new_keys, new_vals, True)
+        return return_value(new_table, env, cont)
 
 def hash_strings(w_b):
     assert isinstance(w_b, values_string.W_String)
@@ -251,11 +454,10 @@ def cmp_strings(w_a, w_b):
     assert isinstance(w_b, values_string.W_String)
     return w_a.equal(w_b)
 
-
 class StringHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
 
-    erase, unerase = rerased.new_static_erasing_pair("string-hashmap-strategry")
+    erase, unerase = rerased.new_static_erasing_pair("string-hashmap-strategy")
 
     def is_correct_type(self, w_obj):
         return isinstance(w_obj, values_string.W_String)
@@ -269,33 +471,59 @@ class StringHashmapStrategy(HashmapStrategy):
     def _create_empty_dict(self):
         return r_dict(cmp_strings, hash_strings)
 
-
-def hash_bytes(w_b):
-    assert isinstance(w_b, values.W_Bytes)
+def hash_mutable_bytes(w_b):
+    assert isinstance(w_b, values.W_MutableBytes)
     return w_b.hash_equal()
 
-def cmp_bytes(w_a, w_b):
-    assert isinstance(w_a, values.W_Bytes)
-    assert isinstance(w_b, values.W_Bytes)
+def hash_immutable_bytes(w_b):
+    assert isinstance(w_b, values.W_ImmutableBytes)
+    return w_b.hash_equal()
+
+def cmp_mutable_bytes(w_a, w_b):
+    assert isinstance(w_a, values.W_MutableBytes)
+    assert isinstance(w_b, values.W_MutableBytes)
     return w_a.value == w_b.value
 
-class ByteHashmapStrategy(HashmapStrategy):
+def cmp_immutable_bytes(w_a, w_b):
+    assert isinstance(w_a, values.W_ImmutableBytes)
+    assert isinstance(w_b, values.W_ImmutableBytes)
+    return w_a.value == w_b.value
+
+class MutableByteHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
 
-    erase, unerase = rerased.new_static_erasing_pair("byte-hashmap-strategry")
+    erase, unerase = rerased.new_static_erasing_pair("byte-hashmap-strategy")
 
     def is_correct_type(self, w_obj):
-        return isinstance(w_obj, values.W_Bytes)
+        return isinstance(w_obj, values.W_MutableBytes)
 
     def wrap(self, val):
         return val
 
     def unwrap(self, w_val):
-        assert isinstance(w_val, values.W_Bytes)
+        assert isinstance(w_val, values.W_MutableBytes)
         return w_val
 
     def _create_empty_dict(self):
-        return r_dict(cmp_bytes, hash_bytes)
+        return r_dict(cmp_mutable_bytes, hash_mutable_bytes)
+
+class ImmutableByteHashmapStrategy(HashmapStrategy):
+     import_from_mixin(UnwrappedHashmapStrategyMixin)
+
+     erase, unerase = rerased.new_static_erasing_pair("byte-hashmap-strategy")
+
+     def is_correct_type(self, w_obj):
+        return isinstance(w_obj, values.W_ImmutableBytes)
+
+     def wrap(self, val):
+         return val
+
+     def unwrap(self, w_val):
+        assert isinstance(w_val, values.W_ImmutableBytes)
+        return w_val
+
+     def _create_empty_dict(self):
+        return r_dict(cmp_immutable_bytes, hash_immutable_bytes)
 
 class W_EqualHashTable(W_HashTable):
     _attrs_ = ['strategy', 'hstorage', 'is_immutable']
@@ -311,14 +539,32 @@ class W_EqualHashTable(W_HashTable):
     def hash_items(self):
         return self.strategy.items(self)
 
+    def _set(self, key, val):
+        return self.strategy._set(self, key, val)
+
     def hash_set(self, key, val, env, cont):
         return self.strategy.set(self, key, val, env, cont)
+
+    def hash_equal(self, info=None):
+        return self.length()
 
     def hash_ref(self, key, env, cont):
         return self.strategy.get(self, key, env, cont)
 
+    def hash_remove(self, key, env, cont):
+        return self.strategy.rem(self, key, env, cont)
+
+    def hash_remove_inplace(self, key, env, cont):
+        return self.strategy.rem_inplace(self, key, env, cont)
+
     def get_item(self, i):
         return self.strategy.get_item(self, i)
+
+    def hash_iterate_next(self, pos):
+        return self.strategy.hash_iterate_next(self, pos)
+
+    def hash_iterate_first(self):
+        return self.strategy.hash_iterate_first(self)
 
     def length(self):
         return self.strategy.length(self)
@@ -329,4 +575,3 @@ class W_EqualHashTable(W_HashTable):
     def tostring(self):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.hash_items()]
         return "#hash(%s)" % " ".join(lst)
-

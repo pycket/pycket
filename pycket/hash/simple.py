@@ -34,7 +34,7 @@ def make_simple_mutable_table_assocs(cls, assocs, who):
 
 @specialize.arg(0)
 def make_simple_immutable_table(cls, keys=None, vals=None):
-    table = cls.EMPTY
+    table = cls.EMPTY()
     if keys is not None and vals is not None:
         assert len(keys) == len(vals)
         for i, k in enumerate(keys):
@@ -45,7 +45,7 @@ def make_simple_immutable_table(cls, keys=None, vals=None):
 def make_simple_immutable_table_assocs(cls, assocs, who):
     if not assocs.is_proper_list():
         raise SchemeException("%s: not given proper list" % who)
-    table = cls.EMPTY
+    table = cls.EMPTY()
     while isinstance(assocs, values.W_Cons):
         entry, assocs = assocs.car(), assocs.cdr()
         if not isinstance(entry, values.W_Cons):
@@ -75,6 +75,9 @@ class W_SimpleMutableHashTable(W_MutableHashTable):
     def hash_items(self):
         return self.data.items()
 
+    def hash_empty(self):
+        self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
+
     def tostring(self):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
         return "#hash(%s)" % " ".join(lst)
@@ -86,7 +89,8 @@ class W_SimpleMutableHashTable(W_MutableHashTable):
 
     def hash_remove_inplace(self, k, env, cont):
         from pycket.interpreter import return_value
-        del self.data[k]
+        if k in self.data:
+            del self.data[k]
         return return_value(values.w_void, env, cont)
 
     def hash_ref(self, k, env, cont):
@@ -115,6 +119,10 @@ class W_EqvMutableHashTable(W_SimpleMutableHashTable):
     def get_item(self, i):
         return get_dict_item(self.data, i)
 
+    def tostring(self):
+        lst = [values.W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
+        return "#hasheqv(%s)" % " ".join(lst)
+
 class W_EqMutableHashTable(W_SimpleMutableHashTable):
 
     def make_copy(self):
@@ -139,14 +147,22 @@ class W_EqMutableHashTable(W_SimpleMutableHashTable):
     def get_item(self, i):
         return get_dict_item(self.data, i)
 
+    def tostring(self):
+        lst = [values.W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
+        return "#hasheq(%s)" % " ".join(lst)
+
 W_EqvImmutableHashTable = make_persistent_hash_type(
         super=W_ImmutableHashTable,
+        keytype=values.W_Object,
+        valtype=values.W_Object,
         name="W_EqvImmutableHashTable",
         hashfun=lambda x: r_uint(W_EqvMutableHashTable.hash_value(x)),
         equal=W_EqvMutableHashTable.cmp_value)
 
 W_EqImmutableHashTable = make_persistent_hash_type(
         super=W_ImmutableHashTable,
+        keytype=values.W_Object,
+        valtype=values.W_Object,
         name="W_EqImmutableHashTable",
         hashfun=lambda x: r_uint(W_EqMutableHashTable.hash_value(x)),
         equal=W_EqMutableHashTable.cmp_value)
@@ -159,8 +175,9 @@ class __extend__(W_EqvImmutableHashTable):
     def make_copy(self):
         return self
 
+
     def make_empty(self):
-        return W_EqvImmutableHashTable.EMPTY
+        return W_EqvImmutableHashTable.EMPTY()
 
     def hash_ref(self, k, env, cont):
         from pycket.interpreter import return_value
@@ -190,7 +207,7 @@ class __extend__(W_EqImmutableHashTable):
         return self
 
     def make_empty(self):
-        return W_EqImmutableHashTable.EMPTY
+        return W_EqImmutableHashTable.EMPTY()
 
     def hash_ref(self, key, env, cont):
         from pycket.interpreter import return_value
@@ -210,4 +227,3 @@ class __extend__(W_EqImmutableHashTable):
             entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
             i += 1
         return "#hasheq(%s)" % " ".join(entries)
-

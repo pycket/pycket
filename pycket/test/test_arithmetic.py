@@ -1,3 +1,4 @@
+import math
 import pytest
 from pycket.interpreter import *
 from pycket.values import *
@@ -8,10 +9,10 @@ from pycket.error import SchemeException
 def test_flonum_tostring():
     from rpython.rtyper.test.test_llinterp import interpret
     import math
+    s = '3.141592653589793' # racket -e "pi"
     def float_tostring(x):
         print W_Flonum(x).tostring()
-        return W_Flonum(x).tostring() == s
-    s = str(math.pi)
+        return s in W_Flonum(x).tostring()
     res = interpret(float_tostring, [math.pi])
     assert res
 
@@ -48,7 +49,7 @@ def test_quotient():
     res = run("(quotient 8.0 2.0)")
     assert isinstance(res, W_Flonum) and res.value == 4.0
     res = run("(quotient 1.0 2.0)")
-    assert isinstance(res, W_Flonum) and res.value == 0.5
+    assert isinstance(res, W_Flonum) and res.value == 0.0
 
 def test_remainder(doctest):
     """
@@ -192,7 +193,6 @@ def test_neg_pos():
     run("(positive? -1/2)", w_false)
     run("(positive? 1/2)", w_true)
 
-
 def test_even_odd():
     run("(even? -1)", w_false)
     run("(even?  0)", w_true)
@@ -214,6 +214,11 @@ def test_even_odd():
     run("(odd?   10000000000000000000000000001000000000000000000000000000)", w_false)
     run("(odd?  -10000000000000000000000000001000000000000000000000000001)", w_true)
     run("(odd?   10000000000000000000000000001000000000000000000000000001)", w_true)
+
+    run("(even? 1.0)", w_false)
+    run("(even? 2.0)", w_true)
+    run("(odd? 1.0)", w_true)
+    run("(odd? 2.0)", w_false)
 
 def test_zero(doctest):
     """
@@ -239,6 +244,9 @@ def test_zero(doctest):
 
 def test_string_to_number(doctest):
     """
+    ! (require racket/extflonum)
+    > (extflonum? (string->number "3.0t0"))
+    #t
     ; not yet supported
     ;> (string->number "3.0+2.5i")
     ;3.0+2.5i
@@ -263,6 +271,7 @@ def test_string_to_number(doctest):
     """
     assert doctest
 
+@pytest.mark.skip(reason="will be resolved then tostring is not 'write'")
 def test_number_to_string(doctest):
     """
     > (number->string 1)
@@ -465,6 +474,16 @@ def test_all_comparators(doctest):
     #t
     > (>= 1 2 1)
     #f
+    > (procedure-arity-includes? = 0)
+    #f
+    > (procedure-arity-includes? = 1)
+    #f
+    > (procedure-arity-includes? = 2)
+    #t
+    > (procedure-arity-includes? = 3)
+    #t
+    > (procedure-arity-includes? = 4)
+    #t
     """
 
 @pytest.mark.xfail
@@ -533,6 +552,15 @@ def test_rational(doctest):
     2053851851851851851851851851851851851851852037037037037/38720187
     """
 
+def random_bigint(max_size):
+    from rpython.rlib.rbigint import rbigint
+    import random
+    size = random.randrange(1, max_size)
+    sign = random.choice([-1, 1])
+    digits = "".join([random.choice("0123456789") for _ in range(size)])
+    bignum = rbigint.fromstr(digits, base=10)
+    return bignum.int_mul(sign)
+
 def test_gcd():
     from pycket.arithmetic import gcd
     from rpython.rlib.rbigint import rbigint
@@ -541,22 +569,51 @@ def test_gcd():
 
     for a, b, r in [(5, 0, 5),
                     (2**1000, 0, 2**1000),
+                    (2**1000 + 1, 3, 1),
                     (4, 2, 2),
                     (3*3*5*7*11*2**10, 2**7*3*7*11*13, 2**7*3*7*11)]:
         assert gcd_long(a, b) == r
         assert gcd_long(b, a) == r
         if b:
-            assert gcd_long(a, -b) == -r
-            assert gcd_long(-a, -b) == -r
-            assert gcd_long(-a, b) == r
+            assert gcd_long(a, -b) == r
+            assert gcd_long(-a, -b) == (-r if a else r)
+            assert gcd_long(a, b) == r
         else:
-            assert gcd_long(-a, b) == -r
+            assert gcd_long(-a, b) == r
         if a:
-            assert gcd_long(b, -a) == -r
-            assert gcd_long(-b, -a) == -r
+            assert gcd_long(b, -a) == r
+            assert gcd_long(-b, -a) == (-r if b else r)
             assert gcd_long(-b, a) == r
         else:
-            assert gcd_long(-b, a) == -r
+            assert gcd_long(-b, a) == r
+
+def test_gcd_random():
+    from pycket.arithmetic import gcd
+    for _ in range(100):
+        a = random_bigint(100)
+        b = random_bigint(100)
+        c = random_bigint(100)
+
+        # Commutative
+        assert gcd(a, b) == gcd(b, a)
+        # Idempotent
+        assert gcd(a, a) == a
+        assert gcd(b, b) == b
+        # Associative
+        assert gcd(a, gcd(b, c)) == gcd(gcd(a, b), c)
+
+        a = a.abs()
+        b = b.abs()
+        if a.ge(b):
+            assert gcd(a, b) == gcd(a.sub(b), b)
+        else:
+            assert gcd(a, b) == gcd(a, b.sub(a))
+
+def test_count_trailing_zeros():
+    from rpython.rlib.rbigint import ONERBIGINT
+    from pycket.arithmetic    import count_trailing_zeros
+    for i in range(1025):
+        assert i == count_trailing_zeros(ONERBIGINT.lshift(i))
 
 def test_sub1(doctest):
     """
@@ -628,8 +685,10 @@ def test_flround(doctest):
     > (flround -0.5001)
     -1.0
     """
+
 def test_max(doctest):
     """
+    ! (require racket/math)
     > (max 1 1.1)
     1.1
     > (max 1 0.2)
@@ -654,6 +713,14 @@ def test_max(doctest):
     3
     > (max 1 3 -17 2.0)
     3.0
+    > (max 1 3/2 1/2)
+    3/2
+    > (min 1 3/2 1/2)
+    1/2
+    > (nan? (min +inf.0 +nan.0 -inf.0))
+    #t
+    > (nan? (max +inf.0 +nan.0 -inf.0))
+    #t
     """
 
 def test_bitwise(doctest):
@@ -791,6 +858,8 @@ def test_fixnum_unsafe(doctest):
     #t
     > (unsafe-fxand 2 3)
     2
+    > (unsafe-fxior 2 3)
+    3
     > (unsafe-fxlshift 10 10)
     10240
     > (unsafe-fxrshift 1 20)
@@ -1010,3 +1079,75 @@ def test_make_rectangular(doctest):
     > (make-rectangular 0 0.4)
     0+0.4i
     """
+
+def test_sqrt(doctest):
+    """
+    > (sqrt 1)
+    1
+    > (sqrt 2)
+    1.4142135623730951
+    > (sqrt 3)
+    1.7320508075688772
+    > (sqrt 4)
+    2
+    > (sqrt 5)
+    2.23606797749979
+    > (sqrt 6)
+    2.449489742783178
+    > (sqrt 7)
+    2.6457513110645907
+    > (sqrt 8)
+    2.8284271247461903
+    > (sqrt 9)
+    3
+    > (sqrt 10)
+    3.1622776601683795
+    > (sqrt 11)
+    3.3166247903554
+    > (sqrt 12)
+    3.4641016151377544
+    > (sqrt 13)
+    3.605551275463989
+    > (sqrt 14)
+    3.7416573867739413
+    > (sqrt 15)
+    3.872983346207417
+    > (sqrt 16)
+    4
+    > (sqrt -7)
+    0+2.6457513110645907i
+    > (sqrt -3)
+    0+1.7320508075688772i
+    > (sqrt -3.14)
+    0+1.772004514666935i
+    """
+
+def test_sqrt2():
+    val = W_Flonum(-0.0).arith_sqrt().value
+    assert math.copysign(1, val) == -1
+
+def test_integer_length(doctest):
+    """
+    > (integer-length 8)
+    4
+    > (integer-length -8)
+    3
+    > (integer-length 0)
+    0
+    > (integer-length (expt 2 10))
+    11
+    > (integer-length (expt 2 20))
+    21
+    > (integer-length (expt 2 100))
+    101
+    > (integer-length (- (expt 2 10)))
+    10
+    > (integer-length (- (expt 2 20)))
+    20
+    > (integer-length (- (expt 2 100)))
+    100
+    > (integer-length 3713820117856140828992454656)
+    92
+    """
+
+

@@ -7,6 +7,7 @@ from rpython.rlib             import rerased
 from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
 
 class W_Missing(W_Object):
+    _attrs_ = []
     def __init__(self):
         pass
 
@@ -27,6 +28,12 @@ class W_HashTable(W_Object):
     def hash_ref(self, k, env, cont):
         raise NotImplementedError("abstract method")
 
+    def _hash_ref(self, k):
+        raise NotImplementedError("abstract method")
+
+    def _hash_set(self, k, v):
+        raise NotImplementedError("abstract method")
+
     def hash_remove(self, k, env, cont):
         raise NotImplementedError("abstract method")
 
@@ -43,11 +50,21 @@ class W_HashTable(W_Object):
         # see get_dict_item at the bottom of the file for the interface
         raise NotImplementedError("abstract method")
 
+    def hash_iterate_next(self, pos):
+        i = pos.value
+        if i >= self.length() - 1:
+            return values.w_false
+        return values.wrap(i + 1)
+
+    def hash_iterate_first(self):
+        if self.length() == 0:
+            raise IndexError
+        return 0
+
 class W_MutableHashTable(W_HashTable):
     _attrs_ = []
     _immutable_fields_ = []
     _settled_ = True
-
     def immutable(self):
         return False
 
@@ -79,6 +96,23 @@ def ll_get_dict_item(RES, dict, i):
         return r
     else:
         raise KeyError
+
+@specialize.arg(2)
+def next_valid_index(d, i, valid=bool):
+    """
+    Probes the hash table for the next valid index into the table. Raises
+    IndexError when the end of the table is reached
+    """
+    while True:
+        i += 1
+        try:
+            val = get_dict_item(d, i)
+            if not valid(val):
+                continue
+        except KeyError:
+            continue
+        else:
+            return i
 
 from rpython.rtyper.extregistry import ExtRegistryEntry
 

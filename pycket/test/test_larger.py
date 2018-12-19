@@ -1,5 +1,5 @@
 import pytest
-from pycket.expand import expand, expand_string, to_ast
+from pycket.expand import expand, expand_string
 from pycket.pycket_json import loads
 from pycket.interpreter import *
 from pycket.values import *
@@ -31,6 +31,8 @@ def test_bubble_unsafe2():
 def test_microkanren():
     run_file("microkanren.rkt")
 
+@pytest.mark.skipif(pytest.config.getvalue('bytecode') == "go",
+                    reason="has awful lot of bytecode, takes translator more than 10 mins to produce the ast.")
 def test_earley():
     run_file("earley.rkt", ("(test 14)", "(test 3)"))
 
@@ -60,6 +62,10 @@ def test_impersonator_properties():
 
 def test_church():
     run_file("church-simple.rkt")
+
+@pytest.mark.skip(reason="needs the primitive namespace-variable-value")
+def test_control():
+    run_file("control.rktl", inplace=True)
 
 #def test_minikanren():
 #    run_file("minikanren.sch")

@@ -8,8 +8,6 @@ from rpython.rlib             import buffer, jit, rstring
 from rpython.rlib.objectmodel import specialize
 import sys
 
-import rpython.rlib.rsre.rsre_re # For sideffects
-
 CACHE = regexp.RegexpCache()
 
 class PortBuffer(buffer.Buffer):
@@ -38,6 +36,7 @@ class PortBuffer(buffer.Buffer):
 
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["source"]
+    _attrs_ = ["source", "code", "flags", "groupcount", "groupindex", "indexgroup", "group_offsets"]
     errorname = "regexp"
     def __init__(self, source):
         self.source = source
@@ -53,18 +52,22 @@ class W_AnyRegexp(W_Object):
             self.indexgroup = indexgroup
             self.group_offsets = group_offsets
 
+    def get_source(self):
+        return self.source
+
     @specialize.argtype(1)
     def make_ctx(self, s, start, end):
         self.ensure_compiled()
         start, end = rsre_core._adjust(start, end, len(s))
         if isinstance(s, unicode):
-            return rsre_core.UnicodeMatchContext(self.code, s, start, end, self.flags)
-        return rsre_core.StrMatchContext(self.code, s, start, end, self.flags)
+            return rsre_core.UnicodeMatchContext(s, start, end, self.flags)
+        assert isinstance(s, str)
+        return rsre_core.StrMatchContext(s, start, end, self.flags)
 
     @specialize.argtype(1)
     def match_string(self, s, start=0, end=sys.maxint):
         ctx = self.make_ctx(s, start, end)
-        if not rsre_core.search_context(ctx):
+        if not rsre_core.search_context(ctx, self.code):
             return None
         return _extract_result(ctx, self.groupcount)
 
@@ -73,7 +76,7 @@ class W_AnyRegexp(W_Object):
         ctx = self.make_ctx(s, start, end)
         matchlist = []
         while ctx.match_start <= ctx.end:
-            if not rsre_core.search_context(ctx):
+            if not rsre_core.search_context(ctx, self.code):
                 break
             match = extract(ctx, self.groupcount)
             matchlist.append(match)
@@ -93,7 +96,7 @@ class W_AnyRegexp(W_Object):
     @specialize.argtype(1)
     def match_string_positions(self, s, start=0, end=sys.maxint):
         ctx = self.make_ctx(s, start, end)
-        if not rsre_core.search_context(ctx):
+        if not rsre_core.search_context(ctx, self.code):
             return None
         return _extract_spans(ctx, self.groupcount)
 
@@ -112,8 +115,8 @@ class W_AnyRegexp(W_Object):
             return _extract_result(ctx, self.groupcount)
         buf = PortBuffer(w_port)
         end = min(end, buf.getlength())
-        ctx = rsre_core.BufMatchContext(self.code, buf, 0, end, 0)
-        matched = rsre_core.search_context(ctx)
+        ctx = rsre_core.BufMatchContext(buf, 0, end, 0)
+        matched = rsre_core.search_context(ctx, self.code)
         if not matched:
             return None
         return _extract_result(ctx, self.groupcount)
@@ -126,7 +129,10 @@ class W_AnyRegexp(W_Object):
         return False
 
     def tostring(self):
-        return '#px"%s"' % self.source
+        return '#rx"%s"' % self.source
+
+    def obj_name(self):
+        return values_string.W_String.fromstr_utf8(self.source)
 
 @rsre_core.specializectx
 @jit.unroll_safe
@@ -156,10 +162,39 @@ def _getslice(ctx, start, end):
     else:
         return ''.join([chr(ctx.str(j)) for j in range(start, end)])
 
-class W_Regexp(W_AnyRegexp): pass
-class W_PRegexp(W_AnyRegexp): pass
-class W_ByteRegexp(W_AnyRegexp): pass
-class W_BytePRegexp(W_AnyRegexp): pass
+class W_Regexp(W_AnyRegexp):
+
+    def tostring(self):
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        out_encoded = string_escape_encode(self.source, '"')
+        return '#rx%s' % out_encoded
+
+class W_PRegexp(W_AnyRegexp):
+
+    def tostring(self):
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        out_encoded = string_escape_encode(self.source, '"')
+        return '#px%s' % out_encoded
+
+class W_ByteRegexp(W_AnyRegexp):
+
+    def tostring(self):
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        out_encoded = string_escape_encode(self.source, '"')
+        return '#rx#%s' % out_encoded
+
+    def obj_name(self):
+        return values.W_Bytes.from_string(self.source)
+
+class W_BytePRegexp(W_AnyRegexp):
+
+    def tostring(self):
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        out_encoded = string_escape_encode(self.source, '"')
+        return '#px#%s' % out_encoded
+
+    def obj_name(self):
+        return values.W_Bytes.from_string(self.source)
 
 class ReplacementOption(object):
     _attrs_ = []
@@ -202,13 +237,13 @@ def parse_number(source):
     return acc
 
 def parse_escape_sequence(source, buffer):
-    if source.match("\\"):
+    if source.match(u"\\"):
         buffer.append(u"\\")
         return None
-    elif source.match("&"):
+    elif source.match(u"&"):
         buffer.append(u"&")
         return None
-    elif source.match("$"):
+    elif source.match(u"$"):
         return PositionalArg(0)
     n = parse_number(source)
     return PositionalArg(n)
@@ -218,7 +253,7 @@ def parse_insert_string(str):
     buffer = rstring.UnicodeBuilder()
     result = []
     while not source.at_end():
-        if source.match("\\"):
+        if source.match(u"\\"):
             escaped = parse_escape_sequence(source, buffer)
             if escaped is not None:
                 if buffer.getlength():

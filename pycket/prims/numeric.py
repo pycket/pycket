@@ -2,21 +2,26 @@
 # -*- coding: utf-8 -*-
 import math
 import operator
-from pycket import values
-from pycket import vector as values_vector
-from pycket.error import SchemeException
-from pycket.prims.expose import expose, default, unsafe
-from rpython.rlib.rbigint import rbigint
-from rpython.rlib         import jit, longlong2float, rarithmetic
+
+from pycket                                  import values
+from pycket                                  import vector as values_vector
+from pycket.arity                            import Arity
+from pycket.error                            import SchemeException
+from pycket.prims.expose                     import expose, default, unsafe
+
+from rpython.rlib                            import jit, longlong2float, rarithmetic, unroll, objectmodel
+from rpython.rlib.rarithmetic                import r_uint
+from rpython.rlib.objectmodel                import always_inline, specialize
+from rpython.rlib.rbigint                    import rbigint
 from rpython.rtyper.lltypesystem.lloperation import llop
-from rpython.rtyper.lltypesystem.lltype import Signed
+from rpython.rtyper.lltypesystem.lltype      import Signed
 
 # imported for side effects
 from pycket import arithmetic
 
 def make_cmp(name, op, con):
 
-    @expose(name, simple=True)
+    @expose(name, simple=True, arity=Arity.geq(2))
     @jit.unroll_safe
     def do(args):
         if len(args) < 2:
@@ -27,10 +32,12 @@ def make_cmp(name, op, con):
             start = idx - 2
             assert start >= 0
             w_a, w_b = args[start], args[start + 1]
-            if not isinstance(w_a, values.W_Number):
-                raise SchemeException("expected number")
-            if not isinstance(w_b, values.W_Number):
-                raise SchemeException("expected number")
+            nan_a = not isinstance(w_a, values.W_Number)
+            nan_b = not isinstance(w_b, values.W_Number)
+            if nan_a or nan_b:
+                pf = ["st", "nd", "rd"][idx-1] if idx <= 3 else "th"
+                w = w_a if nan_a else w_b
+                raise SchemeException("%s expected number as %s%s argument, got : %s" % (name, idx, pf, w.tostring()))
             idx += 1
             truth = truth and getattr(w_a, "arith_" + op)(w_b)
 
@@ -48,40 +55,33 @@ for args in [
 
 @expose("integer?", [values.W_Object])
 def integerp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
-                              isinstance(n, values.W_Bignum) or
-                              isinstance(n, values.W_Flonum) and
-                              math.floor(n.value) == n.value)
-
+    return values.W_Bool.make(isinstance(n, values.W_Number) and n.isinteger())
 
 @expose("exact-integer?", [values.W_Object])
 def exact_integerp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
-                              isinstance(n, values.W_Bignum))
+    return values.W_Bool.make(isinstance(n, values.W_Integer))
 
 @expose("exact-nonnegative-integer?", [values.W_Object])
 def exact_nonneg_integerp(n):
-    from rpython.rlib.rbigint import rbigint
+    from rpython.rlib.rbigint import NULLRBIGINT
     if isinstance(n, values.W_Fixnum):
         return values.W_Bool.make(n.value >= 0)
     if isinstance(n, values.W_Bignum):
-        return values.W_Bool.make(n.value.ge(rbigint.fromint(0)))
+        return values.W_Bool.make(n.value.ge(NULLRBIGINT))
     return values.w_false
 
 @expose("exact-positive-integer?", [values.W_Object])
 def exact_nonneg_integerp(n):
-    from rpython.rlib.rbigint import rbigint
+    from rpython.rlib.rbigint import NULLRBIGINT
     if isinstance(n, values.W_Fixnum):
         return values.W_Bool.make(n.value > 0)
     if isinstance(n, values.W_Bignum):
-        return values.W_Bool.make(n.value.gt(rbigint.fromint(0)))
+        return values.W_Bool.make(n.value.gt(NULLRBIGINT))
     return values.w_false
 
+@always_inline
 def is_real(obj):
-    return (isinstance(obj, values.W_Fixnum) or
-            isinstance(obj, values.W_Bignum) or
-            isinstance(obj, values.W_Flonum) or
-            isinstance(obj, values.W_Rational))
+    return isinstance(obj, values.W_Real)
 
 @expose("real?", [values.W_Object])
 def realp(n):
@@ -121,6 +121,26 @@ def is_exact(n):
             isinstance(n, values.W_Bignum) or
             isinstance(n, values.W_Rational))
 
+@expose("numerator", [values.W_Real])
+def numerator(r):
+    if isinstance(r, values.W_Flonum):
+        # FIXME : Racket seems to be computing this differently,
+        # see test_arithmetic : (numerator 2.3)
+        r = values.W_Rational.fromfloat(r.value)
+
+    assert isinstance(r, values.W_Rational)
+
+    return values.W_Integer.frombigint(r.get_numerator())
+
+@expose("denominator", [values.W_Real])
+def denominator(r):
+    if isinstance(r, values.W_Flonum):
+        r = values.W_Rational.fromfloat(r.value)
+
+    assert isinstance(r, values.W_Rational)
+
+    return values.W_Integer.frombigint(r.get_denominator())
+
 def is_inexact(n):
     if isinstance(n, values.W_Complex):
         return is_inexact(n.real) or is_inexact(n.imag)
@@ -157,7 +177,8 @@ def flexpt(n, m):
     return n.arith_pow_same(m)
 
 def make_arith(name, neutral_element, methname, supports_zero_args):
-    @expose(name, simple=True)
+    art = Arity.geq(0) if supports_zero_args else Arity.geq(1)
+    @expose(name, simple=True, arity=art)
     @jit.unroll_safe
     def do(args):
         # XXX so far (+ '()) returns '(). need better type checking here
@@ -177,48 +198,63 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
     do.__name__ = methname
 
 for args in [
-        ("+", values.W_Fixnum.ZERO, "arith_add", True),
-        ("-", values.W_Fixnum.ZERO, "arith_sub", False),
-        ("*", values.W_Fixnum.ONE, "arith_mul", True),
-        ("/", values.W_Fixnum.ONE, "arith_div", False),
-        ("max", None, "arith_max", False),
-        ("min", None, "arith_min", False),
-        ("gcd", values.W_Fixnum.ZERO, "arith_gcd", True),
-        ("lcm", values.W_Fixnum.ONE, "arith_lcm", True),
-        ("bitwise-and", values.W_Fixnum.make(-1), "arith_and", True),
-        ("bitwise-ior", values.W_Fixnum.ZERO, "arith_or", True),
-        ("bitwise-xor", values.W_Fixnum.ZERO, "arith_xor", True),
+        ("+"           , values.W_Fixnum.ZERO     , "arith_add" , True  ) ,
+        ("-"           , values.W_Fixnum.ZERO     , "arith_sub" , False ) ,
+        ("*"           , values.W_Fixnum.ONE      , "arith_mul" , True  ) ,
+        ("/"           , values.W_Fixnum.ONE      , "arith_div" , False ) ,
+        ("max"         , None                     , "arith_max" , False ) ,
+        ("min"         , None                     , "arith_min" , False ) ,
+        ("gcd"         , values.W_Fixnum.ZERO     , "arith_gcd" , True  ) ,
+        ("lcm"         , values.W_Fixnum.ONE      , "arith_lcm" , True  ) ,
+        ("bitwise-and" , values.W_Fixnum.make(-1) , "arith_and" , True  ) ,
+        ("bitwise-ior" , values.W_Fixnum.ZERO     , "arith_or"  , True  ) ,
+        ("bitwise-xor" , values.W_Fixnum.ZERO     , "arith_xor" , True  ) ,
         ]:
     make_arith(*args)
 
-def make_fixedtype_binary_arith(
-        name, methname, intversion=True, floatversion=True):
+def make_fixedtype_nary_arith(
+        name, methname, int_neutral, fl_neutral, intversion=True, floatversion=True,
+        int_supports_zero_args=False, fl_supports_zero_args=False):
     methname += "_same"
     if floatversion:
-        @expose("fl" + name, [values.W_Flonum] * 2, simple=True)
-        def do(a, b):
-            return getattr(a, methname)(b)
+        @expose("fl" + name, simple=True) # [values.W_Flonum] * 2
+        def do(args):
+            if not args:
+                if not fl_supports_zero_args:
+                    raise SchemeException("expected at least 1 argument to %s" % name)
+                return fl_neutral
+            init = args[0]
+            for i in range(1, jit.promote(len(args))):
+                init = getattr(init, methname)(args[i])
+            return init
         do.__name__ = "fl_" + methname
 
     if intversion:
-        @expose("fx" + name, [values.W_Fixnum] * 2, simple=True)
-        def do(a, b):
-            return getattr(a, methname)(b)
+        @expose("fx" + name, simple=True) # [values.W_Fixnum] * 2
+        def do(args):
+            if not args:
+                if not int_supports_zero_args:
+                    raise SchemeException("expected at least 1 argument to %s" % name)
+                return int_neutral
+            init = args[0]
+            for i in range(1, jit.promote(len(args))):
+                init = getattr(init, methname)(args[i])
+            return init
         do.__name__ = "fx_" + methname
 
 for args in [
-        ("+", "arith_add"),
-        ("-", "arith_sub"),
-        ("*", "arith_mul"),
-        ("/", "arith_div", False),
-        ("and", "arith_and", True, False),
-        ("max", "arith_max"),
-        ("min", "arith_min"),
-        ("quotient", "arith_quotient", True, False),
-        ("remainder", "arith_remainder", True, False),
-        ("modulo", "arith_mod", True, False),
+        ("+"         , "arith_add"       , values.W_Fixnum.ZERO , values.W_Flonum.ZERO , True  , True         ) ,
+        ("-"         , "arith_sub"       , values.W_Fixnum.ZERO , values.W_Flonum.ZERO                        ) ,
+        ("*"         , "arith_mul"       , values.W_Fixnum.ONE  , values.W_Flonum.ONE  , True  , True         ) ,
+        ("/"         , "arith_div"       , None                 , values.W_Flonum.ONE  , False                ) ,
+        ("and"       , "arith_and"       , None                 , None                 , True  , False , True ) ,
+        ("max"       , "arith_max"       , None                 , values.W_Flonum.ZERO                        ) ,
+        ("min"       , "arith_min"       , None                 , values.W_Flonum.ZERO                        ) ,
+        ("quotient"  , "arith_quotient"  , values.W_Fixnum.ZERO , None                 , True   , False       ) ,
+        ("remainder" , "arith_remainder" , values.W_Fixnum.ZERO , None                 , True   , False       ) ,
+        ("modulo"    , "arith_mod"       , values.W_Fixnum.ZERO , None                 , True   , False       ) ,
 ]:
-    make_fixedtype_binary_arith(*args)
+    make_fixedtype_nary_arith(*args)
 
 def make_fixedtype_cmps(name, methname):
     methname = "arith_%s_same" % methname
@@ -300,8 +336,6 @@ for args in [
         ("inexact->exact", "arith_inexact_exact"),
         ("exact->inexact", "arith_exact_inexact"),
         ("zero?", "arith_zerop"),
-        ("even?", "arith_evenp"),
-        ("odd?", "arith_oddp"),
         ("abs", "arith_abs", True),
         ("round", "arith_round", True),
         ("truncate", "arith_truncate", True),
@@ -311,6 +345,18 @@ for args in [
         ("exp",     "arith_exp", True),
         ]:
     make_unary_arith(*args)
+
+@expose("odd?", [values.W_Number])
+def oddp(n):
+    if not n.isinteger():
+        raise SchemeException("odd?: expected integer got %s" % n.tostring())
+    return n.arith_oddp()
+
+@expose("even?", [values.W_Number])
+def evenp(n):
+    if not n.isinteger():
+        raise SchemeException("even?: expected integer got %s" % n.tostring())
+    return n.arith_evenp()
 
 @expose("negative?", [values.W_Number])
 def negative_predicate(n):
@@ -324,6 +370,23 @@ def positive_predicate(n):
         raise SchemeException("positive?: expected real? in argument 0")
     return n.arith_positivep()
 
+@expose("bitwise-bit-field", [values.W_Integer, values.W_Integer, values.W_Integer])
+def bitwise_bit_field(w_n, w_start, w_end):
+    if w_start.arith_negativep() is values.w_true:
+        raise SchemeException("bitwise-bit-field: second argument must be non-negative")
+    if w_end.arith_negativep() is values.w_true:
+        raise SchemeException("bitwise-bit-field: third argument must be non-negative")
+    diff = w_end.arith_sub(w_start)
+    assert isinstance(diff, values.W_Fixnum)
+    v0 = arith_shift(values.W_Fixnum.ONE, diff) 
+    assert isinstance(v0, values.W_Fixnum)
+    mw_start = values.W_Fixnum.ZERO.arith_sub(w_start)
+    assert isinstance(mw_start, values.W_Fixnum)
+    rhs = arith_shift(w_n, mw_start)
+    assert isinstance(rhs, values.W_Fixnum)
+    v = v0.arith_sub1().arith_and(rhs)
+    return v
+    
 @expose("bitwise-bit-set?", [values.W_Integer, values.W_Integer])
 def bitwise_bit_setp(w_n, w_m):
     if w_m.arith_negativep() is values.w_true:
@@ -331,7 +394,7 @@ def bitwise_bit_setp(w_n, w_m):
     if not isinstance(w_m, values.W_Fixnum):
         # a bignum that has such a big bit set does not fit in memory
         return w_n.arith_negativep()
-    v = w_n.arith_and(arith_shift(values.W_Fixnum(1), w_m))
+    v = w_n.arith_and(arith_shift(values.W_Fixnum.ONE, w_m))
     if isinstance(v, values.W_Fixnum) and 0 == v.value:
         return values.w_false
     else:
@@ -386,9 +449,21 @@ def unsafe_fxrshift(w_a, w_b):
     res = w_a.value >> w_b.value
     return values.W_Fixnum(res)
 
-@expose("unsafe-fxand", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
+@expose("unsafe-fxand", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxand(w_a, w_b):
     return w_a.arith_and(w_b)
+
+@expose("unsafe-fxior", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxior(w_a, w_b):
+    return w_a.arith_or(w_b)
+
+@expose("unsafe-fxxor", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxxor(w_a, w_b):
+    return w_a.arith_xor(w_b)
+
+@expose("unsafe-fxnot", [unsafe(values.W_Fixnum)])
+def unsafe_fxnot(w_a):
+    return w_a.arith_not()
 
 @expose("unsafe-fx+", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxplus(a, b):
@@ -416,7 +491,7 @@ def unsafe_fxtimes(a, b):
 
 @expose("unsafe-fxquotient", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(a, b):
-    return values.W_Fixnum.make(llop.int_floordiv(Signed, a.value, b.value))
+    return values.W_Fixnum(rarithmetic.int_c_div(a.value, b.value))
 
 @expose("unsafe-fxremainder", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(w_a, w_b):
@@ -425,7 +500,7 @@ def unsafe_fxquotient(w_a, w_b):
     res = a % b
     if w_a.value < 0:
         res = -res
-    return values.W_Fixnum.make(res)
+    return values.W_Fixnum(res)
 
 @expose("fx->fl", [values.W_Fixnum])
 def fxfl(a):
@@ -465,32 +540,88 @@ def real_floating_point_bytes(n, _size, big_endian):
         intval = rarithmetic.byteswap(intval)
 
     chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
-    return values.W_Bytes(chars)
+    return values.W_Bytes.from_charlist(chars)
+
+
+
+
+# this duplicates, slightly differently, a definition in longlong2float.py
+# using unsigned long long fixes an overflow issue
+# this happens only in the interpreter, so we do it only then
+def pycket_longlong2float(llval):
+    """ NOT_RPYTHON """
+    from rpython.rtyper.lltypesystem import lltype, rffi
+    DOUBLE_ARRAY_PTR = lltype.Ptr(lltype.Array(rffi.DOUBLE))
+    ULONGLONG_ARRAY_PTR = lltype.Ptr(lltype.Array(rffi.ULONGLONG))
+    with lltype.scoped_alloc(DOUBLE_ARRAY_PTR.TO, 1) as d_array:
+        ll_array = rffi.cast(ULONGLONG_ARRAY_PTR, d_array)
+        ll_array[0] = llval
+        floatval = d_array[0]
+        return floatval
+
 
 @expose("floating-point-bytes->real",
         [values.W_Bytes, default(values.W_Object, values.w_false)])
-def integer_bytes_to_integer(bstr, signed):
+def float_bytes_to_real(bstr, signed):
     # XXX Currently does not make use of the signed parameter
-    bytes = bstr.value
+    bytes = bstr.as_bytes_list()
     if len(bytes) not in (4, 8):
         raise SchemeException(
                 "floating-point-bytes->real: byte string must have length 2, 4, or 8")
 
-    val = 0
-    for i, v in enumerate(bytes):
-        val += ord(v) << (i * 8)
+    try:
+        if objectmodel.we_are_translated():
+            val = rarithmetic.r_int64(0)
+            for i, v in enumerate(bytes):
+                val += rarithmetic.r_int64(ord(v)) << (i * 8)
+            return values.W_Flonum(longlong2float.longlong2float(val))
+        else:
+            # use unsigned to avoid rlib bug
+            val = rarithmetic.r_uint64(0)
+            for i, v in enumerate(bytes):
+                val += rarithmetic.r_uint64(ord(v)) << (i * 8)
+            return values.W_Flonum(pycket_longlong2float(val))
+    except OverflowError, e:
+        # Uncomment the check below to run Pycket on the
+        # interpreter with compiled (zo) files
+        # (fasl makes a call that blows the longlong2float on rpython)
 
-    return values.W_Flonum(longlong2float.longlong2float(val))
+        # if val == 18442240474082181120L:
+        #     return values.W_Flonum.NEGINF
+        raise SchemeException("RPython overflow : %s" % e)
 
 @expose("integer-bytes->integer",
-        [values.W_Bytes, default(values.W_Object, values.w_false),
-         default(values.W_Object, values.w_false)])
-def integer_bytes_to_integer(bstr, signed, big_endian):
-    # XXX Currently does not make use of the signed or big endian parameter
-    bytes = bstr.value
-    if len(bytes) not in (2, 4, 8):
+        [values.W_Bytes,
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, values.w_false),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
+         default(values.W_Fixnum, None)])
+def integer_bytes_to_integer(bstr, signed, big_endian, w_start, w_end):
+    bytes = bstr.as_bytes_list()
+
+    start = w_start.value
+    if w_end is None:
+        end = len(bytes)
+    else:
+        end = w_end.value
+
+    if not (0 <= start < len(bytes)):
+        raise SchemeException(
+                "integer-bytes->integer: start position not in byte string")
+    if not (0 <= end <= len(bytes)):
+        raise SchemeException(
+                "integer-bytes->integer: end position not in byte string")
+    if end < start:
+        raise SchemeException(
+                "integer-bytes->integer: end position less than start position")
+
+    length = end - start
+    if length not in (2, 4, 8):
         raise SchemeException(
                 "integer-bytes->integer: byte string must have length 2, 4, or 8")
+
+    if start != 0 or end != len(bytes):
+        bytes = bytes[start:end]
 
     byteorder = "little" if big_endian is values.w_false else "big"
     is_signed = signed is not values.w_false
@@ -502,8 +633,15 @@ def integer_bytes_to_integer(bstr, signed, big_endian):
     return result
 
 @expose("integer->integer-bytes",
-        [values.W_Number, values.W_Fixnum, default(values.W_Object, values.w_false)])
-def integer_to_integer_bytes(n, _size, signed):
+        [values.W_Number,
+         values.W_Fixnum,
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, values.w_false),
+         default(values.W_Bytes, None),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO)])
+@jit.unroll_safe
+def integer_to_integer_bytes(n, w_size, signed, big_endian, w_dest, w_start):
+    from rpython.rtyper.lltypesystem import rffi
     if isinstance(n, values.W_Fixnum):
         intval = n.value
     elif isinstance(n, values.W_Bignum):
@@ -511,12 +649,91 @@ def integer_to_integer_bytes(n, _size, signed):
     else:
         raise SchemeException("integer->integer-bytes: expected exact integer")
 
-    size = _size.value
+    size = jit.promote(w_size.value)
     if size not in (2, 4, 8):
         raise SchemeException("integer->integer-bytes: size not 2, 4, or 8")
 
-    chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
-    return values.W_Bytes(chars)
+    size  = size
+    start = w_start.value
+    if w_dest is not None:
+        chars = w_dest.as_bytes_list()
+        result = w_dest
+    else:
+        chars = ['\x00'] * size
+        result = values.W_Bytes.from_charlist(chars, immutable=False)
+
+    if start < 0:
+        raise SchemeException(
+            "integer->integer-bytes: start value less than zero")
+
+    if start + size > len(chars):
+        raise SchemeException(
+            "integer->integer-bytes: byte string length is less than starting "
+            "position plus size")
+
+    is_signed = signed is not values.w_false
+    for i in range(start, start+size):
+        chars[i] = chr(intval & 0xFF)
+        intval >>= 8
+
+    if big_endian is values.w_false:
+        return result
+
+    # Swap the bytes if for big endian
+    left = start
+    right = start + size - 1
+    while left < right:
+        chars[left], chars[right] = chars[right], chars[left]
+        left, right = left + 1, right - 1
+
+    return result
+
+@expose("integer-length", [values.W_Object])
+@jit.elidable
+def integer_length(obj):
+
+    if isinstance(obj, values.W_Fixnum):
+        val = obj.value
+        if val < 0:
+            val = ~val
+
+        n = r_uint(val)
+        result = 0
+        while n:
+            n >>= r_uint(1)
+            result += 1
+        return values.wrap(result)
+
+    if isinstance(obj, values.W_Bignum):
+        # XXX The bit_length operation on rbigints is off by one for negative
+        # powers of two (this may be intentional?).
+        # So, we detect this case and apply a correction.
+        bignum = obj.value
+        negative_power_of_two = True
+
+        if not bignum.tobool():
+            return values.W_Fixnum.ZERO
+        elif bignum.sign != -1:
+            negative_power_of_two = False
+        else:
+            for i in range(bignum.size - 1):
+                if bignum.udigit(i) != 0:
+                    negative_power_of_two = False
+                    break
+
+            msd = bignum.udigit(r_uint(bignum.size - 1))
+            while msd:
+                if (msd & r_uint(0x1)) and msd != r_uint(1):
+                    negative_power_of_two = False
+                    break
+                msd >>= r_uint(1)
+
+        bit_length = bignum.bit_length()
+        if negative_power_of_two:
+            bit_length -= 1
+        return values.wrap(bit_length)
+
+    raise SchemeException("integer-length: expected exact-integer? got %s" % obj.tostring())
 
 # FIXME: implementation
 @expose("fxvector?", [values.W_Object])
@@ -556,3 +773,18 @@ def unsafe_flmax(a, b):
 def unsafe_flabs(a):
     return values.W_Flonum(abs(a.value))
 
+@expose("extflonum-availale?", [])
+def extflonum_available():
+    return values.w_false
+
+@expose("real-part", [values.W_Number])
+def real_part(n):
+    if isinstance(n, values.W_Complex):
+        return n.real
+    return n
+
+@expose("imag-part", [values.W_Number])
+def imag_part(n):
+    if isinstance(n, values.W_Complex):
+        return n.imag
+    return values.W_Fixnum.ZERO

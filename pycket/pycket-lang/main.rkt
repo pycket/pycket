@@ -1,7 +1,9 @@
 #lang racket/base
 (provide (except-out (all-from-out racket/base) #%module-begin))
 (require racket/unsafe/ops (for-syntax racket/base racket/runtime-path)
-         racket/include (prefix-in k: '#%kernel) racket/contract)
+         racket/include (prefix-in k: '#%kernel) racket/contract
+         (only-in '#%kernel random))
+(provide random)
 (provide (all-from-out racket/unsafe/ops))
 (provide (rename-out [modbeg #%module-begin]))
 (provide include contract)

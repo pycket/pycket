@@ -1,27 +1,49 @@
-from rpython.rlib import jit
+from pycket.util  import snake_case
+from rpython.rlib import jit, objectmodel
+
+class Visitable(type):
+    def __new__(cls, name, bases, dct):
+        visit_method_name = "visit_" + snake_case(name)
+        @objectmodel.specialize.argtype(1)
+        def dispatch_visitor(self, visitor, *args):
+            return getattr(visitor, visit_method_name)(self, *args)
+        if dct.get('visitable', False):
+            dct['visit'] = dispatch_visitor
+        result = type.__new__(cls, name, bases, dct)
+        return result
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr"]
+    __metaclass__ = Visitable
+
+    _attrs_ = ["should_enter", "surrounding_lambda", "_stringrepr"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
 
     should_enter = False # default value
     _stringrepr = None # default value
-    mvars = None
     surrounding_lambda = None
 
     simple = False
+    ispure = False
 
-    def defined_vars(self):
-        return {}
+    def defined_vars(self, defs):
+        pass
 
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct
+        from pycket.prims.control import convert_runtime_exception, convert_os_error
+        from pycket.error import SchemeException
         # default implementation for simple AST forms
         assert self.simple
         # interpret should only be called from interpret_one, therefore it's
         # safe to not use the Label implementation of return_value here
-        return return_value_direct(self.interpret_simple(env), env, cont)
+        try:
+            val = self.interpret_simple(env)
+        except SchemeException, exn:
+            return convert_runtime_exception(exn, env, cont)
+        except OSError, exn:
+            return convert_os_error(exn, env, cont)
+        return return_value_direct(val, env, cont)
 
     def interpret_simple(self, env):
         raise NotImplementedError("abstract base class")
@@ -52,31 +74,49 @@ class AST(object):
     def direct_children(self):
         return []
 
-    def free_vars(self):
-        free_vars = {}
+    def collect_module_info(self, info):
+        return self.direct_children()
+
+    def free_vars(self, cache=None):
+        if cache is None:
+            cache = {}
+        else:
+            try:
+                return cache[self]
+            except KeyError:
+                pass
+        fvars = self._free_vars(cache)
+        cache[self] = fvars
+        return fvars
+
+    def _free_vars(self, cache):
+        from pycket.interpreter import SymbolSet
+        free_vars = SymbolSet.EMPTY()
         for child in self.direct_children():
-            free_vars.update(child.free_vars())
+            free_vars = free_vars.union(child.free_vars(cache))
         return free_vars
 
-    def assign_convert(self, vars, env_structure):
-        """ make a copy of the AST that converts all writable variables into
-        using cells. In addition, compute the state of the environment for
-        every AST node that needs to know.
+    def mutated_vars(self, cache=None):
+        if cache is None:
+            cache = {}
+        else:
+            try:
+                return cache[self]
+            except KeyError:
+                pass
+        mvars = self._mutated_vars(cache)
+        cache[self] = mvars
+        return mvars
 
-        The vars argument contains the variables that need to use cells.
-        The env_structure is an instance of SymList (or None) describing the
-        environment at that AST node.
-        """
-        raise NotImplementedError("abstract base class")
+    def _mutated_vars(self, cache):
+        from pycket.interpreter import variable_set
+        x = variable_set()
+        for b in self.direct_children():
+            x.update(b.mutated_vars(cache))
+        return x
 
-    def mutated_vars(self):
-        if self.mvars is not None:
-            return self.mvars
-        self.mvars = self._mutated_vars()
-        return self.mvars
-
-    def _mutated_vars(self):
-        raise NotImplementedError("abstract base class")
+    def normalize(self, ctxt):
+        return ctxt.plug(self)
 
     def tostring(self):
         _stringrepr = self._stringrepr
@@ -84,8 +124,15 @@ class AST(object):
             _stringrepr = self._stringrepr = self._tostring()
         return _stringrepr
 
+    def constant_prop(self, constants):
+        for child in self.direct_children():
+            child.constant_prop(constants)
+
     def _tostring(self):
         return "UNKNOWN AST: "
+
+    def write(self, port, env):
+        port.write(self.tostring())
 
     def __str__(self):
         return self.tostring()

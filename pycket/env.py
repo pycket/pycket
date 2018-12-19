@@ -1,3 +1,4 @@
+import sys
 from rpython.rlib             import jit, objectmodel
 from pycket.small_list        import inline_small_list
 from pycket.error             import SchemeException
@@ -5,9 +6,11 @@ from pycket.base              import W_Object
 from pycket.callgraph         import CallGraph
 from pycket.config            import get_testing_config
 
+MIN_INT = -sys.maxint-1
 
 class SymList(object):
     _immutable_fields_ = ["elems[*]", "prev"]
+
     def __init__(self, elems, prev=None):
         assert isinstance(elems, list)
         self.elems = elems
@@ -43,13 +46,13 @@ class SymList(object):
         return target
 
     def depth_and_size(self):
-        res = 0
+        depth = 0
         size = 0
         while self is not None:
             size += len(self.elems)
             self = self.prev
-            res += 1
-        return res, size
+            depth += 1
+        return depth, size
 
     def depth_of_var(self, var):
         depth = 0
@@ -67,6 +70,11 @@ class SymList(object):
             if e is var:
                 return True
         return False
+
+    def drop_frames(self, n):
+        for i in range(n):
+            self = self.prev
+        return self
 
     def __repr__(self):
         return "SymList(%r, %r)" % (self.elems, self.prev)
@@ -86,17 +94,114 @@ class ModuleEnv(object):
         from pycket.interpreter import Module
         # note that `name` and `module.name` are different!
         assert isinstance(module, Module)
-        #if name not in self.modules:
-        self.modules[name] = module
+        if name in self.modules:
+            assert module is self.modules[name]
+        else:
+            self.modules[name] = module
 
     @jit.elidable
     def _find_module(self, name):
         return self.modules.get(name, None)
 
-
 class GlobalConfig(object):
     def __init__(self):
-        self.config = None
+        self.config = {'verbose':MIN_INT,
+                       'expander_loaded':0,
+                       'repl_loaded':0,
+                       'debug_active':0,
+                       'boot_done':0,
+                       'linklet_mode':1}
+        self.error_exit = None
+        self.verbose_keywords = []
+        self.environment_vars = {}
+        self.pycketconfig = None
+
+    # debug_active can be used to set a logical
+    # point where a set_trace or a print
+    # is going to be evaluated.
+    # you can combine this for instance
+    # with the 'expander_loaded' to say:
+    # "print the asts after the expander is loaded"
+    # (just activate_debug after is_expander_loaded)
+    def activate_debug(self):
+        self.config['debug_active'] = 1
+
+    def deactivate_debug(self):
+        self.config['debug_active'] = 0
+
+    def is_debug_active(self):
+        return self.config['debug_active']
+
+    def is_boot_completed(self):
+        return self.config['boot_done']
+
+    def boot_is_completed(self):
+        self.config['boot_done'] = 1
+
+    def set_error_exit(self, exn):
+        self.error_exit = exn
+
+    def is_error_triggered(self):
+        return self.error_exit
+
+    def are_we_in_linklet_mode(self):
+        return self.config['linklet_mode']
+
+    def set_linklet_mode_off(self):
+        self.config['linklet_mode'] = 0
+
+    def get_verbose_keywords(self):
+        return self.verbose_keywords
+
+    def set_verbose_keywords(self, new_keywords):
+        self.verbose_keywords = new_keywords
+
+    def is_keyword_active(self, keyword):
+        return keyword in self.verbose_keywords
+
+    def activate_keyword(self, keyword):
+        self.verbose_keywords.append(keyword)
+
+    def deactivate_keyword(self, keyword):
+        if keyword in self.verbose_keywords:
+            self.verbose_keywords.remove(keyword)
+
+    def get_config(self):
+        return self.config
+
+    @staticmethod
+    def ask_OS_var(var_str):
+        import os
+        return os.environ[var_str] if var_str in os.environ.keys() else ""
+
+    def get_env_var(self, var_str):
+        # lazily cache the OS environment variable values
+        if var_str not in self.environment_vars:
+            self.environment_vars[var_str] = GlobalConfig.ask_OS_var(var_str)
+        return self.environment_vars[var_str]
+
+    def env_var_exists(self, var_str):
+        if var_str not in self.environment_vars:
+            self.environment_vars[var_str] = GlobalConfig.ask_OS_var(var_str)
+        return self.environment_vars[var_str] != ""
+
+    def get_config_val(self, name):
+        return self.config[name]
+
+    def set_config_val(self, name, val):
+        self.config[name] = val
+
+    def set_pycketconfig(self, c):
+        self.pycketconfig = c
+
+    def get_pycketconfig(self):
+        return self.pycketconfig
+
+    def is_expander_loaded(self):
+        return self.config['expander_loaded'] == 1
+
+    def is_repl_loaded(self):
+        return self.config['repl_loaded'] == 1
 
     def lookup(self, s):
         return self.config.get(s, None)
@@ -108,6 +213,7 @@ class GlobalConfig(object):
         assert isinstance(ast, Module)
         self.config = ast.config.copy()
 
+w_global_config = GlobalConfig()
 
 class Env(W_Object):
     _attrs_ = []
@@ -134,24 +240,45 @@ class Env(W_Object):
         raise NotImplementedError("abstract base class")
 
 class Version(object):
-    pass
 
+    def __init__(self):
+        self.version = ""
+
+    def get_version(self):
+        return self.version
+
+    def set_version(self, new_version):
+        self.version = new_version
+
+w_version = Version()
 
 class ToplevelEnv(Env):
+    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig', 'current_linklet_instance', 'import_instances']
     _immutable_fields_ = ["version?", "module_env"]
-    def __init__(self, pycketconfig=None):
+    def __init__(self, pycketconfig=None, current_linklet_instance=None, import_instances=[]):
         from rpython.config.config import Config
         self.bindings = {}
-        self.version = Version()
+        self.version = w_version
         self.module_env = ModuleEnv(self)
         self.commandline_arguments = []
         self.callgraph = CallGraph()
-        self.globalconfig = GlobalConfig()
+        self.globalconfig = w_global_config
         if pycketconfig is None:
             assert not objectmodel.we_are_translated()
             pycketconfig = get_testing_config()
         assert isinstance(pycketconfig, Config)
         self._pycketconfig = pycketconfig
+        self.current_linklet_instance = current_linklet_instance
+        self.import_instances = import_instances
+
+    def get_commandline_arguments(self):
+        return self.commandline_arguments
+
+    def get_current_version(self):
+        return self.version
+
+    def get_current_linklet_instance(self):
+        return self.current_linklet_instance
 
     def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound" % sym.variable_name())
@@ -164,6 +291,12 @@ class ToplevelEnv(Env):
             w_res = w_res.get_val()
         return w_res
 
+    def toplevel_lookup_get_cell(self, sym):
+        from pycket.values import W_Cell
+        jit.promote(self)
+        w_res = self._lookup(sym, jit.promote(self.version))
+        return w_res
+
     @jit.elidable
     def _lookup(self, sym, version):
         try:
@@ -171,10 +304,14 @@ class ToplevelEnv(Env):
         except KeyError:
             raise SchemeException("toplevel variable %s not found" % sym.variable_name())
 
-    def toplevel_set(self, sym, w_val):
+    def toplevel_set(self, sym, w_val, already_celled=False):
         from pycket.values import W_Cell
         if sym in self.bindings:
             self.bindings[sym].set_val(w_val)
+        elif already_celled:
+            assert isinstance(w_val, W_Cell)
+            self.bindings[sym] = w_val
+            self.version = Version()
         else:
             self.bindings[sym] = W_Cell(w_val)
             self.version = Version()
@@ -189,9 +326,11 @@ class ToplevelEnv(Env):
         return self.toplevel_shape_tuple()
 
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True, nonull=True)
 class ConsEnv(Env):
+    _immutable_ = True
     _immutable_fields_ = ["_prev"]
+    _attrs_ = ["_prev"]
     def __init__ (self, prev):
         assert isinstance(prev, Env)
         self._prev = prev

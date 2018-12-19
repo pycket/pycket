@@ -12,33 +12,89 @@ from rpython.rlib import jit
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):
-    if v.asciivalue is not None:
-        return W_String.fromascii(v.asciivalue)
-    return W_String.fromunicode(v.unicodevalue)
+    return symbol_to_string_impl(v)
+
+def symbol_to_string_impl(v):
+    asciivalue = v.asciivalue()
+    if asciivalue is not None:
+        return W_String.fromascii(asciivalue)
+    return W_String.fromunicode(v.unicodevalue())
 
 @expose("string->symbol", [W_String])
 def string_to_symbol(v):
     return values.W_Symbol.make(v.as_str_utf8())
 
-@expose("string->number", [W_String])
-def str2num(w_s):
+@expose("string->number", [W_String,
+                           default(values.W_Integer, values.W_Fixnum(10)),
+                           default(values.W_Symbol, values.W_Symbol.make("number-or-false")),
+                           default(values.W_Symbol, values.W_Symbol.make("decimal-as-exact"))])
+def str2num(w_s, radix, convert_mode, decimal_mode):
     from rpython.rlib import rarithmetic, rfloat, rbigint
     from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
-
+    from rpython.rlib.rsre import rsre_re as re
+    import math
+    radix = radix.toint()
     s = w_s.as_str_utf8()
     try:
-        if "." in s:
+        if ((radix == 16 and re.match("^[0-9A-Fa-f]+$", s)) or
+            (radix == 8 and re.match("^[0-7]+$", s)) or
+            (radix == 10 and re.match("^[0-9]+$", s))):
+            try:
+                return values.W_Fixnum(rarithmetic.string_to_int(s, base=radix))
+            except ParseStringOverflowError:
+                return values.W_Bignum(rbigint.rbigint.fromstr(s, base=radix))
+        if re.match("[+-]?([\d]+)?.?\d+[tT]\d", s):
+            # it's an extflonum
+            return values.W_ExtFlonum(s)
+
+        if re.match("[+-]?([\d]+)?.?\d+[sf]\d", s):
+            if "f" in s:
+                f_parts = s.split("f")
+            elif "s" in s:
+                f_parts = s.split("s")
+            else:
+                raise ParseStringError("invalid floating point number : %s" % s)
+
+            if len(f_parts) > 2:
+                raise ParseStringError("invalid floating point number : %s" % s)
+
+            try:
+                numb = float(f_parts[0])
+                prec = int(f_parts[1])
+                p = math.pow(10, prec)
+            except ValueError, e:
+                return values.w_false
+
+            return values.W_Flonum.make(numb*p, True)
+
+        if re.match("[+-]?([\d]+)?.?\d+e\d", s):
+            e_parts = s.split("e")
+            if len(e_parts) > 2:
+                raise ParseStringError("invalid floating point number : %s" % s)
+
+            try:
+                num = float(e_parts[0])
+                exp = int(e_parts[1])
+                p = math.pow(10, exp)
+            except ValueError, e:
+                return values.w_false
+
+            return values.W_Flonum(num*p)
+
+        if "." in s or re.match("[+-]?([\d]+)(\.[\d]+)?e[+-][\d]+$", s):
+            if not radix == 10: # FIXME
+                raise SchemeException("string->number : floats with base different than 10 are not supported yet : given number : %s - radix : %s" % (w_s.tostring(), str(radix)))
             return values.W_Flonum(rfloat.string_to_float(s))
         else:
             try:
-                return values.W_Fixnum(rarithmetic.string_to_int(s, base=10))
+                return values.W_Fixnum(rarithmetic.string_to_int(s, base=radix))
             except ParseStringOverflowError:
-                return values.W_Bignum(rbigint.rbigint.fromstr(s))
+                return values.W_Bignum(rbigint.rbigint.fromstr(s, base=radix))
     except ParseStringError as e:
         return values.w_false
 
 @expose("number->string",
-        [values.W_Number, default(values.W_Fixnum, values.W_Fixnum(10))])
+        [values.W_Number, default(values.W_Fixnum, values.W_Fixnum.make(10))])
 def num2str(a, radix):
     from rpython.rlib.rbigint import BASE8, BASE16
     if radix.value == 10:
@@ -81,44 +137,81 @@ def string_to_path(str):
 def string_to_unsymbol(v):
     return values.W_Symbol.make_unreadable(v.as_str_utf8())
 
+@expose("string->keyword", [W_String])
+def string_to_keyword(str):
+    repr = str.as_str_utf8()
+    return values.W_Keyword.make(repr)
+
+@expose("keyword->string", [values.W_Keyword])
+def string_to_keyword(keyword):
+    return W_String.make(keyword.value)
+
 @expose("string->immutable-string", [W_String])
 def string_to_immutable_string(string):
     return string.make_immutable()
 
 @expose("string->uninterned-symbol", [W_String])
 def string_to_symbol(v):
-    return values.W_Symbol(v.as_unicode())
+    return values.W_Symbol(v.as_str_utf8())
 
-@expose(["string->bytes/locale",
-         "string->bytes/utf-8"], [W_String,
-                                  default(values.W_Object, values.w_false),
-                                  default(values.W_Fixnum, values.W_Fixnum(0)),
-                                  default(values.W_Fixnum, None)])
-def string_to_bytes_locale(str, errbyte, start, end):
+@expose(["string->bytes/locale", "string->bytes/utf-8"],
+        [W_String,
+         default(values.W_Object, values.w_false),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
+         default(values.W_Fixnum, None)])
+def string_to_bytes_locale(w_str, errbyte, w_start, w_end):
     # assert errbyte is values.w_false
     # ignore for now
-    assert start.value == 0
-    assert end is None
+
+    if w_start.value == 0 and w_end is None:
+        w_sub_str = w_str
+    else:
+        s_val = w_start.value
+        e_val = w_end.value if w_end else w_str.length()
+        # FIXME: check the bounds
+        assert s_val >= 0 and e_val <= w_str.length() and e_val >= 0
+        w_sub_str = w_str.getslice(s_val, e_val)
+
     # FIXME: This ignores the locale
-    return values.W_Bytes(str.as_charlist_utf8())
+    return values.W_Bytes.from_charlist(w_sub_str.as_charlist_utf8())
 
 @expose("bytes->string/latin-1",
         [values.W_Bytes,
          default(values.W_Object, values.w_false),
-         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
-def bytes_to_string_latin(str, err, start, end):
-    # XXX Not a valid implementation
-    return W_String.fromascii("")
+def bytes_to_string_latin(w_bytes, err, start, end):
+    str = w_bytes.as_str().decode("latin-1")
+
+    # From Racket Docs: The err-char argument is ignored, but present
+    # for consistency with the other operations.
+
+    return get_substring(W_String.fromunicode(str), start, end)
 
 @expose("string->bytes/latin-1",
-        [values.W_Bytes,
+        [W_String,
          default(values.W_Object, values.w_false),
-         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
-def bytes_to_string_latin(str, err, start, end):
-    # XXX Not a valid implementation
-    return values.W_Bytes.from_string("")
+def string_to_bytes_latin(w_str, err, start, end):
+    w_substring = get_substring(w_str, start, end)
+    w_bytes = w_substring.as_unicode().encode("latin-1")
+    char_bytes = list(w_bytes)
+
+    final_bytes = [None]*len(char_bytes)
+
+    for index, char in enumerate(char_bytes):
+        # it's enough to check only the substring for chars > 255
+        if ord(char) <=  255:
+            final_bytes[index] = char
+        else:
+            if err is values.w_false:
+                raise SchemeException("string->bytes/latin-1: string cannot be encoded in Latin-1 : %s" % w_substring.tostring())
+            else:
+                assert isinstance(err, values.W_Fixnum)
+                final_bytes[index] = chr(err.value)
+
+    return values.W_Bytes.from_string("".join(final_bytes))
 
 @expose("string->list", [W_String])
 def string_to_list(s):
@@ -180,9 +273,10 @@ for a in [("string<?", lambda w_self, w_other: w_self.cmp(w_other) < 0),
 def make_string(k, char):
     if char is None:
         char = u'\0'
+        c = 0
     else:
         char = char.value
-    c = ord(char)
+        c = ord(char)
     if k.value < 0:
         raise SchemeException("make-string: around negative")
     if c < 128:
@@ -206,8 +300,7 @@ def string(args):
         builder.append(char.value)
     return W_String.fromunicode(builder.build())
 
-
-@expose("string-downcase", [W_String])
+@expose(["string-downcase", "string-foldcase"], [W_String])
 def string_downcase(v):
     return v.lower()
 
@@ -215,13 +308,33 @@ def string_downcase(v):
 def string_upcase(v):
     return v.upper()
 
+@expose("string-fill!", [W_String, values.W_Character])
+def string_fill(s, c):
+    if s.immutable():
+        raise SchemeException("string-fill!: given immutable string")
+    for i in range(s.length()):
+        s.setitem(i, c)
+    return values.w_void
+
+
+@jit.unroll_safe
+def string_append_fastpath(args):
+    try:
+        joined = "".join([a.as_str_ascii() for a in args])
+        result = W_String.fromascii(joined)
+    except ValueError:
+        joined = u"".join([a.as_unicode() for a in args])
+        result = W_String.fromunicode(joined)
+    return result
 
 @expose("string-append")
 @jit.unroll_safe
 def string_append(args):
+    if jit.isconstant(len(args)):
+        return string_append_fastpath(args)
     if not args:
         return W_String.fromascii("")
-    builder = StringBuilder()
+    builder = StringBuilder(len(args))
     unibuilder = None
     ascii_idx = 0
     try:
@@ -231,7 +344,7 @@ def string_append(args):
                 raise SchemeException("string-append: expected a string")
             builder.append(arg.as_str_ascii())
     except ValueError:
-        unibuilder = UnicodeBuilder()
+        unibuilder = UnicodeBuilder(len(args))
         unibuilder.append(unicode(builder.build()))
         builder = None
         for i in range(ascii_idx, len(args)):
@@ -250,8 +363,45 @@ def string_append(args):
 def string_length(s1):
     return values.W_Fixnum(s1.length())
 
+@expose("string-utf-8-length", [W_String, default(values.W_Fixnum, values.W_Fixnum.ZERO), default(values.W_Fixnum, None)])
+def string_utf8_length(w_str, w_start, w_end):
+    s_val = w_start.value
+    e_val = w_end.value if w_end else w_str.length()
+    if s_val == 0 and w_end is None:
+        w_sub_str = w_str
+    else:
+        assert s_val >= 0 and e_val <= w_str.length() and e_val >= 0
+        w_sub_str = w_str.getslice(s_val, e_val)
+
+    sub_str_char_list = w_sub_str.as_charlist_utf8()
+    return values.W_Fixnum(len(sub_str_char_list))
+
+@expose("bytes-utf-8-length", [values.W_Bytes,
+                               default(values.W_Object, values.w_false),
+                               default(values.W_Fixnum, values.W_Fixnum.ZERO),
+                               default(values.W_Fixnum, None)])
+def bytes_utf8_length(w_bstr, err_char, w_start, w_end):
+    assert err_char is values.w_false #:FIXME
+    s_val = w_start.value
+    e_val = w_end.value if w_end else w_bstr.length()
+    ls = w_bstr.as_str()
+    try:
+        decoded = ls.decode('utf-8')
+        assert s_val >= 0 and e_val <= w_bstr.length() and e_val >= 0
+        return values.W_Fixnum(len(decoded[s_val:e_val]))
+    except UnicodeDecodeError:
+        # FIXME : use err_char
+        return values.w_false
+
+@expose("string-copy", [W_String])
+def string_copy(s):
+    return get_substring(s, values.W_Fixnum.make(0), None)
+
 @expose("substring", [W_String, values.W_Fixnum, default(values.W_Fixnum, None)])
 def substring(w_string, w_start, w_end):
+    return get_substring(w_string, w_start, w_end)
+
+def get_substring(w_string, w_start, w_end):
     """
     (substring str start [end]) -> string?
         str : string?
@@ -261,7 +411,7 @@ def substring(w_string, w_start, w_end):
     lenstring = w_string.length()
     start = w_start.value
     if start > lenstring or start < 0:
-        raise SchemeException("substring: end index out of bounds")
+        raise SchemeException("substring: start index out of bounds")
     if w_end is not None:
         end = w_end.value
         if end > lenstring or end < 0:
@@ -297,7 +447,7 @@ def string_set(w_str, w_index, w_char):
 
 @expose(["string-copy!"],
          [W_String, values.W_Fixnum, W_String,
-          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)])
 def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     from pycket.interpreter import return_value
@@ -310,9 +460,17 @@ def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     dest_len = w_dest.length()
     dest_max = (dest_len - dest_start)
 
+    src_len = w_src.length()
     src_start =  w_src_start.value
     src_end = w_src.length() if w_src_end is None else w_src_end.value
-
+    if src_start >= src_len:
+        raise SchemeException("string-copy!: source start too large")
+    if src_end > src_len:
+        raise SchemeException("string-copy!: source end too large")
+    if src_end < src_start:
+        raise SchemeException("string-copy!: source end before start")
+    if dest_start >= dest_len:
+        raise SchemeException("string-copy!: destination start too large")
     if src_end - src_start > dest_max:
         raise SchemeException("string-copy!: not enough room in target string")
     w_dest.setslice(dest_start, w_src, src_start, src_end)
@@ -321,7 +479,7 @@ def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
 
 ################################################################################
 # Byte stuff
-@expose("make-bytes", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
+@expose("make-bytes", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)])
 def make_bytes(length, byte):
     # assert byte_huh(byte) is values.w_true
     if isinstance(byte, values.W_Fixnum):
@@ -345,6 +503,7 @@ def bytes(args):
                 and 0 <= char.value <= 255):
             raise SchemeException("string: expected a character int")
         builder.append(chr(char.value))
+
     return values.W_Bytes.from_string(builder.build(), immutable=False)
 
 @expose("bytes-append")
@@ -354,13 +513,14 @@ def bytes_append(args):
         if not isinstance(a, values.W_Bytes):
             raise SchemeException(
                 "bytes-append: expected a byte string, but got %s" % a)
-        total_len += len(a.value)
+        total_len += a.length()
 
     result = ['\0'] * total_len # is this the fastest way to do things?
     cnt = 0
     for a in args:
         assert isinstance(a, values.W_Bytes)
-        for byte in a.value:
+        for i in range(a.length()):
+            byte = a.ref_char(i)
             result[cnt] = byte
             cnt += 1
 
@@ -369,7 +529,7 @@ def bytes_append(args):
 
 @expose("bytes-length", [values.W_Bytes])
 def bytes_length(s1):
-    return values.W_Fixnum(len(s1.value))
+    return values.W_Fixnum(s1.length())
 
 @expose("bytes-ref", [values.W_Bytes, values.W_Fixnum])
 def bytes_ref(s, n):
@@ -381,7 +541,7 @@ def bytes_set_bang(s, n, v):
 
 @expose("unsafe-bytes-length", [subclass_unsafe(values.W_Bytes)])
 def unsafe_bytes_length(s1):
-    return values.W_Fixnum(len(s1.value))
+    return values.W_Fixnum(s1.length())
 
 @expose("unsafe-bytes-ref", [subclass_unsafe(values.W_Bytes), unsafe(values.W_Fixnum)])
 def unsafe_bytes_ref(s, n):
@@ -393,19 +553,33 @@ def unsafe_bytes_ref(s, n):
 def unsafe_bytes_set_bang(s, n, v):
     return s.set(n.value, v.value)
 
+@expose("bytes-fill!", [values.W_Bytes, values.W_Fixnum])
+def string_fill(s, c):
+    if s.immutable():
+        raise SchemeException("bytes-fill!: given immutable bytes")
+    for i in range(s.length()):
+        s.set(i, c.value)
+    return values.w_void
 
 @expose("list->bytes", [values.W_List])
 def list_to_bytes(w_list):
-    l = values.from_list(w_list)
-    ll = [' '] * len(l)
-    for (i,x) in enumerate(l):
-        if not isinstance(x, values.W_Fixnum):
-            raise SchemeException("list->bytes: expected fixnum, got %s" % x)
-        if x.value < 0 or x.value >= 256:
-            raise SchemeException(
-                "list->bytes: expected number between 0 and 255, got %s" % x)
-        ll[i] = chr(x.value)
-    return values.W_MutableBytes(ll)
+    if not w_list.is_proper_list():
+        raise SchemeException("list->bytes: expected proper list, got %s" % w_list.tostring())
+
+    ll = []
+    while isinstance(w_list, values.W_UnwrappedFixnumConsProper):
+        val = w_list._car
+        if not (0 <= val < 256):
+            break
+        ll.append(chr(val))
+        w_list = w_list.cdr()
+    else:
+        if w_list is values.w_null:
+            return values.W_MutableBytes(ll[:])
+
+    assert isinstance(w_list, values.W_Cons)
+    raise SchemeException("list->bytes: expected a number between 0 and 255, got %s"
+                          % w_list.car().tostring())
 
 @expose("subbytes",
         [values.W_Bytes, values.W_Fixnum, default(values.W_Fixnum, None)])
@@ -416,24 +590,30 @@ def subbytes(w_bytes, w_start, w_end):
         start : exact-nonnegative-integer?
         end : exact-nonnegative-integer? = (bytes-length str)
     """
-    bytes = w_bytes.value
     start = w_start.value
-    if start > len(bytes) or start < 0:
+    length = w_bytes.length()
+    if start > length or start < 0:
         raise SchemeException("subbytes: end index out of bounds")
     if w_end is not None:
         end = w_end.value
-        if end > len(bytes) or end < 0:
+        if end > length or end < 0:
             raise SchemeException("subbytes: end index out of bounds")
     else:
-        end = len(bytes)
+        end = length
     if end < start:
         raise SchemeException(
             "subbytes: ending index is smaller than starting index")
-    return values.W_MutableBytes(bytes[start:end])
+    slice = w_bytes.getslice(start, end)
+    return values.W_Bytes.from_charlist(slice, immutable=False)
 
-@expose(["bytes-copy!"],
+@expose("bytes-copy", [values.W_Bytes])
+def bytes_copy(w_src):
+    slice = w_src.getslice(0, w_src.length())
+    return values.W_Bytes.from_charlist(slice, immutable=False)
+
+@expose("bytes-copy!",
          [values.W_Bytes, values.W_Fixnum, values.W_Bytes,
-          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)])
 def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     from pycket.interpreter import return_value
@@ -443,20 +623,22 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
         raise SchemeException("bytes-copy!: given immutable bytes")
 
     dest_start = w_dest_start.value
-    dest_len = len(w_dest.value)
+    dest_len = w_dest.length()
     dest_max = (dest_len - dest_start)
 
     src_start =  w_src_start.value
-    src_end = len(w_src.value) if w_src_end is None else w_src_end.value
+    src_end = w_src.length() if w_src_end is None else w_src_end.value
 
     assert (src_end-src_start) <= dest_max
 
     for i in range(0, src_end - src_start):
-        w_dest.value[dest_start + i] = w_src.value[src_start + i]
+        val = w_src.ref_char(src_start + i)
+        w_dest.set_char(dest_start + i, val)
 
     return values.w_void
 
 def define_bytes_comp(name, op):
+    compare = make_bytes_compare(name, op)
     @expose(name)
     @jit.unroll_safe
     def comp(args):
@@ -468,38 +650,66 @@ def define_bytes_comp(name, op):
         for t in tail:
             if not isinstance(t, values.W_Bytes):
                 raise SchemeException(name + ": not given a bytes")
-            if not op(str(head.value), str(t.value)):
+            bs1 = head.as_bytes_list()
+            bs2 = t.as_bytes_list()
+            if not compare(bs1, bs2):
                 return values.w_false
             head = t
         return values.w_true
 
-for a in [("bytes<?", op.lt),
-          ("bytes<=?", op.le),
-          ("bytes=?", op.eq),
-          ("bytes>=?", op.ge),
-          ("bytes>?", op.gt),
+def make_bytes_compare(name, op):
+    def bytes_compare(x, y):
+        lx = len(x)
+        ly = len(y)
+        length = min(lx, ly)
+        for i in range(length):
+            xi, yi = x[i], y[i]
+            if xi == yi:
+                continue
+            return op(xi, yi)
+        return op(lx, ly)
+    bytes_compare.__name__ = "bytes_compare(%s)" % name
+    return bytes_compare
+
+for a in [("bytes<?"  , op.lt) ,
+          ("bytes<=?" , op.le) ,
+          ("bytes=?"  , op.eq) ,
+          ("bytes>=?" , op.ge) ,
+          ("bytes>?"  , op.gt) ,
           ]:
     define_bytes_comp(*a)
 
 @expose(["bytes->string/locale",
          "bytes->string/utf-8"], [values.W_Bytes,
                                   default(values.W_Object, values.w_false),
-                                  default(values.W_Integer, values.W_Fixnum(0)),
+                                  default(values.W_Integer, values.W_Fixnum.ZERO),
                                   default(values.W_Integer, None)])
 def string_to_bytes_locale(bytes, errbyte, start, end):
     # FIXME: This ignores the locale
     return W_String.fromstr_utf8(bytes.as_str())
 
-@expose("bytes->path", [values.W_Bytes])
-def bytes_to_path(b):
-    return values.W_Path(b.as_str())
+@expose("bytes->immutable-bytes", [values.W_Bytes])
+def bytes_to_immutable_bytes(b):
+
+    if b.immutable():
+        return b
+    storage = b.as_bytes_list()
+    return values.W_Bytes.from_charlist(storage, immutable=True)
+
+@expose("bytes->list", [values.W_Bytes])
+def bytes_to_list(bs):
+    acc = values.w_null
+    for i in range(bs.length()-1, -1, -1):
+        byte = ord(bs.ref_char(i))
+        acc = values.wrap(byte, acc)
+    return acc
 
 ################################################################################
 
 # Character
 
 
-@expose("char->integer", [values.W_Character])
+@expose(["unsafe-char->integer", "char->integer"], [values.W_Character])
 def char_to_integer(c):
     return values.W_Fixnum(ord(c.value))
 
@@ -514,6 +724,16 @@ def char_downcase(v):
 @expose("char-upcase", [values.W_Character])
 def char_upcase(v):
     return values.W_Character(unichr(unicodedb.toupper(ord(v.value))))
+
+@expose("char-foldcase", [values.W_Character])
+def char_foldcase(w_char):
+    char = ord(w_char.value)
+    folded = unicodedb.casefold_lookup(char)
+    if folded is None:
+        lower = unicodedb.tolower(char)
+        return values.W_Character(unichr(lower))
+    # XXX: What to do if the case folded character consists of more than one code point?
+    return values.W_Character(unichr(folded[0]))
 
 
 def define_char_comp(name, op):
@@ -541,11 +761,11 @@ def make_ci(op):
                   unichr(unicodedb.tolower(ord(b))))
     return lower
 
-for a in [("char<?", op.lt),
-          ("char<=?", op.le),
-          ("char=?", op.eq),
-          ("char>=?", op.ge),
-          ("char>?", op.gt),
+for a in [("char<?", op.lt), ("unsafe-char<?", op.lt),
+          ("char<=?", op.le), ("unsafe-char<=?", op.le),
+          ("char=?", op.eq), ("unsafe-char=?", op.eq),
+          ("char>=?", op.ge), ("unsafe-char>=?", op.ge),
+          ("char>?", op.gt), ("unsafe-char>?", op.gt),
           ("char-ci<?", make_ci(op.lt)),
           ("char-ci<=?", make_ci(op.le)),
           ("char-ci=?", make_ci(op.eq)),
@@ -568,3 +788,47 @@ def char_whitespace_huh(w_char):
 def char_numeric_huh(w_char):
     c = ord(w_char.value)
     return values.w_true if unicodedb.isnumeric(c) else values.w_false
+
+@expose("char-general-category", [values.W_Character])
+def char_category(w_char):
+    c = ord(w_char.value)
+    cat = unicodedb.category(c)
+    return values.W_Symbol.make(cat.lower())
+
+@expose("sha1-bytes", [values.W_Object, default(values.W_Fixnum, values.W_Fixnum.ZERO), default(values.W_Object, values.w_false)])
+def sha1_bytes(input, start, end):
+    from rpython.rlib import rsha
+    if isinstance(input, values.W_Bytes):
+        data = input.as_str()
+    elif isinstance(input, values.W_InputPort):
+        data = ""
+        while True:
+            line = input.readline()
+            stop = len(line) - 1
+            if stop >= 0:
+                data += line
+            else:
+                break
+    else:
+        raise SchemeException("sha1-bytes: expected (or/c bytes? input-port?), got %s"%input)
+
+    # FIXME: lots of problems with start/end and ports
+    s = start.value
+    if s < 0:
+        raise SchemeException("sha1-bytes: start index out of bounds: %s"%s)
+    l = len(data)
+    if end is values.w_false:
+        e = l
+    elif isinstance(end, values.W_Fixnum):
+        e = end.value
+    else:
+        raise SchemeException("sha1-bytes: bad end index"%end)
+    if s > e:
+        raise SchemeException("sha1-bytes: start index larger than end: %s %s"%(s,e))
+    if s > l:
+        raise SchemeException("sha1-bytes: start index larger than data: %s %s"%(s,l))
+    if e > l:
+        raise SchemeException("sha1-bytes: end index larger than data: %s %s"%(e,l))
+
+    digest = rsha.new(data[s:e]).digest()
+    return values.W_Bytes.from_string(digest, immutable=False)

@@ -24,18 +24,21 @@ def integer(x):return W_Fixnum(x)
 def sym(x): return W_Symbol.make(x)
 
 def w_structtype(
-        w_name, w_super=w_false, w_init_field_count=integer(0),
-        w_auto_field_count=integer(0), w_auto_value=values.w_false,
+        w_name, w_super=w_false, init_field_count=0,
+        auto_field_count=0, w_auto_value=values.w_false,
         w_inspector=values.w_false, w_proc_spec=values.w_false,
-        w_immutables=values.w_null, w_guard=values.w_false):
+        immutables=[], w_guard=values.w_false):
     return W_StructType.make_simple(
         w_name=w_name, w_super_type=w_super,
-        w_init_field_count=w_init_field_count,
-        w_auto_field_count=w_auto_field_count, w_auto_value=w_auto_value,
-        w_inspector=w_inspector, w_proc_spec=w_proc_spec, w_guard=w_guard,
-        w_immutables=w_immutables)
+        init_field_count=init_field_count,
+        auto_field_count=auto_field_count,
+        w_auto_value=w_auto_value,
+        w_inspector=w_inspector,
+        w_proc_spec=w_proc_spec,
+        w_guard=w_guard,
+        immutables=immutables)
 
-_w_nil_struct_type = w_structtype(sym("nil"), w_false, integer(0))
+_w_nil_struct_type = w_structtype(sym("nil"), w_false, 0)
 _nil_tag = get_struct_tag(_w_nil_struct_type)
 _w_nil = W_Struct.make_basic([], _nil_tag.default_shape)
 
@@ -48,7 +51,7 @@ def clean_tag(name=None, arity=None, type=None):
         return StructTag(type)
     else:
         w_st = w_structtype(
-            w_name=sym(name), w_init_field_count=integer(arity))
+            w_name=sym(name), init_field_count=arity)
         return StructTag(w_st)
 
 class SConf(object):

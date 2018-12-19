@@ -1,8 +1,5 @@
-from rpython.rlib.rstring import StringBuilder
 from rpython.rlib.runicode import unicode_encode_utf_8
-from rpython.rlib.objectmodel import specialize
-from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
-from rpython.rlib.parsing.tree import Symbol, Nonterminal, RPythonVisitor
+from rpython.rlib.objectmodel import specialize, we_are_translated
 from rpython.tool.pairtype import extendabletype
 
 # Union-Object to represent a json structure in a static way
@@ -195,22 +192,23 @@ class FakeSpace(object):
         assert isinstance(key, JsonString)
         d.value[key.value_string()] = value
 
-    def wrapunicode(self, x):
+    def newunicode(self, x):
         return JsonString(unicode_encode_utf_8(x, len(x), "strict"))
 
-    def wrapint(self, x):
+    def newtext(self, x):
+        return JsonString(x)
+    newbytes = newtext
+
+    def unicode_w(self, s):
+        assert isinstance(s, JsonString)
+        string = s.value_string()
+        return string.decode('utf-8')
+
+    def newint(self, x):
         return JsonInt(x)
 
-    def wrapfloat(self, x):
+    def newfloat(self, x):
         return JsonFloat(x)
-
-    def wrap(self, x):
-        if isinstance(x, int):
-            return JsonInt(x)
-        elif isinstance(x, float):
-            return JsonFloat(x)
-        return self.wrapunicode(unicode(x))
-    wrap._annspecialcase_ = "specialize:argtype(1)"
 
 fakespace = FakeSpace()
 
@@ -219,16 +217,7 @@ from pypy.module._pypyjson.interp_decoder import JSONDecoder
 class OwnJSONDecoder(JSONDecoder):
     def __init__(self, s):
         self.space = fakespace
-        self.s = s
-        # we put our string in a raw buffer so:
-        # 1) we automatically get the '\0' sentinel at the end of the string,
-        #    which means that we never have to check for the "end of string"
-        self.ll_chars = s + chr(0)
-        self.pos = 0
-        self.last_type = 0
-
-    def close(self):
-        pass
+        JSONDecoder.__init__(self, fakespace, s)
 
     @specialize.arg(1)
     def _raise(self, msg, *args):
@@ -239,7 +228,7 @@ class OwnJSONDecoder(JSONDecoder):
         while self.ll_chars[i] in "+-0123456789.eE":
             i += 1
         self.pos = i
-        return self.space.wrap(float(self.getslice(start, i)))
+        return self.space.newfloat(float(self.getslice(start, i)))
 
     def decode_string(self, i):
         start = i
@@ -254,15 +243,26 @@ class OwnJSONDecoder(JSONDecoder):
                 self.pos = i
                 return JsonString(content_utf8)
             elif ch == '\\':
-                content_so_far = self.getslice(start, i-1)
                 self.pos = i-1
-                return self.decode_string_escaped(start, content_so_far)
+                return self.decode_string_escaped(start)
             elif ch < '\x20':
                 self._raise("Invalid control character at char %d", self.pos-1)
+
+    def _create_dict(self, dct):
+        d = {}
+        for key, value in dct.iteritems():
+            d[unicode_encode_utf_8(key, len(key), "strict")] = value
+        return JsonObject(d)
 
 
 
 def loads(s):
+    if not we_are_translated():
+        import json
+        from pycket.util import PerfRegion
+        data = json.loads(s)
+        with PerfRegion("json_convert"):
+            return _convert(data)
     decoder = OwnJSONDecoder(s)
     try:
         w_res = decoder.decode_any(0)
@@ -274,4 +274,23 @@ def loads(s):
         return w_res
     finally:
         decoder.close()
+
+def _convert(data):
+    if data is None:
+        return json_null
+    if data is False:
+        return json_false
+    if data is True:
+        return json_true
+    if isinstance(data, int):
+        return JsonInt(data)
+    if isinstance(data, float):
+        return JsonFloat(data)
+    if isinstance(data, unicode):
+        return JsonString(data.encode("utf-8"))
+    if isinstance(data, list):
+        return JsonArray([_convert(x) for x in data])
+    if isinstance(data, dict):
+        return JsonObject({key.encode("utf-8"): _convert(value)
+            for (key, value) in data.iteritems()})
 

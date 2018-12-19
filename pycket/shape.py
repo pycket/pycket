@@ -96,7 +96,7 @@ def struct_tag(name, arity, type=None):
     return tag
 
 def get_struct_tag(type):
-    name = type.name
+    name = type.name.utf8value
     arity = type.total_field_count
     return struct_tag(name, arity, type)
 
