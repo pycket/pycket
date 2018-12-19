@@ -297,8 +297,6 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
             if not extra_info:
                 func_result_handling = make_remove_extra_info(func_result_handling)
             p = values.W_Prim("never called", func_result_handling)
-            assert isinstance(n, str)
-            prim_env[values.W_Symbol.make(n)] = p
             func_arg_unwrap.w_prim = p
             return func_arg_unwrap
 
@@ -370,9 +368,9 @@ def make_callable_label(argstypes=None, arity=None, name="<label>"):
 
 def expose_val(name, w_v, only_old=False):
     from pycket import values
-    from pycket.env import w_global_config
+    from pycket.env import w_global_config as glob
 
-    if only_old and w_global_config.are_we_in_linklet_mode() or w_global_config.is_expander_loaded():
+    if only_old and (glob.are_we_in_linklet_mode() and glob.is_expander_loaded()):
         return 
 
     sym = values.W_Symbol.make(name)

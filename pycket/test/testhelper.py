@@ -19,7 +19,6 @@ from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel
 from pycket.prims.linklet import *
 from pycket.test.utils import *
 from pycket.config import get_testing_config
-from pycket.prims.general import make_stub_predicates_no_linklet
 
 #
 # basic runners
@@ -232,7 +231,6 @@ def expand_from_bytecode(m, srcloc):
 
 def run_mod(m, stdlib=False, srcloc=True):
     assert not stdlib
-
     if not pytest.config.byte_option:
         ast = parse_module(expand_string(m, srcloc=srcloc))
     else:

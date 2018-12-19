@@ -56,6 +56,7 @@ class TestRegressions(object):
         """
         assert doctest
 
+    @pytest.mark.skipif(pytest.config.load_expander, reason="too long")
     def test_artiy_does_not_break_contracts(self, source):
         """
         #lang racket/base
@@ -76,6 +77,7 @@ class TestRegressions(object):
     def test_name_shadowing_huh(self):
         run_file("bugtest2.rkt")
 
+    @pytest.mark.skipif(pytest.config.load_expander, reason="too long")
     def test_contract_structs(self, source):
         """
         #lang racket/base
