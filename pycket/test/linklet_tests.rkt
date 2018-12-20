@@ -391,6 +391,15 @@
   (check-eq? result2 100)
   (check-eq? (instance-variable-value t2 'y) 90))
 
+(test-case "closure capture and reset3.5 (order matters)"
+  (define l2 (compile-linklet '(linklet () (y) (define-values (y) 10) (set! y 50))))
+  (define t2 (empty-target))
+  (define _2 (instantiate-linklet l2 (list) t2))
+  (define l4 (compile-linklet '(linklet () (y) (define-values (y) 90) (define-values (z) (+ y y)) (set! y 200) z)))
+  (define result2 (instantiate-linklet l4 null t2))
+  (check-eq? result2 180)
+  (check-eq? (instance-variable-value t2 'y) 200))
+
 (test-case "closure capture and reset4"
   (define l2 (compile-linklet '(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))))
   (define t2 (empty-target))

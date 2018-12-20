@@ -287,6 +287,15 @@ def test_instantiate_closure_capture_and_reset3():
     assert result == 100
     assert check_val(t2, "y", 90)
 
+def test_instantiate_closure_capture_and_reset3_5_order_matters():
+    l2 = make_linklet("(linklet () (y) (define-values (y) 10) (set! y 50))", "l2")
+    t2 = empty_target("t2")
+    _, t2 = eval_fixnum(l2, t2, [])
+    l4 = make_linklet("(linklet () (y) (define-values (y) 90) (define-values (z) (+ y y)) (set! y 200) z)")
+    result, t2 = eval_fixnum(l4, t2)
+    assert result == 180
+    assert check_val(t2, "y", 200)
+
 def test_instantiate_closure_capture_and_reset4():
     l2 = make_linklet("(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))", "l2")
     t2 = empty_target("t2")
