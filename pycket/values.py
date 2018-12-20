@@ -887,8 +887,8 @@ class W_Character(W_Object):
         self.value = val
 
     def tostring(self):
-        return "#\\%s" % runicode.unicode_encode_utf_8(
-                self.value, len(self.value), "strict")
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        return "#\%s" % string_escape_encode(self.value.encode('utf-8'), '')
 
     def immutable(self):
         return True
