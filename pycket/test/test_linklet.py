@@ -26,6 +26,12 @@ def test_instantiate_target():
     assert result2 == 8
     assert check_val(t2, "x", 4)
 
+def test_instantiate_define_var_set_banged_elsewhere():
+    l = make_linklet("(linklet () (x) (define-values (g) (lambda () (set! t 10))) (define-values (t) 50) (g) t)")
+    result, t = eval_fixnum(l, empty_target())
+    assert result == 10
+    assert check_val(t, "t", 10)
+
 def test_instantiate_target_transfer_set_banged():
     l2 = make_linklet("(linklet () (y) (define-values (y) 10) (set! y 50))", "l2")
     t1 = empty_target("t1")
@@ -602,4 +608,3 @@ def test_wcm_make_env2():
     r2, t2 = eval_fixnum(make_linklet(l), empty_target())
     print r2
     assert r2 == 3
-

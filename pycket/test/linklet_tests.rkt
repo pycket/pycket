@@ -48,6 +48,22 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; defined_var set_banged elsewhere
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(test-case
+    ""
+  (define l (compile-linklet '(linklet () ()
+                                       (define-values (g) (lambda () (set! t 10)))
+                                       (define-values (t) 50)
+                                       (g)
+                                       t)))
+  (define t (empty-target))
+  (define result (instantiate-linklet l null t))
+  (check-eq? result 10)
+  (check-eq? (instance-variable-value t 't) 10))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; target_def_overwrite
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
