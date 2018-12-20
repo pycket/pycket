@@ -41,8 +41,8 @@ class W_LinkletVar(W_Object):
         self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
 
     def tostring(self):
-        val_str = self.get_value_direct().tostring() if self.w_value else "NO-VAL"
-        return "LinkletVar(%s:%s)" % (self.sym.tostring(), val_str)
+        val_str = self.get_value_direct().tostring() if self.w_value else "N/A"
+        return "(W_LinkletVar %s %s)" % (self.sym.tostring(), val_str)
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop

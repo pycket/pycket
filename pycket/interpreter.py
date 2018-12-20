@@ -1495,8 +1495,8 @@ class LinkletStaticVar(Var):
         self.w_value = w_value
 
     def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
-        return "LinkletStaticVar(%s:%s)" % (self.sym.tostring(), val_str)
+        val_str = self.w_value.tostring() if self.w_value else "N/A"
+        return "(LinkletStaticVar %s %s)" % (self.sym.tostring(), val_str)
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -1527,8 +1527,8 @@ class LinkletVar(Var):
         self.valuating_instance = None
 
     def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
-        return "LinkletVar(%s:%s)" % (self.sym.tostring(), val_str)
+        val_str = self.w_value.tostring() if self.w_value else "N/A"
+        return "(LinkletVar %s %s)" % (self.sym.tostring(), val_str)
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -1546,8 +1546,8 @@ class LinkletVar(Var):
 class LinkletDefinedVar(LinkletVar):
 
     def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
-        return "LinkletDefinedVar(%s:%s)" % (self.sym.tostring(), val_str)
+        val_str = self.w_value.tostring() if self.w_value else "N/A"
+        return "(LinkletDefinedVar %s %s)" % (self.sym.tostring(), val_str)
 
     def _set(self, w_val, env):
         if not self.w_value or not self.valuating_instance or self.valuating_instance is not env.toplevel_env().current_linklet_instance:
@@ -1575,8 +1575,8 @@ class LinkletImportedVar(LinkletVar):
         self.import_rename = import_rename
 
     def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
-        return "LinkletImportedVar(%s:%s:%s:%s)" % (self.sym.tostring(), val_str, self.import_index, self.import_rename)
+        val_str = self.w_value.tostring() if self.w_value else "N/A"
+        return "(LinkletImportedVar %s %s %s %s)" % (self.sym.tostring(), val_str, self.import_index, self.import_rename)
 
     def _lookup(self, env):
         ## imported
@@ -1597,8 +1597,8 @@ class LinkletImportedVar(LinkletVar):
 class LinkletExpUninitVar(LinkletVar):
 
     def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
-        return "LinkletExpUninitVar(%s:%s)" % (self.sym.tostring(), val_str)
+        val_str = self.w_value.tostring() if self.w_value else "N/A"
+        return "(LinkletExpUninitVar %s %s)" % (self.sym.tostring(), val_str)
 
     def _set(self, w_val, env):
         assert not self.w_value
