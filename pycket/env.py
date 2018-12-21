@@ -279,16 +279,12 @@ class ToplevelEnv(Env):
     def toplevel_lookup(self, sym):
         from pycket.values import W_Cell
         jit.promote(self)
-        w_res = self._lookup(sym, jit.promote(self.version))
-        if isinstance(w_res, W_Cell):
-            w_res = w_res.get_val()
-        return w_res
+        return self._lookup(sym, jit.promote(self.version)).get_val()
 
     def toplevel_lookup_get_cell(self, sym):
         from pycket.values import W_Cell
         jit.promote(self)
-        w_res = self._lookup(sym, jit.promote(self.version))
-        return w_res
+        return self._lookup(sym, jit.promote(self.version))
 
     @jit.elidable
     def _lookup(self, sym, version):
