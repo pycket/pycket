@@ -694,8 +694,8 @@ def procedure_result_arity(proc, env, cont):
         return return_multi_vals(values.w_false, env, cont)
     return arity_to_value(arity, env, cont)
 
-@expose("procedure-reduce-arity", [procedure, values.W_Object])
-def procedure_reduce_arity(proc, arity):
+@expose("procedure-reduce-arity", [procedure, values.W_Object, default(values.W_Object, None)])
+def procedure_reduce_arity(proc, arity, e):
     # FIXME : this code is all wrong
     #assert isinstance(arity, Arity)
     #proc.set_arity(arity)
