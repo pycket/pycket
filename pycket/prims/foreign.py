@@ -4,13 +4,14 @@
 import sys
 
 from pycket              import values
-from pycket.error        import SchemeException
+from pycket.error        import SchemeException, FSException, ContractException, ArityException
 from pycket.foreign      import (
     W_CType,
     W_PrimitiveCType,
     W_DerivedCType,
     W_CStructType,
-    W_CPointer)
+    W_CPointer,
+    W_FFILib)
 from pycket.prims.expose import default, expose, expose_val, procedure
 
 from rpython.rlib                import jit, unroll
@@ -145,12 +146,16 @@ def ctype_alignof(ctype):
 
 @expose("ffi-lib?", [values.W_Object])
 def ffi_lib(o):
-    # Naturally, since we don't have ffi values
-    return values.w_false
+    return values.W_Bool.make(isinstance(o, W_FFILib))
 
-@expose("ffi-lib")
-def ffi_lib(args):
-    return values.w_false
+@expose("ffi-lib", [values.W_Object, default(values.W_Object, values.w_false), default(values.W_Object, values.w_false)])
+def ffi_lib(name, fail_as_false, as_global):
+    if name is values.w_false:
+        return W_FFILib()
+    if fail_as_false is values.w_false:
+        raise FSException("ffi-lib not supported on Pycket")
+    else:
+        return values.w_false
 
 @expose("malloc")
 def malloc(args):
@@ -158,7 +163,7 @@ def malloc(args):
 
 @expose("ptr-ref", [W_CPointer, W_CType, default(values.W_Fixnum, values.W_Fixnum.ZERO)])
 def ptr_ref(cptr, ctype, offset):
-    return values.w_void
+    return values.w_false
 
 @expose("ptr-set!")
 def ptr_set(args):
@@ -168,8 +173,8 @@ def ptr_set(args):
 def cp_gcable(args):
     return values.w_false
 
-@expose("ffi-obj")
-def ffi_obj(args):
+@expose("ffi-obj", [values.W_Bytes, W_FFILib])
+def ffi_obj(name, lib):
     return W_CPointer()
 
 @expose("ctype-basetype", [values.W_Object])
