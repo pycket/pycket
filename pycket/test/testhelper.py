@@ -163,7 +163,7 @@ def variables(inst):
     return get_instance_variable_names(inst) # W_Cons
 
 def defines(inst, name_str):
-    return inst.has_var(W_Symbol.make(name_str))
+    return W_Symbol.make(name_str) in inst.vars
 
 def get_val(inst, name_str):
     return inst.lookup_var_value(values.W_Symbol.make(name_str))
