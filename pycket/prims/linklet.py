@@ -40,14 +40,6 @@ class W_LinkletVar(W_Object):
         self.w_value = w_value
         self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
 
-    def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "N/A"
-        return "(W_LinkletVar %s %s)" % (self.sym.tostring(), val_str)
-
-    def write(self, port, env):
-        from pycket.prims.input_output import write_loop
-        write_loop(self.sym, port, env)
-
     def is_constant(self):
         # FIXME : investigate 'consistent
         if self.constance is values.w_false or self.constance is values.W_Symbol.make("consistent"):
@@ -57,30 +49,27 @@ class W_LinkletVar(W_Object):
         else:
             raise SchemeException("Something's wrong with the constance : %s" % self.constance.tostring())
 
-    def set_bang(self, w_val):
-        self.w_value = w_val
-
-    def export_cell(self):
-        return self.w_value
-
-    def set_cell(self, w_new_val):
-        self.w_value.set_val(w_new_val)
-
     def get_value_direct(self):
         w_res = self.get_value_unstripped()
         if isinstance(w_res, values.W_Cell):
             return w_res.get_val()
         return w_res
 
-    # get the value possibly with the W_Cell
     def get_value_unstripped(self):
-        w_res = self.w_value
-        if w_res is None:
+        if self.w_value is None:
             raise SchemeException("Reference to an uninitialized variable : %s" % self.sym.tostring())
-        return w_res
+        return self.w_value
 
     def is_uninitialized(self):
         return self.w_value is None
+
+    def tostring(self):
+        val_str = self.w_value.tostring() if self.w_value else "N/A"
+        return "(W_LinkletVar %s %s)" % (self.sym.tostring(), val_str)
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
 
 class W_Uninitialized(W_Object):
     errorname = "uninitialized"
@@ -99,69 +88,20 @@ class W_LinkletInstance(W_Object):
 
     def __init__(self, name, vars, exports, data=w_false):
         self.name = name # W_Symbol (for debugging)
-        self.vars = vars # {W_Symbol:LinkletVar}
+        self.vars = vars # {W_Symbol:W_LinkletVar}
         self.exports = exports
         self.data = data #
-
-    def tostring(self):
-
-        vars_str = " ".join(["(%s : %s)" % (name.tostring(), var.tostring()) for name, var in self.vars.iteritems()])
-        exports_str = "".join(["(%s . %s)" % (int_name.tostring(), ext_name.tostring()) for int_name, ext_name in self.exports.iteritems()])
-        data_str = self.data.tostring()
-        return "(linklet-instance %s (%s) (%s) %s)" % (self.name, data_str, exports_str, vars_str)
-
-    def get_name(self):
-        return self.name
-
-    def get_data(self):
-        return self.data
-
-    def get_vars(self):
-        return self.vars
-
-    def get_var_names(self):
-        return self.vars.keys()
 
     def set_exports(self, exports):
         self.exports = exports
 
-    def has_var(self, var_name):
-        return var_name in self.vars
-
-    def is_var_uninitialized(self, name):
-        var = self.get_var(name)
-        return var.is_uninitialized()
-
-    def check_var_exists(self, name):
-        if not self.has_var(name) and name not in self.exports:
-            raise SchemeException("Reference to an undefined variable : %s" % name.tostring())
-
     def get_var(self, name):
-        self.check_var_exists(name)
-
         if name not in self.vars:
             return self.vars[self.exports[name]]
         return self.vars[name]
 
-    def add_var(self, name, var):
-        if name in self.vars and not self.is_var_uninitialized(name):
-            raise SchemeException("Already : %s" % name.tostring())
-        self.vars[name] = var
-
     def overwrite_var(self, name, new_var):
-        self.check_var_exists(name)
-        #self.vars[name].set_bang(new_cell)
         self.vars[name] = new_var
-
-    def set_var(self, name, val, mode):
-        self.check_var_exists(name)
-        self.vars[name].set(val, None, mode)
-
-    def provide_all_exports_to_prim_env(self, excludes=[]):
-        for name, var in self.vars.iteritems():
-            if name not in excludes:
-                prim_env[name] = var.get_value_direct()
-                prim_src[name.variable_name()] = 'linklet'
 
     def lookup_var_value(self, name):
         var = self.get_var(name)
@@ -170,6 +110,19 @@ class W_LinkletInstance(W_Object):
     def lookup_var_cell(self, name):
         var = self.get_var(name)
         return var.get_value_unstripped()
+
+    def provide_all_exports_to_prim_env(self, excludes=[]):
+        for name, var in self.vars.iteritems():
+            if name not in excludes:
+                prim_env[name] = var.get_value_direct()
+                prim_src[name.variable_name()] = 'linklet'
+
+    def tostring(self):
+
+        vars_str = " ".join(["(%s : %s)" % (name.tostring(), var.tostring()) for name, var in self.vars.iteritems()])
+        exports_str = "".join(["(%s . %s)" % (int_name.tostring(), ext_name.tostring()) for int_name, ext_name in self.exports.iteritems()])
+        data_str = self.data.tostring()
+        return "(linklet-instance %s (%s) (%s) %s)" % (self.name, data_str, exports_str, vars_str)
 
 class W_LinkletBundle(W_Object):
     # Information in a linklet bundle is keyed by either a symbol or a fixnum
@@ -270,28 +223,27 @@ def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, e
         ext_name = exports[name] if name in exports else name
 
         is_exported = name in exports
-        target_has_it = ext_name in target.vars #has_var(ext_name)
+        target_has_it = ext_name in target.vars
         it_has_a_value = target_has_it and not target.vars[ext_name].is_uninitialized()
-
+        cell = None
         if is_exported and target_has_it and it_has_a_value:
             # define-values acts like a set! on target cell when the
             # variable is exported
             var = target.get_var(ext_name)
-            cell = var.export_cell()
+            cell = var.w_value
             cell.set_val(value)
-            env.toplevel_env().toplevel_set(name, cell, already_celled=True)
         else:
-            c = W_Cell(value)
-            env.toplevel_env().toplevel_set(name, c, already_celled=True)
-            var = W_LinkletVar(ext_name, c)
+            cell = W_Cell(value)
 
             if is_exported or not target_has_it:
-                target.vars[ext_name] = var
+                target.vars[ext_name] = W_LinkletVar(ext_name, cell)
 
             elif external_of_an_export(name, exports):
                 gensym_count += 1
                 ex_name = W_Symbol.make_unreadable(name.tostring() + "." + str(gensym_count))
-                target.vars[ex_name] = var
+                target.vars[ex_name] = W_LinkletVar(ext_name, cell)
+
+        env.toplevel_env().toplevel_set(name, cell, already_celled=True)
 
     return return_value(w_void, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont))
 
@@ -366,28 +318,18 @@ class W_Linklet(W_Object):
 
         --- Prep the environment and the continuation for the
             evaluation of linklet forms
-        --- Process the imports, get them into the toplevel
-            environment
         --- Collect the ids defined in the self linklet's forms
         --- Uninitialize the undefined exports in the linklet into the
             target (if it doesn't already have it)
         --- Evaluate linklet forms
         --- Return target instance and return value (None if a target
             is given to instantiate)
-
         """
 
         """
         Prep the environment and the continuation
         Put the target into the environment
         """
-        # Discard the current environment and create a new one at
-        # every instantiation This is crucial because linklet
-        # variables are put into the toplevel environment, and
-        # replacing the W_Cell (not overwriting its value) with
-        # another one makes the corresponding target to lose the link
-        # to that variable (whenever the target's variable is
-        # modified, the one in the environment has to be updated too)
         from pycket.env import ToplevelEnv
         env = ToplevelEnv(config, current_linklet_instance=target, import_instances=w_imported_instances)
 
@@ -396,28 +338,8 @@ class W_Linklet(W_Object):
             cont.update_cm(parameterization_key, top_level_config)
             cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
 
-            if prompt: # REMOVABLE
-                raise SchemeException("assumption failed; didn't get a continuation as a parameter, but got prompt : #t")
-
         if prompt:
             Prompt(w_default_continuation_prompt_tag, None, env, cont)
-
-        """
-        Process the imports, get them into the toplevel environment
-        """
-        # for instance_index, imports_dict in enumerate(self.importss):
-        #     for ext_name, int_name in imports_dict.iteritems():
-        #         # (linklet (((x x1))) () (define-values (x) 14) (+ x1 x))
-        #         if int_name in self.exports:
-        #             raise SchemeException("export duplicates import : %s" % int_name.tostring())
-
-        #         imported_var = w_imported_instances[instance_index].get_var(ext_name)
-        #         if imported_var.is_uninitialized():
-        #             raise SchemeException("Trying to import a variable that is uninitialized : %s" % ext_name.tostring())
-
-        #         # imports never get into the target
-        #         # put the into the toplevel env
-        #         env.toplevel_env().toplevel_set(int_name, imported_var.get_value_direct())
 
         """
         Collect the ids defined in the given linklet's forms
@@ -433,7 +355,7 @@ class W_Linklet(W_Object):
         for internal_name, external_name in self.exports.iteritems():
             # Defined name ids are changed in compilation based on renames
             if external_name not in linklet_defined_names:
-                if not target.has_var(external_name):
+                if not external_name in target.vars:
                     target.vars[external_name] = W_LinkletVar(external_name)
 
         if len(self.forms) == 0:
@@ -621,7 +543,7 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
 
 @expose("instance-name", [W_LinkletInstance])
 def instance_name(l_inst):
-    return l_inst.get_name()
+    return l_inst.name
 
 @expose("instantiate-linklet", [W_Linklet, W_List, default(W_Object, w_false), default(W_Object, w_true)], simple=False)
 def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, env, cont):
@@ -672,7 +594,7 @@ def instance_variable_names(inst):
 # to be able to call it without prim_env indirection
 def get_instance_variable_names(inst):
     names = w_null
-    for name in inst.get_var_names():
+    for name in inst.vars.keys():
         names = W_Cons.make(name, names)
 
     return names
@@ -729,7 +651,7 @@ def recompile_linklet(linkl, name, import_keys, get_import, env, cont):
 
 @expose("instance-variable-value", [W_LinkletInstance, W_Symbol, default(W_Object, None)], simple=False)
 def instance_variable_value(instance, name, fail_k, env, cont):
-    if not instance.has_var(name) or instance.get_var(name).is_uninitialized():
+    if name not in instance.vars or instance.vars[name].is_uninitialized():
         if fail_k is not None and fail_k.iscallable():
             return fail_k.call([], env, cont)
         else:
@@ -744,7 +666,7 @@ def instance_describe_variable(inst, name, desc_v):
 
 @expose("instance-data", [W_LinkletInstance])
 def instance_data(inst):
-    return inst.get_data()
+    return inst.data
 
 @expose("eval-linklet", [W_Linklet])
 def eval_linklet(l):
@@ -752,12 +674,12 @@ def eval_linklet(l):
 
 @expose("instance-set-variable-value!", [W_LinkletInstance, W_Symbol, W_Object, default(W_Object, w_false)])
 def instance_set_variable_value(instance, name, val, mode):
-    if instance.has_var(name) and not instance.is_var_uninitialized(name):
+    if name in instance.vars and not instance.vars[name].is_uninitialized():
         v = instance.get_var(name)
         if v.is_constant():
             raise SchemeException("Cannot mutate a constant : %s" % name.tostring())
         # FIXME : change to be constant?
-        instance.vars[name].set_cell(val)
+        instance.vars[name].w_value.set_val(val)
     else:
         instance.vars[name] = W_LinkletVar(name, W_Cell(val), mode)
 
