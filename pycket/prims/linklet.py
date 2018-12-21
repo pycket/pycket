@@ -41,7 +41,7 @@ class W_LinkletVar(W_Object):
         self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
 
     def tostring(self):
-        val_str = self.get_value_direct().tostring() if self.w_value else "N/A"
+        val_str = self.w_value.tostring() if self.w_value else "N/A"
         return "(W_LinkletVar %s %s)" % (self.sym.tostring(), val_str)
 
     def write(self, port, env):
@@ -58,7 +58,13 @@ class W_LinkletVar(W_Object):
             raise SchemeException("Something's wrong with the constance : %s" % self.constance.tostring())
 
     def set_bang(self, w_val):
-        self.w_value.set_val(w_val)
+        self.w_value = w_val
+
+    def export_cell(self):
+        return self.w_value
+
+    def set_cell(self, w_new_val):
+        self.w_value.set_val(w_new_val)
 
     def get_value_direct(self):
         w_res = self.get_value_unstripped()
@@ -122,7 +128,6 @@ class W_LinkletInstance(W_Object):
     def has_var(self, var_name):
         return var_name in self.vars
 
-    # for tests
     def is_var_uninitialized(self, name):
         var = self.get_var(name)
         return var.is_uninitialized()
@@ -143,9 +148,10 @@ class W_LinkletInstance(W_Object):
             raise SchemeException("Already : %s" % name.tostring())
         self.vars[name] = var
 
-    def overwrite_var(self, name, value):
+    def overwrite_var(self, name, new_var):
         self.check_var_exists(name)
-        self.vars[name].set_bang(value)
+        #self.vars[name].set_bang(new_cell)
+        self.vars[name] = new_var
 
     def set_var(self, name, val, mode):
         self.check_var_exists(name)
@@ -260,22 +266,32 @@ def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, e
     for i in range(len_values):
         name = form.names[i]
         value = values[i]
-
         # modify target
         ext_name = exports[name] if name in exports else name
-        c = W_Cell(value)
-        env.toplevel_env().toplevel_set(name, c, already_celled=True)
 
-        var = W_LinkletVar(ext_name, c)
-        if name in exports or not target.has_var(ext_name): # variable is definitely going into target
-            if target.has_var(ext_name) and not target.is_var_uninitialized(ext_name):
-                target.overwrite_var(ext_name, value)
-            else:
-                target.add_var(ext_name, var)
-        elif external_of_an_export(name, exports):
-            gensym_count += 1
-            ex_name = W_Symbol.make_unreadable(name.tostring() + "." + str(gensym_count))
-            target.add_var(ex_name, var)
+        is_exported = name in exports
+        target_has_it = ext_name in target.vars #has_var(ext_name)
+        it_has_a_value = target_has_it and not target.vars[ext_name].is_uninitialized()
+
+        if is_exported and target_has_it and it_has_a_value:
+            # define-values acts like a set! on target cell when the
+            # variable is exported
+            var = target.get_var(ext_name)
+            cell = var.export_cell()
+            cell.set_val(value)
+            env.toplevel_env().toplevel_set(name, cell, already_celled=True)
+        else:
+            c = W_Cell(value)
+            env.toplevel_env().toplevel_set(name, c, already_celled=True)
+            var = W_LinkletVar(ext_name, c)
+
+            if is_exported or not target_has_it:
+                target.vars[ext_name] = var
+
+            elif external_of_an_export(name, exports):
+                gensym_count += 1
+                ex_name = W_Symbol.make_unreadable(name.tostring() + "." + str(gensym_count))
+                target.vars[ex_name] = var
 
     return return_value(w_void, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont))
 
@@ -418,7 +434,7 @@ class W_Linklet(W_Object):
             # Defined name ids are changed in compilation based on renames
             if external_name not in linklet_defined_names:
                 if not target.has_var(external_name):
-                    target.add_var(external_name, W_LinkletVar(external_name))
+                    target.vars[external_name] = W_LinkletVar(external_name)
 
         if len(self.forms) == 0:
             # no need for any evaluation, just return the instance or the value
@@ -741,9 +757,9 @@ def instance_set_variable_value(instance, name, val, mode):
         if v.is_constant():
             raise SchemeException("Cannot mutate a constant : %s" % name.tostring())
         # FIXME : change to be constant?
-        instance.overwrite_var(name, val)
+        instance.vars[name].set_cell(val)
     else:
-        instance.add_var(name, W_LinkletVar(name, W_Cell(val), mode))
+        instance.vars[name] = W_LinkletVar(name, W_Cell(val), mode)
 
     return w_void
 
