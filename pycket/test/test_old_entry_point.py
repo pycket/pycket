@@ -183,7 +183,6 @@ class TestCommandline(object):
         printval = "42"
         assert entry_point(['arg0', '-e', '(display %s)' % printval]) == 0
         out, err = capfd.readouterr()
-        import pdb;pdb.set_trace()
         assert out == "%s" % printval
 
     def test_f(self, capfd, racket_file):
