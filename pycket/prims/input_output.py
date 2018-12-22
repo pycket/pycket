@@ -924,7 +924,7 @@ def expand_user_path(p):
     if isinstance(p, values.W_Path):
         path_str = p.path
     elif isinstance(p, values_string.W_String):
-        path_str = p.tostring()
+        path_str = p.as_escaped_utf8()
     else:
         raise ContractException("expand_user_path expects a string or a path")
 
