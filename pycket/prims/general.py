@@ -1608,6 +1608,10 @@ expose_val("current-security-guard", values_parameter.W_Parameter(initial_securi
 def make_security_guard(parent, file, network, link):
     return values.W_SecurityGuard()
 
+@expose("unsafe-make-security-guard-at-root")
+def unsafe_make_sec_guard(args):
+    return values.W_SecurityGuard()
+
 @make_procedure("current-directory-guard", [values.W_Object], simple=False)
 def current_directory_guard(path, env, cont):
     from pycket.interpreter import return_value
