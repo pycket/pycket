@@ -890,6 +890,9 @@ class W_Character(W_Object):
         from pypy.objspace.std.bytesobject import string_escape_encode
         return "#\%s" % string_escape_encode(self.value.encode('utf-8'), '')
 
+    def get_value_utf8(self):
+        return self.value.encode('utf-8')
+
     def immutable(self):
         return True
 

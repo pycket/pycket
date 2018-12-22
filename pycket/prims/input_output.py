@@ -1470,7 +1470,12 @@ def format(form, vals, name):
                 #FIXME: use error-print-width
                 if j >= len(vals):
                     raise ContractException(name + ": not enough arguments for format string")
-                result.append(vals[j].tostring())
+                if isinstance(vals[j], values_string.W_String):
+                    result.append(vals[j].as_escaped_utf8())
+                elif isinstance(vals[j], values.W_Character):
+                    result.append(vals[j].get_value_utf8())
+                else:
+                    result.append(vals[j].tostring())
                 j += 1
         elif (s == 'a' or # turns into switch
             s == 'A' or
@@ -1491,7 +1496,12 @@ def format(form, vals, name):
             s == '.'):
             if j >= len(vals):
                 raise ContractException(name + ": not enough arguments for format string")
-            result.append(vals[j].tostring())
+            if isinstance(vals[j], values_string.W_String):
+                result.append(vals[j].as_escaped_utf8())
+            elif isinstance(vals[j], values.W_Character):
+                result.append(vals[j].get_value_utf8())
+            else:
+                result.append(vals[j].tostring())
             j += 1
         elif s == 'n' or s == '%':
             result.append("\n") # newline
