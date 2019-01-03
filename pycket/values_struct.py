@@ -183,7 +183,7 @@ class W_StructType(values.W_Object):
         immutables = [i for i in range(prefab_key.init_field_count) \
                       if i not in prefab_key.mutables]
         w_struct_type = W_StructType(
-            w_name=prefab_key.name,
+            w_name=prefab_key.w_name,
             w_super_type=w_super_type,
             init_field_count=prefab_key.init_field_count,
             auto_field_count=prefab_key.auto_field_count,
@@ -589,9 +589,9 @@ class W_PrefabKey(values.W_Object):
         else:
             return values.w_false
 
-    def __init__(self, name, init_field_count, auto_field_count,
+    def __init__(self, w_name, init_field_count, auto_field_count,
                  w_auto_value, mutables, super_key):
-        self.name = name
+        self.w_name = w_name
         self.init_field_count = init_field_count
         self.auto_field_count = auto_field_count
         self.w_auto_value = w_auto_value
@@ -608,7 +608,7 @@ class W_PrefabKey(values.W_Object):
 
     def key(self):
         key = []
-        key.append(self.name)
+        key.append(self.w_name)
         key.append(values.wrap(self.init_field_count))
         if self.auto_field_count > 0:
             lst = values.wrap(self.w_auto_value, values.w_null)
@@ -627,7 +627,7 @@ class W_PrefabKey(values.W_Object):
         return values.to_list(short_key) if len(short_key) > 1 else key[0]
 
     def make_key_tuple(self):
-        return self.name, self.init_field_count, self.auto_field_count,\
+        return self.w_name, self.init_field_count, self.auto_field_count,\
             self.w_auto_value, self.mutables, self.super_key
 
 class W_RootStruct(values.W_Object):
