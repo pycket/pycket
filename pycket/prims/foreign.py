@@ -183,9 +183,9 @@ def ptr_set(args):
 def cp_gcable(args):
     return values.w_false
 
-@expose("ffi-obj", [values.W_Bytes, W_FFILib])
+@expose("ffi-obj", [values.W_Bytes, values.W_Object])
 def ffi_obj(name, lib):
-    return W_CPointer()
+    raise FSException("unable to get symbol %s from %s"%(name.tostring(), lib.tostring()))
 
 @expose("ctype-basetype", [values.W_Object])
 def ctype_basetype(ctype):
