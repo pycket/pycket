@@ -2194,3 +2194,8 @@ class W_Impossible(W_Object):
     errorname = "impossible"
     def __init__(self):
         pass
+
+class W_WillExecutor(W_Object):
+    errorname = "will-executor"
+    def __init__(self):
+        pass
