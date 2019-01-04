@@ -2092,3 +2092,15 @@ def will_exec(w):
 @expose("will-try-execute", [values.W_WillExecutor, default(values.W_Object, values.w_false)])
 def will_exec(w, v):
     return v
+
+@expose("thread", [values.W_Object])
+def thread(p):
+    return values.W_Thread()
+
+@expose("thread/suspend-to-kill", [values.W_Object])
+def thread_susp(p):
+    return values.W_Thread()
+
+@expose("make-channel", [])
+def make_channel():
+    return values.W_Channel()
