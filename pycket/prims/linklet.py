@@ -92,8 +92,10 @@ class W_LinkletInstance(W_Object):
         self.exports = exports
         self.data = data #
 
-    def set_exports(self, exports):
-        self.exports = exports
+    def add_exports(self, given_exports):
+        for e in given_exports:
+            if e not in self.exports:
+                self.exports[e] = given_exports[e]
 
     def get_var(self, name):
         if name not in self.vars:
@@ -312,7 +314,7 @@ class W_Linklet(W_Object):
             target = W_LinkletInstance(self.name, {}, self.exports)
             return_val = False
         else:
-            target.set_exports(self.exports)
+            target.add_exports(self.exports)
 
         """Instantiates the linklet:
 
