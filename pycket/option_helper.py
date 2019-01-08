@@ -93,7 +93,7 @@ conf_opts = ["-c", "--no-compiled",
              "-L", "--syslog",
              "--kernel",
              "--save-callgraph"]
-meta_opts = ["--dev", "--eval-linklet", "--just-init", "--verbose", "--jit", "-h"]
+meta_opts = ["--dev", "--load-regexp", "--eval-linklet", "--just-init", "--verbose", "--jit", "-h"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
 
@@ -366,7 +366,7 @@ def parse_args(argv):
 
         elif argv[i] == "--dev":
             config['dev-mode'] = True
-            retval = RETURN_OK
+            #retval = RETURN_OK
 
         elif argv[i] == "--eval-linklet":
             if to <= i + 1 or argv[i+1] in all_opts:
@@ -379,7 +379,7 @@ def parse_args(argv):
 
         elif argv[i] == "--load-regexp":
             config['load-regexp'] = True
-            retval = RETURN_OK
+            #retval = RETURN_OK
 
         elif argv[i] == "--just-init":
             config['just-init'] = True
