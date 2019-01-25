@@ -64,7 +64,7 @@
 
 #| MERGE-LET
 
-(let ([v1 e1]) (let ([v2 e2]) e3)) => (let ([v1 e1] [v2 e2]) e3)
+(let ([v1 e1]) (let ([v2 e2]) e3) rest-body) => (let ([v1 e1] [v2 e2]) e3 rest-body)
 
 |#
 
@@ -83,8 +83,7 @@
 (define (check-merge-let let-form)
   (let ([out-body (hash-ref let-form 'let-body)]
         [out-rhs (hash-ref let-form 'let-bindings)])
-    (and (= 1 (length out-body))
-         (let? (car out-body))
+    (and (let? (car out-body))
          (let* ([inner-rhs (hash-ref (car out-body) 'let-bindings)]
                 [outer-bindings (extract-bindings out-rhs)]
                 [inner-frees (free-vars inner-rhs)])
@@ -93,12 +92,13 @@
 (define (apply-merge-let let-form)
   (set! merge-let-count (add1 merge-let-count))
   (let* ([out-rhs (hash-ref let-form 'let-bindings)]
-         [inner-let (car (hash-ref let-form 'let-body))]
+         [out-body (hash-ref let-form 'let-body)]
+         [inner-let (car out-body)]
          [inner-let-rhs (hash-ref inner-let 'let-bindings)]
          [inner-let-body (hash-ref inner-let 'let-body)])
     (normalize
      (hash* 'let-bindings (append out-rhs inner-let-rhs)
-            'let-body inner-let-body))))
+            'let-body (append inner-let-body (cdr out-body))))))
 
 #| APP-LET
 
