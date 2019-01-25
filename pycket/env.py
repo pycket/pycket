@@ -247,7 +247,7 @@ w_version = Version()
 
 class ToplevelEnv(Env):
     _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig', 'current_linklet_instance', 'import_instances']
-    _immutable_fields_ = ["version?", "module_env"]
+    _immutable_fields_ = ["version?", "module_env", 'current_linklet_instance']
     def __init__(self, pycketconfig=None, current_linklet_instance=None, import_instances=[]):
         from rpython.config.config import Config
         self.bindings = {}
