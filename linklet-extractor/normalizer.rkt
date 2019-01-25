@@ -163,7 +163,7 @@
 
 #| LET-RHS : move the let in the rhs of a wrapping let, outside
 
-(let ([a-sym (let ([b-sym b-rhs]) body-b)]) body-a) ==> (let ([b-sym b-rhs])
+(let ([a-sym (let ([b-sym b-rhs] ...) body-b ...)]) body-a) ==> (let ([b-sym b-rhs]....)
                                                           (let ([a-sym body-b]) body-a))
 
 DISABLED FOR NOW - changes the meaning in the current form, there's an
@@ -177,19 +177,22 @@ implicit assumption I've yet to find |#
 (define (apply-let-rhs let-form)
   (let* ([bindings-a (car (hash-ref let-form 'let-bindings))]
          [a-sym (car bindings-a)]
-         [b-let (cadr bindings-a)]
-         [bindings-b (car (hash-ref b-let 'let-bindings))]
+         [b-let (cadr bindings-a)] ; (let ([b-sym b-rhs] ...) body-b)
+         [rhs-bindings (hash-ref b-let 'let-bindings)] ; ([b-sym b-rhs] ...)
+         [bindings-b (car rhs-bindings)] ; [b-sym b-rhs]
          [b-sym (car bindings-b)]
          [b-rhs (cadr bindings-b)]
 
          [body-a (hash-ref let-form 'let-body)]
-         [body-b (hash-ref b-let 'let-body)])
+         [body-b* (hash-ref b-let 'let-body)]
+         [body-b (if (= (length body-b*) 1)
+                     (car body-b*)
+                     (cons (hash* 'source-name "begin") body-b*))])
     (set! let-rhs-count (add1 let-rhs-count))
     (normalize
-     (hash* 'let-bindings (list (list b-sym
-                                      b-rhs))
+     (hash* 'let-bindings rhs-bindings
             'let-body (list (hash* 'let-bindings (list (list a-sym
-                                                             (car body-b)))
+                                                             body-b))
                                    'let-body body-a))))))
 
 #| BEGIN-LET
@@ -304,7 +307,7 @@ Convert (begin (let ([...]) letbody) rest ...) =>
 
     [(and (begin? body) (check-begin-let body)) (apply-begin-let body)]
 
-    #;[(and (let? body) (check-let-rhs body)) (apply-let-rhs body)]
+    [(and (let? body) (check-let-rhs body)) (apply-let-rhs body)]
     [(and (let? body) (check-merge-let body)) (apply-merge-let body)]
 
     [(and (if? body) (check-if-anorm body)) (apply-if-anorm body)]
