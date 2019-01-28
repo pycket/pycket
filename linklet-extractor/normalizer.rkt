@@ -166,34 +166,52 @@
 (let ([a-sym (let ([b-sym b-rhs] ...) body-b ...)]) body-a) ==> (let ([b-sym b-rhs]....)
                                                           (let ([a-sym body-b]) body-a))
 
-DISABLED FOR NOW - changes the meaning in the current form, there's an
-implicit assumption I've yet to find |#
+More general:
+
+(let ([c-sym c-body]
+      [a-sym (let ([b-sym b-rhs] ...) body-b ...)]
+      [d-sym d-body] ...) body-a ...)
+===>
+(let ([c-sym c-body][b-sym b-rhs] ...)
+  (let ([a-sym (begin body-b ...)]
+        [d-sym d-body] ...)
+    body-a ...))
+
+|#
 
 (define (check-let-rhs let-form)
   (let ([bindings (hash-ref let-form 'let-bindings)])
-    (and (= (length bindings) 1)
-         (let? (cadr (car bindings))))))
+    (ormap (lambda (b) (let? (cadr b))) bindings)))
+
+(define (split-the-rhss bindings before)
+  (cond
+    [(null? bindings) (error 'split-the-rhss "something's wrong")]
+    [(let? (cadr (car bindings)))
+     (values (reverse before) (car bindings) (cdr bindings))]
+    [else
+     (split-the-rhss (cdr bindings) (cons (car bindings) before))]))
 
 (define (apply-let-rhs let-form)
-  (let* ([bindings-a (car (hash-ref let-form 'let-bindings))]
-         [a-sym (car bindings-a)]
-         [b-let (cadr bindings-a)] ; (let ([b-sym b-rhs] ...) body-b)
-         [rhs-bindings (hash-ref b-let 'let-bindings)] ; ([b-sym b-rhs] ...)
-         [bindings-b (car rhs-bindings)] ; [b-sym b-rhs]
-         [b-sym (car bindings-b)]
-         [b-rhs (cadr bindings-b)]
-
-         [body-a (hash-ref let-form 'let-body)]
-         [body-b* (hash-ref b-let 'let-body)]
-         [body-b (if (= (length body-b*) 1)
-                     (car body-b*)
-                     (cons (hash* 'source-name "begin") body-b*))])
-    (set! let-rhs-count (add1 let-rhs-count))
-    (normalize
-     (hash* 'let-bindings rhs-bindings
-            'let-body (list (hash* 'let-bindings (list (list a-sym
-                                                             body-b))
-                                   'let-body body-a))))))
+  (let ([bindings (hash-ref let-form 'let-bindings)])
+    ;; before-rhs : list of [c-sym c-body] before the let-rhs
+    ;; let-rhs : [a-sym (let ([b-sym b-rhs] ...) body-b ...)]
+    ;; after-rhs : list of [d-sym d-body] after the let-rhs
+    (let-values ([(before-rhs a-let-rhs after-rhs)
+                  (split-the-rhss bindings null)])
+      (let* ([a-sym (car a-let-rhs)]
+             [b-let (cadr a-let-rhs)] ; (let ([b-sym b-rhs] ...) body-b ...)
+             [rhs-bindings (hash-ref b-let 'let-bindings)] ; ([b-sym b-rhs] ...)
+             [bindings-b (car rhs-bindings)] ; [b-sym b-rhs]
+             [body-a (hash-ref let-form 'let-body)]
+             [body-b* (hash-ref b-let 'let-body)]
+             [body-b (if (= (length body-b*) 1)
+                         (car body-b*)
+                         (cons (hash* 'source-name "begin") body-b*))])
+        (set! let-rhs-count (add1 let-rhs-count))
+        (normalize
+         (hash* 'let-bindings (append before-rhs rhs-bindings)
+                'let-body (list (hash* 'let-bindings (cons (list a-sym body-b) after-rhs)
+                                       'let-body body-a))))))))
 
 #| BEGIN-LET
 
