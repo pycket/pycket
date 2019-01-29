@@ -23,7 +23,7 @@ Funcions inside are:
 - deserialize_loop
 """
 
-def to_rpython_list(r_list, open_correlated=False, reverse=False):
+def to_rpython_list(r_list, unwrap_correlated=False, reverse=False):
     # assumes r_list is proper
     length = 0
     acc = r_list
@@ -33,7 +33,7 @@ def to_rpython_list(r_list, open_correlated=False, reverse=False):
     acc = r_list
     py_ls = [None]*length
     for n in range(length):
-        a = acc.car().get_obj() if (open_correlated and isinstance(acc.car(), W_Correlated)) else acc.car()
+        a = acc.car().get_obj() if (unwrap_correlated and isinstance(acc.car(), W_Correlated)) else acc.car()
         if reverse:
             py_ls[length-n-1] = a
         else:
@@ -122,7 +122,7 @@ def def_vals_to_ast(def_vals_sexp, exports, cur_toplevels, all_toplevels, linkl_
         raise SchemeException("defs_vals_to_ast : unhandled define-values form : %s" % def_vals_sexp.tostring())
 
     names = ls[1] # def_vals_sexp.cdr().car()
-    names_ls, names_ln = to_rpython_list(names, open_correlated=True)
+    names_ls, names_ln = to_rpython_list(names, unwrap_correlated=True)
 
     the_name = names_ls[0].variable_name() if names_ln > 0 else ""
     body = sexp_to_ast(ls[2], [], exports, cur_toplevels, all_toplevels, linkl_imports, cell_ref=[], name=the_name)
@@ -191,7 +191,7 @@ def let_like_to_ast(let_sexp, lex_env, exports, cur_toplevels, all_toplevels, li
     if is_letrec:
         # populate lex_env
         for rhs in varss_rhss: # rhs : ((id ...) rhs-expr)
-            ids, ids_len = to_rpython_list(rhs.car(), open_correlated=True) # (id ...)
+            ids, ids_len = to_rpython_list(rhs.car(), unwrap_correlated=True) # (id ...)
             lex_env += ids
 
     varss_list = [None] * varss_len
@@ -199,7 +199,7 @@ def let_like_to_ast(let_sexp, lex_env, exports, cur_toplevels, all_toplevels, li
     num_ids = 0
     i = 0
     for w_vars_rhss in varss_rhss:
-        varr, varr_len = to_rpython_list(w_vars_rhss.car(), open_correlated=True)
+        varr, varr_len = to_rpython_list(w_vars_rhss.car(), unwrap_correlated=True)
         varss_list[i] = varr
 
         rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, exports, cur_toplevels, all_toplevels, linkl_imports, cell_ref=[])
@@ -484,7 +484,7 @@ def create_toplevel_linklet_vars(forms_ls):
             form = form.get_obj()
         if isinstance(form, values.W_List) and form.car() is values.W_Symbol.make("define-values"):
             ids = form.cdr().car()
-            ids_ls, ids_len = to_rpython_list(ids, open_correlated=True)
+            ids_ls, ids_len = to_rpython_list(ids, unwrap_correlated=True)
             # create LinkletVar for each id
             for id in ids_ls:
                 if id in linkl_toplevels:
@@ -494,7 +494,7 @@ def create_toplevel_linklet_vars(forms_ls):
     return linkl_toplevels
 
 def process_w_body_sexp(w_body, importss_list, exports):
-    body_forms_ls, body_length = to_rpython_list(w_body, open_correlated=True)
+    body_forms_ls, body_length = to_rpython_list(w_body, unwrap_correlated=True)
     cur_toplevels = {}
 
     all_toplevels = create_toplevel_linklet_vars(body_forms_ls)
@@ -503,7 +503,7 @@ def process_w_body_sexp(w_body, importss_list, exports):
     for index, b in enumerate(body_forms_ls):
         if isinstance(b, values.W_List) and  b.car() is values.W_Symbol.make("define-values"):
             ids = b.cdr().car()
-            ids_ls, id_len = to_rpython_list(ids, open_correlated=True)
+            ids_ls, id_len = to_rpython_list(ids, unwrap_correlated=True)
             for id in ids_ls:
                 if id in cur_toplevels:
                     raise SchemeException("duplicate binding name : %s" % id.tostring())
