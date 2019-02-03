@@ -1560,16 +1560,25 @@ class LinkletImportedVar(LinkletVar):
         LinkletVar.__init__(self, sym)
         self.import_index = import_index
         self.import_rename = import_rename
-        # FIXME : cache the value whenever possible
+        self.w_value = None
+        self.valuating_instance = None
 
     def tostring(self):
         return "(LinkletImportedVar %s %s %s)" % (self.sym.tostring(), self.import_index, self.import_rename)
 
     def _lookup(self, env):
+        if self.w_value:
+            imp_inst = env.toplevel_env().import_instances[self.import_index]
+            if imp_inst is self.valuating_instance:
+                return self.w_value
+
         ## imported
         imp_inst = env.toplevel_env().import_instances[self.import_index]
         lookup_sym = self.import_rename if self.import_rename else self.sym
-        return imp_inst.lookup_var_value(lookup_sym) # value, not cell
+        w_val = imp_inst.lookup_var_value(lookup_sym) # value, not cell
+        self.w_value = w_val
+        self.valuating_instance = imp_inst
+        return w_val
 
 class LinkletExpUninitVar(LinkletVar):
 
