@@ -112,7 +112,7 @@
 
 |#
 
-(define (app-let? term)
+(define (check-app-let term)
   (and (or (let? term) (letrec? term))
        (let*
            ([body-sym (if (let? term) 'let-body 'letrec-body)]
@@ -250,22 +250,26 @@ Convert (begin (let ([...]) letbody) rest ...) =>
 (rator rand1 rand2 (....) rand3 ...) ===>
 (let ([AppRand0 (....)]) (rator rand1 rand2 AppRand0 rand3))
 
-(rator rand1 rand2 (let ([sym rhs]) body) rand3 ...) ===>
-(let ([sym rhs])
-  (let ([AppRand0 body])
+(rator rand1 rand2 (let ([sym rhs] ...) body ...) rand3 ...) ===>
+(let ([sym rhs] ...)
+  (let ([AppRand0 (begin body ...)])
     (rator rand1 rand2 AppRand0 rand3 ...)))
 
 (rator rand1 (let ([sym0 rhs0]) body0) (let ([sym rhs]) body) rand3 ...) ===>
 (let ([sym0 rhs0])
   (let ([AppRand0 body0])
     (rator rand1 AppRand0 (let ([sym rhs]) body) rand3 ...))) ==>
-
-
--- reminder : this is a one-step normalization
 |#
 
 (define (one-of-these? name)
-  (member name '("hash-set" "hash-set!" "eq?" "bytes->path" "string->bytes/locale" "regexp-replace*")))
+  (member name '("hash-set" "list" "cons"
+                 "hash-set!"
+                 "eq?"
+                 "bytes->path"
+                 "string->bytes/locale"
+                 "regexp-replace*"
+                 "make-struct-type"
+                 "make-struct-type-property")))
 
 (define (check-app-rand app-form)
   (let* ([rator (hash-ref app-form 'operator)]
@@ -273,12 +277,12 @@ Convert (begin (let ([...]) letbody) rest ...) =>
     (and (list? rands)
          #;(>= (length rands) 1)
          (or (ormap app? rands) (ormap let? rands))
-         (kernel-prim-id? rator)
+         #;(kernel-prim-id? rator)
          #;(printf "rator id : ~a\n" (hash-ref rator 'source-name #f))
-         (one-of-these? (hash-ref rator 'source-name #f)))))
+         #;(one-of-these? (hash-ref rator 'source-name #f)))))
 
 (define gensym-counter 0)
-
+;; FIXME : refactor the stateful code below
 (define (apply-app-rand app-form)
   (let* ([rator (hash-ref app-form 'operator)]
          [rands (hash-ref app-form 'operands)])
@@ -296,16 +300,17 @@ Convert (begin (let ([...]) letbody) rest ...) =>
                         (set! found true)
                         (set! let-rhss (list (list new-sym-str) r))
                         (hash* 'lexical new-sym-str)))]
-          [(let? r) (let ((new-sym-str (format "AppRand~a" gensym-counter))
-                          (wrapping-let-rhss (hash-ref r 'let-bindings))
-                          (wrapping-let-body (hash-ref r 'let-body)))
-                      (when (> (length wrapping-let-body) 1)
-                        (error "rands have let with more than one body expression : ~a" app-form))
+          [(let? r) (let* ((new-sym-str (format "AppRand~a" gensym-counter))
+                           (wrapping-let-rhss (hash-ref r 'let-bindings))
+                           (wrapping-let-body (hash-ref r 'let-body))
+                           (let-rhss-body (if (= (length wrapping-let-body) 1)
+                                              (car wrapping-let-body)
+                                              (cons (hash* 'source-name "begin") wrapping-let-body))))
                       (begin
                         (set! gensym-counter (add1 gensym-counter))
                         (set! found true)
                         (set! wrapper-rhss wrapping-let-rhss)
-                        (set! let-rhss (list (list new-sym-str) (car wrapping-let-body)))
+                        (set! let-rhss (list (list new-sym-str) let-rhss-body))
                         (hash* 'lexical new-sym-str)))]
           [else r])))
     (normalize
@@ -316,8 +321,8 @@ Convert (begin (let ([...]) letbody) rest ...) =>
                                        'let-body (list (hash* 'operator rator
                                                               'operands new-rands)))))
          (hash* 'let-bindings (list (normalize let-rhss))
-                'let-body (list (hash* 'operator rator
-                                       'operands new-rands)))))))
+                'let-body (list (normalize (hash* 'operator rator
+                                                  'operands new-rands))))))))
 
 (define (normalize body)
   (cond
@@ -329,7 +334,7 @@ Convert (begin (let ([...]) letbody) rest ...) =>
     [(and (let? body) (check-merge-let body)) (apply-merge-let body)]
 
     [(and (if? body) (check-if-anorm body)) (apply-if-anorm body)]
-    [(and (app? body) (app-let? (hash-ref body 'operator))) (apply-app-let body)]
+    [(and (app? body) (check-app-let (hash-ref body 'operator))) (apply-app-let body)]
     [(and (app? body) (check-app-rand body)) (apply-app-rand body)]
 
     [(hash? body) (for/hash ([(key value) (in-hash body)])
