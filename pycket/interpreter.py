@@ -1518,17 +1518,13 @@ class LinkletStaticVar(Var):
 
 class LinkletVar(Var):
     visitable = True
-    _immutable_fields_ = ["w_value?", "sym", "constance", "valuating_instance?"]
+    _immutable_fields_ = ["sym"]
 
-    def __init__(self, sym, w_value=None, constance=values.w_false):
+    def __init__(self, sym):
         self.sym = sym
-        self.w_value = w_value
-        self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
-        self.valuating_instance = None
 
     def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "N/A"
-        return "(LinkletVar %s %s)" % (self.sym.tostring(), val_str)
+        return "(LinkletVar %s)" % (self.sym.tostring())
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -1546,81 +1542,52 @@ class LinkletVar(Var):
 class LinkletDefinedVar(LinkletVar):
 
     def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "N/A"
-        return "(LinkletDefinedVar %s %s)" % (self.sym.tostring(), val_str)
+        return "(LinkletDefinedVar %s)" % (self.sym.tostring())
 
     def _set(self, w_val, env):
-        if not self.w_value or not self.valuating_instance or self.valuating_instance is not env.toplevel_env().current_linklet_instance:
-            self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
-            self.valuating_instance = env.toplevel_env().current_linklet_instance
-
-        self.w_value.set_val(w_val)
+        cell = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
+        cell.set_val(w_val)
 
     def _lookup(self, env):
         # defined within the linklet, the value should be in the
         # toplevel env
-        if self.w_value and self.valuating_instance:
-            if env.toplevel_env().current_linklet_instance is self.valuating_instance:
-                return self.w_value.get_val()
-
-        self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
-        self.valuating_instance = env.toplevel_env().current_linklet_instance
-        return self.w_value.get_val()
+        cell = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
+        return cell.get_val()
 
 class LinkletImportedVar(LinkletVar):
-    _immutable_fields_ = ["sym", "constance", "import_index", "import_rename"]
-    def __init__(self, sym, import_index, import_rename=None, w_value=None, constance=values.w_false):
-        LinkletVar.__init__(self, sym, w_value, constance)
+    _immutable_fields_ = ["sym", "import_index", "import_rename"]
+    def __init__(self, sym, import_index, import_rename=None):
+        LinkletVar.__init__(self, sym)
         self.import_index = import_index
         self.import_rename = import_rename
+        # FIXME : cache the value whenever possible
 
     def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "N/A"
-        return "(LinkletImportedVar %s %s %s %s)" % (self.sym.tostring(), val_str, self.import_index, self.import_rename)
+        return "(LinkletImportedVar %s %s %s)" % (self.sym.tostring(), self.import_index, self.import_rename)
 
     def _lookup(self, env):
         ## imported
-        if self.w_value:
-            assert self.valuating_instance
-            imp_inst = env.toplevel_env().import_instances[self.import_index]
-            if imp_inst is self.valuating_instance:
-                return self.w_value
-
-        ## actual lookup for imported
         imp_inst = env.toplevel_env().import_instances[self.import_index]
         lookup_sym = self.import_rename if self.import_rename else self.sym
-        w_val = imp_inst.lookup_var_value(lookup_sym) # value, not cell
-        self.w_value = w_val
-        self.valuating_instance = imp_inst
-        return w_val
+        return imp_inst.lookup_var_value(lookup_sym) # value, not cell
 
 class LinkletExpUninitVar(LinkletVar):
 
     def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "N/A"
-        return "(LinkletExpUninitVar %s %s)" % (self.sym.tostring(), val_str)
+        return "(LinkletExpUninitVar %s)" % (self.sym.tostring())
 
     def _set(self, w_val, env):
-        assert not self.w_value
         val_inst = env.toplevel_env().current_linklet_instance
         w_cell = val_inst.lookup_var_cell(self.sym)
-        self.w_value = w_cell
-        self.valuating_instance = val_inst
         w_cell.set_val(w_val)
 
     def _lookup(self, env):
         # exported, but not defined
         # (gonna use the target's value)
         val_inst = env.toplevel_env().current_linklet_instance
-        if self.w_value and self.valuating_instance:
-            if val_inst is self.valuating_instance:
-                return self.w_value.get_val() # if isinstance(self.w_value, values.W_Cell) else self.w_value
-
-        # the linklet is being instantiated over a
-        # different target than before
+        # FIXME : w_maybe_cell is always a cell right now,
+        # but it's going to change when W_LinkletVar uses constance info
         w_maybe_cell = val_inst.lookup_var_cell(self.sym)
-        self.w_value = w_maybe_cell
-        self.valuating_instance = val_inst
         return w_maybe_cell.get_val() # if isinstance(w_maybe_cell, values.W_Cell) else w_maybe_cell
 
 class LexicalVar(Var):

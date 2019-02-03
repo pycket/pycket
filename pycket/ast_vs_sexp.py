@@ -257,7 +257,7 @@ def sexp_to_ast(form, lex_env, exports, cur_toplevels, all_toplevels, linkl_impo
         imp_index, renamed_sym = is_imported(form, linkl_importss)
         if imp_index >= 0:
             # import
-            return interp.LinkletImportedVar(form, import_index=imp_index, import_rename=renamed_sym, constance=values.W_Symbol.make("constant"))
+            return interp.LinkletImportedVar(form, import_index=imp_index, import_rename=renamed_sym)
         elif form in cell_ref:
             return interp.CellRef(form)
         elif form in lex_env:
