@@ -156,7 +156,7 @@ def get_var_val(inst, id_str):
     # for getting uninterned symbols
     for k,v in inst.vars.iteritems():
         if id_str == k.tostring():
-            return k, v.get_value_direct()
+            return k, v.get_val()
     raise Exception("Can't find the variable : %s in instance : %s" % (id_str, inst.tostring()))
 
 def variables(inst):
