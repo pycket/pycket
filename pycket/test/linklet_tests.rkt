@@ -410,7 +410,6 @@
   (check-eq? (instance-variable-value t2 'y) 90))
 
 
-
 (test-case "closure capture and reset"
   (define l2 (compile-linklet '(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))))
   (define t1 (empty-target))
@@ -453,6 +452,48 @@
   (check-eq? (instance-variable-value t1 'y) 300)
   (check-eq? (instance-variable-value t2 'y) 90)
   (check-eq? (instance-variable-value t3 'y) 50))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Reinstantiation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(test-case "reinstantiation 1"
+  (define l1 (compile-linklet '(linklet () (y) (define-values (x) (+ 10 y)) x)))
+  (define t1 (make-instance #f #f #f 'y 30))
+  (define t2 (make-instance #f #f #f 'y 40))
+  (define result1 (instantiate-linklet l1 null t1))
+  (define result2 (instantiate-linklet l1 null t2))
+  (check-eq? result1 40)
+  (check-eq? result2 50))
+
+(test-case "reinstantiation 2"
+  (define l1 (compile-linklet '(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)))
+  (define t1 (make-instance #f #f #f 'y 30))
+  (define t2 (make-instance #f #f #f 'y 40))
+  (define result1 (instantiate-linklet l1 null t1))
+  (define result2 (instantiate-linklet l1 null t2))
+  (check-eq? result1 30)
+  (check-eq? result2 40))
+
+(test-case "reinstantiation 3"
+  (define l1 (compile-linklet '(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)))
+  (define t1 (instantiate-linklet (compile-linklet '(linklet () () (define-values (y) 30))) null))
+  (define t2 (instantiate-linklet (compile-linklet '(linklet () () (define-values (y) 40))) null))
+
+  (define result1 (instantiate-linklet l1 null t1))
+  (define result2 (instantiate-linklet l1 null t2))
+  (check-eq? result1 30)
+  (check-eq? result2 40))
+
+(test-case "reinstantiation 4"
+  (define l1 (compile-linklet '(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)))
+  (define t1 (instantiate-linklet (compile-linklet '(linklet () () (define-values (y) 30) (set! y 30))) null))
+  (define t2 (instantiate-linklet (compile-linklet '(linklet () () (define-values (y) 40) (set! y 40))) null))
+
+  (define result1 (instantiate-linklet l1 null t1))
+  (define result2 (instantiate-linklet l1 null t2))
+  (check-eq? result1 30)
+  (check-eq? result2 40))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Small list

@@ -306,7 +306,6 @@ def test_instantiate_closure_capture_and_reset4():
     assert result == 90
     assert check_val(t2, "y", 90)
 
-@pytest.mark.hey
 def test_instantiate_closure_capture_and_reset():
     l2 = make_linklet("(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))", "l2")
     t1 = empty_target("t1")
@@ -346,6 +345,44 @@ def test_instantiate_closure_capture_and_reset():
     assert check_val(t1, "y", 300)
     assert check_val(t2, "y", 90)
     assert check_val(t3, "y", 50)
+
+def test_reinstantiation1():
+    l1 = make_linklet("(linklet () (y) (define-values (x) (+ 10 y)) x)")
+    t1 = make_instance({'y':30})
+    t2 = make_instance({'y':40})
+    result1, _ = eval_fixnum(l1, t1)
+    result2, _ = eval_fixnum(l1, t2)
+    assert result1 == 40
+    assert result2 == 50
+
+def test_reinstantiation2():
+    l1 = make_linklet("(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)")
+    t1 = make_instance({'y':30})
+    t2 = make_instance({'y':40})
+    result1, _ = eval_fixnum(l1, t1)
+    result2, _ = eval_fixnum(l1, t2)
+    assert result1 == 30
+    assert result2 == 40
+
+def test_reinstantiation3():
+    l1 = make_linklet("(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)")
+    t1 = inst(make_linklet("(linklet () () (define-values (y) 30))"))
+    t2 = inst(make_linklet("(linklet () () (define-values (y) 40))"))
+
+    result1, _ = eval_fixnum(l1, t1)
+    result2, _ = eval_fixnum(l1, t2)
+    assert result1 == 30
+    assert result2 == 40
+
+def test_reinstantiation4():
+    l1 = make_linklet("(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)")
+    t1 = inst(make_linklet("(linklet () () (define-values (y) 30) (set! y 30))"))
+    t2 = inst(make_linklet("(linklet () () (define-values (y) 40) (set! y 40))"))
+
+    result1, _ = eval_fixnum(l1, t1)
+    result2, _ = eval_fixnum(l1, t2)
+    assert result1 == 30
+    assert result2 == 40
 
 def test_instantiate_small_list():
     # boxed immutable hash table (small-list.rkt)
