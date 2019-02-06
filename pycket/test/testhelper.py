@@ -156,7 +156,10 @@ def get_var_val(inst, id_str):
     # for getting uninterned symbols
     for k,v in inst.vars.iteritems():
         if id_str == k.tostring():
-            return k, v.get_val()
+            if isinstance(v, values.W_Cell):
+                return k, v.get_val()
+            else:
+                return k, v
     raise Exception("Can't find the variable : %s in instance : %s" % (id_str, inst.tostring()))
 
 def variables(inst):
@@ -177,9 +180,13 @@ def inst(linkl, imports=[], target=None):
 
     return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
 
-def make_instance(linkl_str, imports=[], l_name="test_linklet_sexp"):
-    instance = inst(make_linklet(linkl_str, l_name), imports)
-    return instance
+# CAUTION: call it with variables carrying only numbers
+def make_instance(vars):
+    w_vars = {}
+    for k,v in vars.iteritems():
+        w_vars[values.W_Symbol.make(k)] = values.W_Cell(values.W_Fixnum(v))
+
+    return W_LinkletInstance(values.W_Symbol.make("test_linklet_instance"), w_vars, {})
 
 def make_linklet(linkl_str, l_name="test_linklet_sexp"):
     #"(linklet () (x) (define-values (x) 4))"
@@ -193,7 +200,8 @@ def make_linklet(linkl_str, l_name="test_linklet_sexp"):
 
 def empty_target(l_name="test_empty_instance"):
     # creates an empty target
-    return make_instance("(linklet () ())", l_name=l_name)
+    #return make_instance("(linklet () ())", l_name=l_name)
+    return make_instance({})
 
 def eval(linkl, target, imports=[], just_return=False):
     result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
