@@ -261,6 +261,65 @@ def test_instantiate_set_bang():
     assert check_val(t, "x", 5)
     assert result == 10
 
+def test_vector_set_a_constant():
+    l = make_linklet("(linklet () (x) (define-values (x) (make-vector 20 0)))")
+    t = empty_target()
+    inst(l, target=t)
+    l2 = make_linklet("(linklet () (x) (vector-set! x 0 1000))")
+    inst(l2, target=t)
+    l3 = make_linklet("(linklet () (x) (vector-ref x 0))")
+    result, _ = eval_fixnum(l3, t)
+    assert result == 1000
+
+def test_vector_set_through_a_closure():
+    t = inst(make_linklet("(linklet () (x g) (define-values (x) (make-vector 20 0)) (define-values (g) (lambda (y) (vector-set! x 5 y))))"))
+    l1 = make_linklet("(linklet () (x g) (g 42) (vector-ref x 5))")
+    result1, _ = eval_fixnum(l1, t)
+    assert result1 == 42
+    l2 = make_linklet("(linklet () (x g) (g 1000) (vector-ref x 5))")
+    result2, _ = eval_fixnum(l2, t)
+    assert result2 == 1000
+
+def test_vector_set_through_a_closure2():
+    t = inst(make_linklet("(linklet () (x g) (define-values (x) (make-vector 20 0)) (define-values (g) (lambda (i y) (vector-set! x i y))))"))
+    l1 = make_linklet("(linklet () (x g) (g 5 42) (vector-ref x 5))")
+    result1, _ = eval_fixnum(l1, t)
+    assert result1 == 42
+    l2 = make_linklet("(linklet () (x g) (g 15 1000) (+ (vector-ref x 15) (vector-ref x 5)))")
+    result2, _ = eval_fixnum(l2, t)
+    assert result2 == 1042
+
+@pytest.mark.fails
+def test_vector_set_through_a_closure3():
+    sl = make_linklet("(linklet () (x g) (define-values (x) (make-vector 20 1)) (define-values (g) (lambda (i y) (vector-set! x i y))))")
+    t = empty_target()
+    inst(sl, target=t)
+    t2 = empty_target()
+    inst(sl, target=t2)
+    # import pdb;pdb.set_trace()
+    l = make_linklet("(linklet () (x g) (g 5 42) (vector-ref x 5))")
+    result1, _ = eval_fixnum(l, t)
+    #import pdb;pdb.set_trace()
+    assert result1 == 42
+
+@pytest.mark.fails
+def test_vector_set_through_a_closure_reinstantiate():
+    sl = make_linklet("(linklet () (x g) (define-values (x) (make-vector 20 1)) (define-values (g) (lambda (i y) (vector-set! x i y))))")
+    t1 = empty_target()
+    inst(sl, target=t1)
+    import pdb;pdb.set_trace()
+    t2 = empty_target()
+    inst(sl, target=t2)
+
+    l1 = make_linklet("(linklet () (x g) (g 5 42) (vector-ref x 5))")
+    result1, _ = eval_fixnum(l1, t1)
+    assert result1 == 42
+    #import pdb;pdb.set_trace()
+    l2 = make_linklet("(linklet () (x g) (g 10 1000) (+ (vector-ref x 5) (vector-ref x 10)))")
+    import pdb;pdb.set_trace()
+    result2, _ = eval_fixnum(l2, t2)
+    assert result2 == 1001
+
 def test_instantiate_closure_capture_and_reset1():
     l1 = inst(make_linklet("(linklet () (x) (define-values (x) -1))"))
     l2 = inst(make_linklet("(linklet ((x)) (g) (define-values (g) (lambda (p) x)))"), [l1])
@@ -383,6 +442,17 @@ def test_reinstantiation4():
     result2, _ = eval_fixnum(l1, t2)
     assert result1 == 30
     assert result2 == 40
+
+def test_reinstantiating_with_different_imports():
+    imp1 = make_instance({'x':10})
+    imp2 = make_instance({'x':20})
+    l = make_linklet("(linklet ((x)) (y) (define-values (y) x) y)")
+    t1 = empty_target()
+    t2 = empty_target()
+    result1, t1 = eval_fixnum(l, t1, [imp1])
+    result2, t2 = eval_fixnum(l, t2, [imp2])
+    assert result1 == 10
+    assert result2 == 20
 
 def test_instantiate_small_list():
     # boxed immutable hash table (small-list.rkt)
