@@ -58,23 +58,33 @@ class W_LinkletInstance(W_Object):
                 self.exports[e] = given_exports[e]
 
     def get_var(self, name):
-        if name not in self.vars:
-            return self.vars[self.exports[name]]
         return self.vars[name]
 
-    def overwrite_var(self, name, new_var):
-        self.vars[name] = new_var
+    def overwrite_var(self, name, w_val):
+        v = self.get_var(name)
+        if not isinstance(v, W_Cell):
+            raise SchemeException("set!: assignment disallowed; cannot modify a constant : %s" % name.tostring())
+        v.set_val(w_val)
+
+    def overwrite_val(self, name, new_val):
+        self.vars[name] = new_val
 
     def lookup_var_value(self, name):
-        return self.get_var(name).get_val()
+        v = self.get_var(name)
+        if isinstance(v, W_Cell):
+            return v.get_val()
+        return v
 
     def lookup_var_cell(self, name):
         return self.get_var(name)
 
     def provide_all_exports_to_prim_env(self, excludes=[]):
-        for name, var in self.vars.iteritems():
+        for name, var_val in self.vars.iteritems():
             if name not in excludes:
-                prim_env[name] = var.get_val()
+                if isinstance(var_val, W_Cell):
+                    prim_env[name] = var_val.get_val()
+                else:
+                    prim_env[name] = var_val
                 prim_src[name.variable_name()] = 'linklet'
 
     def tostring(self):
@@ -597,8 +607,10 @@ def make_instance(args): # name, data, *vars_vals
         for i in range(0, len(vars_vals), 2):
             n = vars_vals[i]
             v = vars_vals[i+1]
-            # FIXME: avoid W_Cell when mode is not w_false
-            vars_vals_dict[n] = W_Cell(v)
+            if mode is not w_false:
+                vars_vals_dict[n] = v
+            else:
+                vars_vals_dict[n] = W_Cell(v)
 
         return W_LinkletInstance(name, vars_vals_dict, {}, data)
 
@@ -641,12 +653,16 @@ def instance_set_variable_value(instance, name, val, mode):
     if name in instance.vars and instance.vars[name] is not w_uninitialized:
         if not isinstance(instance.vars[name], W_Cell):
             raise SchemeException("Cannot mutate a constant : %s" % name.tostring())
-        instance.vars[name].set_val(val)
-        # FIXME: change it to a non-cell if constance is not w_false
-        #instance.vars[name].constance = mode
+        if mode is not w_false:
+            instance.vars[name] = val
+        else:
+            instance.vars[name].set_val(val)
     else:
         # FIXME: avoid W_Cell for constant/consistent
-        instance.vars[name] = W_Cell(val)
+        if mode is not w_false:
+            instance.vars[name] = val
+        else:
+            instance.vars[name] = W_Cell(val)
 
     return w_void
 
