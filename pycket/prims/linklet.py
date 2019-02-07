@@ -226,9 +226,9 @@ def instantiate_loop(linkl, index, gensym_count, return_val, target, env, cont):
 
 class W_Linklet(W_Object):
 
-    _immutable_fields_ = ["name", "importss[*]", "exports", "forms"]
+    _immutable_fields_ = ["name", "importss[*]", "exports", "forms?", "mutated_vars?", "static"]
 
-    def __init__(self, name, importss, exports, all_forms):
+    def __init__(self, name, importss, exports, all_forms=None, static=False):
         self.name = name # W_Symbol -- for debugging
         """ importss -- list of dictionaries (for each import instance) of symbols
         [...,{W_Symbol:W_Symbol},...]
@@ -242,6 +242,9 @@ class W_Linklet(W_Object):
         # again, may be the same if it's not renamed
 
         self.forms = all_forms # [..., AST ,...]
+        self.defs = {}
+        self.mutated_vars = {}
+        self.static = static
 
     def get_name(self):
         return self.name
@@ -254,6 +257,12 @@ class W_Linklet(W_Object):
 
     def get_forms(self):
         return self.forms
+
+    def set_forms(self, b_forms):
+        self.forms = b_forms
+
+    def set_mutated_vars(self, m_vars):
+        self.mutated_vars = m_vars
 
     def tostring(self):
         forms_str = " ".join([f.tostring() for f in self.forms])
@@ -337,8 +346,8 @@ class W_Linklet(W_Object):
         return instantiate_loop(self, 0, 0, return_val, target, env, cont)
 
     @staticmethod # json_file_name -> W_Linklet
-    def load_linklet(json_file_name, loader, set_version=False):
-        from pycket.expand import readfile_rpython, getkey
+    def load_linklet(json_file_name, set_version=False):
+        from pycket.expand import readfile_rpython, getkey, JsonLoader
         from pycket.util import console_log
         """ Expands and loads a linklet from a JSON file"""
         with PerfRegion("json-load"):
@@ -394,6 +403,9 @@ class W_Linklet(W_Object):
 
         console_log("Converting linklet forms to AST ...", 2)
 
+        linkl = W_Linklet(W_Symbol.make(json_file_name), importss, exports, static=True)
+        mutated_vars = {}
+        loader = JsonLoader(loading_linklet=linkl)
         with PerfRegion("json-to-ast"):
             all_forms = []
             for body_form in getkey(linklet_dict, "body", type='a'):
@@ -403,8 +415,12 @@ class W_Linklet(W_Object):
                 #     import pdb;pdb.set_trace()
                 form = assign_convert(form_1)
                 all_forms.append(form)
+                for mv in form.mutated_vars().keys():
+                    mutated_vars[mv] = mv.sym
 
         console_log("Finished converting linklet forms to AST ...", 2)
+        linkl.set_forms(all_forms)
+        linkl.set_mutated_vars(mutated_vars)
 
         config = {}
         config_obj = getkey(linklet_dict, "config", type='o')
@@ -412,7 +428,7 @@ class W_Linklet(W_Object):
             for k, v in config_obj.iteritems():
                 config[k] = v.value_string()
 
-        return W_Linklet(W_Symbol.make(json_file_name), importss, exports, all_forms), config
+        return linkl, config
 
 
 """
@@ -457,11 +473,19 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             w_exports = form.cdr().cdr().car()
             exports = get_exports_from_w_exports_sexp(w_exports)
 
+            if name is w_false:
+                w_name = W_Symbol.make("ad-hoc")
+            else:
+                w_name = name
+
+            linkl = W_Linklet(w_name, importss_list, exports)
+
             # Process the body
             w_body = form.cdr().cdr().cdr()
             with PerfRegion("compile-sexp-to-ast"):
-                _body_forms, _body_length = process_w_body_sexp(w_body, importss_list, exports)
+                _body_forms, _body_length = process_w_body_sexp(w_body, importss_list, exports, linkl)
 
+            mutated_vars = {}
             # Postprocess the body
             body_forms = [None]*_body_length
             for i, bf in enumerate(_body_forms):
@@ -470,13 +494,12 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
                 with PerfRegion("compile-assign-convert"):
                     b_form = assign_convert(b_form)
                 body_forms[i] = b_form
+                for mv in b_form.mutated_vars().keys():
+                    mutated_vars[mv] = mv.sym
 
-            if name is w_false:
-                w_name = W_Symbol.make("ad-hoc")
-            else:
-                w_name = name
+            linkl.set_mutated_vars(mutated_vars)
+            linkl.set_forms(body_forms)
 
-            linkl = W_Linklet(w_name, importss_list, exports, body_forms)
             if import_keys is w_false:
                 return return_value_direct(linkl, env, cont)
             else:
