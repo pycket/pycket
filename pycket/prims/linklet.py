@@ -189,32 +189,54 @@ def instantiate_def_cont(linkl, form, index, gensym_count, return_val, target, e
     for i in range(len_values):
         name = form.names[i]
         value = values[i]
+        # if name in linkl.defs and value.immutable():
+        #     value = linkl.defs[name]
+
+        # Ideally, we want to be able to share pure values across
+        # instantiations and not interpret them at all, but it's not
+        # so trivial, look at the test:
+        # -- test_instantiate_closure_capture_and_reset
+
         # modify target
         ext_name = linkl.exports[name] if name in linkl.exports else name
 
         is_exported = name in linkl.exports
         target_has_it = ext_name in target.vars
         it_has_a_value = target_has_it and target.vars[ext_name] is not w_uninitialized
+
         cell = None
+        mutated = not value.immutable()
+        if not mutated and name in linkl.mutated_vars.values():
+            mutated = True
+
         if is_exported and target_has_it and it_has_a_value:
-            # define-values acts like a set! on target cell when the
-            # variable is exported
             cell = target.get_var(ext_name)
+            if not isinstance(cell, W_Cell):
+                raise SchemeException("set!: assignment disallowed; cannot modify a constant : %s" % name.tostring())
+            # overwrite the target's cell
             cell.set_val(value)
         else:
-            cell = W_Cell(value)
+            cell_value = W_Cell(value) if mutated else value
 
             if is_exported or not target_has_it:
-                target.vars[ext_name] = cell
-
-            elif external_of_an_export(name, exports):
+                target.vars[ext_name] = cell_value
+            elif external_of_an_export(name, linkl.exports):
                 gensym_count += 1
                 ex_name = W_Symbol.make_unreadable(name.tostring() + "." + str(gensym_count))
-                target.vars[ex_name] = cell
+                target.vars[ex_name] = cell_value
 
-        env.toplevel_env().toplevel_set(name, cell, already_celled=True)
+            if mutated:
+                cell = cell_value
 
-    return return_value(w_void, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont))
+        if not mutated:
+            linkl.defs[name] = value
+        else:
+            if linkl.static:
+                linkl.defs[name] = cell
+            else:
+                env.toplevel_env().toplevel_set(name, cell, already_celled=True)
+
+    return return_value(w_void, env, instantiate_val_cont(linkl, index + 1, gensym_count, return_val, target, env, cont))
 
 @loop_label
 def instantiate_loop(linkl, index, gensym_count, return_val, target, env, cont):
