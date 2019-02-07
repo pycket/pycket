@@ -80,7 +80,7 @@ def load_inst_linklet_json(json_file_name, pycketconfig, debug=False, set_versio
     debug_print("loading and instantiating : %s" % json_file_name)
 
     console_log("Loading linklet from %s" % json_file_name)
-    linkl, sys_config = W_Linklet.load_linklet(json_file_name, JsonLoader(), set_version)
+    linkl, sys_config = W_Linklet.load_linklet(json_file_name, set_version)
 
     debug_print("DONE with loading : %s" % json_file_name)
 
