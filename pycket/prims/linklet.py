@@ -168,18 +168,18 @@ def finish_perf_region_cont(label, env, cont, _vals):
     return return_value(_vals, env, cont)
 
 @continuation
-def instantiate_val_cont(forms, index, gensym_count, return_val, target, exports, env, cont, _vals):
-    if index >= len(forms):
+def instantiate_val_cont(linkl, index, gensym_count, return_val, target, env, cont, _vals):
+    if index >= len(linkl.forms):
         if return_val:
             return return_value(_vals, env, cont)
         else:
             return return_value(target, env, cont)
 
     # there's more
-    return instantiate_loop(forms, index, gensym_count, return_val, target, exports, env, cont)
+    return instantiate_loop(linkl, index, gensym_count, return_val, target, env, cont)
 
 @continuation
-def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, exports, env, cont, _vals):
+def instantiate_def_cont(linkl, form, index, gensym_count, return_val, target, env, cont, _vals):
 
     values = _vals.get_all_values()
     len_values = len(values)
@@ -190,9 +190,9 @@ def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, e
         name = form.names[i]
         value = values[i]
         # modify target
-        ext_name = exports[name] if name in exports else name
+        ext_name = linkl.exports[name] if name in linkl.exports else name
 
-        is_exported = name in exports
+        is_exported = name in linkl.exports
         target_has_it = ext_name in target.vars
         it_has_a_value = target_has_it and target.vars[ext_name] is not w_uninitialized
         cell = None
@@ -217,12 +217,12 @@ def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, e
     return return_value(w_void, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont))
 
 @loop_label
-def instantiate_loop(forms, index, gensym_count, return_val, target, exports, env, cont):
-    form = forms[index]
+def instantiate_loop(linkl, index, gensym_count, return_val, target, env, cont):
+    form = linkl.forms[index]
     if isinstance(form, DefineValues):
-        return form.rhs, env, instantiate_def_cont(form, forms, index, gensym_count, return_val, target, exports, env, cont)
+        return form.rhs, env, instantiate_def_cont(linkl, form, index, gensym_count, return_val, target, env, cont)
     else:
-        return form, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont)
+        return form, env, instantiate_val_cont(linkl, index + 1, gensym_count, return_val, target, env, cont)
 
 class W_Linklet(W_Object):
 
@@ -334,7 +334,7 @@ class W_Linklet(W_Object):
             else:
                 return return_value(target, env, cont)
 
-        return instantiate_loop(self.forms, 0, 0, return_val, target, self.exports, env, cont)
+        return instantiate_loop(self, 0, 0, return_val, target, env, cont)
 
     @staticmethod # json_file_name -> W_Linklet
     def load_linklet(json_file_name, loader, set_version=False):
