@@ -1488,11 +1488,12 @@ class Gensym(object):
 
 class LinkletStaticVar(Var):
     visitable = True
-    _immutable_fields_ = ["w_value?", "sym"]
+    _immutable_fields_ = ["w_value?", "sym", "defining_linklet"]
 
-    def __init__(self, sym, w_value=None):
+    def __init__(self, sym, defining_linklet):
         Var.__init__(self, sym)
-        self.w_value = w_value
+        self.w_value = None
+        self.defining_linklet = defining_linklet
 
     def tostring(self):
         val_str = self.w_value.tostring() if self.w_value else "N/A"
@@ -1506,15 +1507,19 @@ class LinkletStaticVar(Var):
         return SymbolSet.EMPTY()
 
     def _set(self, w_val, env):
-        if not self.w_value:
-            self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
-        self.w_value.set_val(w_val)
+        w_res = self.w_value
+        if not w_res:
+            w_res = self.w_value = self.defining_linklet.defs[self.sym]
+        assert isinstance(w_res, values.W_Cell)
+        w_res.set_val(w_val)
 
     def _lookup(self, env):
-        if self.w_value:
-            return self.w_value.get_val()
-        self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
-        return self.w_value.get_val()
+        w_res = self.w_value
+        if not w_res:
+            w_res = self.w_value = self.defining_linklet.defs[self.sym]
+        if isinstance(w_res, values.W_Cell):
+            return w_res.get_val()
+        return w_res
 
 class LinkletVar(Var):
     visitable = True

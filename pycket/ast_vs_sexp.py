@@ -477,7 +477,7 @@ def get_exports_from_w_exports_sexp(w_exports):
     return exports
 
 # collect the ids in define-values forms
-def create_toplevel_linklet_vars(forms_ls):
+def create_toplevel_linklet_vars(forms_ls, linklet):
     linkl_toplevels = {} # {W_Symbol:LinkletVar}
     for form in forms_ls:
         if isinstance(form, W_Correlated):
@@ -489,15 +489,15 @@ def create_toplevel_linklet_vars(forms_ls):
             for id in ids_ls:
                 if id in linkl_toplevels:
                     raise SchemeException("duplicate binding name : %s" % id.tostring())
-                linkl_toplevels[id] = interp.LinkletDefinedVar(id)
+                linkl_toplevels[id] = interp.LinkletDefinedVar(id, defining_linklet=linklet)
 
     return linkl_toplevels
 
-def process_w_body_sexp(w_body, importss_list, exports):
+def process_w_body_sexp(w_body, importss_list, exports, linklet):
     body_forms_ls, body_length = to_rpython_list(w_body, unwrap_correlated=True)
     cur_toplevels = {}
 
-    all_toplevels = create_toplevel_linklet_vars(body_forms_ls)
+    all_toplevels = create_toplevel_linklet_vars(body_forms_ls, linklet)
 
     _body_forms = [None]*body_length
     for index, b in enumerate(body_forms_ls):
@@ -556,20 +556,27 @@ def deserialize_loop(sexp):
             exports = get_exports_from_w_exports_sexp(w_exports)
             #util.console_log("exports are done", 8)
 
+            l = W_Linklet(w_name, importss_list, exports)
+
             # Process the body
-            _body_forms, _body_length = process_w_body_sexp(w_body, importss_list, exports)
+            _body_forms, _body_length = process_w_body_sexp(w_body, importss_list, exports, l)
 
             #util.console_log("body forms -> ASTs are done, postprocessing begins...", 8)
 
+            mutated_vars = {}
             body_forms = [None]*_body_length
             for i, bf in enumerate(_body_forms):
                 with util.PerfRegion("assign-convert-deserialize"):
                     b_form = assign_convert(bf)
                 body_forms[i] = b_form
+                for mv in b_form.mutated_vars().keys():
+                    mutated_vars[mv] = mv.sym
 
             #util.console_log("body forms are done", 8)
+            l.set_mutated_vars(mutated_vars)
+            l.set_forms(body_forms)
 
-            return W_Linklet(w_name, importss_list, exports, body_forms)
+            return 
         else:
             # get the length
             ls = sexp
