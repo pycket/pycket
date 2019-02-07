@@ -307,6 +307,10 @@ def var_eq(a, b):
 def var_hash(a):
     if isinstance(a, LexicalVar):
         return compute_hash(a.sym)
+    elif isinstance(a, LinkletVar):
+        return compute_hash(a.sym)
+    elif isinstance(a, LinkletStaticVar):
+        return compute_hash(a.sym)
     elif isinstance(a, ModuleVar):
         return compute_hash(a.srcsym)
     assert False
@@ -1720,6 +1724,10 @@ class SetBang(AST):
             x[LexicalVar(self.var.sym)] = None
         # even though we don't change these to cell refs, we still
         # have to convert the definitions
+        elif isinstance(var, LinkletVar):
+            x[var] = None
+        elif isinstance(var, LinkletStaticVar):
+            x[var] = None
         elif isinstance(var, ModuleVar):
             x[var] = None
         # do nothing for top-level vars, they're all mutated
