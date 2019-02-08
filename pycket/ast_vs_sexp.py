@@ -8,21 +8,32 @@ from pycket.util import PerfRegion
 
 mksym = values.W_Symbol.make
 
-def to_rpython_list(r_list, unwrap_correlated=False, reverse=False):
+def to_rpython_list(r_list, unwrap_correlated=False, reverse=False, improper=False):
     # assumes r_list is proper
     length = 0
     acc = r_list
     while(acc is not values.w_null):
         length += 1
+        if improper:
+            length += 1
+            break
         acc = acc.cdr()
     acc = r_list
     py_ls = [None]*length
+    out = False
     for n in range(length):
-        a = acc.car().get_obj() if (unwrap_correlated and isinstance(acc.car(), W_Correlated)) else acc.car()
+        a = None
+        if improper and not isinstance(acc, values.W_List):
+            a = acc.get_obj() if (unwrap_correlated and isinstance(acc, W_Correlated)) else acc
+            out = True
+        else:
+            a = acc.car().get_obj() if (unwrap_correlated and isinstance(acc.car(), W_Correlated)) else acc.car()
         if reverse:
             py_ls[length-n-1] = a
         else:
             py_ls[n] = a
+        if out:
+            break
         acc = acc.cdr()
     return py_ls, length
 
@@ -556,14 +567,17 @@ def find_mutated(form):
     if is_val_type(form) or isinstance(form, values.W_Symbol) or form is values.w_null:
         return {}
     elif isinstance(form, values.W_List):
+        if not form.is_proper_list():
+            elements, _ = to_rpython_list(form, unwrap_correlated=True, improper=True)
+            return extend_dicts([find_mutated(f) for f in all_exprs])
         c = form.car()
         if c is set_bang_sym:
             return extend_dict({form.cdr().car():None}, find_mutated(form.cdr().cdr().car()))
         elif isinstance(c, values.W_Cons) and c is not values.w_null:
-            all_exprs, _ = to_rpython_list(form)
+            all_exprs, _ = to_rpython_list(form, unwrap_correlated=True)
             return extend_dicts([find_mutated(f) for f in all_exprs])
         else:
-            rest_exprs, _ = to_rpython_list(form.cdr())
+            rest_exprs, _ = to_rpython_list(form.cdr(), unwrap_correlated=True)
             return extend_dicts([find_mutated(f) for f in rest_exprs])
 
 def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
