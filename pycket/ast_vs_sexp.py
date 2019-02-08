@@ -554,7 +554,7 @@ def extend_dicts(list_of_dicts):
 def find_mutated(form):
     if isinstance(form, W_Correlated):
         return find_mutated(form.get_obj())
-    if is_val_type(form) or isinstance(form, values.W_Symbol):
+    if is_val_type(form) or isinstance(form, values.W_Symbol) or form is values.w_null:
         return {}
     elif isinstance(form, values.W_List):
         c = form.car()

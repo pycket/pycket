@@ -263,22 +263,23 @@ class W_Linklet(W_Object):
 
         for group_index, import_group in enumerate(self.importss):
             for imp in import_group:
-                w_imp_var = import_instances[group_index].vars[imp.ext_id]
+                w_imp_var = import_instances_ls[group_index].vars[imp.ext_id]
                 env.toplevel_env().toplevel_set(imp.int_id, w_imp_var)
 
-        export_vars = {}
+        return_val = True
+        if not target:
+            target = W_LinkletInstance(self.name, {})
+            return_val = False
+
         for exp_sym, exp_obj in self.exports.iteritems():
             if target and exp_obj.ext_id in target.vars:
                 var = target.vars[exp_obj.ext_id]
             else:
                 var = W_LinkletVar(w_uninitialized, exp_obj.ext_id, self.name, w_false)
-            export_vars[exp_obj.ext_id] = var
-            env.toplevel_env().toplevel_set(exp_obj.int_id, var)
+                target.vars[exp_obj.ext_id] = var
 
-        return_val = True
-        if not target:
-            target = W_LinkletInstance(self.name, export_vars)
-            return_val = False
+            env.toplevel_env().toplevel_set(exp_obj.int_id, var)
+        import pdb;pdb.set_trace()
 
         if len(self.forms) == 0:
             # no need for any evaluation, just return the instance or the value
