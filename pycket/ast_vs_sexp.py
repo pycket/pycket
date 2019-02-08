@@ -567,7 +567,7 @@ def find_mutated(form):
     elif isinstance(form, values.W_List):
         if not form.is_proper_list():
             elements, _ = to_rpython_list(form, unwrap_correlated=True, improper=True)
-            return extend_dicts([find_mutated(f) for f in all_exprs])
+            return extend_dicts([find_mutated(f) for f in elements])
         c = form.car()
         if c is set_bang_sym:
             return extend_dict({form.cdr().car():None}, find_mutated(form.cdr().cdr().car()))
