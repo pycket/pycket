@@ -42,13 +42,12 @@ class W_Uninitialized(W_Object):
 w_uninitialized = W_Uninitialized()
 
 class W_LinkletVar(W_Object):
-    _attrs_ = ["val", "name", "source-name", "constance"]
-    _immutabe_fields_ = ["name", "source-name"]
+    _attrs_ = ["val", "name", "constance"]
+    _immutabe_fields_ = ["name"]
 
     def __init__(self, val, name, source_name, constance=w_false):
         self.val = val
         self.name = name
-        self.source_name = source_name
         self.constance = constance
 
 class W_LinkletInstance(W_Object):
@@ -60,6 +59,9 @@ class W_LinkletInstance(W_Object):
         self.name = name # W_Symbol (for debugging)
         self.vars = vars # {W_Symbol:W_LinkletVar}
         self.data = data #
+
+    def get_var(self, name):
+        return self.vars[name]
 
     # def add_exports(self, given_exports):
     #     for e in given_exports:
@@ -263,7 +265,7 @@ class W_Linklet(W_Object):
 
         for group_index, import_group in enumerate(self.importss):
             for imp in import_group:
-                w_imp_var = import_instances_ls[group_index].vars[imp.ext_id]
+                w_imp_var = import_instances_ls[group_index].get_var(imp.ext_id)
                 env.toplevel_env().toplevel_set(imp.id, w_imp_var)
 
         return_val = True
@@ -275,7 +277,7 @@ class W_Linklet(W_Object):
             if target and exp_obj.ext_id in target.vars:
                 var = target.vars[exp_obj.ext_id]
             else:
-                var = W_LinkletVar(w_uninitialized, exp_obj.ext_id, self.name, w_false)
+                var = W_LinkletVar(w_uninitialized, exp_obj.ext_id, w_false)
                 target.vars[exp_obj.ext_id] = var
 
             env.toplevel_env().toplevel_set(exp_obj.int_id, var)
@@ -549,7 +551,7 @@ def make_instance(args): # name, data, *vars_vals
         for i in range(0, len(vars_vals), 2):
             n = vars_vals[i]
             v = vars_vals[i+1]
-            vars_vals_dict[n] = W_LinkletVar(v, n, name, mode)
+            vars_vals_dict[n] = W_LinkletVar(v, n, mode)
 
         return W_LinkletInstance(name, vars_vals_dict, data)
 
@@ -588,7 +590,7 @@ def instance_set_variable_value(instance, name, w_val, mode):
         if var.constance is not w_false:
             raise SchemeException("Cannot mutate a constant : %s" % name.tostring())
     else:
-        var = W_LinkletVar(w_val, name, instance.name, mode)
+        var = W_LinkletVar(w_val, name, mode)
         instance.vars[name] = var
 
     var.val = w_val

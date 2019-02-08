@@ -129,7 +129,7 @@ def dev_mode_entry(eval_sexp_str):
             linkl = e.values
 
         instantiate_linklet = get_primitive("instantiate-linklet")
-        target = W_LinkletInstance(W_Symbol.make("target"), {}, {}, w_false)
+        target = W_LinkletInstance(W_Symbol.make("target"), {})
 
         res = instantiate_linklet.call_interpret([linkl, w_null, target, w_false])
         print("result : %s" % res.tostring())
