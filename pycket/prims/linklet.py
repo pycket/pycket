@@ -328,7 +328,7 @@ class W_Linklet(W_Object):
                 internal_name = W_Symbol.make(internal_str)
                 external_name = W_Symbol.make(arr[1].value_object()['quote'].value_object()['toplevel'].value_string())
                 w_internal_name = Gensym.gensym(internal_str)
-                exports[internal_name] = Export(w_internal_name, expternal_name)
+                exports[internal_name] = Export(w_internal_name, external_name)
             else:
                 exp_str = exp.value_object()['quote'].value_object()['toplevel'].value_string()
                 exp_sym = W_Symbol.make(exp_str)
@@ -344,12 +344,12 @@ class W_Linklet(W_Object):
                 arr = imports.value_array()
                 # bootstrap linklets have no imports at all
                 # this is only for debugging purposes
-                instance_imports = {}
+                instance_imports = []
                 for id_str in arr:
                     imp_str = id_str.value_object()['quote'].value_object()['toplevel'].value_string()
                     imp_sym = W_Symbol.make(imp_str)
                     w_imp_sym = Gensym.gensym(imp_str)
-                    instance_imports[sym] = Import(index, imp_sym, w_imp_sym, w_imp_sym)
+                    instance_imports.append(Import(index, imp_sym, w_imp_sym, w_imp_sym))
                 importss[index] = instance_imports
 
         console_log("Converting linklet forms to AST ...", 2)
@@ -569,7 +569,7 @@ def instance_variable_value(instance, name, fail_k, env, cont):
             return fail_k.call([], env, cont)
         else:
             raise SchemeException("key %s not found in the instance %s" % (name.tostring(), instance.name.tostring()))
-    return return_value(inst.vars[name].val, env, cont)
+    return return_value(instance.vars[name].val, env, cont)
 
 @expose("instance-describe-variable!", [W_LinkletInstance, W_Symbol, W_Object])
 def instance_describe_variable(inst, name, desc_v):

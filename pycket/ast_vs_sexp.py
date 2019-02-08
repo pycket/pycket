@@ -47,10 +47,10 @@ def ast_to_sexp(form):
     elif isinstance(form, W_Linklet):
         l_sym = mksym("linklet")
 
-        name = form.get_name() # W_Symbol
-        importss = form.get_importss() # rlist of rdict of W_Symbol:W_Symbol
-        exports = form.get_exports() # rdict
-        body_forms = form.get_forms() # rlist of ASTs
+        name = form.name # W_Symbol
+        importss = form.importss # rlist of rdict of W_Symbol:W_Symbol
+        exports = form.exports # rdict
+        body_forms = form.forms # rlist of ASTs
 
         importss_rlist = [None]*len(importss)
         for index, rdict in enumerate(importss):
@@ -486,7 +486,7 @@ def get_imports_from_w_importss_sexp(w_importss):
             elif isinstance(c, W_Correlated):
                 cc = c.get_obj()
                 w_cc = Gensym.gensym(cc.tostring())
-                innert_acc[i] = Import(index, w_cc, cc, cc)
+                inner_acc[i] = Import(index, w_cc, cc, cc)
             else:
                 raise SchemeException("uncrecognized import : %s" % c.tostring())
         importss_list[index] = inner_acc
@@ -664,27 +664,12 @@ def deserialize_loop(sexp):
             exports = get_exports_from_w_exports_sexp(w_exports)
             #util.console_log("exports are done", 8)
 
-            l = W_Linklet(w_name, importss_list, exports)
-
             # Process the body
-            _body_forms, _body_length = process_w_body_sexp(w_body, importss_list, exports, l, from_zo=True)
+            body_forms = process_w_body_sexp(w_body, importss_list, exports, from_zo=True)
 
             #util.console_log("body forms -> ASTs are done, postprocessing begins...", 8)
 
-            mutated_vars = {}
-            body_forms = [None]*_body_length
-            for i, bf in enumerate(_body_forms):
-                with util.PerfRegion("assign-convert-deserialize"):
-                    b_form = assign_convert(bf)
-                body_forms[i] = b_form
-                for mv in b_form.mutated_vars().keys():
-                    mutated_vars[mv] = mv.sym
-
-            #util.console_log("body forms are done", 8)
-            l.set_mutated_vars(mutated_vars)
-            l.set_forms(body_forms)
-
-            return
+            return W_Linklet(w_name, importss_list, exports, body_forms)
         else:
             # get the length
             ls = sexp
