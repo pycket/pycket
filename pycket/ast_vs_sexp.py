@@ -503,7 +503,7 @@ def get_exports_from_w_exports_sexp(w_exports):
         else:
             c_exp = exp.get_obj() if isinstance(exp, W_Correlated) else exp
             w_c_exp = Gensym.gensym(c_exp.tostring())
-            exports[c_exp] = Export(w_c_exp, w_c_exp)
+            exports[c_exp] = Export(w_c_exp, c_exp)
     return exports
 
 # collect the ids in define-values forms
