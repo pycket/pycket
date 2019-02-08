@@ -73,6 +73,7 @@ def test_instantiate_target_def_overwrite():
     assert check_val(t, "x", 4)
     assert check_val(t, "y", 2)
 
+@pytest.mark.skip(reason="this behavior is different btw Racket and Chez")
 def test_instantiate_target_always_overwrite():
     # if target doesn't have it, then it doesn't matter if linklet exports or not,
     # put the variable in the target
@@ -92,7 +93,7 @@ def test_instantiate_target_def_stays_the_same():
 
     # use the local var, don't change target's var if you don't export
     l = make_linklet("(linklet () () (define-values (x) 4) (+ x x))")
-    t1 = inst(make_linklet("(linklet () () (define-values (x) 10))"))
+    t1 = inst(make_linklet("(linklet () (x) (define-values (x) 10))"))
     t2 = inst(make_linklet("(linklet () (x) (define-values (x) 10))"))
     result1, t1 = eval_fixnum(l, t1)
     result2, t2 = eval_fixnum(l, t2)
@@ -131,15 +132,15 @@ def test_instantiate_discarding_defs():
     l = inst(make_linklet("(linklet () ((x x15)) (define-values (x) 4) (define-values (x15) 75))"))
     assert not defines(l, "x")
     assert check_val(l, "x15", 4) #### Not 75!
-    k,v = get_var_val(l, "x15.1") # uninterned
-    assert v.value == 75
+    #k,v = get_var_val(l, "x15.1") # uninterned
+    #assert v.value == 75
 
     l = inst(make_linklet("(linklet () ((x x15) k) (define-values (x) 4) (define-values (x15) 75) (define-values (k) x15))"))
     assert not defines(l, "x")
     assert check_val(l, "x15", 4) #### Not 75!
     assert check_val(l, "k", 75) #### Not 4!
-    k,v = get_var_val(l, "x15.1")
-    assert v.value == 75
+    #k,v = get_var_val(l, "x15.1")
+    #assert v.value == 75
 
 def test_instantiate_use_targets_def():
     l = make_linklet("(linklet () (x) (+ x x))")
@@ -208,13 +209,13 @@ def test_instantiate_basic_export():
 def test_instantiate_uninitialize_undefined_exports():
     l = make_linklet("(linklet () (x))")
     _, t = eval_fixnum(l, empty_target())
-    assert t.vars[W_Symbol.make("x")] is w_uninitialized
+    assert t.vars[W_Symbol.make("x")].val is w_uninitialized
 
     # don't touch if target has it
     l = make_linklet("(linklet () (x))")
     t = make_instance({'x':10})
     _, t = eval_fixnum(l, t)
-    assert t.vars[W_Symbol.make("x")] is not w_uninitialized
+    assert t.vars[W_Symbol.make("x")].val is not w_uninitialized
 
     # target exports the same var with another external name
     l = make_linklet("(linklet () (x2) (+ x2 x2))")
@@ -445,8 +446,8 @@ def test_reinstantiation2():
 
 def test_reinstantiation3():
     l1 = make_linklet("(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)")
-    t1 = inst(make_linklet("(linklet () () (define-values (y) 30))"))
-    t2 = inst(make_linklet("(linklet () () (define-values (y) 40))"))
+    t1 = inst(make_linklet("(linklet () (y) (define-values (y) 30))"))
+    t2 = inst(make_linklet("(linklet () (y) (define-values (y) 40))"))
 
     result1, _ = eval_fixnum(l1, t1)
     result2, _ = eval_fixnum(l1, t2)
@@ -455,8 +456,8 @@ def test_reinstantiation3():
 
 def test_reinstantiation4():
     l1 = make_linklet("(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)")
-    t1 = inst(make_linklet("(linklet () () (define-values (y) 30) (set! y 30))"))
-    t2 = inst(make_linklet("(linklet () () (define-values (y) 40) (set! y 40))"))
+    t1 = inst(make_linklet("(linklet () (y) (define-values (y) 30) (set! y 30))"))
+    t2 = inst(make_linklet("(linklet () (y) (define-values (y) 40) (set! y 40))"))
 
     result1, _ = eval_fixnum(l1, t1)
     result2, _ = eval_fixnum(l1, t2)
@@ -493,7 +494,7 @@ def test_instantiate_hashes():
     assert result == 4
 
     # hash-set! on target
-    t = inst(make_linklet("(linklet () () (define-values (h) (make-hasheq)))"))
+    t = inst(make_linklet("(linklet () (h) (define-values (h) (make-hasheq)))"))
     l1 = make_linklet("(linklet () (h) (hash-set! h \"k\" 150) (hash-set! h \"y\" 29))")
     _, t = eval_fixnum(l1, t)
     l2 = make_linklet("(linklet () (h) (hash-set! h \"y\" 50) (hash-ref h \"k\"))")
