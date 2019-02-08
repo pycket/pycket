@@ -311,10 +311,8 @@ def test_vector_set_through_a_closure3():
     inst(sl, target=t)
     t2 = empty_target()
     inst(sl, target=t2)
-    # import pdb;pdb.set_trace()
     l = make_linklet("(linklet () (x g) (g 5 42) (vector-ref x 5))")
     result1, _ = eval_fixnum(l, t)
-    #import pdb;pdb.set_trace()
     assert result1 == 42
 
 @pytest.mark.fails
@@ -322,16 +320,13 @@ def test_vector_set_through_a_closure_reinstantiate():
     sl = make_linklet("(linklet () (x g) (define-values (x) (make-vector 20 1)) (define-values (g) (lambda (i y) (vector-set! x i y))))")
     t1 = empty_target()
     inst(sl, target=t1)
-    import pdb;pdb.set_trace()
     t2 = empty_target()
     inst(sl, target=t2)
 
     l1 = make_linklet("(linklet () (x g) (g 5 42) (vector-ref x 5))")
     result1, _ = eval_fixnum(l1, t1)
     assert result1 == 42
-    #import pdb;pdb.set_trace()
     l2 = make_linklet("(linklet () (x g) (g 10 1000) (+ (vector-ref x 5) (vector-ref x 10)))")
-    import pdb;pdb.set_trace()
     result2, _ = eval_fixnum(l2, t2)
     assert result2 == 1001
 
