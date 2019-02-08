@@ -61,47 +61,45 @@ class W_LinkletInstance(W_Object):
         self.vars = vars # {W_Symbol:W_LinkletVar}
         self.data = data #
 
-    def add_exports(self, given_exports):
-        for e in given_exports:
-            if e not in self.exports:
-                self.exports[e] = given_exports[e]
+    # def add_exports(self, given_exports):
+    #     for e in given_exports:
+    #         if e not in self.exports:
+    #             self.exports[e] = given_exports[e]
 
-    def get_var(self, name):
-        return self.vars[name]
+    # def get_var(self, name):
+    #     return self.vars[name]
 
-    def overwrite_var(self, name, w_val):
-        v = self.get_var(name)
-        if not isinstance(v, W_Cell):
-            raise SchemeException("set!: assignment disallowed; cannot modify a constant : %s" % name.tostring())
-        v.set_val(w_val)
+    # def overwrite_var(self, name, w_val):
+    #     v = self.get_var(name)
+    #     if not isinstance(v, W_Cell):
+    #         raise SchemeException("set!: assignment disallowed; cannot modify a constant : %s" % name.tostring())
+    #     v.set_val(w_val)
 
-    def overwrite_val(self, name, new_val):
-        self.vars[name] = new_val
+    # def overwrite_val(self, name, new_val):
+    #     self.vars[name] = new_val
 
-    def lookup_var_value(self, name):
-        v = self.get_var(name)
-        if isinstance(v, W_Cell):
-            return v.get_val()
-        return v
+    # def lookup_var_value(self, name):
+    #     v = self.get_var(name)
+    #     if isinstance(v, W_Cell):
+    #         return v.get_val()
+    #     return v
 
-    def lookup_var_cell(self, name):
-        return self.get_var(name)
+    # def lookup_var_cell(self, name):
+    #     return self.get_var(name)
 
-    def provide_all_exports_to_prim_env(self, excludes=[]):
-        for name, var_val in self.vars.iteritems():
-            if name not in excludes:
-                if isinstance(var_val, W_Cell):
-                    prim_env[name] = var_val.get_val()
-                else:
-                    prim_env[name] = var_val
-                prim_src[name.variable_name()] = 'linklet'
+    # def provide_all_exports_to_prim_env(self, excludes=[]):
+    #     for name, var_val in self.vars.iteritems():
+    #         if name not in excludes:
+    #             if isinstance(var_val, W_Cell):
+    #                 prim_env[name] = var_val.get_val()
+    #             else:
+    #                 prim_env[name] = var_val
+    #             prim_src[name.variable_name()] = 'linklet'
 
     def tostring(self):
-
         vars_str = " ".join(["(%s : %s)" % (name.tostring(), var.tostring()) for name, var in self.vars.iteritems()])
-        exports_str = "".join(["(%s . %s)" % (int_name.tostring(), ext_name.tostring()) for int_name, ext_name in self.exports.iteritems()])
         data_str = self.data.tostring()
-        return "(linklet-instance %s (%s) (%s) %s)" % (self.name, data_str, exports_str, vars_str)
+        return "(linklet-instance %s (%s) %s)" % (self.name, data_str, vars_str)
 
 class W_LinkletBundle(W_Object):
     # Information in a linklet bundle is keyed by either a symbol or a fixnum
@@ -224,34 +222,34 @@ class W_Linklet(W_Object):
         # self.mutated_vars = {}
         # self.static = static
 
-    def get_name(self):
-        return self.name
+    # def get_name(self):
+    #     return self.name
 
-    def get_importss(self):
-        return self.importss
+    # def get_importss(self):
+    #     return self.importss
 
-    def get_exports(self):
-        return self.exports
+    # def get_exports(self):
+    #     return self.exports
 
-    def get_forms(self):
-        return self.forms
+    # def get_forms(self):
+    #     return self.forms
 
-    def set_forms(self, b_forms):
-        self.forms = b_forms
+    # def set_forms(self, b_forms):
+    #     self.forms = b_forms
 
-    def set_mutated_vars(self, m_vars):
-        self.mutated_vars = m_vars
+    # def set_mutated_vars(self, m_vars):
+    #     self.mutated_vars = m_vars
 
     def tostring(self):
         forms_str = " ".join([f.tostring() for f in self.forms])
         importss_ls = [None]*len(self.importss)
 
-        for index, imp_dict in enumerate(self.importss):
-            importss_ls[index] = "(" + "".join(["(%s . %s)" % (ext_name.tostring(), int_name.tostring()) for ext_name, int_name in imp_dict.iteritems()]) + ")"
+        for index, imp_group in enumerate(self.importss):
+            importss_ls[index] = "(" + "".join(["(%s . %s)" % (imp_obj.ext_id.tostring(), imp_obj.int_id.tostring()) for imp_obj in imp_group]) + ")"
 
         importss_str = "".join(importss_ls)
 
-        exports_str = "".join(["(%s %s)" % (int_name.tostring(), ext_name.tostring()) for int_name, ext_name in self.exports.iteritems()])
+        exports_str = "".join(["(%s %s)" % (exp_obj.int_id.tostring(), exp_obj.ext_id.tostring()) for exp_obj in self.exports.values()])
 
         return "(linklet %s (%s) (%s) %s)" % (self.name.tostring(), importss_str, exports_str, forms_str)
 
@@ -277,7 +275,7 @@ class W_Linklet(W_Object):
             if target and exp_obj.ext_id in target.vars:
                 var = target.vars[exp_obj.ext_id]
             else:
-                var = W_LinkletVar(w_uninitialized, exp_obj.ext_id, exp_obj.int_id, w_false)
+                var = W_LinkletVar(w_uninitialized, exp_obj.ext_id, self.name, w_false)
             export_vars[exp_obj.ext_id] = var
             env.toplevel_env().toplevel_set(exp_obj.int_id, var)
 
@@ -392,13 +390,13 @@ make_pred("linklet?", W_Linklet)
 
 make_pred("instance?", W_LinkletInstance)
 
-def external_of_an_export(sym, exports):
-    # checks if the given sym is used as an external name
-    # for an internally defined variable
-    for int_name, ext_name in exports.iteritems():
-        if sym is ext_name and int_name is not ext_name:
-            return True
-    return False
+# def external_of_an_export(sym, exports):
+#     # checks if the given sym is used as an external name
+#     # for an internally defined variable
+#     for int_name, ext_name in exports.iteritems():
+#         if sym is ext_name and int_name is not ext_name:
+#             return True
+#     return False
 
 @expose("compile-linklet", [W_Object, default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false)], simple=False)
 def compile_linklet(form, name, import_keys, get_import, options, env, cont):
@@ -483,18 +481,18 @@ def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, en
 def linklet_import_variables(linkl):
     importss_py_lst = linkl.importss
     importss = w_null
-    for imp_dict in importss_py_lst:
+    for imp_group in importss_py_lst:
         imp_inner = w_null
-        for ext_name, int_name in imp_dict.iteritems():
-            imp_inner = W_Cons.make(ext_name, imp_inner)
+        for imp_obj in imp_group:
+            imp_inner = W_Cons.make(imp_obj.ext_id, imp_inner)
         importss = W_Cons.make(imp_inner, importss)
     return importss
 
 @expose("linklet-export-variables", [W_Linklet])
 def linklet_export_variables(linkl):
     exports = w_null
-    for ext_name in linkl.exports.values():
-        exports = W_Cons.make(ext_name, exports)
+    for ext_sym in linkl.exports.keys():
+        exports = W_Cons.make(ext_sym, exports)
     return exports
 
 @expose("instance-variable-names", [W_LinkletInstance])
@@ -505,7 +503,6 @@ def get_instance_variable_names(inst):
     names = w_null
     for name in inst.vars.keys():
         names = W_Cons.make(name, names)
-
     return names
 
 make_pred("linklet-directory?", W_LinkletDirectory)
@@ -547,10 +544,7 @@ def make_instance(args): # name, data, *vars_vals
         for i in range(0, len(vars_vals), 2):
             n = vars_vals[i]
             v = vars_vals[i+1]
-            if mode is not w_false:
-                vars_vals_dict[n] = v
-            else:
-                vars_vals_dict[n] = W_Cell(v)
+            vars_vals_dict[n] = W_LinkletVar(v, n, name, mode)
 
         return W_LinkletInstance(name, vars_vals_dict, {}, data)
 
@@ -563,18 +557,12 @@ def recompile_linklet(linkl, name, import_keys, get_import, env, cont):
 
 @expose("instance-variable-value", [W_LinkletInstance, W_Symbol, default(W_Object, None)], simple=False)
 def instance_variable_value(instance, name, fail_k, env, cont):
-    if name not in instance.vars or instance.vars[name] is w_uninitialized:
+    if name not in instance.vars or instance.vars[name].val is w_uninitialized:
         if fail_k is not None and fail_k.iscallable():
             return fail_k.call([], env, cont)
         else:
             raise SchemeException("key %s not found in the instance %s" % (name.tostring(), instance.name.tostring()))
-
-    c_val = instance.get_var(name)
-    if isinstance(c_val, W_Cell):
-        return return_value(c_val.get_val(), env, cont)
-        #return return_value(var.get_value_direct(), env, cont)
-    else:
-        return return_value(c_val, env, cont)
+    return return_value(inst.vars[name].val, env, cont)
 
 @expose("instance-describe-variable!", [W_LinkletInstance, W_Symbol, W_Object])
 def instance_describe_variable(inst, name, desc_v):
@@ -589,21 +577,16 @@ def eval_linklet(l):
     return l
 
 @expose("instance-set-variable-value!", [W_LinkletInstance, W_Symbol, W_Object, default(W_Object, w_false)])
-def instance_set_variable_value(instance, name, val, mode):
-    if name in instance.vars and instance.vars[name] is not w_uninitialized:
-        if not isinstance(instance.vars[name], W_Cell):
+def instance_set_variable_value(instance, name, w_val, mode):
+    var = instance.vars.get(name, None)
+    if var:
+        if var.constance is not w_false:
             raise SchemeException("Cannot mutate a constant : %s" % name.tostring())
-        if mode is not w_false:
-            instance.vars[name] = val
-        else:
-            instance.vars[name].set_val(val)
     else:
-        # FIXME: avoid W_Cell for constant/consistent
-        if mode is not w_false:
-            instance.vars[name] = val
-        else:
-            instance.vars[name] = W_Cell(val)
+        var = W_LinkletVar(w_val, name, instance.name, mode)
+        instance.vars[name] = var
 
+    var.val = w_val
     return w_void
 
 @expose("primitive->compiled-position", [W_Object])

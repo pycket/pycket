@@ -483,9 +483,9 @@ def get_imports_from_w_importss_sexp(w_importss):
     return importss_list
 
 class Export(object):
-    def __init__(self, int_gensym, ext_gensym):
+    def __init__(self, int_gensym, ext_id):
         self.int_id = int_gensym
-        self.ext_id = ext_gensym
+        self.ext_id = ext_id
 
 def get_exports_from_w_exports_sexp(w_exports):
     from pycket.interpreter import Gensym
