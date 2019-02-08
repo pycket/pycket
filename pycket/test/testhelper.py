@@ -10,7 +10,6 @@ from pycket.expand import expand, JsonLoader, expand_string, ModTable, parse_mod
 from pycket.pycket_json import loads
 from pycket.env import ToplevelEnv, w_global_config
 from pycket.interpreter import *
-from pycket import values
 from pycket.error import SchemeException
 from pycket.cont import continuation
 from pycket.values import *
@@ -172,7 +171,7 @@ def get_val(inst, name_str):
     return inst.lookup_var_value(values.W_Symbol.make(name_str))
 
 def check_val(inst, var_str, val):
-    return get_val(inst, var_str).value == val
+    return inst.vars[W_Symbol.make(var_str)].val.value == val
 
 def inst(linkl, imports=[], target=None):
     if not target:

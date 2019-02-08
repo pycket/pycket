@@ -1543,83 +1543,10 @@ class LinkletVar(Var):
         return SymbolSet.EMPTY()
 
     def _set(self, w_val, env):
-        raise NotImplementedError("abstract base class")
+        env.toplevel_env().toplevel_set(self.sym, w_val)
 
     def _lookup(self, env):
-        raise NotImplementedError("base class")
-
-class LinkletDefinedVar(LinkletVar):
-    _immutable_fields_ = ["sym", "defining_linklet", "mutated?"]
-
-    def __init__(self, sym, defining_linklet):
-        LinkletVar.__init__(self, sym)
-        self.defining_linklet = defining_linklet
-        self.mutated = None
-        # We can't have self.mutated = self in defining_linklet.mutated_vars
-        # at the creation, beceause defining_linklet.mutated_vars is set
-        # at the assign_convert, after the var's creation
-
-    def tostring(self):
-        return "(LinkletDefinedVar %s)" % (self.sym.tostring())
-
-    def _set(self, w_val, env):
-        cell = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
-        cell.set_val(w_val)
-
-    def _lookup(self, env):
-        if self.mutated is None:
-            self.mutated = self in self.defining_linklet.mutated_vars
-
-        defs = self.defining_linklet.defs
-        # FIXME : we need a better way to know ahead of time which
-        # reference is for a shared value (e.g. have the
-        # assign_convert generate some knowns like in schemify?)
-        if self.mutated or self.sym not in defs:
-            return env.toplevel_env().toplevel_lookup(self.sym)
-        return defs[self.sym]
-
-class LinkletImportedVar(LinkletVar):
-    _immutable_fields_ = ["sym", "import_index", "import_rename"]
-    def __init__(self, sym, import_index, import_rename=None):
-        LinkletVar.__init__(self, sym)
-        self.import_index = import_index
-        self.import_rename = import_rename
-        self.w_value = None
-        self.valuating_instance = None
-
-    def tostring(self):
-        return "(LinkletImportedVar %s %s %s)" % (self.sym.tostring(), self.import_index, self.import_rename)
-
-    def _lookup(self, env):
-        jit.promote(self.w_value)
-        jit.promote(self.valuating_instance)
-        if self.w_value:
-            imp_inst = env.toplevel_env().import_instances[self.import_index]
-            if imp_inst is self.valuating_instance:
-                return self.w_value
-
-        ## imported
-        imp_inst = env.toplevel_env().import_instances[self.import_index]
-        lookup_sym = self.import_rename if self.import_rename else self.sym
-        w_val = imp_inst.lookup_var_value(lookup_sym) # value, not cell
-        self.w_value = w_val
-        self.valuating_instance = imp_inst
-        return w_val
-
-class LinkletExpUninitVar(LinkletVar):
-
-    def tostring(self):
-        return "(LinkletExpUninitVar %s)" % (self.sym.tostring())
-
-    def _set(self, w_val, env):
-        val_inst = env.toplevel_env().current_linklet_instance
-        val_inst.overwrite_var(self.sym, w_val)
-
-    def _lookup(self, env):
-        # exported, but not defined
-        # (gonna use the target's value)
-        val_inst = env.toplevel_env().current_linklet_instance
-        return val_inst.lookup_var_value(self.sym)
+        return env.toplevel_env().toplevel_lookup(self.sym)
 
 class LexicalVar(Var):
     visitable = True

@@ -519,6 +519,9 @@ pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug",
                     "pycket:activate-keyword", "pycket:deactivate-keyword",
                     "pycket:eq?", "pycket:report-undefined-prims"]
 
+schemify_hooks = ["variable-ref", "variable-ref/no-check",
+                  "variable-set!/check-undefined", "variable-set!"]
+
 place = make_primitive_table(place_str)
 paramz = make_primitive_table(paramz_str)
 internal = make_primitive_table(internal_str)
@@ -531,7 +534,7 @@ linklet = make_primitive_table(linklet_str)
 unsafe = make_primitive_table(unsafe_str)
 # FIXME : make it a #%pycket-extra, instead of piggybacking on the #%kernel
 kernel = make_primitive_table(kernel_str)
-pycket = make_primitive_table(pycket_extra_str)
+pycket = make_primitive_table(pycket_extra_str + schemify_hooks)
 
 
 
@@ -557,6 +560,7 @@ all_prims = linklet_str + \
             flfxnum_str + \
             extfl_str + \
             pycket_extra_str + \
+            schemify_hooks + \
             network_str
 
 if DEBUG:

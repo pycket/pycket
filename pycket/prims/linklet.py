@@ -41,15 +41,24 @@ class W_Uninitialized(W_Object):
 
 w_uninitialized = W_Uninitialized()
 
+class W_LinkletVar(W_Object):
+    _attrs_ = ["val", "name", "source-name", "constance"]
+    _immutabe_fields_ = ["name", "source-name"]
+
+    def __init__(self, val, name, source_name, constance=w_false):
+        self.val = val
+        self.name = name
+        self.source_name = source_name
+        self.constance = constance
+
 class W_LinkletInstance(W_Object):
 
     _attrs_ = ["name", "vars", "exports", "data"]
     _immutable_fields_ = ["name", "data"]
 
-    def __init__(self, name, vars, exports, data=w_false):
+    def __init__(self, name, vars, data=w_false):
         self.name = name # W_Symbol (for debugging)
         self.vars = vars # {W_Symbol:W_LinkletVar}
-        self.exports = exports
         self.data = data #
 
     def add_exports(self, given_exports):
@@ -189,52 +198,8 @@ def instantiate_def_cont(linkl, form, index, gensym_count, return_val, target, e
     for i in range(len_values):
         name = form.names[i]
         value = values[i]
-        # if name in linkl.defs and value.immutable():
-        #     value = linkl.defs[name]
 
-        # Ideally, we want to be able to share pure values across
-        # instantiations and not interpret them at all, but it's not
-        # so trivial, look at the test:
-        # -- test_instantiate_closure_capture_and_reset
-
-        # modify target
-        ext_name = linkl.exports[name] if name in linkl.exports else name
-
-        is_exported = name in linkl.exports
-        target_has_it = ext_name in target.vars
-        it_has_a_value = target_has_it and target.vars[ext_name] is not w_uninitialized
-
-        cell = None
-        mutated = not value.immutable()
-        if not mutated and name in linkl.mutated_vars.values():
-            mutated = True
-
-        if is_exported and target_has_it and it_has_a_value:
-            cell = target.get_var(ext_name)
-            if not isinstance(cell, W_Cell):
-                raise SchemeException("set!: assignment disallowed; cannot modify a constant : %s" % name.tostring())
-            # overwrite the target's cell
-            cell.set_val(value)
-        else:
-            cell_value = W_Cell(value) if mutated else value
-
-            if is_exported or not target_has_it:
-                target.vars[ext_name] = cell_value
-            elif external_of_an_export(name, linkl.exports):
-                gensym_count += 1
-                ex_name = W_Symbol.make_unreadable(name.tostring() + "." + str(gensym_count))
-                target.vars[ex_name] = cell_value
-
-            if mutated:
-                cell = cell_value
-
-        if not mutated:
-            linkl.defs[name] = value
-        else:
-            if linkl.static:
-                linkl.defs[name] = cell
-            else:
-                env.toplevel_env().toplevel_set(name, cell, already_celled=True)
+        env.toplevel_env().toplevel_set(name, value)
 
     return return_value(w_void, env, instantiate_val_cont(linkl, index + 1, gensym_count, return_val, target, env, cont))
 
@@ -248,17 +213,16 @@ def instantiate_loop(linkl, index, gensym_count, return_val, target, env, cont):
 
 class W_Linklet(W_Object):
 
-    _immutable_fields_ = ["name", "importss[*]", "exports", "forms?", "mutated_vars?", "static"]
+    _immutable_fields_ = ["name", "importss[*]", "exports", "forms"]
 
     def __init__(self, name, importss, exports, all_forms=None, static=False):
         self.name = name # W_Symbol -- for debugging
         self.importss = importss # [[Import ...] ...]
         self.exports = exports # {int_id:Export ...}
-
         self.forms = all_forms # [..., AST ,...]
-        self.defs = {}
-        self.mutated_vars = {}
-        self.static = static
+        # self.defs = {}
+        # self.mutated_vars = {}
+        # self.static = static
 
     def get_name(self):
         return self.name
@@ -291,39 +255,9 @@ class W_Linklet(W_Object):
 
         return "(linklet %s (%s) (%s) %s)" % (self.name.tostring(), importss_str, exports_str, forms_str)
 
-    def instantiate(self, w_imported_instances, config, prompt=False, target=None, env=None, cont=None):
-
-        l_importss = len(self.importss)
-        l_given_instances = len(w_imported_instances)
-
-        if l_importss != l_given_instances:
-            raise SchemeException("Required %s instances but given %s" % (str(l_importss), str(l_given_instances)))
-
-        return_val = True
-        if not target:
-            target = W_LinkletInstance(self.name, {}, self.exports)
-            return_val = False
-        else:
-            target.add_exports(self.exports)
-
-        """Instantiates the linklet:
-
-        --- Prep the environment and the continuation for the
-            evaluation of linklet forms
-        --- Collect the ids defined in the self linklet's forms
-        --- Uninitialize the undefined exports in the linklet into the
-            target (if it doesn't already have it)
-        --- Evaluate linklet forms
-        --- Return target instance and return value (None if a target
-            is given to instantiate)
-        """
-
-        """
-        Prep the environment and the continuation
-        Put the target into the environment
-        """
+    def instantiate(self, import_instances_ls, config, prompt=False, target=None, env=None, cont=None):
         from pycket.env import ToplevelEnv
-        env = ToplevelEnv(config, current_linklet_instance=target, import_instances=w_imported_instances)
+        env = ToplevelEnv(config)
 
         if not cont:
             cont = NilCont()
@@ -333,22 +267,24 @@ class W_Linklet(W_Object):
         if prompt:
             Prompt(w_default_continuation_prompt_tag, None, env, cont)
 
-        """
-        Collect the ids defined in the given linklet's forms
-        """
-        linklet_defined_names = []
-        for b in self.forms:
-            if isinstance(b, DefineValues):
-                linklet_defined_names += b.names
+        for group_index, import_group in enumerate(self.importss):
+            for imp in import_group:
+                w_imp_var = import_instances[group_index].vars[imp.ext_id]
+                env.toplevel_env().toplevel_set(imp.int_id, w_imp_var)
 
-        """
-        Uninitialize the undefined exports -- name, undef
-        """
-        for internal_name, external_name in self.exports.iteritems():
-            # Defined name ids are changed in compilation based on renames
-            if external_name not in linklet_defined_names:
-                if not external_name in target.vars:
-                    target.vars[external_name] = w_uninitialized
+        export_vars = {}
+        for exp_sym, exp_obj in self.exports.iteritems():
+            if target and exp_obj.ext_id in target.vars:
+                var = target.vars[exp_obj.ext_id]
+            else:
+                var = W_LinkletVar(w_uninitialized, exp_obj.ext_id, exp_obj.int_id, w_false)
+            export_vars[exp_obj.ext_id] = var
+            env.toplevel_env().toplevel_set(exp_obj.int_id, var)
+
+        return_val = True
+        if not target:
+            target = W_LinkletInstance(self.name, export_vars)
+            return_val = False
 
         if len(self.forms) == 0:
             # no need for any evaluation, just return the instance or the value
@@ -498,7 +434,6 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
                 body_forms = process_w_body_sexp(w_body, importss, exports)
 
             linkl = W_Linklet(w_name, importss, exports, body_forms)
-            import pdb;pdb.set_trace()
 
             if import_keys is w_false:
                 return return_value_direct(linkl, env, cont)
@@ -534,7 +469,7 @@ def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, en
     if expected != im_length:
         raise SchemeException("The number of instances in import-instances must match the number of import sets in linklet. Expected %s but got %s" % (expected, im_length))
 
-    if target_instance is None or target_instance is w_false:
+    if target_instance is w_false:
         target = None
     elif isinstance(target_instance, W_LinkletInstance):
         target = target_instance
@@ -745,3 +680,33 @@ def write_linklet_bundle_hash(ht, out_port, env, cont):
     with PerfRegionCPS("s-exp->fasl"):
         return s_exp_to_fasl.call([bundle_s_exp, out_port, values.w_false], env,
                                   finish_perf_region_cont("s-exp->fasl", env, cont))
+
+@expose("variable-ref", [W_LinkletVar])
+def variable_ref(w_var):
+    v = w_var.val
+    if v is w_uninitialized:
+        raise SchemeException("Reference to an uninitialized variable : %s" % w_var.name.tostring())
+    return v
+
+@expose("variable-ref/no-check", [W_LinkletVar])
+def variable_ref(w_var):
+    return w_var.val
+
+def do_var_set_bang(w_var, w_val, constance):
+    if w_var.constance is not w_false:
+        raise SchemeException("Cannot modify a constant %s" % w_var.name.tostring())
+    w_var.val = w_val
+    if constance is not w_false:
+        w_var.constance = constance
+
+@expose("variable-set!", [W_LinkletVar, W_Object, W_Object])
+def variable_set_bang(w_var, w_val, constance):
+    do_var_set_bang(w_var, w_val, constance)
+    return w_void
+
+@expose("variable-set!/check-undefined", [W_LinkletVar, W_Object, W_Object])
+def variable_set_bang(w_var, w_val, constance):
+    if w_var.val is w_uninitialized:
+        raise SchemeException("Reference to an uninitialized variable : %s" % w_var.name.tostring())
+    do_var_set_bang(w_var, w_val, constance)
+    return w_void
