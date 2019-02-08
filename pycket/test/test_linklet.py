@@ -25,9 +25,17 @@ def test_compile():
     l12 = make_linklet("(linklet () (y g) (define-values (y) 4) (define-values (g) (lambda (x) y)) (set! y 10))")
 
 def test_instantiate_basic():
-    l = inst(make_linklet("(linklet () (x) (define-values (x) 4))"), [])
-    assert isinstance(l, W_LinkletInstance)
-    assert check_val(l, "x", 4)
+    l1 = inst(make_linklet("(linklet () (x) (define-values (x) 4))"), [])
+    assert isinstance(l1, W_LinkletInstance)
+    assert check_val(l1, "x", 4)
+
+def test_instantiate_basic2():
+    l1 = make_linklet("(linklet () ((x1 x6)) (define-values (x1) 4))")
+    t = inst(l1, [])
+    l2 = make_linklet("(linklet () ((x2 x6)) (+ x2 x2))")
+    result, t = eval_fixnum(l2, t)
+    assert result == 8
+    assert check_val(t, "x6", 4)
 
 def test_instantiate_target():
     l = make_linklet("(linklet () (x) (define-values (x) 4) (+ x x))")
@@ -385,8 +393,8 @@ def test_instantiate_closure_capture_and_reset():
     _, t2 = eval_fixnum(l2, t2, [])
     _, t3 = eval_fixnum(l2, t3, [])
 
-    # the cells for both y and g in each target have to be 
-    # different cells, look below, one change doesn't affect 
+    # the cells for both y and g in each target have to be
+    # different cells, look below, one change doesn't affect
     # any others
 
     assert check_val(t1, "y", 50)
