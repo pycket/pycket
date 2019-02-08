@@ -252,16 +252,8 @@ class W_Linklet(W_Object):
 
     def __init__(self, name, importss, exports, all_forms=None, static=False):
         self.name = name # W_Symbol -- for debugging
-        """ importss -- list of dictionaries (for each import instance) of symbols
-        [...,{W_Symbol:W_Symbol},...]
-        [...,{exported_by_the_instance:referenced_in_self_forms},...]
-
-        if not renamed, then it has it's own name as the value (thanks RPython!)
-        """
-        self.importss = importss
-        self.exports = exports # dictionary of W_Symbols
-        # {internal_id(W_Symbol):external_id(W_Symbol)}
-        # again, may be the same if it's not renamed
+        self.importss = importss # [[Import ...] ...]
+        self.exports = exports # {int_id:Export ...}
 
         self.forms = all_forms # [..., AST ,...]
         self.defs = {}
@@ -487,40 +479,26 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
         if not isinstance(form.car(), W_Symbol) or "linklet" != form.car().tostring():
             raise SchemeException("Malformed s-expr. Expected a linklet, got %s" % form.tostring())
         else:
+            w_name = W_Symbol.make("ad-hoc") if name is w_false else name
+
             # Process the imports
             w_importss = form.cdr().car()
-            importss_list = get_imports_from_w_importss_sexp(w_importss)
+            importss = get_imports_from_w_importss_sexp(w_importss)
+            # list of directories (one for each import group)
+            # importss_list ==> [[Import ...] ...]
 
             # Process the exports
             w_exports = form.cdr().cdr().car()
             exports = get_exports_from_w_exports_sexp(w_exports)
-
-            if name is w_false:
-                w_name = W_Symbol.make("ad-hoc")
-            else:
-                w_name = name
-
-            linkl = W_Linklet(w_name, importss_list, exports)
+            # exports ==> {int_id:Export ...}
 
             # Process the body
             w_body = form.cdr().cdr().cdr()
             with PerfRegion("compile-sexp-to-ast"):
-                _body_forms, _body_length = process_w_body_sexp(w_body, importss_list, exports, linkl)
+                body_forms = process_w_body_sexp(w_body, importss, exports)
 
-            mutated_vars = {}
-            # Postprocess the body
-            body_forms = [None]*_body_length
-            for i, bf in enumerate(_body_forms):
-                with PerfRegion("compile-normalize"):
-                    b_form = Context.normalize_term(bf)
-                with PerfRegion("compile-assign-convert"):
-                    b_form = assign_convert(b_form)
-                body_forms[i] = b_form
-                for mv in b_form.mutated_vars().keys():
-                    mutated_vars[mv] = mv.sym
-
-            linkl.set_mutated_vars(mutated_vars)
-            linkl.set_forms(body_forms)
+            linkl = W_Linklet(w_name, importss, exports, body_forms)
+            import pdb;pdb.set_trace()
 
             if import_keys is w_false:
                 return return_value_direct(linkl, env, cont)
@@ -536,24 +514,6 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
     else: # correlated
         # take the AST from the correlated and put it in a W_Linklet and return
         raise SchemeException("NYI")
-
-    ##################################
-    ##### The optional import-keys and get-import arguments support cross-linklet optimization.
-    ##################################
-    # (Pdb) import_keys
-    # <pycket.vector.W_Vector object at 0x000000001baba608>
-    # (Pdb) import_keys.tostring()
-    # '#(#f #f #f)'
-
-    # (Pdb) get_import
-    # <W_Closure1AsEnvSize3 ['#<procedure:get-module-linklet-info_0:321>', '#<namespace>', '#<procedure:intern-module-use_0:321>'] <pycket.env.ToplevelEnv object at 0x0000000002b8c1e0>>
-    ##################################
-
-    ##### As long as serializable? is true, the resulting linklet can be marshaled to and from a byte stream when it is part of a linklet bundle.
-
-    # (Pdb) serializable_huh
-    # <pycket.values.W_Bool object at 0x00000000024e8640>
-    ##################################
 
 @expose("instance-name", [W_LinkletInstance])
 def instance_name(l_inst):

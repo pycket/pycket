@@ -8,6 +8,21 @@ from pycket.prims.linklet import W_LinkletInstance, w_uninitialized
 
 from pycket.test.testhelper import (make_linklet, inst, get_val, defines, variables, get_var_val, eval_fixnum, eval_bool, empty_target, make_instance, check_val)
 
+@pytest.mark.compile
+def test_compile():
+    l0 = make_linklet("(linklet () () (define-values (x) 4))")
+    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
+    l2 = make_linklet("(linklet () () (define-values (x) 4) (set! x 5))")
+    l3 = make_linklet("(linklet () (x) (define-values (x) 4) (set! x 5))")
+    l4 = make_linklet("(linklet () (x) (define-values (x) 4) (set! x 5) (+ x x))")
+    l5 = make_linklet("(linklet () (x) (set! x 5))")
+    l6 = make_linklet("(linklet ((a)) (g) (define-values (x) a) (define-values (g) (lambda (y) x)))") # reason for mutated pass
+    l7 = make_linklet("(linklet () (x) (define-values (x) (make-vector 20 0)))")
+    l8 = make_linklet("(linklet () (x) (define-values (x) (make-vector 20 0)) (define-values (g) (lambda (y) (vector-set! x 0 y))))")
+    l9 = make_linklet("(linklet () (x g) (define-values (x) (make-vector 20 0)) (define-values (g) (lambda (y) (vector-set! x 0 y))))")
+    l10 = make_linklet("(linklet (((y2 y))) ((x x2)) (define-values (x) y))")
+    l11 = make_linklet("(linklet () (g) (define-values (y) 4) (define-values (g) (lambda (x) y)) (set! y 10))")
+    l12 = make_linklet("(linklet () (y g) (define-values (y) 4) (define-values (g) (lambda (x) y)) (set! y 10))")
 
 def test_instantiate_basic():
     l = inst(make_linklet("(linklet () (x) (define-values (x) 4))"), [])
