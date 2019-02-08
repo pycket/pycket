@@ -263,7 +263,7 @@ class W_Linklet(W_Object):
 
         for group_index, import_group in enumerate(self.importss):
             for imp in import_group:
-                w_imp_var = import_instances_ls[group_index].vars[imp.ext_id]
+                w_imp_var = import_instances_ls[group_index].vars[imp.id]
                 env.toplevel_env().toplevel_set(imp.int_id, w_imp_var)
 
         return_val = True

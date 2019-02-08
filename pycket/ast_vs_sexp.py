@@ -470,13 +470,12 @@ def get_imports_from_w_importss_sexp(w_importss):
                     raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
                 external_id = c.car().get_obj() if isinstance(c.car(), W_Correlated) else c.car()
                 internal_id = c.cdr().car().get_obj() if isinstance(c.cdr().car(), W_Correlated) else c.cdr().car()
-                w_external_id = Gensym.gensym(external_id.tostring())
                 w_internal_id = Gensym.gensym(internal_id.tostring())
-                inner_acc[i] = Import(index, internal_id, w_external_id, w_internal_id)
+                inner_acc[i] = Import(index, w_internal_id, internal_id, external_id)
             elif isinstance(c, W_Correlated):
                 cc = c.get_obj()
                 w_cc = Gensym.gensym(cc.tostring())
-                innert_acc[i] = Import(index, cc, w_cc, w_cc)
+                innert_acc[i] = Import(index, w_cc, cc, cc)
             else:
                 raise SchemeException("uncrecognized import : %s" % c.tostring())
         importss_list[index] = inner_acc
