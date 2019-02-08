@@ -268,7 +268,7 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             rands = [interp.LinkletVar(exports[form].int_id)]
             return interp.App.make(rator, rands)
         if form in all_toplevels:
-            return interp.ToplevelVar(form)
+            return interp.ToplevelVar(form, is_free=False)
 
         import_var_int_id = is_imported(form, linkl_importss)
         if import_var_int_id: # this is gensymed internal variable name
@@ -601,8 +601,8 @@ def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
             for n in b_form.names:
                 if n in exports:
                     rator = interp.ModuleVar(var_set_sym, "#%kernel", var_set_sym, None)
-                    exp_var = interp.ToplevelVar(exports[n].int_id)
-                    top_var = interp.ToplevelVar(n)
+                    exp_var = interp.ToplevelVar(exports[n].int_id, is_free=False)
+                    top_var = interp.ToplevelVar(n, is_free=False)
                     mode = interp.Quote(values.w_false) # FIXME: possible optimization
                     rands = [exp_var, top_var, mode]
                     body_forms[current_index+added] = interp.App.make(rator,rands)

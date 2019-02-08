@@ -1597,6 +1597,14 @@ class ModuleVar(Var):
 
 class ToplevelVar(Var):
     visitable = True
+    def __init__(self, sym, env_structure=None, is_free=True):
+        Var.__init__(self, sym, env_structure)
+        self.is_free = is_free
+
+    def _free_vars(self, cache):
+        if self.is_free:
+            return SymbolSet.singleton(self.sym)
+        return SymbolSet.EMPTY()
 
     def _lookup(self, env):
         return env.toplevel_env().toplevel_lookup(self.sym)
