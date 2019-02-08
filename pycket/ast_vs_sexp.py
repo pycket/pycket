@@ -227,8 +227,8 @@ def is_val_type(form, extra=[]):
 def is_imported(id_sym, linkl_importss):
     for imp_index, imports_group in enumerate(linkl_importss):
         for imp in imports_group:
-            if id_sym is imp.id:
-                return imp.int_id
+            if id_sym is imp.int_id:
+                return imp.id
     return None
 
 begin_sym = mksym("begin")
@@ -464,7 +464,7 @@ def get_imports_from_w_importss_sexp(w_importss):
         for i, c in enumerate(importss_group_ls):
             if isinstance(c, values.W_Symbol):
                 w_imp_sym = Gensym.gensym(c.tostring())
-                inner_acc[i] = Import(index, c, w_imp_sym, w_imp_sym)
+                inner_acc[i] = Import(index, w_imp_sym, c, c)
             elif isinstance(c, values.W_List):
                 if c.cdr().cdr() is not values.w_null:
                     raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
