@@ -48,25 +48,23 @@ def ast_to_sexp(form):
         l_sym = mksym("linklet")
 
         name = form.name # W_Symbol
-        importss = form.importss # rlist of rdict of W_Symbol:W_Symbol
-        exports = form.exports # rdict
+        importss = form.importss # [[Import ...] ...]
+        exports = form.exports # {int_id:Export ...}
         body_forms = form.forms # rlist of ASTs
 
         importss_rlist = [None]*len(importss)
-        for index, rdict in enumerate(importss):
-            len_dict = len(rdict)
-            importss_inst = [None]*len_dict
-            i = 0
-            for k, v in rdict.iteritems():
-                importss_inst[i] = values.W_Cons.make(k, values.W_Cons.make(v, values.w_null))
-                i += 1
+        for index, imp_group in enumerate(importss):
+            len_group = len(imp_group)
+            importss_inst = [None]*len_group
+            for i, imp_obj in enumerate(imp_group):
+                importss_inst[i] = values.W_Cons.make(imp_obj.ext_id, values.W_Cons.make(imp_obj.int_id, values.w_null))
             importss_rlist[index] = values.to_list(importss_inst)
         importss_list = values.to_list(importss_rlist)
 
         exports_rlist = [None]*len(exports)
         i = 0
-        for k, v in exports.iteritems():
-            exports_rlist[i] = values.W_Cons.make(k, values.W_Cons.make(v, values.w_null))
+        for k, exp_obj in exports.iteritems():
+            exports_rlist[i] = values.W_Cons.make(k, values.W_Cons.make(exp_obj.ext_id, values.w_null))
             i += 1
 
         exports_list = values.to_list(exports_rlist)
