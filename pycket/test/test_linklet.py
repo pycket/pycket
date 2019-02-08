@@ -43,6 +43,8 @@ def test_instantiate_target():
     assert result == 8
     assert check_val(t, "x", 4)
 
+@pytest.mark.skip(reason="this behavior is different btw Racket and Chez")
+def test_instantiate_target2():
     # even if linklet doesn't export, def goes into target if it doesn't already have it
     l2 = make_linklet("(linklet () () (define-values (x) 4) (+ x x))")
     result2, t2 = eval_fixnum(l2, empty_target())
@@ -50,8 +52,8 @@ def test_instantiate_target():
     assert check_val(t2, "x", 4)
 
 def test_instantiate_define_var_set_banged_elsewhere():
-    l = make_linklet("(linklet () (x) (define-values (g) (lambda () (set! t 10))) (define-values (t) 50) (g) t)")
-    result, t = eval_fixnum(l, empty_target())
+    li = make_linklet("(linklet () (x t) (define-values (g) (lambda () (set! t 10))) (define-values (t) 50) (g) t)")
+    result, t = eval_fixnum(li, empty_target())
     assert result == 10
     assert check_val(t, "t", 10)
 

@@ -186,7 +186,7 @@ def make_instance(vars):
     for k,v in vars.iteritems():
         w_vars[values.W_Symbol.make(k)] = W_LinkletVar(values.W_Fixnum(v), k, w_name, w_false)
 
-    return W_LinkletInstance(w_name, w_vars, {})
+    return W_LinkletInstance(w_name, w_vars)
 
 def make_linklet(linkl_str, l_name="test_linklet_sexp"):
     #"(linklet () (x) (define-values (x) 4))"

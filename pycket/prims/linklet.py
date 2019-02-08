@@ -279,7 +279,6 @@ class W_Linklet(W_Object):
                 target.vars[exp_obj.ext_id] = var
 
             env.toplevel_env().toplevel_set(exp_obj.int_id, var)
-        import pdb;pdb.set_trace()
 
         if len(self.forms) == 0:
             # no need for any evaluation, just return the instance or the value
