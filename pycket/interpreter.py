@@ -309,8 +309,6 @@ def var_hash(a):
         return compute_hash(a.sym)
     elif isinstance(a, LinkletVar):
         return compute_hash(a.sym)
-    elif isinstance(a, LinkletStaticVar):
-        return compute_hash(a.sym)
     elif isinstance(a, ModuleVar):
         return compute_hash(a.srcsym)
     assert False
@@ -1490,41 +1488,8 @@ class Gensym(object):
         count = counter.next_value()
         return values.W_Symbol(hint + str(count))
 
-class LinkletStaticVar(Var):
-    visitable = True
-    _immutable_fields_ = ["w_value?", "sym", "defining_linklet"]
-
-    def __init__(self, sym, defining_linklet):
-        Var.__init__(self, sym)
-        self.w_value = None
-        self.defining_linklet = defining_linklet
-
-    def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "N/A"
-        return "(LinkletStaticVar %s %s)" % (self.sym.tostring(), val_str)
-
-    def write(self, port, env):
-        from pycket.prims.input_output import write_loop
-        write_loop(self.sym, port, env)
-
-    def _free_vars(self, cache):
-        return SymbolSet.EMPTY()
-
-    def _set(self, w_val, env):
-        w_res = self.w_value
-        if not w_res:
-            w_res = self.w_value = self.defining_linklet.defs[self.sym]
-        assert isinstance(w_res, values.W_Cell)
-        w_res.set_val(w_val)
-
-    def _lookup(self, env):
-        w_res = self.w_value
-        if not w_res:
-            w_res = self.w_value = self.defining_linklet.defs[self.sym]
-        if isinstance(w_res, values.W_Cell):
-            return w_res.get_val()
-        return w_res
-
+# Same with ToplevelVar(is_free=False)
+# It's better to have LinkletVars only refer to W_LinkletVar
 class LinkletVar(Var):
     visitable = True
     _immutable_fields_ = ["sym"]
@@ -1665,8 +1630,6 @@ class SetBang(AST):
         # even though we don't change these to cell refs, we still
         # have to convert the definitions
         elif isinstance(var, LinkletVar):
-            x[var] = None
-        elif isinstance(var, LinkletStaticVar):
             x[var] = None
         elif isinstance(var, ModuleVar):
             x[var] = None
