@@ -4,7 +4,6 @@ from pycket.error import SchemeException
 from pycket.arity import Arity
 
 prim_env = {}
-prim_src = {} # str : (or 'linklet' 'rpython')
 
 SAFE = 0
 UNSAFE = 1
@@ -330,7 +329,6 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
             if sym in prim_env and prim_env[sym].is_implemented():
                 raise SchemeException("name %s already defined" % nam)
             prim_env[sym] = p
-            prim_src[sym.variable_name()] = 'rpython'
         func_arg_unwrap.w_prim = p
         return func_arg_unwrap
     return wrapper
@@ -377,7 +375,6 @@ def expose_val(name, w_v, only_old=False):
     if sym in prim_env and prim_env[sym].is_implemented():
         raise Error("name %s already defined" % name)
     prim_env[sym] = w_v
-    prim_src[sym.variable_name()] = 'rpython'
 
 def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):
     from pycket import values

@@ -18,7 +18,7 @@ from pycket.values_string import W_String
 from pycket.values_parameter import top_level_config
 from pycket.error import SchemeException
 from pycket import pycket_json
-from pycket.prims.expose import prim_env, expose, default, expose_val, prim_src
+from pycket.prims.expose import prim_env, expose, default, expose_val
 from pycket.prims.general import make_pred
 from pycket.prims.correlated import W_Correlated
 from pycket.prims.vector import vector
@@ -87,14 +87,10 @@ class W_LinkletInstance(W_Object):
     # def lookup_var_cell(self, name):
     #     return self.get_var(name)
 
-    # def provide_all_exports_to_prim_env(self, excludes=[]):
-    #     for name, var_val in self.vars.iteritems():
-    #         if name not in excludes:
-    #             if isinstance(var_val, W_Cell):
-    #                 prim_env[name] = var_val.get_val()
-    #             else:
-    #                 prim_env[name] = var_val
-    #             prim_src[name.variable_name()] = 'linklet'
+    def expose_vars_to_prim_env(self, excludes=[]):
+        for name, w_var in self.vars.iteritems():
+            if name not in excludes:
+                prim_env[name] = w_var.val
 
     def tostring(self):
         vars_str = " ".join(["(%s : %s)" % (name.tostring(), var.tostring()) for name, var in self.vars.iteritems()])
@@ -297,6 +293,8 @@ class W_Linklet(W_Object):
     def load_linklet(json_file_name, set_version=False):
         from pycket.expand import readfile_rpython, getkey, JsonLoader
         from pycket.util import console_log
+        from pycket.interpreter import Gensym
+
         """ Expands and loads a linklet from a JSON file"""
         with PerfRegion("json-load"):
             data = readfile_rpython(json_file_name)
@@ -324,15 +322,16 @@ class W_Linklet(W_Object):
         for exp in exports_list:
             if exp.is_array:
                 arr = exp.value_array()
-                defined_name = W_Symbol.make(arr[0].value_object()['quote'].value_object()['toplevel'].value_string())
-                exported_name = W_Symbol.make(arr[1].value_object()['quote'].value_object()['toplevel'].value_string())
-
-                exports[defined_name] = exported_name
+                internal_str = arr[0].value_object()['quote'].value_object()['toplevel'].value_string()
+                internal_name = W_Symbol.make(internal_str)
+                external_name = W_Symbol.make(arr[1].value_object()['quote'].value_object()['toplevel'].value_string())
+                w_internal_name = Gensym.gensym(internal_str)
+                exports[internal_name] = Export(w_internal_name, expternal_name)
             else:
                 exp_str = exp.value_object()['quote'].value_object()['toplevel'].value_string()
                 exp_sym = W_Symbol.make(exp_str)
-
-                exports[exp_sym] = exp_sym
+                w_exp_sym = Gensym.gensym(exp_str)
+                exports[exp_sym] = Export(w_exp_sym, exp_sym)
 
         imports_list = getkey(linklet_dict, "importss", type='a', default=[])
 
@@ -345,15 +344,15 @@ class W_Linklet(W_Object):
                 # this is only for debugging purposes
                 instance_imports = {}
                 for id_str in arr:
-                    sym = W_Symbol.make(id_str.value_object()['quote'].value_object()['toplevel'].value_string())
-                    instance_imports[sym] = sym
+                    imp_str = id_str.value_object()['quote'].value_object()['toplevel'].value_string()
+                    imp_sym = W_Symbol.make(imp_str)
+                    w_imp_sym = Gensym.gensym(imp_str)
+                    instance_imports[sym] = Import(index, imp_sym, w_imp_sym, w_imp_sym)
                 importss[index] = instance_imports
 
         console_log("Converting linklet forms to AST ...", 2)
 
-        linkl = W_Linklet(W_Symbol.make(json_file_name), importss, exports, static=True)
-        mutated_vars = {}
-        loader = JsonLoader(loading_linklet=linkl)
+        loader = JsonLoader()
         with PerfRegion("json-to-ast"):
             all_forms = []
             for body_form in getkey(linklet_dict, "body", type='a'):
@@ -363,12 +362,18 @@ class W_Linklet(W_Object):
                 #     import pdb;pdb.set_trace()
                 form = assign_convert(form_1)
                 all_forms.append(form)
-                for mv in form.mutated_vars().keys():
-                    mutated_vars[mv] = mv.sym
+            # for each exported defined id, we need to add a
+            # variable-set! for the exported var with the defined id
+            for exp_sym, exp_obj in exports.iteritems():
+                rator = ModuleVar(var_set_sym, "#%kernel", var_set_sym, None)
+                exp_var = ToplevelVar(exp_obj.int_id)
+                top_var = ToplevelVar(exp_sym)
+                mode = Quote(values.w_false) # FIXME: possible optimization
+                rands = [exp_var, top_var, mode]
+                all_forms.append(App.make(rator,rands))
 
+        linkl = W_Linklet(W_Symbol.make(json_file_name), importss, exports, all_forms)
         console_log("Finished converting linklet forms to AST ...", 2)
-        linkl.set_forms(all_forms)
-        linkl.set_mutated_vars(mutated_vars)
 
         config = {}
         config_obj = getkey(linklet_dict, "config", type='o')
@@ -546,7 +551,7 @@ def make_instance(args): # name, data, *vars_vals
             v = vars_vals[i+1]
             vars_vals_dict[n] = W_LinkletVar(v, n, name, mode)
 
-        return W_LinkletInstance(name, vars_vals_dict, {}, data)
+        return W_LinkletInstance(name, vars_vals_dict, data)
 
 @expose("recompile-linklet", [W_Linklet, default(W_Object, None), default(W_Object, w_false), default(W_Object, None)], simple=False)
 def recompile_linklet(linkl, name, import_keys, get_import, env, cont):

@@ -451,12 +451,11 @@ class JsonLoader(object):
 
     _immutable_fields_ = ["modtable", "bytecode_expand", "multiple_modules"]
 
-    def __init__(self, bytecode_expand=False, multiple_modules=False, module_mapper=None, loading_linklet=None):
+    def __init__(self, bytecode_expand=False, multiple_modules=False, module_mapper=None):
         self.modtable = ModTable()
         self.bytecode_expand = bytecode_expand
         self.multi_mod_flag = multiple_modules
         self.multi_mod_mapper = module_mapper
-        self.loading_linklet = loading_linklet
 
     def _lib_string(self):
         return _BE if self.bytecode_expand else _FN
@@ -616,7 +615,7 @@ class JsonLoader(object):
                 var = None
                 if "source-linklet" in target:
                     srcname = mksym(target["source-linklet"].value_string())
-                    var = LinkletStaticVar(srcname, self.loading_linklet)
+                    var = LinkletVar(srcname) # LinkletStaticVar
                 elif "source-name" in target:
                     srcname = mksym(target["source-name"].value_string())
                     if "source-module" in target:
@@ -723,7 +722,7 @@ class JsonLoader(object):
                 return QuoteSyntax(to_value(obj["quote-syntax"]))
             if "source-linklet" in obj:
                 srcsym = mksym(obj["source-linklet"].value_string())
-                return LinkletStaticVar(srcsym, self.loading_linklet)
+                return LinkletVar(srcsym) # LinkletStaticVar
             if "source-name" in obj:
                 srcname = obj["source-name"].value_string()
                 modname = obj["module"].value_string() if "module" in obj else None
