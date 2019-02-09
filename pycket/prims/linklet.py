@@ -42,6 +42,7 @@ class W_Uninitialized(W_Object):
 w_uninitialized = W_Uninitialized()
 
 class W_LinkletVar(W_Object):
+    errorname = "linklet-var"
     _attrs_ = ["val", "name", "constance"]
     _immutabe_fields_ = ["name"]
 
@@ -51,7 +52,7 @@ class W_LinkletVar(W_Object):
         self.constance = constance
 
 class W_LinkletInstance(W_Object):
-
+    errorname = "linklet-instance"
     _attrs_ = ["name", "vars", "exports", "data"]
     _immutable_fields_ = ["name", "data"]
 
@@ -101,7 +102,7 @@ class W_LinkletInstance(W_Object):
 
 class W_LinkletBundle(W_Object):
     # Information in a linklet bundle is keyed by either a symbol or a fixnum
-
+    errorname = "linklet-bundle"
     _attrs_ = _immutable_fields_ = ["bundle_mapping"]
 
     def __init__(self,bundle_mapping):
@@ -145,7 +146,7 @@ class W_LinkletDirectory(W_Object):
     # directory. A linklet directory can have nested linklet
     # directories. A linklet directory can be equivalently viewed as a
     # mapping from a lists of symbols to a linklet bundle.
-
+    errorname = "linklet-directory"
     _attrs_ = _immutable_fields_ = ["dir_mapping"]
 
     def __init__(self,dir_mapping):
@@ -208,10 +209,10 @@ def instantiate_loop(linkl, index, gensym_count, return_val, target, env, cont):
         return form, env, instantiate_val_cont(linkl, index + 1, gensym_count, return_val, target, env, cont)
 
 class W_Linklet(W_Object):
+    errorname = "linklet"
+    _attrs_ = _immutable_fields_ = ["name", "importss", "exports", "forms"]
 
-    _immutable_fields_ = ["name", "importss[*]", "exports", "forms"]
-
-    def __init__(self, name, importss, exports, all_forms=None, static=False):
+    def __init__(self, name, importss, exports, all_forms, static=False):
         self.name = name # W_Symbol -- for debugging
         self.importss = importss # [[Import ...] ...]
         self.exports = exports # {int_id:Export ...}
