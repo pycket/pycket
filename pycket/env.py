@@ -276,11 +276,6 @@ class ToplevelEnv(Env):
         jit.promote(self)
         return self._lookup(sym, jit.promote(self.version)).get_val()
 
-    def toplevel_lookup_get_cell(self, sym):
-        from pycket.values import W_Cell
-        jit.promote(self)
-        return self._lookup(sym, jit.promote(self.version))
-
     @jit.elidable
     def _lookup(self, sym, version):
         try:
@@ -288,14 +283,10 @@ class ToplevelEnv(Env):
         except KeyError:
             raise SchemeException("toplevel variable %s not found" % sym.variable_name())
 
-    def toplevel_set(self, sym, w_val, already_celled=False):
+    def toplevel_set(self, sym, w_val):
         from pycket.values import W_Cell
         if sym in self.bindings:
             self.bindings[sym].set_val(w_val)
-        elif already_celled:
-            assert isinstance(w_val, W_Cell)
-            self.bindings[sym] = w_val
-            self.version = Version()
         else:
             self.bindings[sym] = W_Cell(w_val)
             self.version = Version()
