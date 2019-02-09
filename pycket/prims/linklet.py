@@ -353,7 +353,7 @@ class W_Linklet(W_Object):
                     imp_str = id_str.value_object()['quote'].value_object()['toplevel'].value_string()
                     imp_sym = W_Symbol.make(imp_str)
                     w_imp_sym = Gensym.gensym(imp_str)
-                    instance_imports.append(Import(index, imp_sym, w_imp_sym, w_imp_sym))
+                    instance_imports.append(Import(W_Fixnum(index), imp_sym, w_imp_sym, w_imp_sym))
                 importss[index] = instance_imports
 
         console_log("Converting linklet forms to AST ...", 2)

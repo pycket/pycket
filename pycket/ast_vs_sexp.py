@@ -37,6 +37,13 @@ def to_rpython_list(r_list, unwrap_correlated=False, reverse=False, improper=Fal
         acc = acc.cdr()
     return py_ls, length
 
+dir_sym = mksym(":D:")
+bundle_sym = mksym(":B:")
+linklet_sym = mksym("linklet")
+
+import_sym = mksym("Import")
+export_sym = mksym("Export")
+
 def ast_to_sexp(form):
     from pycket.prims.linklet import W_Linklet, W_LinkletBundle, W_LinkletDirectory
 
@@ -45,26 +52,33 @@ def ast_to_sexp(form):
     if is_val_type(form, extra=[vector.W_Vector, base.W_HashTable, values.W_List, values.W_Symbol]):
         return form
     elif isinstance(form, W_Linklet):
-        l_sym = mksym("linklet")
-
         name = form.name # W_Symbol
         importss = form.importss # [[Import ...] ...]
         exports = form.exports # {int_id:Export ...}
         body_forms = form.forms # rlist of ASTs
+
+        # The AST contains gensymed references to all the variables
+        # the linklet closes on, so we need to serialize all the
+        # information we have in Import and Export objects to recreate
+        # the same gensymed bindings at the instantiation of the
+        # deserialized linklet.
+        # So it will look like this when serialized:
+        #
+        # (linklet name (((Import grp gen_id int_id ext_id) ...) ...) ((Export int_id gen_int_id ext_id) ...) body)
 
         importss_rlist = [None]*len(importss)
         for index, imp_group in enumerate(importss):
             len_group = len(imp_group)
             importss_inst = [None]*len_group
             for i, imp_obj in enumerate(imp_group):
-                importss_inst[i] = values.W_Cons.make(imp_obj.ext_id, values.W_Cons.make(imp_obj.int_id, values.w_null))
+                importss_inst[i] = values.to_list([import_sym, imp_obj.group, imp_obj.id, imp_obj.int_id, imp_obj.ext_id])
             importss_rlist[index] = values.to_list(importss_inst)
         importss_list = values.to_list(importss_rlist)
 
         exports_rlist = [None]*len(exports)
         i = 0
         for k, exp_obj in exports.iteritems():
-            exports_rlist[i] = values.W_Cons.make(k, values.W_Cons.make(exp_obj.ext_id, values.w_null))
+            exports_rlist[i] = values.to_list([export_sym, k, exp_obj.int_id, exp_obj.ext_id])
             i += 1
 
         exports_list = values.to_list(exports_rlist)
@@ -73,7 +87,7 @@ def ast_to_sexp(form):
         for index, ast_form in enumerate(body_forms):
             body_forms_rlist[index] = ast_form.to_sexp()
 
-        linklet_rlist = [l_sym, name, importss_list, exports_list] + body_forms_rlist
+        linklet_rlist = [linklet_sym, name, importss_list, exports_list] + body_forms_rlist
         linklet_s_exp = values.to_list(linklet_rlist)
 
         return linklet_s_exp
@@ -224,6 +238,7 @@ def let_like_to_ast(let_sexp, lex_env, exports, all_toplevels, linkl_imports, mu
 
 def is_val_type(form, extra=[]):
     val_types = [values.W_Number,
+                 values.W_Void,
                  values.W_Bool,
                  values_string.W_String,
                  values.W_ImmutableBytes,
@@ -258,6 +273,8 @@ var_ref_no_check_sym = mksym("variable-ref/no-check")
 var_set_check_undef_sym = mksym("variable-set!/check-undefined")
 var_set_sym = mksym("variable-set!")
 
+var_prim_syms = [var_ref_sym, var_ref_no_check_sym, var_set_check_undef_sym, var_set_sym]
+
 def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref=[], name=""):
 
     #util.console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
@@ -291,6 +308,29 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         return interp.ModuleVar(form, "#%kernel", form, None)
     elif isinstance(form, values.W_List):
         c = form.car()
+        ### these are for the desearialization of the linklet body
+        if c in var_prim_syms:
+            linklet_var_sym = None
+            if c is var_set_sym:
+                linklet_var_sym = form.cdr().car()
+                rator = interp.ModuleVar(c, "#%kernel", c, None)
+                linklet_var = interp.LinkletVar(linklet_var_sym)
+                top_var = interp.ToplevelVar(form.cdr().cdr().car())
+                mode = interp.Quote(values.w_false) # FIXME: possible optimization
+                rands = [linklet_var, top_var, mode]
+                return interp.App.make(rator, rands)
+            if c is var_ref_sym:
+                linklet_var_sym = form.cdr().car()
+                rands = [interp.LinkletVar(linklet_var_sym)]
+                rator = interp.ModuleVar(c, "#%kernel", c, None)
+            elif c is var_ref_no_check_sym:
+                linklet_var_sym = form.cdr().car()
+            elif c is var_set_check_undef_sym:
+                linklet_var_sym = form.cdr().car()
+            rands = [interp.LinkletVar(linklet_var_sym)]
+            rator = interp.ModuleVar(c, "#%kernel", c, None)
+            return interp.App.make(rator, rands)
+        ###
         if c is begin_sym:
             begin_exprs, ln = to_rpython_list(form.cdr())
             return interp.Begin.make([sexp_to_ast(f, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for f in begin_exprs])
@@ -422,10 +462,6 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
     else:
         raise SchemeException("Don't know what to do with this form yet : %s" % form.tostring())
 
-dir_sym = mksym(":D:")
-bundle_sym = mksym(":B:")
-linklet_sym = mksym("linklet")
-
 def looks_like_linklet(sexp):
     # (linklet () () ...)
     # we know the sexp is not w_null
@@ -473,18 +509,18 @@ def get_imports_from_w_importss_sexp(w_importss):
         for i, c in enumerate(importss_group_ls):
             if isinstance(c, values.W_Symbol):
                 w_imp_sym = Gensym.gensym(c.tostring())
-                inner_acc[i] = Import(index, w_imp_sym, c, c)
+                inner_acc[i] = Import(values.W_Fixnum(index), w_imp_sym, c, c)
             elif isinstance(c, values.W_List):
                 if c.cdr().cdr() is not values.w_null:
                     raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
                 external_id = c.car().get_obj() if isinstance(c.car(), W_Correlated) else c.car()
                 internal_id = c.cdr().car().get_obj() if isinstance(c.cdr().car(), W_Correlated) else c.cdr().car()
                 w_internal_id = Gensym.gensym(internal_id.tostring())
-                inner_acc[i] = Import(index, w_internal_id, internal_id, external_id)
+                inner_acc[i] = Import(values.W_Fixnum(index), w_internal_id, internal_id, external_id)
             elif isinstance(c, W_Correlated):
                 cc = c.get_obj()
                 w_cc = Gensym.gensym(cc.tostring())
-                inner_acc[i] = Import(index, w_cc, cc, cc)
+                inner_acc[i] = Import(values.W_Fixnum(index), w_cc, cc, cc)
             else:
                 raise SchemeException("uncrecognized import : %s" % c.tostring())
         importss_list[index] = inner_acc
@@ -612,7 +648,7 @@ def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
             for n in b_form.names:
                 if n in exports:
                     rator = interp.ModuleVar(var_set_sym, "#%kernel", var_set_sym, None)
-                    exp_var = interp.ToplevelVar(exports[n].int_id, is_free=False)
+                    exp_var = interp.LinkletVar(exports[n].int_id)
                     top_var = interp.ToplevelVar(n, is_free=False)
                     mode = interp.Quote(values.w_false) # FIXME: possible optimization
                     rands = [exp_var, top_var, mode]
@@ -620,6 +656,72 @@ def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
                     added += 1
 
     return body_forms
+
+def looks_like_an_import(sexp):
+    # should be (Import grp gen_id int_id ext_id)
+    if not isinstance(sexp, values.W_Cons):
+        return False
+    if sexp.car() is not import_sym:
+        return False
+    if not isinstance(sexp.cdr(), values.W_Cons):
+        return False
+    if not isinstance(sexp.cdr().cdr(), values.W_Cons):
+        return False
+    if not isinstance(sexp.cdr().cdr().cdr(), values.W_Cons):
+        return False
+    if not isinstance(sexp.cdr().cdr().cdr().cdr(), values.W_Cons):
+        return False
+    return True
+
+# We can't use the same thing with what compile-linklet uses anymore,
+# becuse what we serialize is now specific to Pycket (contains some
+# extra info than a regular linklet s-expr that the expander would
+# pass)
+def deserialize_importss(w_importss):
+    importss_acc, importss_len = to_rpython_list(w_importss)
+    importss_list = [None]*importss_len
+    for index, importss_current in enumerate(importss_acc):
+        importss_group_ls, group_len = to_rpython_list(importss_current)
+        inner_acc = [None]*group_len
+        for i, c in enumerate(importss_group_ls):
+            if looks_like_an_import(c):
+                w_grp_index = c.cdr().car()
+                id          = c.cdr().cdr().car()
+                int_id      = c.cdr().cdr().cdr().car()
+                ext_id      = c.cdr().cdr().cdr().cdr().car()
+                inner_acc[i] = Import(w_grp_index, id, int_id, ext_id)
+            else:
+                raise SchemeException("looks like an invalid serialization of import : %s" % c.tostring())
+        importss_list[index] = inner_acc
+    return importss_list
+
+def looks_like_an_export(sexp):
+    # should be (Import grp gen_id int_id ext_id)
+    if not isinstance(sexp, values.W_Cons):
+        return False
+    if sexp.car() is not export_sym:
+        return False
+    if not isinstance(sexp.cdr(), values.W_Cons):
+        return False
+    if not isinstance(sexp.cdr().cdr(), values.W_Cons):
+        return False
+    if not isinstance(sexp.cdr().cdr().cdr(), values.W_Cons):
+        return False
+    return True
+
+# See the comment for deserialize_importss
+def deserialize_exports(w_exports):
+    r_exports, exports_len = to_rpython_list(w_exports)
+    exports = {}
+    for i, exp in enumerate(r_exports):
+        if looks_like_an_export(exp):
+            k = exp.cdr().car()
+            gen_int_id = exp.cdr().cdr().car()
+            ext_id = exp.cdr().cdr().cdr().car()
+            exports[k] = Export(gen_int_id, ext_id)
+        else:
+            raise SchemeException("looks like an invalid serialization of export : %s" % exp.tostring())
+    return exports
 
 def deserialize_loop(sexp):
     from pycket.prims.linklet import W_Linklet, W_LinkletBundle, W_LinkletDirectory
@@ -654,12 +756,12 @@ def deserialize_loop(sexp):
 
             #util.console_log("-- w_name : %s\n-- w_imports : %s\n-- w_exports : %s\n-- w_body : %s" % (w_name.tostring(), w_importss.tostring(), w_exports.tostring(), w_body.tostring()), 8)
 
-            importss_list = get_imports_from_w_importss_sexp(w_importss)
+            importss_list = deserialize_importss(w_importss)
 
             #util.console_log("imports are done", 8)
 
             # Process the exports
-            exports = get_exports_from_w_exports_sexp(w_exports)
+            exports = deserialize_exports(w_exports)
             #util.console_log("exports are done", 8)
 
             # Process the body
