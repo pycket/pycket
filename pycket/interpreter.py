@@ -965,7 +965,10 @@ class VariableReference(AST):
 
     def interpret_simple(self, env):
         instance_var_sym = values.W_Symbol.make("instance-variable-reference")
-        instance = env.toplevel_env().toplevel_lookup(instance_var_sym)
+        try:
+            instance = env.toplevel_env().toplevel_lookup(instance_var_sym)
+        except SchemeException:
+            instance = None
         return values.W_VariableReference(self, instance)
 
     def direct_children(self):
