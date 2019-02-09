@@ -562,9 +562,7 @@ def extend_dicts(list_of_dicts):
 def find_mutated(form):
     if isinstance(form, W_Correlated):
         return find_mutated(form.get_obj())
-    if is_val_type(form, extra=[values_regex.W_Regexp]) or isinstance(form, values.W_Symbol) or form is values.w_null:
-        return {}
-    elif isinstance(form, values.W_List):
+    elif isinstance(form, values.W_Cons):
         if not form.is_proper_list():
             elements, _ = to_rpython_list(form, unwrap_correlated=True, improper=True)
             return extend_dicts([find_mutated(f) for f in elements])
@@ -578,7 +576,7 @@ def find_mutated(form):
             rest_exprs, _ = to_rpython_list(form.cdr(), unwrap_correlated=True)
             return extend_dicts([find_mutated(f) for f in rest_exprs])
     else:
-        raise SchemeException("find_mutated -- unhandled object type : %s - %s" % (form, form.tostring()))
+        return {}
 
 def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
     body_forms_ls, body_length = to_rpython_list(w_body, unwrap_correlated=True)
