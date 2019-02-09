@@ -246,9 +246,9 @@ class Version(object):
 w_version = Version()
 
 class ToplevelEnv(Env):
-    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig', 'current_linklet_instance', 'import_instances']
-    _immutable_fields_ = ["version?", "module_env", 'current_linklet_instance']
-    def __init__(self, pycketconfig=None, current_linklet_instance=None, import_instances=[]):
+    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig']
+    _immutable_fields_ = ["version?", "module_env"]
+    def __init__(self, pycketconfig=None):
         from rpython.config.config import Config
         self.bindings = {}
         self.version = w_version
@@ -261,17 +261,12 @@ class ToplevelEnv(Env):
             pycketconfig = get_testing_config()
         assert isinstance(pycketconfig, Config)
         self._pycketconfig = pycketconfig
-        self.current_linklet_instance = current_linklet_instance
-        self.import_instances = import_instances
 
     def get_commandline_arguments(self):
         return self.commandline_arguments
 
     def get_current_version(self):
         return self.version
-
-    def get_current_linklet_instance(self):
-        return self.current_linklet_instance
 
     def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound" % sym.variable_name())
