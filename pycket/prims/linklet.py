@@ -273,6 +273,9 @@ class W_Linklet(W_Object):
             target = W_LinkletInstance(self.name, {})
             return_val = False
 
+        # FIXME: gensym this ref name and put it in the linklet at compile
+        env.toplevel_env().toplevel_set(mksym("instance-variable-reference"), target)
+
         for exp_sym, exp_obj in self.exports.iteritems():
             if target and exp_obj.ext_id in target.vars:
                 var = target.vars[exp_obj.ext_id]

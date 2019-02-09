@@ -963,10 +963,10 @@ class VariableReference(AST):
         else:
             return False
 
-
     def interpret_simple(self, env):
-        current_inst = env.toplevel_env().current_linklet_instance
-        return values.W_VariableReference(self, current_inst)
+        instance_var_sym = values.W_Symbol.make("instance-variable-reference")
+        instance = env.toplevel_env().toplevel_lookup(instance_var_sym)
+        return values.W_VariableReference(self, instance)
 
     def direct_children(self):
         return []
