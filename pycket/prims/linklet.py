@@ -372,7 +372,7 @@ class W_Linklet(W_Object):
             # variable-set! for the exported var with the defined id
             for exp_sym, exp_obj in exports.iteritems():
                 rator = ModuleVar(var_set_sym, "#%kernel", var_set_sym, None)
-                exp_var = ToplevelVar(exp_obj.int_id)
+                exp_var = LinkletStaticVar(exp_obj.int_id)
                 top_var = ToplevelVar(exp_sym)
                 mode = Quote(values.w_false) # FIXME: possible optimization
                 rands = [exp_var, top_var, mode]
