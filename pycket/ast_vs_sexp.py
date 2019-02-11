@@ -310,25 +310,18 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         c = form.car()
         ### these are for the desearialization of the linklet body
         if c in var_prim_syms:
-            linklet_var_sym = None
-            if c is var_set_sym:
-                linklet_var_sym = form.cdr().car()
+            linklet_var_sym = form.cdr().car()
+            rator, rands = None, None
+            if c is var_set_sym or c is var_set_check_undef_sym:
                 rator = interp.ModuleVar(c, "#%kernel", c, None)
                 linklet_var = interp.LinkletVar(linklet_var_sym)
-                top_var = interp.ToplevelVar(form.cdr().cdr().car())
+                new_val = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
                 mode = interp.Quote(values.w_false) # FIXME: possible optimization
-                rands = [linklet_var, top_var, mode]
+                rands = [linklet_var, new_val, mode]
                 return interp.App.make(rator, rands)
-            if c is var_ref_sym:
-                linklet_var_sym = form.cdr().car()
+            if c is var_ref_sym or c is var_ref_no_check_sym:
                 rands = [interp.LinkletVar(linklet_var_sym)]
                 rator = interp.ModuleVar(c, "#%kernel", c, None)
-            elif c is var_ref_no_check_sym:
-                linklet_var_sym = form.cdr().car()
-            elif c is var_set_check_undef_sym:
-                linklet_var_sym = form.cdr().car()
-            rands = [interp.LinkletVar(linklet_var_sym)]
-            rator = interp.ModuleVar(c, "#%kernel", c, None)
             return interp.App.make(rator, rands)
         ###
         if c is begin_sym:
@@ -765,7 +758,8 @@ def deserialize_loop(sexp):
             #util.console_log("exports are done", 8)
 
             # Process the body
-            body_forms = process_w_body_sexp(w_body, importss_list, exports, from_zo=True)
+            with PerfRegion("compile-sexp-to-ast"):
+                body_forms = process_w_body_sexp(w_body, importss_list, exports, from_zo=True)
 
             #util.console_log("body forms -> ASTs are done, postprocessing begins...", 8)
 
