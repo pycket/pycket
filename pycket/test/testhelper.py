@@ -10,7 +10,6 @@ from pycket.expand import expand, JsonLoader, expand_string, ModTable, parse_mod
 from pycket.pycket_json import loads
 from pycket.env import ToplevelEnv, w_global_config
 from pycket.interpreter import *
-from pycket import values
 from pycket.error import SchemeException
 from pycket.cont import continuation
 from pycket.values import *
@@ -156,7 +155,10 @@ def get_var_val(inst, id_str):
     # for getting uninterned symbols
     for k,v in inst.vars.iteritems():
         if id_str == k.tostring():
-            return k, v.get_value_direct()
+            if isinstance(v, values.W_Cell):
+                return k, v.get_val()
+            else:
+                return k, v
     raise Exception("Can't find the variable : %s in instance : %s" % (id_str, inst.tostring()))
 
 def variables(inst):
@@ -169,7 +171,7 @@ def get_val(inst, name_str):
     return inst.lookup_var_value(values.W_Symbol.make(name_str))
 
 def check_val(inst, var_str, val):
-    return get_val(inst, var_str).value == val
+    return inst.vars[W_Symbol.make(var_str)].val.value == val
 
 def inst(linkl, imports=[], target=None):
     if not target:
@@ -177,9 +179,14 @@ def inst(linkl, imports=[], target=None):
 
     return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
 
-def make_instance(linkl_str, imports=[], l_name="test_linklet_sexp"):
-    instance = inst(make_linklet(linkl_str, l_name), imports)
-    return instance
+# CAUTION: call it with variables carrying only numbers
+def make_instance(vars):
+    w_name = values.W_Symbol.make("test_linklet_instance")
+    w_vars = {}
+    for k,v in vars.iteritems():
+        w_vars[values.W_Symbol.make(k)] = W_LinkletVar(values.W_Fixnum(v), k, w_name, w_false)
+
+    return W_LinkletInstance(w_name, w_vars)
 
 def make_linklet(linkl_str, l_name="test_linklet_sexp"):
     #"(linklet () (x) (define-values (x) 4))"
@@ -193,7 +200,8 @@ def make_linklet(linkl_str, l_name="test_linklet_sexp"):
 
 def empty_target(l_name="test_empty_instance"):
     # creates an empty target
-    return make_instance("(linklet () ())", l_name=l_name)
+    #return make_instance("(linklet () ())", l_name=l_name)
+    return make_instance({})
 
 def eval(linkl, target, imports=[], just_return=False):
     result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())

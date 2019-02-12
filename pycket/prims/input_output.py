@@ -1213,32 +1213,32 @@ def write_linklet(v, port, env):
     console_log(v.tostring(), 2)
     port.write("(linklet")
     port.write(" ")
-    write_loop(v.get_name(), port, env)
+    write_loop(v.name, port, env)
     port.write(" ")
     port.write("(")
-    importss = v.get_importss()
-    for imp_dict in importss:
+    importss = v.importss
+    for imp_group in importss:
         port.write("(")
-        for ext_name, int_name in imp_dict.iteritems():
+        for imp_obj in imp_group:
             port.write("(")
-            write_loop(ext_name, port, env)
+            write_loop(imp_obj.ext_id, port, env)
             port.write(" . ")
-            write_loop(int_name, port, env)
+            write_loop(imp_obj.int_id, port, env)
             port.write(")")
         port.write(")")
     port.write(")")
     port.write(" ")
     port.write("(")
-    exports = v.get_exports()
-    for int_name, ext_name in exports.iteritems():
+    exports = v.exports
+    for exp_sym, exp_obj in exports.iteritems():
         port.write("(")
-        write_loop(int_name, port, env)
+        write_loop(exp_sym, port, env)
         port.write(" ")
-        write_loop(ext_name, port, env)
+        write_loop(exp_obj.ext_id, port, env)
         port.write(")")
     port.write(")")
 
-    forms = v.get_forms()
+    forms = v.forms
     for form in forms:
         port.write(" ")
         form.write(port, env)

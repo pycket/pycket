@@ -17,6 +17,7 @@ from pycket.interpreter import (
     LexicalVar,
     Module,
     ModuleVar,
+    LinkletVar,
     Quote,
     QuoteSyntax,
     Require,

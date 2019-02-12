@@ -64,7 +64,7 @@
 
 #| MERGE-LET
 
-(let ([v1 e1]) (let ([v2 e2]) e3)) => (let ([v1 e1] [v2 e2]) e3)
+(let ([v1 e1]) (let ([v2 e2]) e3) rest-body) => (let ([v1 e1] [v2 e2]) e3 rest-body)
 
 |#
 
@@ -83,8 +83,7 @@
 (define (check-merge-let let-form)
   (let ([out-body (hash-ref let-form 'let-body)]
         [out-rhs (hash-ref let-form 'let-bindings)])
-    (and (= 1 (length out-body))
-         (let? (car out-body))
+    (and (let? (car out-body))
          (let* ([inner-rhs (hash-ref (car out-body) 'let-bindings)]
                 [outer-bindings (extract-bindings out-rhs)]
                 [inner-frees (free-vars inner-rhs)])
@@ -93,12 +92,13 @@
 (define (apply-merge-let let-form)
   (set! merge-let-count (add1 merge-let-count))
   (let* ([out-rhs (hash-ref let-form 'let-bindings)]
-         [inner-let (car (hash-ref let-form 'let-body))]
+         [out-body (hash-ref let-form 'let-body)]
+         [inner-let (car out-body)]
          [inner-let-rhs (hash-ref inner-let 'let-bindings)]
          [inner-let-body (hash-ref inner-let 'let-body)])
     (normalize
      (hash* 'let-bindings (append out-rhs inner-let-rhs)
-            'let-body inner-let-body))))
+            'let-body (append inner-let-body (cdr out-body))))))
 
 #| APP-LET
 
@@ -112,7 +112,7 @@
 
 |#
 
-(define (app-let? term)
+(define (check-app-let term)
   (and (or (let? term) (letrec? term))
        (let*
            ([body-sym (if (let? term) 'let-body 'letrec-body)]
@@ -163,34 +163,55 @@
 
 #| LET-RHS : move the let in the rhs of a wrapping let, outside
 
-(let ([a-sym (let ([b-sym b-rhs]) body-b)]) body-a) ==> (let ([b-sym b-rhs])
+(let ([a-sym (let ([b-sym b-rhs] ...) body-b ...)]) body-a) ==> (let ([b-sym b-rhs]....)
                                                           (let ([a-sym body-b]) body-a))
 
-DISABLED FOR NOW - changes the meaning in the current form, there's an
-implicit assumption I've yet to find |#
+More general:
+
+(let ([c-sym c-body]
+      [a-sym (let ([b-sym b-rhs] ...) body-b ...)]
+      [d-sym d-body] ...) body-a ...)
+===>
+(let ([c-sym c-body][b-sym b-rhs] ...)
+  (let ([a-sym (begin body-b ...)]
+        [d-sym d-body] ...)
+    body-a ...))
+
+|#
 
 (define (check-let-rhs let-form)
   (let ([bindings (hash-ref let-form 'let-bindings)])
-    (and (= (length bindings) 1)
-         (let? (cadr (car bindings))))))
+    (ormap (lambda (b) (let? (cadr b))) bindings)))
+
+(define (split-the-rhss bindings before)
+  (cond
+    [(null? bindings) (error 'split-the-rhss "something's wrong")]
+    [(let? (cadr (car bindings)))
+     (values (reverse before) (car bindings) (cdr bindings))]
+    [else
+     (split-the-rhss (cdr bindings) (cons (car bindings) before))]))
 
 (define (apply-let-rhs let-form)
-  (let* ([bindings-a (car (hash-ref let-form 'let-bindings))]
-         [a-sym (car bindings-a)]
-         [b-let (cadr bindings-a)]
-         [bindings-b (car (hash-ref b-let 'let-bindings))]
-         [b-sym (car bindings-b)]
-         [b-rhs (cadr bindings-b)]
-
-         [body-a (hash-ref let-form 'let-body)]
-         [body-b (hash-ref b-let 'let-body)])
-    (set! let-rhs-count (add1 let-rhs-count))
-    (normalize
-     (hash* 'let-bindings (list (list b-sym
-                                      b-rhs))
-            'let-body (list (hash* 'let-bindings (list (list a-sym
-                                                             (car body-b)))
-                                   'let-body body-a))))))
+  (let ([bindings (hash-ref let-form 'let-bindings)])
+    ;; before-rhs : list of [c-sym c-body] before the let-rhs
+    ;; let-rhs : [a-sym (let ([b-sym b-rhs] ...) body-b ...)]
+    ;; after-rhs : list of [d-sym d-body] after the let-rhs
+    (let-values ([(before-rhs a-let-rhs after-rhs)
+                  (split-the-rhss bindings null)])
+      (let* ([a-sym (car a-let-rhs)]
+             [b-let (cadr a-let-rhs)] ; (let ([b-sym b-rhs] ...) body-b ...)
+             [rhs-bindings (hash-ref b-let 'let-bindings)] ; ([b-sym b-rhs] ...)
+             [bindings-b (car rhs-bindings)] ; [b-sym b-rhs]
+             [body-a (hash-ref let-form 'let-body)]
+             [body-b* (hash-ref b-let 'let-body)]
+             [body-b (if (= (length body-b*) 1)
+                         (car body-b*)
+                         (cons (hash* 'source-name "begin") body-b*))])
+        (set! let-rhs-count (add1 let-rhs-count))
+        (normalize
+         (hash* 'let-bindings (append before-rhs rhs-bindings)
+                'let-body (list (hash* 'let-bindings (cons (list a-sym body-b) after-rhs)
+                                       'let-body body-a))))))))
 
 #| BEGIN-LET
 
@@ -229,22 +250,26 @@ Convert (begin (let ([...]) letbody) rest ...) =>
 (rator rand1 rand2 (....) rand3 ...) ===>
 (let ([AppRand0 (....)]) (rator rand1 rand2 AppRand0 rand3))
 
-(rator rand1 rand2 (let ([sym rhs]) body) rand3 ...) ===>
-(let ([sym rhs])
-  (let ([AppRand0 body])
+(rator rand1 rand2 (let ([sym rhs] ...) body ...) rand3 ...) ===>
+(let ([sym rhs] ...)
+  (let ([AppRand0 (begin body ...)])
     (rator rand1 rand2 AppRand0 rand3 ...)))
 
 (rator rand1 (let ([sym0 rhs0]) body0) (let ([sym rhs]) body) rand3 ...) ===>
 (let ([sym0 rhs0])
   (let ([AppRand0 body0])
     (rator rand1 AppRand0 (let ([sym rhs]) body) rand3 ...))) ==>
-
-
--- reminder : this is a one-step normalization
 |#
 
 (define (one-of-these? name)
-  (member name '("hash-set" "hash-set!" "eq?" "bytes->path" "string->bytes/locale" "regexp-replace*")))
+  (member name '("hash-set" "list" "cons"
+                 "hash-set!"
+                 "eq?"
+                 "bytes->path"
+                 "string->bytes/locale"
+                 "regexp-replace*"
+                 "make-struct-type"
+                 "make-struct-type-property")))
 
 (define (check-app-rand app-form)
   (let* ([rator (hash-ref app-form 'operator)]
@@ -252,12 +277,12 @@ Convert (begin (let ([...]) letbody) rest ...) =>
     (and (list? rands)
          #;(>= (length rands) 1)
          (or (ormap app? rands) (ormap let? rands))
-         (kernel-prim-id? rator)
+         #;(kernel-prim-id? rator)
          #;(printf "rator id : ~a\n" (hash-ref rator 'source-name #f))
-         (one-of-these? (hash-ref rator 'source-name #f)))))
+         #;(one-of-these? (hash-ref rator 'source-name #f)))))
 
 (define gensym-counter 0)
-
+;; FIXME : refactor the stateful code below
 (define (apply-app-rand app-form)
   (let* ([rator (hash-ref app-form 'operator)]
          [rands (hash-ref app-form 'operands)])
@@ -275,16 +300,17 @@ Convert (begin (let ([...]) letbody) rest ...) =>
                         (set! found true)
                         (set! let-rhss (list (list new-sym-str) r))
                         (hash* 'lexical new-sym-str)))]
-          [(let? r) (let ((new-sym-str (format "AppRand~a" gensym-counter))
-                          (wrapping-let-rhss (hash-ref r 'let-bindings))
-                          (wrapping-let-body (hash-ref r 'let-body)))
-                      (when (> (length wrapping-let-body) 1)
-                        (error "rands have let with more than one body expression : ~a" app-form))
+          [(let? r) (let* ((new-sym-str (format "AppRand~a" gensym-counter))
+                           (wrapping-let-rhss (hash-ref r 'let-bindings))
+                           (wrapping-let-body (hash-ref r 'let-body))
+                           (let-rhss-body (if (= (length wrapping-let-body) 1)
+                                              (car wrapping-let-body)
+                                              (cons (hash* 'source-name "begin") wrapping-let-body))))
                       (begin
                         (set! gensym-counter (add1 gensym-counter))
                         (set! found true)
                         (set! wrapper-rhss wrapping-let-rhss)
-                        (set! let-rhss (list (list new-sym-str) (car wrapping-let-body)))
+                        (set! let-rhss (list (list new-sym-str) let-rhss-body))
                         (hash* 'lexical new-sym-str)))]
           [else r])))
     (normalize
@@ -295,8 +321,8 @@ Convert (begin (let ([...]) letbody) rest ...) =>
                                        'let-body (list (hash* 'operator rator
                                                               'operands new-rands)))))
          (hash* 'let-bindings (list (normalize let-rhss))
-                'let-body (list (hash* 'operator rator
-                                       'operands new-rands)))))))
+                'let-body (list (normalize (hash* 'operator rator
+                                                  'operands new-rands))))))))
 
 (define (normalize body)
   (cond
@@ -304,11 +330,11 @@ Convert (begin (let ([...]) letbody) rest ...) =>
 
     [(and (begin? body) (check-begin-let body)) (apply-begin-let body)]
 
-    #;[(and (let? body) (check-let-rhs body)) (apply-let-rhs body)]
+    [(and (let? body) (check-let-rhs body)) (apply-let-rhs body)]
     [(and (let? body) (check-merge-let body)) (apply-merge-let body)]
 
     [(and (if? body) (check-if-anorm body)) (apply-if-anorm body)]
-    [(and (app? body) (app-let? (hash-ref body 'operator))) (apply-app-let body)]
+    [(and (app? body) (check-app-let (hash-ref body 'operator))) (apply-app-let body)]
     [(and (app? body) (check-app-rand body)) (apply-app-rand body)]
 
     [(hash? body) (for/hash ([(key value) (in-hash body)])

@@ -268,13 +268,91 @@
       (hash-ref primitive-table2 num
                 (lambda () (error 'primitive "couldn't find primitive for : ~a" num)))))
 
+(define unsafe-ops
+  (list "car" "cdr" "list-tail"
+        "list-ref" "cons-list" "fx+"
+        "fx-" "fx*" "fxquotient"
+        "fxremainder" "fxmodulo" "fxabs"
+        "fxand" "fxior" "fxxor"
+        "fxnot" "fxrshift" "fxlshift"
+        "fx=" "fx<" "fx>"
+        "fx>=" "fx<=" "fxmin"
+        "fxmax" "fl+" "fl-"
+        "fl*" "fl/" "flabs"
+        "fl=" "fl<" "fl>"
+        "fl>=" "fl<=" "flmin"
+        "flmax" "fx->fl" "fl->fx"
+        "flrandom" "flsqrt" "make-flrectangular"
+        "flreal-part" "flimag-part" "extfl*"
+        "extfl+" "extfl-" "extfl/"
+        "extfl<" "extfl<=" "extfl="
+        "extfl>" "extfl>=" "extflabs"
+        "extflmax" "extflmin" "extflsqrt"
+        "extfl->fx" "fx->extfl" "extflvector-length"
+        "extflvector-ref" "extflvector-set!" "unbox*"
+        "set-box*!" "set-box!" "unbox"
+        "box*-cas!" "mcar" "mcdr"
+        "set-mcar!" "set-mcdr!" "vector-ref"
+        "vector-set!" "vector*-ref" "vector*-set!"
+        "vector*-cas!" "vector-length" "vector*-length"
+        "fxvector-length" "fxvector-ref" "fxvector-set!"
+        "flvector-length" "flvector-ref" "flvector-set!"
+        "s16vector-ref" "s16vector-set!" "u16vector-ref"
+        "u16vector-set!" "f64vector-ref" "f64vector-set!"
+        "f80vector-set!" "f80vector-ref" "bytes-length"
+        "bytes-ref" "bytes-set!" "string-length"
+        "string-set!" "string-ref" "struct-ref"
+        "struct-set!" "struct*-ref" "struct*-set!"
+        "immutable-hash-iterate-key+value" "immutable-hash-iterate-pair"
+        "immutable-hash-iterate-value" "immutable-hash-iterate-key"
+        "immutable-hash-iterate-first" "immutable-hash-iterate-next"
+        "mutable-hash-iterate-key+value" "mutable-hash-iterate-pair"
+        "mutable-hash-iterate-value" "mutable-hash-iterate-key"
+        "mutable-hash-iterate-first" "mutable-hash-iterate-next"
+        "weak-hash-iterate-key+value" "weak-hash-iterate-pair"
+        "weak-hash-iterate-value" "weak-hash-iterate-key"
+        "weak-hash-iterate-first" "weak-hash-iterate-next"
+        "chaperone-procedure" "impersonate-procedure" "impersonate-vector"
+        "chaperone-vector" "undefined" "check-not-undefined"
+        "check-not-undefined/assign" "prop:chaperone-undefined"
+        "chaperone-struct-undefined"
+        "start-atomic" "end-atomic" "start-breakable-atomic"
+        "end-breakable-atomic" "in-atomic?" "set-on-atomic-timeout!"
+        "thread-at-root" "make-custodian-at-root" "custodian-register"
+        "custodian-unregister" "register-process-global" "make-security-guard-at-root"
+        "abort-current-continuation/no-wind" "call-with-composable-continuation/no-wind"
+        "poller"
+        "poll-ctx-fd-wakeup" "poll-ctx-eventmask-wakeup" "poll-ctx-milliseconds-wakeup"
+        "signal-received" "set-sleep-in-thread!"
+        "file-descriptor->port" "socket->port"
+        "file-descriptor->semaphore" "socket->semaphore"
+        "port->file-descriptor" "port->socket"
+        "get-place-table" "call-in-os-thread"
+        "make-os-semaphore" "os-semaphore-post" "os-semaphore-wait"
+        "os-thread-enabled?" "struct*-cas!"
+        "add-post-custodian-shutdown"
+        "root-continuation-prompt-tag"
+        "make-place-local"
+        "place-local-ref"
+        "place-local-set!"
+        "char<?" "char<=?" "char=?" "char>=?" "char>?"
+        "char->integer"
+        "add-global-finalizer" "add-collect-callbacks"
+        "remove-collect-callbacks"))
+
+(define (make-unsafe-maybe opname)
+  (if (memv opname unsafe-ops)
+      (string-append "unsafe-" opname)
+      opname))
+
 (define (handle-primval operation [linklet? #f])
   (let* ([id (primval-id operation)]
-         [operator-name (get-primval-name id)])
-    (if (string-contains? operator-name "unsafe") ;; cheat
-          (hash* 'source-name operator-name
-                 'source-module '("#%unsafe"))
-          (hash* 'source-name operator-name))))
+         [operator-name (make-unsafe-maybe (get-primval-name id))]
+         [source-module (if (string-contains? operator-name "unsafe") '("#%unsafe") #f)])
+    (if source-module
+        (hash* 'source-name operator-name
+               'source-module source-module)
+        (hash* 'source-name operator-name))))
 
 
 #|
@@ -345,7 +423,7 @@ put the usual application-rands to the operands
          [span 123]
          ;; module seems to be the same for every lambda form,
          ;; pointing to a private module about chaperones/impersonators
-         [module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt")))]                                     
+         [module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt")))]
 
          [num-args (lam-num-params lam-form)]
 
@@ -360,13 +438,13 @@ put the usual application-rands to the operands
                                        (when (and (or (eq? x 'flonum) (eq? x 'fixnum) (eq? x 'extflonum))
                                                   DEBUG)
                                          (displayln (format "warning : argument to lam-name : ~a is : ~a" name x)))
-                                       (let ([sym 
+                                       (let ([sym
                                               (symbol->string
                                                (gensym
                                                 (string->symbol (string-append "lam." (symbol->string x) "."))))])
                                          (if (eq? x 'ref) sym sym))))
                                    arg-types)]
-         
+
          [rest? (lam-rest? lam-form)]
          ;; rest arg symbol
          [rest-formal (if rest? (symbol->string (gensym 'lamrest)) 'hokarz)]
@@ -378,7 +456,7 @@ put the usual application-rands to the operands
          ;; capture-prefix : a vector of stack positions that are captured when
          ;;                  evaluating the lambda form to create a closure.
          [capture-prefix (vector->list (lam-closure-map lam-form))] ;; vector->list
-         
+
          ;; top-map : indicates which top-level and lifted variables are
          ;;           actually used by the closure
          ;;           and whether any syntax objects are used (<- it's not clear how it does this).
@@ -390,14 +468,14 @@ put the usual application-rands to the operands
                         (set->list top-map*)))] ;; list
          ;; A #f value indicates either that no prefix is captured or
          ;; all variables and syntax objects in the prefix should be considered used.
-         
+
          ;; In the prefix:
          ;; -- Variables are numbered consecutively by position starting from 0
          ;; -- the number equal to the number of non-lifted variables corresponds to syntax objects
          ;; -- Lifted variables are numbered immediately afterward
 
          ;; ----- non-lifteds ---- syntax-objects ---- lifteds ----
-         
+
          ;; Let's regenerate the conditions when the prefix was captured (reverse engineer the then stack)
 
          ;; make-symbol : any -> symbol/boolean
@@ -410,12 +488,12 @@ put the usual application-rands to the operands
 
          [toplevels-symbol (map make-symbol initial-toplevels)]
          [num-real-toplevels (length toplevels-symbol)]
-         
+
          [lifted-variables LIFTEDS] ;; andmap symbol?
 
          [toplevel-and-lifteds (map make-symbol TOPLEVELS)]
 
-         
+
          [non-lifteds (filter (lambda (s)
                                 (let* ([s (make-symbol s)]
                                        [s-sym (if (boolean? s) s (symbol->string s))])
@@ -433,7 +511,7 @@ put the usual application-rands to the operands
          [stack-captured-items non-lifteds]
 
          ;; Future problem -> we don't know how many syntax objects we have in the prefix!!
-         
+
          [top-map-toplevels (and top-map
                                  (map (lambda (top) (list-ref toplevels-symbol top))
                                       (sort (filter (lambda (top) (< top num-real-toplevels)) top-map) <)))]
@@ -474,7 +552,7 @@ put the usual application-rands to the operands
                                                               capture-prefix actual-prefix num-of-non-lifteds))])
                                          (list-ref actual-prefix pos))) capture-prefix)]
 
-         
+
          [new-localref-stack (append captured-items new-localref-stack-1)]
 
          [lamBda
@@ -508,7 +586,7 @@ put the usual application-rands to the operands
         (displayln current-closure-refs)
         (display "inside??? ====>   ")
         (displayln (if (ormap (λ (cr) (string=? gen-id cr)) current-closure-refs) true false)))
-      
+
       (if (ormap (λ (cr) (string=? gen-id cr)) current-closure-refs)
           (hash* 'lexical gen-id)
           (if (lam? code)
@@ -525,7 +603,7 @@ put the usual application-rands to the operands
                 (let ([t (list-ref TOPLEVELS (toplevel-pos proc-part))])
                   false #;(if (module-variable? t) t false)) false)]
 
-         
+
          [mod-sym false #;(if m (symbol->string (module-variable-sym m)) false)]
          [mod-path (string-append collects-dir "/racket/private/modbeg.rkt")
                    #;(if m (path->string
@@ -599,7 +677,7 @@ put the usual application-rands to the operands
       [(list? name) (map resolved-to-string name)]
       [(string? name) name]
       [else (error 'module-path-index->path-string "we have ~a as the resolved name in mod-idx : ~a" name mod-idx)]))
-  
+
   (if (self-mod? mod-idx)
       (string-append relative-current-dir module-name ".rkt")
       (let-values ([(module-path base-path) (module-path-index-split mod-idx)])
@@ -704,14 +782,14 @@ put the usual application-rands to the operands
                           (if is-lifted? ;; assumption : all lifted var-refs are from kw.rkt
                               (string-append collects-dir "/racket/private/kw.rkt")
                               current-mod-path)])]
-           [final-hash 
+           [final-hash
             (hash* 'source (hash* '%p source-mod)
                    'module (hash* '%mpi (hash* '%p source-mod))
                    'variable-reference name-ref-hash
                    'position 12
                    'span 11
                    'original true)])
-      (if (boolean? topvar) ;; (hash* 'var false) produces '#hash() 
+      (if (boolean? topvar) ;; (hash* 'var false) produces '#hash()
           (hash-set final-hash 'variable-reference name) ;; adding it with hash-set works
           final-hash))))
 
@@ -866,7 +944,7 @@ put the usual application-rands to the operands
                  'module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt")))
                  'lambda (list (hash* 'lexical mark-formal))
                  'body (list (to-ast-single body (cons mark-formal localref-stack) current-closure-refs linklet?)))])
-    
+
     (hash* 'operator (hash* 'source-name "call-with-immediate-continuation-mark")
            'operands (list (to-ast-single key localref-stack current-closure-refs linklet?)
                            lam-form))))
@@ -929,7 +1007,7 @@ put the usual application-rands to the operands
          [count-lst (range count)]
 
          [binding-list (map (λ (c) (symbol->string (gensym (string-append "inst-val" (number->string c) ".")))) count-lst)]
-         
+
          [slot-positions (map (λ (p) (+ p pos)) count-lst)]
 
          [mod-region (let ([reg (map (λ (p) (list-ref localref-stack p)) slot-positions)])
@@ -945,7 +1023,7 @@ put the usual application-rands to the operands
                                (list (hash* 'source-name "set!")
                                      (hash* 'lexical let-void-slot)
                                      (hash* 'lexical inst-val-binding)))) mod-region binding-list)]
-         
+
          [rhs-ready (list (list binding-list
                                 (to-ast-single rhs localref-stack current-closure-refs linklet?)))])
     ;; producing json for pycket
@@ -1000,7 +1078,7 @@ put the usual application-rands to the operands
                       (let* ([clause (if (lam? clause-raw) clause-raw (closure-code clause-raw))] ;; assumes there's a lam in the closure
 
                              ;; TODO : make use of 'handle-lambda for these
-                             
+
                              [name (lam-name clause)]
                              [num-args (lam-num-params clause)]
 
@@ -1010,7 +1088,7 @@ put the usual application-rands to the operands
                                            DEBUG)
                                   (error 'handle-lambda "investigate: num-args and (length param-types) are not equal"))
                                 (lam-param-types clause))] ;; val - ref - flonum - fixnum - extflonum
-                             
+
                              [multiple-args? (lam-rest? clause)] ;; is the rest? true
 
                              ;; TODO : refactor/cleanup
@@ -1019,7 +1097,7 @@ put the usual application-rands to the operands
                                                            (when (and (or (eq? x 'flonum) (eq? x 'fixnum) (eq? x 'extflonum))
                                                                       DEBUG)
                                                              (displayln (format "warning : argument to CASE-LAM-name : ~a is : ~a" name x)))
-                                                           (let ([sym 
+                                                           (let ([sym
                                                                   (symbol->string
                                                                    (gensym
                                                                     (string->symbol (string-append "case-lam." (symbol->string x) "."))))])
@@ -1027,7 +1105,7 @@ put the usual application-rands to the operands
                                                        arg-types)]
 
                              ;[symbols-for-formals (map (λ (x) (symbol->string (gensym 'caselam-cl-arg))) (range num-args))]
-                             
+
                              [rest-formal (if multiple-args? (symbol->string (gensym 'caselam-cl-rest)) 'hokarz)]
 
                              [captured-stack-positions (vector->list (lam-closure-map clause))]
@@ -1046,14 +1124,14 @@ put the usual application-rands to the operands
 
                              ;; toplevel stuff??
                              [new-localref-stack (append captured-current-stack-items new-localref-stack-1)]
-                             
+
                              [arg-mapping
                               (let ([args (map (λ (sym) (hash* 'lexical (if (box? sym) (unbox sym) sym))) symbols-for-formals)])
                                 (if multiple-args?
                                     (hash* 'improper (list args
                                                            (hash* 'lexical rest-formal)))
                                     args))]
-                             
+
                              [body (to-ast-single (lam-body clause)
                                                   new-localref-stack
                                                   current-closure-refs
@@ -1072,7 +1150,7 @@ put the usual application-rands to the operands
 
 (define (to-ast-val val-form [linklet? #f] [importss '()])
   (cond
-    ((list? val-form) 
+    ((list? val-form)
      (handle-list val-form linklet? importss))
     ((path? val-form)
      (handle-path val-form))
@@ -1136,22 +1214,22 @@ put the usual application-rands to the operands
       (newline)(newline))
     (cond
       ;; VALUES
-      
+
       ((value? body-form)
        (hash* 'quote (to-ast-val body-form linklet? importss)))
-      
+
       ;; specially handled vals
       ((regexp? body-form)
        (handle-regexp body-form linklet?))
       ((byte-regexp? body-form)
        (handle-byte-regexp body-form linklet?))
-      ((void? body-form) 
+      ((void? body-form)
        (handle-void body-form))
       ((boolean? body-form) ;; note it uses hash (instead of hash*)
        (hash 'quote (handle-boolean body-form)))
 
       ;; FORMS
-      
+
       ;; let-void
       ((let-void? body-form)
        (handle-let-void body-form localref-stack current-closure-refs linklet?))
@@ -1278,7 +1356,7 @@ put the usual application-rands to the operands
              [padded-new-toplevels (let* ([diff (- (caar aligned-new-toplevels) toplen)]
                                           [pad (build-list diff (λ (n) (list (+ n toplen) 'dummytop)))])
                                      (append pad aligned-new-toplevels))])
-          
+
           ;; at this point, we know everything's in place,
           ;; so we can safely append prepared new-toplevels to the current global toplevels
           (let ([top-syms (map cadr padded-new-toplevels)])
@@ -1315,10 +1393,10 @@ put the usual application-rands to the operands
 
 #;(define (expand-mod submodule?)
   (lambda (code)  ;; code is a mod
-    
+
 
     ;; 1) Dive in to the requires to gather info
-    
+
     ;; requires
     (define top-reqs (mod-requires code)) ;; assoc list ((phase mods) ..)
     (define phase0 (assv 0 top-reqs))
@@ -1329,7 +1407,7 @@ put the usual application-rands to the operands
                             [(symbol? module-name) (symbol->string module-name)]
                             [(list? module-name) (symbol->string (last module-name))]
                             [else (error 'expand-mod "module-name cannot be determined : ~a" module-name)])))
-    
+
     (define language (let ([lang* (module-path-index->path-string (car phase0-reqs))])
                        (cond
                          [(or (and (string? lang*)
@@ -1344,18 +1422,18 @@ put the usual application-rands to the operands
 
     (define top-level-req-forms
       (if (empty? reqs) reqs
-          (list (hash* 'require 
+          (list (hash* 'require
                        (map (λ (req-mod)
                               (let ([mod-path (module-path-index->path-string req-mod)])
                                 (if (list? mod-path) mod-path (list mod-path)))) reqs)))))
 
 
     ;; 3) Go with the provides (pycket doesn't care about it for now - mostly)
-    
+
     ;; (define phase0-provides (assv 0 (mod-provides code)))
     ;; (define regular-provides (cadr phase0-provides))
     ;; (define syntax-phase-provides (caddr phase0-provides))
-    
+
     (define top-provides* (apply append (cdr (assv 0 (mod-provides code)))))
     (define top-provide-names (map (λ (prov) (list (provided-name prov)
                                                    (provided-src-name prov))) top-provides*))
@@ -1381,7 +1459,7 @@ put the usual application-rands to the operands
                                    'source-module
                                    (list (string-append relative-current-dir file-name ".rkt")))
                             (hash* 'toplevel (symbol->string out-name)))) out))))))
-    
+
     #;(define all-provides '() #;(append regular-provides syntax-phase-provides))
     ;; removed handle-provides (since we don't care about the provides now)
     #;(define top-provides '() #;(if (not (empty? all-provides))
@@ -1391,28 +1469,28 @@ put the usual application-rands to the operands
 
     (define top-provides #;(handle-provides top-provide-names '())
       (let ([prepared (handle-provides top-provide-names '())])
-        (if (empty? prepared) prepared 
+        (if (empty? prepared) prepared
             (list (cons (hash* 'source-name "#%provide")
                         prepared)))))
 
     (define top-reqs-provs (append top-level-req-forms top-provides))
-    
+
     ;; 4) Then let's build our:
     (define pre-submods (map (expand-mod true) (mod-pre-submodules code))) ;; module-declared submods
     (define post-submods (map (expand-mod true) (mod-post-submodules code))) ;; module*-declared submods
 
-    
+
     ;; 5) Set! the toplevel reference bucket
     (define toplevels (prefix-toplevels (mod-prefix code)))
     (define complete-toplevels (prepare-toplevels (mod-body code) toplevels))
     (define topsyntaxes (prefix-stxs (mod-prefix code)))
 
     ;; setting the global toplevels for the expansion of the body
-    (set-toplevels! toplevels complete-toplevels topsyntaxes)    
-    
+    (set-toplevels! toplevels complete-toplevels topsyntaxes)
+
     ;; 6) Now we can build the body
     (define body-forms (to-ast (mod-body code)))
-    
+
     ;; 7) Stitch everything together
     (define whole-body (append top-reqs-provs pre-submods post-submods body-forms))
 
@@ -1453,7 +1531,7 @@ put the usual application-rands to the operands
    [("--output") file "write output to output <file>"
     (set! out (open-output-file file #:exists 'replace))]
    [("--stdout") "write output to standart out" (set! out (current-output-port))]
-   
+
    #:args (file.rkt)
    (let* ([p (string->path file.rkt)]
           [only-path-str (or (and (path-only p) (path->string (path-only p))) "")]
@@ -1474,16 +1552,16 @@ put the usual application-rands to the operands
                                      #:exists 'replace))))))
 
   (define dep-file (read (open-input-file (format "~acompiled/~a_~a.dep" sub-dirs-str module-name module-extension))))
-  
+
   (define version (car dep-file))
-  
+
   (define comp-top (zo-parse (open-input-file (format "~acompiled/~a_~a.zo" sub-dirs-str module-name module-extension))))
 
   (define code (compilation-top-code comp-top)) ;; code is a mod
 
 
   (define final-json-hash ((expand-mod false) code))
-  
+
   (begin
     (write-json final-json-hash out)
     (newline out)

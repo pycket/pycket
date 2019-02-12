@@ -43,9 +43,8 @@ def load_bootstrap_linklet(which_str, pycketconfig, debug, is_it_expander=False)
 
         # load the linklet
         _instance, sys_config = load_inst_linklet_json(linklet_file_path, pycketconfig, debug, set_version=is_it_expander)
-        _instance.provide_all_exports_to_prim_env(excludes=syntax_primitives)
+        _instance.expose_vars_to_prim_env(excludes=syntax_primitives)
 
-        console_log("%s loading complete." % which_str)
         if is_it_expander:
             from pycket.env import w_global_config
             w_global_config.set_config_val('expander_loaded', 1)
@@ -71,6 +70,7 @@ def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False, do_load_r
 
     sys_config = load_fasl(pycketconfig, debug)
 
+    console_log("Bootstrap linklets are ready.")
     return sys_config
 
 def load_inst_linklet_json(json_file_name, pycketconfig, debug=False, set_version=False):
@@ -80,8 +80,7 @@ def load_inst_linklet_json(json_file_name, pycketconfig, debug=False, set_versio
     debug_print("loading and instantiating : %s" % json_file_name)
 
     console_log("Loading linklet from %s" % json_file_name)
-    linkl, sys_config = W_Linklet.load_linklet(json_file_name, JsonLoader(), set_version)
-
+    linkl, sys_config = W_Linklet.load_linklet(json_file_name, set_version)
     debug_print("DONE with loading : %s" % json_file_name)
 
     console_log("Instantiating %s ...."  % json_file_name)
@@ -130,7 +129,7 @@ def dev_mode_entry(eval_sexp_str):
             linkl = e.values
 
         instantiate_linklet = get_primitive("instantiate-linklet")
-        target = W_LinkletInstance(W_Symbol.make("target"), {}, {}, w_false)
+        target = W_LinkletInstance(W_Symbol.make("target"), {})
 
         res = instantiate_linklet.call_interpret([linkl, w_null, target, w_false])
         print("result : %s" % res.tostring())

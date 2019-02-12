@@ -362,6 +362,69 @@
   (check-eq? (instance-variable-value t 'x) 5)
   (check-eq? result 10))
 
+(test-case "vector-set! a contsant"
+  (define l (compile-linklet '(linklet () (x) (define-values (x) (make-vector 20 0)))))
+  (define t (make-instance #f #f #f))
+  (instantiate-linklet l null t)
+  (define l2 (compile-linklet '(linklet () (x) (vector-set! x 0 1000))))
+  (instantiate-linklet l2 null t)
+  (define l3 (compile-linklet '(linklet () (x) (vector-ref x 0))))
+  (define result (instantiate-linklet l3 null t))
+  (check-eq? result 1000))
+
+(test-case "vector-set! through a closure"
+  (define t (instantiate-linklet
+             (compile-linklet '(linklet () (x g) 
+                                        (define-values (x) (make-vector 20 0))
+                                        (define-values (g) (lambda (y) (vector-set! x 5 y))))) null))
+  (define l1 (compile-linklet '(linklet () (x g) (g 42) (vector-ref x 5))))
+  (define result1 (instantiate-linklet l1 null t))
+  (check-eq? result1 42)
+  (define l2 (compile-linklet '(linklet () (x g) (g 1000) (vector-ref x 5))))
+  (define result2 (instantiate-linklet l2 null t))
+  (check-eq? result2 1000))
+
+(test-case "vector-set! through a closure2"
+  (define t (instantiate-linklet
+             (compile-linklet '(linklet () (x g) 
+                                        (define-values (x) (make-vector 20 0))
+                                        (define-values (g) (lambda (i y) (vector-set! x i y))))) null))
+  (define l1 (compile-linklet '(linklet () (x g) (g 5 42) (vector-ref x 5))))
+  (define result1 (instantiate-linklet l1 null t))
+  (check-eq? result1 42)
+  (define l2 (compile-linklet '(linklet () (x g) (g 15 1000) (+ (vector-ref x 15) (vector-ref x 5)))))
+  (define result2 (instantiate-linklet l2 null t))
+  (check-eq? result2 1042))
+
+(test-case "vector-set! through a closure3"
+  (define sl (compile-linklet '(linklet () (x g) 
+                                        (define-values (x) (make-vector 20 1))
+                                        (define-values (g) (lambda (i y) (vector-set! x i y))))))
+  (define t (empty-target))
+  (instantiate-linklet sl null t)
+  (define t2 (empty-target))
+  (instantiate-linklet sl null t2)
+  (define l (compile-linklet '(linklet () (x g) (g 5 42) (vector-ref x 5))))
+  (define result (instantiate-linklet l null t))
+  (check-eq? result 42))
+
+(test-case "vector-set! through a closure reinstantiate"
+  (define sl (compile-linklet '(linklet () (x g) 
+                                        (define-values (x) (make-vector 20 1))
+                                        (define-values (g) (lambda (i y) (vector-set! x i y))))))
+  (define t1 (empty-target))
+  (instantiate-linklet sl null t1)
+  (define t2 (empty-target))
+  (instantiate-linklet sl null t2)
+
+  (define l1 (compile-linklet '(linklet () (x g) (g 5 42) (vector-ref x 5))))
+  (define result1 (instantiate-linklet l1 null t1))
+  (check-eq? result1 42)
+  (check-eq? (vector-ref (instance-variable-value t2 'x) 5) 1)
+  (define l2 (compile-linklet '(linklet () (x g) (g 10 1000) (+ (vector-ref x 5) (vector-ref x 10)))))
+  (define result2 (instantiate-linklet l2 null t2))
+  (check-eq? result2 1001))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; closure capture and reset
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -410,7 +473,6 @@
   (check-eq? (instance-variable-value t2 'y) 90))
 
 
-
 (test-case "closure capture and reset"
   (define l2 (compile-linklet '(linklet () (y g) (define-values (y) 10) (define-values (g) (lambda () y)) (set! y 50))))
   (define t1 (empty-target))
@@ -453,6 +515,60 @@
   (check-eq? (instance-variable-value t1 'y) 300)
   (check-eq? (instance-variable-value t2 'y) 90)
   (check-eq? (instance-variable-value t3 'y) 50))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Reinstantiation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(test-case "reinstantiation 1"
+  (define l1 (compile-linklet '(linklet () (y) (define-values (x) (+ 10 y)) x)))
+  (define t1 (make-instance #f #f #f 'y 30))
+  (define t2 (make-instance #f #f #f 'y 40))
+  (define result1 (instantiate-linklet l1 null t1))
+  (define result2 (instantiate-linklet l1 null t2))
+  (check-eq? result1 40)
+  (check-eq? result2 50))
+
+(test-case "reinstantiation 2"
+  (define l1 (compile-linklet '(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)))
+  (define t1 (make-instance #f #f #f 'y 30))
+  (define t2 (make-instance #f #f #f 'y 40))
+  (define result1 (instantiate-linklet l1 null t1))
+  (define result2 (instantiate-linklet l1 null t2))
+  (check-eq? result1 30)
+  (check-eq? result2 40))
+
+(test-case "reinstantiation 3"
+  (define l1 (compile-linklet '(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)))
+  (define t1 (instantiate-linklet (compile-linklet '(linklet () () (define-values (y) 30))) null))
+  (define t2 (instantiate-linklet (compile-linklet '(linklet () () (define-values (y) 40))) null))
+
+  (define result1 (instantiate-linklet l1 null t1))
+  (define result2 (instantiate-linklet l1 null t2))
+  (check-eq? result1 30)
+  (check-eq? result2 40))
+
+(test-case "reinstantiation 4"
+  (define l1 (compile-linklet '(linklet () (y) (define-values (x) (+ 10 y)) (set! x y) x)))
+  (define t1 (instantiate-linklet (compile-linklet '(linklet () () (define-values (y) 30) (set! y 30))) null))
+  (define t2 (instantiate-linklet (compile-linklet '(linklet () () (define-values (y) 40) (set! y 40))) null))
+
+  (define result1 (instantiate-linklet l1 null t1))
+  (define result2 (instantiate-linklet l1 null t2))
+  (check-eq? result1 30)
+  (check-eq? result2 40))
+
+(test-case "reinstantiating with different imports"
+  (define imp1 (make-instance #f #f #f 'x 10))
+  (define imp2 (make-instance #f #f #f 'x 20))
+  (define l (compile-linklet '(linklet ((x)) (y) (define-values (y) x) y)))
+  (define t1 (empty-target))
+  (define t2 (empty-target))
+
+  (define result1 (instantiate-linklet l (list imp1) t1))
+  (define result2 (instantiate-linklet l (list imp2) t2))
+  (check-eq? result1 10)
+  (check-eq? result2 20))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Small list
