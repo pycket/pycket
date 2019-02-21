@@ -412,13 +412,13 @@ make_pred("instance?", W_LinkletInstance)
 @expose("compile-linklet", [W_Object, default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false)], simple=False)
 def compile_linklet(form, name, import_keys, get_import, options, env, cont):
     from pycket.util import console_log
-    console_log("compiling linklet : %s %s" % (name.tostring(), form.tostring()), 3)
+    console_log("compiling linklet : %s %s\n import_keys : %s -- get_import : %s" % (name.tostring(), form.tostring(), import_keys.tostring(), get_import.tostring()), 3)
     with PerfRegionCPS("compile-linklet"):
         cont_ = finish_perf_region_cont("compile-linklet", env, cont)
         return do_compile_linklet(form, name, import_keys, get_import, options, env, cont_)
 
 def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
-
+    from pycket.util import console_log
     if isinstance(form, W_WrappedConsProper): # s-expr
         # read it and create an AST, put it in a W_Linklet and return
         if not isinstance(form.car(), W_Symbol) or "linklet" != form.car().tostring():
@@ -444,6 +444,8 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
 
             linkl = W_Linklet(w_name, importss, exports, body_forms)
 
+            console_log("compiled linklet : %s" % (linkl.tostring()), 6)
+
             if import_keys is w_false:
                 return return_value_direct(linkl, env, cont)
             else:
@@ -466,7 +468,7 @@ def instance_name(l_inst):
 @expose("instantiate-linklet", [W_Linklet, W_List, default(W_Object, w_false), default(W_Object, w_true)], simple=False)
 def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, env, cont):
     from pycket.util import console_log
-    console_log("instantiating linklet : %s" % linkl.name.tostring(), 3)
+    console_log("instantiating linklet : %s" % linkl.name.tostring(), 4)
 
     prompt = False
     if use_prompt is not w_false: # use-prompt? : any/c = #t - what happens when it is 3 ?
@@ -535,9 +537,9 @@ def make_instance(args): # name, data, *vars_vals
 
         from pycket.util import console_log
         if "'" in name.tostring():
-            console_log("making instance : %s" % name.tostring(), 2)
-        else:
             console_log("making instance : %s" % name.tostring(), 3)
+        else:
+            console_log("making instance : %s" % name.tostring(), 4)
 
         if len(args) <= 2:
             data = args[1]
