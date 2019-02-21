@@ -64,32 +64,6 @@ class W_LinkletInstance(W_Object):
     def get_var(self, name):
         return self.vars[name]
 
-    # def add_exports(self, given_exports):
-    #     for e in given_exports:
-    #         if e not in self.exports:
-    #             self.exports[e] = given_exports[e]
-
-    # def get_var(self, name):
-    #     return self.vars[name]
-
-    # def overwrite_var(self, name, w_val):
-    #     v = self.get_var(name)
-    #     if not isinstance(v, W_Cell):
-    #         raise SchemeException("set!: assignment disallowed; cannot modify a constant : %s" % name.tostring())
-    #     v.set_val(w_val)
-
-    # def overwrite_val(self, name, new_val):
-    #     self.vars[name] = new_val
-
-    # def lookup_var_value(self, name):
-    #     v = self.get_var(name)
-    #     if isinstance(v, W_Cell):
-    #         return v.get_val()
-    #     return v
-
-    # def lookup_var_cell(self, name):
-    #     return self.get_var(name)
-
     def expose_vars_to_prim_env(self, excludes=[]):
         for name, w_var in self.vars.iteritems():
             if name not in excludes:
@@ -212,32 +186,11 @@ class W_Linklet(W_Object):
     errorname = "linklet"
     _attrs_ = _immutable_fields_ = ["name", "importss", "exports", "forms"]
 
-    def __init__(self, name, importss, exports, all_forms, static=False):
+    def __init__(self, name, importss, exports, all_forms):
         self.name = name # W_Symbol -- for debugging
         self.importss = importss # [[Import ...] ...]
         self.exports = exports # {int_id:Export ...}
         self.forms = all_forms # [..., AST ,...]
-        # self.defs = {}
-        # self.mutated_vars = {}
-        # self.static = static
-
-    # def get_name(self):
-    #     return self.name
-
-    # def get_importss(self):
-    #     return self.importss
-
-    # def get_exports(self):
-    #     return self.exports
-
-    # def get_forms(self):
-    #     return self.forms
-
-    # def set_forms(self, b_forms):
-    #     self.forms = b_forms
-
-    # def set_mutated_vars(self, m_vars):
-    #     self.mutated_vars = m_vars
 
     def tostring(self):
         forms_str = " ".join([f.tostring() for f in self.forms])
@@ -400,14 +353,6 @@ class W_Linklet(W_Object):
 make_pred("linklet?", W_Linklet)
 
 make_pred("instance?", W_LinkletInstance)
-
-# def external_of_an_export(sym, exports):
-#     # checks if the given sym is used as an external name
-#     # for an internally defined variable
-#     for int_name, ext_name in exports.iteritems():
-#         if sym is ext_name and int_name is not ext_name:
-#             return True
-#     return False
 
 @expose("compile-linklet", [W_Object, default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false)], simple=False)
 def compile_linklet(form, name, import_keys, get_import, options, env, cont):
