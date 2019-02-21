@@ -327,9 +327,6 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         if c is begin_sym:
             begin_exprs, ln = to_rpython_list(form.cdr())
             return interp.Begin.make([sexp_to_ast(f, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for f in begin_exprs])
-        # elif c is mksym("p+"):
-        #     path_str = form.cdr().car().tostring()
-        #     return interp.Quote(values.W_Path(path_str))
         elif c is begin0_sym:
             fst = sexp_to_ast(form.cdr().car(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
             rst_exprs, rest_len = to_rpython_list(form.cdr().cdr())
@@ -720,21 +717,15 @@ def deserialize_loop(sexp):
     from pycket.prims.linklet import W_Linklet, W_LinkletBundle, W_LinkletDirectory
     from pycket.env import w_global_config
 
-    #util.console_log("deserialize_loop -- s-exp : %s -- %s" % (sexp, sexp.tostring()), 8)
     if isinstance(sexp, values.W_Cons):
-        #util.console_log("it's a W_Cons", 8)
         c = sexp.car()
-        #util.console_log("c is : %s" % c.tostring(), 8)
         if c is dir_sym:
-            #util.console_log("dir_sym", 8)
             dir_map = sexp.cdr()
             return W_LinkletDirectory(deserialize_loop(dir_map))
         elif c is bundle_sym:
-            #util.console_log("bundle_sym", 8)
             bundle_map = sexp.cdr()
             return W_LinkletBundle(deserialize_loop(bundle_map))
         elif looks_like_linklet(sexp):
-            #util.console_log("linklet_sym", 8)
             # Unify this with compile_linklet
             if isinstance(sexp.cdr().car(), values.W_List):
                 w_name = mksym("anonymous")
@@ -747,21 +738,14 @@ def deserialize_loop(sexp):
                 w_exports = sexp.cdr().cdr().cdr().car()
                 w_body = sexp.cdr().cdr().cdr().cdr()
 
-            #util.console_log("-- w_name : %s\n-- w_imports : %s\n-- w_exports : %s\n-- w_body : %s" % (w_name.tostring(), w_importss.tostring(), w_exports.tostring(), w_body.tostring()), 8)
-
             importss_list = deserialize_importss(w_importss)
-
-            #util.console_log("imports are done", 8)
 
             # Process the exports
             exports = deserialize_exports(w_exports)
-            #util.console_log("exports are done", 8)
 
             # Process the body
             with PerfRegion("compile-sexp-to-ast"):
                 body_forms = process_w_body_sexp(w_body, importss_list, exports, from_zo=True)
-
-            #util.console_log("body forms -> ASTs are done, postprocessing begins...", 8)
 
             return W_Linklet(w_name, importss_list, exports, body_forms)
         else:
@@ -799,7 +783,6 @@ def deserialize_loop(sexp):
 
             return new
     elif isinstance(sexp, simple.W_EqImmutableHashTable):
-        #util.console_log("it's a W_EqImmutableHashTable", 8)
         l = sexp.length()
         keys = [None]*l
         vals = [None]*l
@@ -811,7 +794,6 @@ def deserialize_loop(sexp):
 
         return simple.make_simple_immutable_table(simple.W_EqImmutableHashTable, keys, vals)
     elif isinstance(sexp, equal.W_EqualHashTable):
-        #util.console_log("it's a W_EqualHashTable", 8)
         l = sexp.length()
         keys = [None]*l
         vals = [None]*l
@@ -823,7 +805,6 @@ def deserialize_loop(sexp):
 
         return equal.W_EqualHashTable(keys, vals, immutable=True)
     elif isinstance(sexp, vector.W_Vector):
-        #util.console_log("it's a W_Vector", 8)
         new = [None]*sexp.length()
         items = sexp.get_strategy().ref_all(sexp)
         for index, obj in enumerate(items):
@@ -831,5 +812,4 @@ def deserialize_loop(sexp):
 
         return vector.W_Vector.fromelements(new, sexp.immutable())
     else:
-        #util.console_log("it's something else", 8)
         return sexp
