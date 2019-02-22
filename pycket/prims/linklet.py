@@ -252,7 +252,28 @@ class W_Linklet(W_Object):
     def load_linklet(json_file_name, set_version=False):
         from pycket.expand import readfile_rpython, getkey, JsonLoader
         from pycket.util import console_log
-        from pycket.interpreter import Gensym
+        from pycket.env import w_version
+        import os
+
+        if set_version and os.path.exists("expander.zo"):
+            console_log("Loading the expander linklet from expander.zo")
+            # We're loading the expander, so try fasl->sexp
+            from pycket.racket_entry import get_primitive
+            from pycket.prims.input_output import open_input_file
+
+            with PerfRegion("expander-linklet"):
+                fasl_to_s_exp = get_primitive("fasl->s-exp")
+                in_file = open_input_file.w_prim.call_interpret([W_Path("expander.zo")])
+                try:
+                    expander_zo_sexp = fasl_to_s_exp.call_interpret([in_file, w_true])
+                    version = expander_zo_sexp.car()
+                    expander_sexp = expander_zo_sexp.cdr()
+                    expander_linkl = deserialize_loop(expander_sexp)
+                    w_version.set_version(version.tostring())
+                    console_log("Setting the version to %s" % version.tostring())
+                    return expander_linkl, None
+                except (SchemeException, OSError):
+                    console_log("Couldn't read from expander.zo")
 
         """ Expands and loads a linklet from a JSON file"""
         with PerfRegion("json-load"):
@@ -270,8 +291,6 @@ class W_Linklet(W_Object):
 
         if set_version:
             from pycket.util import console_log
-            from pycket.env import w_version
-
             conf = getkey(linklet_dict, "config", type='o')
             ver = conf['version'].value_string()
             console_log("Setting the version to %s" % ver)
@@ -339,6 +358,20 @@ class W_Linklet(W_Object):
         if config_obj is not None:
             for k, v in config_obj.iteritems():
                 config[k] = v.value_string()
+
+        if set_version and not os.path.exists("expander.zo"):
+            console_log("Serializing the expander linklet into expander.zo")
+            from pycket.racket_entry import get_primitive
+            from pycket.prims.input_output import open_output_file
+            s_exp_to_fasl = get_primitive("s-exp->fasl")
+            expander_sexp = ast_to_sexp(linkl)
+            version = W_Symbol.make(w_version.get_version())
+            expander_zo_sexp = W_Cons.make(version, expander_sexp)
+            try:
+                out_file = open_output_file.w_prim.call_interpret([W_Path("expander.zo")])
+                s_exp_to_fasl.call_interpret([expander_zo_sexp, out_file, values.w_false])
+            except (SchemeException, OSError):
+                console_log("Couldn't write the expander.zo")
 
         return linkl, config
 

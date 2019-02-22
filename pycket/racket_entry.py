@@ -62,13 +62,13 @@ def load_regexp(pycketconfig, debug):
 
 def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False, do_load_regexp=False, eval_sexp=None):
 
+    sys_config = load_fasl(pycketconfig, debug)
+
     if do_load_regexp:
-        sys_config = load_regexp(pycketconfig, debug)
+        load_regexp(pycketconfig, debug)
 
     if not dev_mode or eval_sexp:
-        sys_config = load_expander(pycketconfig, debug)
-
-    sys_config = load_fasl(pycketconfig, debug)
+        load_expander(pycketconfig, debug)
 
     console_log("Bootstrap linklets are ready.")
     return sys_config
@@ -86,7 +86,7 @@ def load_inst_linklet_json(json_file_name, pycketconfig, debug=False, set_versio
     console_log("Instantiating %s ...."  % json_file_name)
     debug_print("Instantiating %s ...."  % json_file_name)
     instantiate_linklet = get_primitive("instantiate-linklet")
-    linkl_instance = instantiate_linklet.call_interpret([linkl, w_null, w_false, w_false], pycketconfig)
+    linkl_instance = instantiate_linklet.call_interpret([linkl, w_null, w_false, w_false])
     debug_print("DONE Instantiating %s ...."  % json_file_name)
     debug_stop("loading-linklet")
     console_log("DONE with the %s." % json_file_name)
