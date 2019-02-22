@@ -534,14 +534,19 @@ class FlonumTaggedVectorStrategy(FlonumVectorStrategy):
         self._storage(w_vector)[i] = self.unwrap(w_val)
         # we're using the .len as the
         # current index to write the next tagged flonum
-        w_vector.add1_len()
-        # if the next flonum index is equal to the storage length
-        if w_vector.get_len() == self._length(w_vector):
-            # then we know that it's all flonums
-            if w_vector.immutable():
-                w_vector.set_strategy(FlonumImmutableVectorStrategy.singleton)
-            else:
-                w_vector.set_strategy(FlonumVectorStrategy.singleton)
+        c_len = w_vector.get_len()
+        # Note that this assumes vector-set! indices to be in order,
+        # e.g. if the vector is filled in random or reverse order,
+        # than the strategy will stay as Tagged
+        if i == c_len:
+            w_vector.add1_len()
+            # if the next flonum index is equal to the storage length
+            if (c_len + 1) == self._length(w_vector):
+                # then we know that it's all flonums
+                if w_vector.immutable():
+                    w_vector.set_strategy(FlonumImmutableVectorStrategy.singleton)
+                else:
+                    w_vector.set_strategy(FlonumVectorStrategy.singleton)
 
     def wrap(self, val):
         assert isinstance(val, float)
