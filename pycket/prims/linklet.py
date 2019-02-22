@@ -249,11 +249,17 @@ class W_Linklet(W_Object):
         return instantiate_loop(self, 0, 0, return_val, target, env, cont)
 
     @staticmethod # json_file_name -> W_Linklet
-    def load_linklet(json_file_name, set_version=False):
+    def load_linklet(json_file_name, set_version=False, generate_zo=False):
         from pycket.expand import readfile_rpython, getkey, JsonLoader
         from pycket.util import console_log
         from pycket.env import w_version
         import os
+
+        if generate_zo:
+            try:
+                os.remove("expander.zo")
+            except OSError:
+                pass
 
         if set_version and os.path.exists("expander.zo"):
             console_log("Loading the expander linklet from expander.zo")

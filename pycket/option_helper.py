@@ -46,6 +46,7 @@ def print_help(argv):
   --save-callgraph                   : save the jit output
 
  Meta options:
+  --expander-zo                      : make the expander.zo
   --load-regexp                      : Loads the regexp linklet
   --dev                              : Flag to be used in development, behavior depends
   --eval-linklet                     : puts the given expression in a linklet and evaluates over empty target
@@ -93,7 +94,7 @@ conf_opts = ["-c", "--no-compiled",
              "-L", "--syslog",
              "--kernel",
              "--save-callgraph"]
-meta_opts = ["--dev", "--load-regexp", "--eval-linklet", "--just-init", "--verbose", "--jit", "-h"]
+meta_opts = ["--expander-zo", "--dev", "--load-regexp", "--eval-linklet", "--just-init", "--verbose", "--jit", "-h"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
 
@@ -115,6 +116,7 @@ config = {
     'use-compiled' : True,
     'compile-machine-independent' : False,
     'load-regexp' : False,
+    'expander-zo' : False
 }
 
 def add_name(names, name, val, replace=False):
@@ -380,6 +382,11 @@ def parse_args(argv):
         elif argv[i] == "--load-regexp":
             config['load-regexp'] = True
             #retval = RETURN_OK
+
+        elif argv[i] == "--expander-zo":
+            config['expander-zo'] = True
+            config['just-init'] = True
+            retval = RETURN_OK
 
         elif argv[i] == "--just-init":
             config['just-init'] = True

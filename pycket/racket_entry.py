@@ -36,13 +36,13 @@ def locate_linklet(file_name):
 
     return file_path
 
-def load_bootstrap_linklet(which_str, pycketconfig, debug, is_it_expander=False):
+def load_bootstrap_linklet(which_str, pycketconfig, debug, is_it_expander=False, generate_zo=False):
     with PerfRegion("%s-linklet" % which_str):
         console_log("Loading the %s linklet..." % which_str)
         linklet_file_path = locate_linklet("%s.rktl.linklet" % which_str)
 
         # load the linklet
-        _instance, sys_config = load_inst_linklet_json(linklet_file_path, pycketconfig, debug, set_version=is_it_expander)
+        _instance, sys_config = load_inst_linklet_json(linklet_file_path, pycketconfig, debug, set_version=is_it_expander, generate_zo=generate_zo)
         _instance.expose_vars_to_prim_env(excludes=syntax_primitives)
 
         if is_it_expander:
@@ -51,8 +51,8 @@ def load_bootstrap_linklet(which_str, pycketconfig, debug, is_it_expander=False)
 
         return sys_config
 
-def load_expander(pycketconfig, debug):
-    load_bootstrap_linklet("expander", pycketconfig, debug, is_it_expander=True)
+def load_expander(pycketconfig, debug, generate_zo):
+    load_bootstrap_linklet("expander", pycketconfig, debug, is_it_expander=True, generate_zo=generate_zo)
 
 def load_fasl(pycketconfig, debug):
     load_bootstrap_linklet("fasl", pycketconfig, debug)
@@ -60,7 +60,7 @@ def load_fasl(pycketconfig, debug):
 def load_regexp(pycketconfig, debug):
     load_bootstrap_linklet("regexp", pycketconfig, debug)
 
-def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False, do_load_regexp=False, eval_sexp=None):
+def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False, do_load_regexp=False, eval_sexp=None, gen_expander_zo=False):
 
     sys_config = load_fasl(pycketconfig, debug)
 
@@ -68,19 +68,19 @@ def load_bootstrap_linklets(pycketconfig, debug=False, dev_mode=False, do_load_r
         load_regexp(pycketconfig, debug)
 
     if not dev_mode or eval_sexp:
-        load_expander(pycketconfig, debug)
+        load_expander(pycketconfig, debug, gen_expander_zo)
 
     console_log("Bootstrap linklets are ready.")
     return sys_config
 
-def load_inst_linklet_json(json_file_name, pycketconfig, debug=False, set_version=False):
+def load_inst_linklet_json(json_file_name, pycketconfig, debug=False, set_version=False, generate_zo=False):
     from pycket.env import w_version
 
     debug_start("loading-linklet")
     debug_print("loading and instantiating : %s" % json_file_name)
 
     console_log("Loading linklet from %s" % json_file_name)
-    linkl, sys_config = W_Linklet.load_linklet(json_file_name, set_version)
+    linkl, sys_config = W_Linklet.load_linklet(json_file_name, set_version, generate_zo=generate_zo)
     debug_print("DONE with loading : %s" % json_file_name)
 
     console_log("Instantiating %s ...."  % json_file_name)
@@ -144,13 +144,16 @@ def dev_mode_entry(eval_sexp_str):
         console_log(sexp_out.tostring(), 1)
         raise ExitException(sexp_out)
 
-def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False, do_load_regexp=False, eval_sexp=None):
+def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False, do_load_regexp=False, eval_sexp=None, gen_expander_zo=False):
     from pycket.env import w_version
 
-    sysconfig = load_bootstrap_linklets(pycketconfig, debug, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp)
+    sysconfig = load_bootstrap_linklets(pycketconfig, debug, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp, gen_expander_zo=gen_expander_zo)
 
     if dev_mode:
         dev_mode_entry(eval_sexp)
+
+    if gen_expander_zo:
+        return 0
 
     with PerfRegion("set-params"):
 
@@ -280,10 +283,10 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     linklet_perf.init()
 
-    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp, eval_sexp = get_options(names, config)
+    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo = get_options(names, config)
 
     with PerfRegion("startup"):
-        initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp)
+        initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp, gen_expander_zo=gen_expander_zo)
 
     if just_init:
         return 0
@@ -445,6 +448,7 @@ def get_options(names, config):
     verbosity_lvl = int(names['verbosity_level'][0]) if debug else -1
     verbosity_keywords = names['verbosity_keywords'] if 'verbosity_keywords' in names else []
     do_load_regexp = config['load-regexp']
+    gen_expander_zo = config['expander-zo']
 
     dev_mode = config['dev-mode']
     eval_sexp = names['eval-sexp'][0] if 'eval-sexp' in names else ""
@@ -473,6 +477,7 @@ verbosity-level    : %s
 verbosity-keywords : %s
 dev-mode           : %s
 eval-s-sexp        : %s
+gen expander-zo    : %s
 """ % (loads_print_str,
        set_run_file,
        set_collects_dir,
@@ -487,8 +492,9 @@ eval-s-sexp        : %s
        verbosity_lvl,
        verbosity_keywords,
        dev_mode,
-       eval_sexp)
+       eval_sexp,
+       gen_expander_zo)
 
     console_log(log_str, debug=debug)
 
-    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode, do_load_regexp, eval_sexp
+    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo
