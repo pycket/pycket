@@ -678,7 +678,7 @@ class W_RootStruct(values.W_Object):
                 return total_hash_val
             else:
                 from pycket.prims.hash import equal_hash_code
-                w_hash_proc = prop_equal_hash.cdr().car()
+                w_hash_proc = self.get_hash_proc(prop_equal_hash)
                 w_hash_proc_recur = equal_hash_code.w_prim
                 h = w_hash_proc.call_interpret([self, w_hash_proc_recur])
                 assert isinstance(h, values.W_Fixnum)
@@ -1154,7 +1154,7 @@ class W_StructAccessor(values.W_Procedure):
             raise SchemeException("%s got %s" % (self.tostring(), struct.tostring()))
         offset = st.get_offset(self.type)
         if offset == -1:
-            raise SchemeException("cannot access field of the struct : %s" % st.name.tostring())
+            raise SchemeException("%s: expected a %s but got a %s" % (self.tostring(), self.type.name.tostring(), st.name.tostring()))
         return struct.ref_with_extra_info(field + offset, app, env, cont)
 
     @make_call_method([values.W_Object, values.W_Fixnum], simple=False,
