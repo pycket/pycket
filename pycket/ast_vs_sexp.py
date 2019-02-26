@@ -137,8 +137,60 @@ def def_vals_to_ast(def_vals_sexp, exports, all_toplevels, linkl_imports, mutate
 
     return interp.DefineValues(names_ls, body, names_ls)
 
+def sym_list_to_ast(sym_list_sexp):
+    from pycket.expand import SymList
+    sym_lst = None
+    sym_list_ls, _ = to_rpython_list(sym_list_sexp)
+    for s in reversed(sym_list_ls):
+        syms, _ = to_rpython_list(s)
+        sym_lst = SymList(syms, sym_lst)
+    return sym_lst
+
+def lam_to_ast_direct(lam_sexp, lex_env, exports, all_toplevels, linkl_imports, mutated_ids, cell_ref, name):
+    from pycket.expand import SourceInfo
+    none_sym = mksym("None-Sym")
+
+    lam_ls, lam_len = to_rpython_list(lam_sexp)
+    assert lam_len == 12
+
+    _formals = lam_ls[1]
+    _rest = lam_ls[2]
+    _args = lam_ls[3]
+    _frees = lam_ls[4]
+    _body = lam_ls[5]
+    _sourceinfo = lam_ls[6]
+    _enclosing_env_structure = lam_ls[7]
+    _env_structure = lam_ls[8]
+    _seq_env_structure = lam_ls[9]
+    _seq_rem_num_envs = lam_ls[10]
+    _mutable_var_flags = lam_ls[11]
+
+    formals, _ = to_rpython_list(_formals)
+    rest = _rest if _rest is not none_sym else None
+    args = sym_list_to_ast(_args)
+    frees = sym_list_to_ast(_frees)
+    if rest:
+        lex_env.append(rest)
+    body = sexp_to_ast(_body, formals + lex_env, exports, all_toplevels, linkl_imports, mutated_ids, cell_ref=[], name=name)
+    sourceinfo = SourceInfo(1, 1, 1, 1, name)
+    enclosing_env_structure = sym_list_to_ast(_enclosing_env_structure) if _enclosing_env_structure is not none_sym else None
+    env_structure = sym_list_to_ast(_env_structure)
+    seq_env_structure = sym_list_to_ast(_seq_env_structure)
+    seq_rem_ls, _ = to_rpython_list(_seq_rem_num_envs)
+    seq_rem_num_envs = [f.toint() for f in seq_rem_ls]
+    mut_flags_ls, _ = to_rpython_list(_mutable_var_flags)
+    mutable_var_flags = [True if b is values.w_true else False for b in mut_flags_ls]
+
+    lam = interp.Lambda(formals, rest, args, frees, [body], sourceinfo, enclosing_env_structure, env_structure)
+    lam.init_body_pruning(seq_env_structure, seq_rem_num_envs)
+    lam.init_mutable_var_flags(mutable_var_flags)
+    return lam
+
 def lam_to_ast(lam_sexp, lex_env, exports, all_toplevels, linkl_imports, mutated_ids, cell_ref, name=""):
     from pycket.expand import SourceInfo
+
+    if lam_sexp.car() is mksym("compiled-lambda"):
+        return lam_to_ast_direct(lam_sexp, lex_env, exports, all_toplevels, linkl_imports, mutated_ids, cell_ref, name)
 
     lam_sexp_elements, l = to_rpython_list(lam_sexp)
     if not (l == 3 or l == 2):
@@ -186,13 +238,79 @@ def lam_to_ast(lam_sexp, lex_env, exports, all_toplevels, linkl_imports, mutated
     dummy = 1
     return interp.make_lambda(formals_ls, rest, [body], SourceInfo(dummy, dummy, dummy, dummy, name))
 
+def let_like_to_ast_direct(let_sexp, lex_env, exports, all_toplevels, linkl_imports, mutated_ids, is_letrec, cell_ref, letrec):
+    none_sym = mksym("None-Sym")
+
+    let_ls, let_len = to_rpython_list(let_sexp)
+    assert let_len == 7 or let_len == 9
+
+    _args = let_ls[1]
+    _counts = let_ls[2]
+    _rhss = let_ls[3]
+    _body = let_ls[4]
+
+    args = sym_list_to_ast(_args)
+    counts_ls, _ = to_rpython_list(_counts)
+    counts = [c.toint() for c in counts_ls]
+
+    rhss_ls, _ = to_rpython_list(_rhss)
+    body_ls, _ = to_rpython_list(_body)
+
+    if not letrec: # let
+        rhss = [sexp_to_ast(r, lex_env, exports, all_toplevels, linkl_imports, mutated_ids, cell_ref=[]) for r in rhss_ls]
+
+        args_ls, _ = to_rpython_list(_args.car())
+        body = [sexp_to_ast(b, args_ls + lex_env, exports, all_toplevels, linkl_imports, mutated_ids, cell_ref=[]) for b in body_ls]
+
+        _remove_num_envs = let_ls[5]
+        rem_num_envs_ls, _ = to_rpython_list(_remove_num_envs)
+        remove_num_envs = [n.toint() for n in rem_num_envs_ls]
+
+        _seq_env_structure = let_ls[6]
+        seq_env_structure = sym_list_to_ast(_seq_env_structure)
+
+        _seq_rem_num_envs = let_ls[7]
+        seq_rem_ls, _ = to_rpython_list(_seq_rem_num_envs)
+        seq_rem_num_envs = [f.toint() for f in seq_rem_ls]
+
+        _mutable_var_flags = let_ls[8]
+        mut_flags_ls, _ = to_rpython_list(_mutable_var_flags)
+        mutable_var_flags = [True if b is values.w_true else False for b in mut_flags_ls]
+
+        let_ast = interp.Let(args, counts, rhss, body, remove_num_envs)
+        let_ast.init_body_pruning(seq_env_structure, seq_rem_num_envs)
+        let_ast.init_mutable_var_flags(mutable_var_flags)
+        return let_ast
+    else: # letrec
+        args_ls, _ = to_rpython_list(_args.car())
+
+        rhss = [sexp_to_ast(r, args_ls + lex_env, exports, all_toplevels, linkl_imports, mutated_ids, cell_ref=[]) for r in rhss_ls]
+
+        body = [sexp_to_ast(b, args_ls + lex_env, exports, all_toplevels, linkl_imports, mutated_ids, cell_ref=[]) for b in body_ls]
+
+        _seq_env_structure = let_ls[5]
+        seq_env_structure = sym_list_to_ast(_seq_env_structure)
+
+        _seq_rem_num_envs = let_ls[6]
+        seq_rem_ls, _ = to_rpython_list(_seq_rem_num_envs)
+        seq_rem_num_envs = [f.toint() for f in seq_rem_ls]
+
+        letrec_ast = interp.Letrec(args, counts, rhss, body)
+        letrec_ast.init_body_pruning(seq_env_structure, seq_rem_num_envs)
+        return letrec_ast
+
 def let_like_to_ast(let_sexp, lex_env, exports, all_toplevels, linkl_imports, mutated_ids, is_letrec, cell_ref):
 
     let_ls, let_len = to_rpython_list(let_sexp)
 
+    if let_ls[0] is mksym("compiled-let-values"):
+        return let_like_to_ast_direct(let_sexp, lex_env, exports, all_toplevels, linkl_imports, mutated_ids, is_letrec, cell_ref, letrec=False)
+    elif let_ls[0] is mksym("compiled-letrec-values"):
+        return let_like_to_ast_direct(let_sexp, lex_env, exports, all_toplevels, linkl_imports, mutated_ids, is_letrec, cell_ref, letrec=True)
+
     # just a sanity check
     if not (let_ls[0] is mksym("let-values") or (let_ls[0] is mksym("letrec-values") and is_letrec)):
-        raise SchemeException("let_to_ast : unhandled let form : %s" % let_sexp.tostring())
+        raise SchemeException("let_like_to_ast : unhandled let form : %s" % let_sexp.tostring())
 
     varss_rhss, varss_len = to_rpython_list(let_ls[1])
 
@@ -254,6 +372,7 @@ def is_imported(id_sym, linkl_importss):
             if id_sym is imp.int_id:
                 return imp.id
     return None
+none_sym = mksym("None-Sym")
 
 begin_sym = mksym("begin")
 begin0_sym = mksym("begin0")
@@ -264,9 +383,14 @@ caselam_sym = mksym("case-lambda")
 lam_sym = mksym("lambda")
 let_sym = mksym("let-values")
 letrec_sym = mksym("letrec-values")
+c_let_sym = mksym("compiled-let-values")
+c_letrec_sym = mksym("compiled-letrec-values")
+c_begin_sym = mksym("compiled-begin")
 set_bang_sym = mksym("set!")
 quote_sym = mksym("quote")
 if_sym = mksym("if")
+c_lexical_var_sym = mksym("compiled-lexical-var")
+c_cell_ref_sym = mksym("compiled-cell-ref")
 
 var_ref_sym = mksym("variable-ref")
 var_ref_no_check_sym = mksym("variable-ref/no-check")
@@ -309,6 +433,14 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
     elif isinstance(form, values.W_List):
         c = form.car()
         ### these are for the desearialization of the linklet body
+        if c is c_lexical_var_sym:
+            e_s = form.cdr().cdr().car()
+            env_structure = sym_list_to_ast(e_s) if e_s is not none_sym else None
+            return interp.LexicalVar(form.cdr().car(), env_structure)
+        if c is c_cell_ref_sym:
+            e_s = form.cdr().cdr().car()
+            env_structure = sym_list_to_ast(e_s) if e_s is not none_sym else None
+            return interp.CellRef(form.cdr().car(), env_structure)
         if c in var_prim_syms:
             linklet_var_sym = form.cdr().car()
             rator, rands = None, None
@@ -323,6 +455,20 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
                 rands = [interp.LinkletVar(linklet_var_sym)]
                 rator = interp.ModuleVar(c, "#%kernel", c, None)
             return interp.App.make(rator, rands)
+        if c is c_begin_sym:
+            begin_exprs, ln = to_rpython_list(form.cdr().cdr().cdr().car())
+            body = [sexp_to_ast(f, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for f in begin_exprs]
+            begin_ast = interp.Begin(body)
+
+            _env_structure = form.cdr().car()
+            env_structure = sym_list_to_ast(_env_structure) if _env_structure is not none_sym else None
+
+            _seq_rem_num_envs = form.cdr().cdr().car()
+            seq_rem_ls, _ = to_rpython_list(_seq_rem_num_envs)
+            body_removes = [f.toint() for f in seq_rem_ls]
+
+            begin_ast.init_body_pruning(env_structure, body_removes)
+            return begin_ast
         ###
         if c is begin_sym:
             begin_exprs, ln = to_rpython_list(form.cdr())
@@ -406,9 +552,9 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             return interp.CaseLambda(lams, rec_sym)
         elif c is lam_sym:
             return interp.CaseLambda([lam_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)])
-        elif c is let_sym:
+        elif c is let_sym or c is c_let_sym:
             return let_like_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, False, cell_ref)
-        elif c is letrec_sym:
+        elif c is letrec_sym or c is c_letrec_sym:
             return let_like_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, True, cell_ref)
         elif c is set_bang_sym:
             import_id = is_imported(form.cdr().car(), linkl_importss)
@@ -630,8 +776,8 @@ def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
         if not from_zo: # no need to normalize if it's alread normalized
             with PerfRegion("compile-normalize"):
                 b_form = interp.Context.normalize_term(b_form)
-        with PerfRegion("compile-assign-convert"):
-            b_form = assign_convert(b_form)
+            with PerfRegion("compile-assign-convert"):
+                b_form = assign_convert(b_form)
         body_forms[current_index+added] = b_form
         current_index += 1
         if isinstance(b_form, interp.DefineValues):

@@ -85,7 +85,9 @@ class LinkletPerf(object):
         self.region_gc_subs = {}
         self.categories = {"read" : ["fasl->s-exp", "s-exp->ast", "assign-convert-deserialize"],
                            "run" : ["instantiate-linklet" "outer"],
-                           "startup" : ["expander-linklet", "json-load", "json-to-ast",
+                           "startup" : ["fasl-to-sexp-expander", 
+                                        "deserialize-expander-sexp", 
+                                        "json-load", "json-to-ast",
                                         "fasl-linklet", "set-params"],
                            "compile" : ["compile-linklet", "compile-sexp-to-ast",
                                         "compile-normalize", "compile-assign-convert",

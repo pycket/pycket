@@ -1302,6 +1302,12 @@ class Begin0(SequencedBodyAST):
 
     def to_sexp(self):
         beg0_sym = values.W_Symbol.make("begin0")
+
+        # body = [b.to_sexp() for b in self.direct_children()]
+        # seq_env_structure = self._sequenced_env_structure.to_sexp()
+        # seq_rem_num_envs = values.to_list([values.W_Fixnum(i) for i in self._sequenced_remove_num_envs])
+
+        # return values.to_list([begin_sym, seq_env_structure, seq_rem_num_envs, body])
         return values.to_list([beg0_sym] + [b.to_sexp() for b in self.direct_children()])
 
     def write(self, port, env):
@@ -1370,8 +1376,14 @@ class Begin(SequencedBodyAST):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
     def to_sexp(self):
-        begin_sym = values.W_Symbol.make("begin")
-        return values.to_list([begin_sym] + [b.to_sexp() for b in self.body])
+        begin_sym = values.W_Symbol.make("compiled-begin")
+        none = values.W_Symbol.make("None-Sym")
+
+        body = values.to_list([b.to_sexp() for b in self.body])
+        seq_env_structure = self._sequenced_env_structure.to_sexp() if self._sequenced_env_structure else none
+        seq_rem_num_envs = values.to_list([values.W_Fixnum(i) for i in self._sequenced_remove_num_envs])
+
+        return values.to_list([begin_sym, seq_env_structure, seq_rem_num_envs, body])
 
     def write(self, port, env):
         port.write("(begin ")
@@ -1461,6 +1473,13 @@ class CellRef(Var):
         from pycket.prims.input_output import write_loop
         write_loop(self.sym, port, env)
 
+    def to_sexp(self):
+        var_sym = values.W_Symbol.make("compiled-cell-ref")
+        none = values.W_Symbol.make("None-Sym")
+        env_structure = self.env_structure.to_sexp() if self.env_structure else none
+
+        return values.to_list([var_sym, self.sym, env_structure])
+
 class GensymCounter(object):
     _attrs_ = ['_val']
 
@@ -1544,6 +1563,13 @@ class LexicalVar(Var):
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         write_loop(self.sym, port, env)
+
+    def to_sexp(self):
+        var_sym = values.W_Symbol.make("compiled-lexical-var")
+        none = values.W_Symbol.make("None-Sym")
+        env_structure = self.env_structure.to_sexp() if self.env_structure else none
+
+        return values.to_list([var_sym, self.sym, env_structure])
 
 class ModuleVar(Var):
     _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?", "path[*]"]
@@ -2035,19 +2061,39 @@ class Lambda(SequencedBodyAST):
                 " ".join([b.tostring() for b in self.body]))
 
     def to_sexp(self):
-        lam_sym = values.W_Symbol.make("lambda")
+        lam_sym = values.W_Symbol.make("compiled-lambda")
 
-        if self.rest and not self.formals:
-            args_sexp = self.rest.to_sexp()
-        elif self.rest:
-            args_sexp = self.rest.to_sexp()
-            for f in reversed(self.formals):
-                args_sexp = values.W_Cons.make(f.to_sexp(), args_sexp)
-        else:
-            args_sexp = values.to_list(self.formals)
+        #self.formals                    : [W_Symbol ...]
+        #self.rest                       : W_Symbol | None
+        #self.args                       : SymList
+        #self.frees                      : SymList
+        #self.body                       : [AST ...]
+        #self.sourceinfo                 : SourceInfo obj {position: int, line: int, column: int, span: int, sourcefile: str} ****
+        #self.enclosing_env_structure    : SymList | None
+        #self.env_structure              : SymList
 
-        body_ls = [b.to_sexp() for b in self.body]
-        return values.to_list([lam_sym, args_sexp] + body_ls)
+        #self._sequenced_env_structure   : SymList
+        #self._sequenced_remove_num_envs : [int ...]
+        #self._mutable_var_flags         : [bool ...] | None
+
+        to_list = values.to_list
+        none = values.W_Symbol.make("None-Sym")
+
+        formals = to_list(self.formals)
+        rest = self.rest if self.rest else none
+        args = self.args.to_sexp()
+        frees = self.frees.to_sexp()
+        assert len(self.body) == 1
+        body = self.body[0].to_sexp() #to_list([b.to_sexp() for b in self.body])
+        sourceinfo = self.sourceinfo.to_sexp()
+        enclosing_env_structure = self.enclosing_env_structure.to_sexp() if self.enclosing_env_structure else none
+        env_structure = self.env_structure.to_sexp()
+
+        seq_env_structure = self._sequenced_env_structure.to_sexp()
+        seq_rem_num_envs = to_list([values.W_Fixnum(i) for i in self._sequenced_remove_num_envs])
+        mutable_var_flags = to_list([values.W_Bool.make(b) for b in self._mutable_var_flags]) if self._mutable_var_flags else to_list([values.w_false]*len(self.args.elems))
+
+        return to_list([lam_sym, formals, rest, args, frees, body, sourceinfo, enclosing_env_structure, env_structure, seq_env_structure, seq_rem_num_envs, mutable_var_flags])
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -2174,6 +2220,7 @@ class Letrec(SequencedBodyAST):
         start = 0
         result = [None] * len(self.counts)
         for i, c in enumerate(self.counts):
+            assert c >= 0
             result[i] = self.args.elems[start:start+c]
             start += c
         return result
@@ -2190,25 +2237,28 @@ class Letrec(SequencedBodyAST):
         return "(letrec (%s) %s)" % (bindings, body)
 
     def to_sexp(self):
-        letrec_sym = values.W_Symbol.make("letrec-values")
-        all_bindings_ls = [None]*len(self.counts)
-        total = 0
-        for i, count in enumerate(self.counts):
-            binding_ls = [None]*count
-            for k in range(count):
-                binding_ls[k] = self.args.elems[total+k]
-            total += count
-            current_bindings_sexp = values.to_list(binding_ls)
-            current_rhs_sexp = self.rhss[i].to_sexp()
-            current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
-            current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
+        letrec_sym = values.W_Symbol.make("compiled-letrec-values")
 
-            all_bindings_ls[i] = current_ids
+        # self.args                       : SymList
+        # self.counts                     : [int ...]
+        # self.rhss                       : [AST ...]
+        # self.body                       : [AST ...]
 
-        all_bindings = values.to_list(all_bindings_ls)
+        # self._sequenced_env_structure   : SymList
+        # self._sequenced_remove_num_envs : [int ...]
 
-        body_ls = [b.to_sexp() for b in self.body]
-        return values.to_list([letrec_sym, all_bindings] + body_ls)
+        to_list = values.to_list
+        none = values.W_Symbol.make("None-Sym")
+
+        args = self.args.to_sexp()
+        counts = to_list([values.W_Fixnum(i) for i in self.counts])
+        rhss = to_list([r.to_sexp() for r in self.rhss])
+        body = to_list([b.to_sexp() for b in self.body])
+
+        seq_env_structure = self._sequenced_env_structure.to_sexp()
+        seq_rem_num_envs = to_list([values.W_Fixnum(i) for i in self._sequenced_remove_num_envs])
+
+        return to_list([letrec_sym, args, counts, rhss, body, seq_env_structure, seq_rem_num_envs])
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -2386,6 +2436,7 @@ class Let(SequencedBodyAST):
         start = 0
         result = [None] * len(self.counts)
         for i, c in enumerate(self.counts):
+            assert c >= 0
             result[i] = self.args.elems[start:start+c]
             start += c
         return result
@@ -2413,25 +2464,32 @@ class Let(SequencedBodyAST):
         return "".join(result)
 
     def to_sexp(self):
-        let_sym = values.W_Symbol.make("let-values")
-        all_bindings_ls = [None]*len(self.counts)
-        total = 0
-        for i, count in enumerate(self.counts):
-            binding_ls = [None]*count
-            for k in range(count):
-                binding_ls[k] = self.args.elems[total+k]
-            total += count
-            current_bindings_sexp = values.to_list(binding_ls)
-            current_rhs_sexp = self.rhss[i].to_sexp()
-            current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
-            current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
+        let_sym = values.W_Symbol.make("compiled-let-values")
 
-            all_bindings_ls[i] = current_ids
+        # self.args                       : SymList
+        # self.counts                     : [int ...]
+        # self.rhss                       : [AST ...]
+        # self.body                       : [AST ...]
+        # self.remove_num_envs            : [int ...]
 
-        all_bindings = values.to_list(all_bindings_ls)
+        # self._sequenced_env_structure   : SymList
+        # self._sequenced_remove_num_envs : [int ...]
+        # self._mutable_var_flags         : [bool ...] | None
 
-        body_ls = [b.to_sexp() for b in self.body]
-        return values.to_list([let_sym, all_bindings] + body_ls)
+        to_list = values.to_list
+        none = values.W_Symbol.make("None-Sym")
+
+        args = self.args.to_sexp()
+        counts = to_list([values.W_Fixnum(i) for i in self.counts])
+        rhss = to_list([r.to_sexp() for r in self.rhss])
+        body = to_list([b.to_sexp() for b in self.body])
+        remove_num_envs = to_list([values.W_Fixnum(i) for i in self.remove_num_envs])
+
+        seq_env_structure = self._sequenced_env_structure.to_sexp()
+        seq_rem_num_envs = to_list([values.W_Fixnum(i) for i in self._sequenced_remove_num_envs])
+        mutable_var_flags = to_list([values.W_Bool.make(b) for b in self._mutable_var_flags]) if self._mutable_var_flags else to_list([values.w_false]*len(self.args.elems))
+
+        return to_list([let_sym, args, counts, rhss, body, remove_num_envs, seq_env_structure, seq_rem_num_envs, mutable_var_flags])
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
