@@ -396,7 +396,7 @@ make_pred("instance?", W_LinkletInstance)
 @expose("compile-linklet", [W_Object, default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false)], simple=False)
 def compile_linklet(form, name, import_keys, get_import, options, env, cont):
     from pycket.util import console_log
-    console_log("compiling linklet : %s %s\n import_keys : %s -- get_import : %s" % (name.tostring(), form.tostring(), import_keys.tostring(), get_import.tostring()), 3)
+    console_log("compiling linklet : %s %s\n import_keys : %s -- get_import : %s" % (name.tostring(), form.tostring(), import_keys.tostring(), get_import.tostring()), 5)
     with PerfRegionCPS("compile-linklet"):
         cont_ = finish_perf_region_cont("compile-linklet", env, cont)
         return do_compile_linklet(form, name, import_keys, get_import, options, env, cont_)
@@ -619,17 +619,18 @@ def var_ref_from_unsafe_huh(varref):
 
 @continuation
 def read_linklet_cont(env, cont, _vals):
+    from pycket.util import console_log
     from pycket.util import finish_perf_region
     bundle_map = check_one_val(_vals)
     finish_perf_region("fasl->s-exp")
     if not isinstance(bundle_map, W_HashTable):
         raise SchemeException("got something that is not a table: %s"%bundle_map.tostring())
+    console_log("BUNDLE SEXP FASL-READ from ZO: %s" % bundle_map.tostring(), 7)
     with PerfRegion("s-exp->ast"):
         return return_value(deserialize_loop(bundle_map), env, cont)
 
 @expose("read-linklet-bundle-hash", [values.W_InputPort], simple=False)
 def read_linklet_bundle_hash(in_port, env, cont):
-    from pycket.util import console_log
     from pycket.racket_entry import get_primitive
     fasl_to_s_exp = get_primitive("fasl->s-exp")
     with PerfRegionCPS("fasl->s-exp"):
