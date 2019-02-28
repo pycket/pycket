@@ -99,7 +99,7 @@ def single_flonum(n):
 def double_flonum(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
 
-@expose("real->double-flonum", [values.W_Number])
+@expose(["real->double-flonum", "real->single-flonum"], [values.W_Number])
 def real_to_double_flonum(num):
     if is_real(num):
         return num.arith_exact_inexact()
