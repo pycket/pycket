@@ -157,7 +157,6 @@ json_true = JsonTrue()
 
 json_false = JsonFalse()
 
-
 class FakeSpace(object):
 
     w_None = json_null
@@ -192,8 +191,8 @@ class FakeSpace(object):
         assert isinstance(key, JsonString)
         d.value[key.value_string()] = value
 
-    def newunicode(self, x):
-        return JsonString(unicode_encode_utf_8(x, len(x), "strict"))
+    def newutf8(self, x, ln):
+        return JsonString(unicode_encode_utf_8(x, ln, "strict"))
 
     def newtext(self, x):
         return JsonString(x)
@@ -251,7 +250,8 @@ class OwnJSONDecoder(JSONDecoder):
     def _create_dict(self, dct):
         d = {}
         for key, value in dct.iteritems():
-            d[unicode_encode_utf_8(key, len(key), "strict")] = value
+            k = key.value
+            d[unicode_encode_utf_8(k, len(k), "strict")] = value
         return JsonObject(d)
 
 
