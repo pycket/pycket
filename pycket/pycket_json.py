@@ -1,5 +1,4 @@
-from rpython.rlib.runicode import unicode_encode_utf_8
-from rpython.rlib.objectmodel import specialize, we_are_translated
+from rpython.rlib.objectmodel import specialize, we_are_translated, compute_hash
 from rpython.tool.pairtype import extendabletype
 
 # Union-Object to represent a json structure in a static way
@@ -118,6 +117,15 @@ class JsonString(JsonPrimitive):
     def value_string(self):
         return self.value
 
+    def hash_w(self):
+        x = compute_hash(self.value)
+        x -= (x == -1)
+        return x
+
+    def eq_w(self, w_other):
+        assert isinstance(w_other, JsonString)
+        return self.value == w_other.value
+
 class JsonObject(JsonBase):
     is_object = True
 
@@ -192,7 +200,7 @@ class FakeSpace(object):
         d.value[key.value_string()] = value
 
     def newutf8(self, x, ln):
-        return JsonString(unicode_encode_utf_8(x, ln, "strict"))
+        return JsonString(x)
 
     def newtext(self, x):
         return JsonString(x)
@@ -229,29 +237,10 @@ class OwnJSONDecoder(JSONDecoder):
         self.pos = i
         return self.space.newfloat(float(self.getslice(start, i)))
 
-    def decode_string(self, i):
-        start = i
-        while True:
-            # this loop is a fast path for strings which do not contain escape
-            # characters
-            ch = self.ll_chars[i]
-            i += 1
-            if ch == '"':
-                content_utf8 = self.getslice(start, i-1)
-                self.last_type = 1
-                self.pos = i
-                return JsonString(content_utf8)
-            elif ch == '\\':
-                self.pos = i-1
-                return self.decode_string_escaped(start)
-            elif ch < '\x20':
-                self._raise("Invalid control character at char %d", self.pos-1)
-
     def _create_dict(self, dct):
         d = {}
         for key, value in dct.iteritems():
-            k = key.value
-            d[unicode_encode_utf_8(k, len(k), "strict")] = value
+            d[key.value_string()] = value
         return JsonObject(d)
 
 
