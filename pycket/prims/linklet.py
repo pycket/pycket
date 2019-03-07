@@ -148,18 +148,18 @@ def finish_perf_region_cont(label, env, cont, _vals):
     return return_value(_vals, env, cont)
 
 @continuation
-def instantiate_val_cont(linkl, index, gensym_count, return_val, target, env, cont, _vals):
-    if index >= len(linkl.forms):
+def instantiate_val_cont(forms, index, return_val, target, env, cont, _vals):
+    if index >= len(forms):
         if return_val:
             return return_value(_vals, env, cont)
         else:
             return return_value(target, env, cont)
 
     # there's more
-    return instantiate_loop(linkl, index, gensym_count, return_val, target, env, cont)
+    return instantiate_loop(forms, index, return_val, target, env, cont)
 
 @continuation
-def instantiate_def_cont(linkl, form, index, gensym_count, return_val, target, env, cont, _vals):
+def instantiate_def_cont(forms, form, index, return_val, target, env, cont, _vals):
 
     values = _vals.get_all_values()
     len_values = len(values)
@@ -172,15 +172,15 @@ def instantiate_def_cont(linkl, form, index, gensym_count, return_val, target, e
 
         env.toplevel_env().toplevel_set(name, value)
 
-    return return_value(w_void, env, instantiate_val_cont(linkl, index + 1, gensym_count, return_val, target, env, cont))
+    return return_value(w_void, env, instantiate_val_cont(forms, index + 1, return_val, target, env, cont))
 
 @loop_label
-def instantiate_loop(linkl, index, gensym_count, return_val, target, env, cont):
-    form = linkl.forms[index]
+def instantiate_loop(forms, index, return_val, target, env, cont):
+    form = forms[index]
     if isinstance(form, DefineValues):
-        return form.rhs, env, instantiate_def_cont(linkl, form, index, gensym_count, return_val, target, env, cont)
+        return form.rhs, env, instantiate_def_cont(forms, form, index, return_val, target, env, cont)
     else:
-        return form, env, instantiate_val_cont(linkl, index + 1, gensym_count, return_val, target, env, cont)
+        return form, env, instantiate_val_cont(forms, index + 1, return_val, target, env, cont)
 
 class W_Linklet(W_Object):
     errorname = "linklet"
@@ -246,7 +246,7 @@ class W_Linklet(W_Object):
             else:
                 return return_value(target, env, cont)
 
-        return instantiate_loop(self, 0, 0, return_val, target, env, cont)
+        return instantiate_loop(self.forms, 0, return_val, target, env, cont)
 
     @staticmethod # json_file_name -> W_Linklet
     def load_linklet(json_file_name, set_version=False, generate_zo=False):
