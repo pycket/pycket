@@ -96,11 +96,11 @@ def make_entry_point(pycketconfig=None):
         if 'json-linklets' in names:
             for linkl_json in names['json-linklets']:
                 vvv = config['verbose']
-                load_inst_linklet_json(linkl_json, pycketconfig, vvv)
+                load_inst_linklet_json(linkl_json, debug=vvv)
 
         try:
             if not config['stop']:
-                racket_entry(names, config, pycketconfig, current_cmd_args)
+                racket_entry(names, config, current_cmd_args)
         except ExitException, e:
             pass
         finally:

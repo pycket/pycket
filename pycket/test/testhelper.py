@@ -43,10 +43,10 @@ try:
         w_global_config.set_config_val('expander_loaded', 1)
         # get the expander
         print("Loading and initializing the expander")
-        initiate_boot_sequence(None, [], False)
+        initiate_boot_sequence([], False)
         # load the '#%kernel
         print("(namespace-require '#%%kernel)")
-        namespace_require_kernel(None)
+        namespace_require_kernel()
 except:
     pass
 
@@ -66,7 +66,7 @@ def run_string(expr_str, v=None, just_return=False, equal_huh=False, expect_to_f
     # FIXME : removing \n is not ideal, as the test itself may have one
     expr_str = expr_str.replace('\n', '') # remove the newlines added by the multi line doctest
     expr_str = "(begin %s)" % expr_str
-    result = read_eval_print_string(expr_str, None, return_val=True)
+    result = read_eval_print_string(expr_str, return_val=True)
 
     if expect_to_fail and isinstance(result, W_Void):
         raise SchemeException("test raised exception")
@@ -177,7 +177,7 @@ def inst(linkl, imports=[], target=None):
     if not target:
         target = w_false
 
-    return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+    return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false])
 
 # CAUTION: call it with variables carrying only numbers
 def make_instance(vars):
@@ -204,7 +204,7 @@ def empty_target(l_name="test_empty_instance"):
     return make_instance({})
 
 def eval(linkl, target, imports=[], just_return=False):
-    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false])
     return result, target
 
 

@@ -859,7 +859,7 @@ class W_Struct(W_RootStruct):
                 # #t for write mode, #f for display mode,
                 # or 0 or 1 indicating the current quoting depth for print mode
                 mode = values.w_true
-                w_write_proc.call_interpret([self, port, mode], pycketconfig)
+                w_write_proc.call_interpret([self, port, mode])
             else:
                 port.write("(%s " % typename)
                 self.write_values(port, w_type, env)
