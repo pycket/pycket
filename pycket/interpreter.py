@@ -331,7 +331,7 @@ def check_one_val(vals):
     return vals
 
 class LetrecCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
@@ -369,7 +369,7 @@ class LetrecCont(Cont):
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
 
     return_safe = True
 
@@ -473,7 +473,7 @@ class LetCont(Cont):
         return env
 
 class CellCont(Cont):
-    _immutable_fields_ = ['ast']
+    _attrs_ = _immutable_fields_ = ['ast']
 
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -497,7 +497,7 @@ class CellCont(Cont):
         return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
 class BeginCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     return_safe = True
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -520,7 +520,7 @@ class BeginCont(Cont):
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class Begin0BodyCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     return_safe = True
 
     def __init__(self, ast, env, prev):
@@ -549,7 +549,7 @@ class Begin0BodyCont(Cont):
 
 # FIXME: it would be nice to not need two continuation types here
 class Begin0Cont(Cont):
-    _immutable_fields_ = ["ast"]
+    _attrs_ = _immutable_fields_ = ["ast"]
     return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -570,7 +570,7 @@ class Begin0Cont(Cont):
         return ast.body[0], self.env, Begin0BodyCont.make(vals_w, ast, 0, self.env, self.prev)
 
 class WCMKeyCont(Cont):
-    _immutable_fields_ = ["ast"]
+    _attrs_ = _immutable_fields_ = ["ast"]
     return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -590,7 +590,7 @@ class WCMKeyCont(Cont):
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
 
 class WCMValCont(Cont):
-    _immutable_fields_ = ["ast", "key"]
+    _attrs_ = _immutable_fields_ = ["ast", "key"]
     return_safe = True
     def __init__(self, ast, key, env, prev):
         Cont.__init__(self, env, prev)
