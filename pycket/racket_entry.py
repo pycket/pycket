@@ -1,4 +1,4 @@
-from pycket.prims.linklet import W_Linklet, to_rpython_list, do_compile_linklet, W_LinkletInstance
+from pycket.prims.linklet import W_Linklet, do_compile_linklet, W_LinkletInstance
 from pycket.interpreter import check_one_val, Done
 from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell
 from pycket.values_string import W_String
@@ -54,7 +54,7 @@ def load_bootstrap_linklet(which_str, debug, is_it_expander=False, generate_zo=F
 def load_expander(debug, generate_zo):
     load_bootstrap_linklet("expander", debug, is_it_expander=True, generate_zo=generate_zo)
 
-def load_fasl(debug):
+def load_fasl(debug=False):
     load_bootstrap_linklet("fasl", debug)
 
 def load_regexp(debug):
@@ -110,7 +110,17 @@ def sample_sexp():
     ast = JsonLoader().to_ast(json) #module
     return ast.to_sexp()
 
-def dev_mode_entry(eval_sexp_str):
+def dev_mode_metainterp():
+    from pycket.error import ExitException
+    load_fasl()
+    sexp_to_fasl = get_primitive("s-exp->fasl")
+    fasl_to_sexp = get_primitive("fasl->s-exp")
+    sexp = sample_sexp()
+    fasl = sexp_to_fasl.call_interpret([sexp])
+    sexp_out = fasl_to_sexp.call_interpret([fasl])
+    return
+
+def dev_mode_entry(eval_sexp_str=None):
     from pycket.values import W_Fixnum
     from pycket.error import ExitException
     from pycket.util import console_log
@@ -387,12 +397,12 @@ def racket_print(results):
     if isinstance(results, W_Object):
         # print single
         pr.call_interpret([results])
-        pr.call_interpret([W_String.make("\n")])
+        print
     elif isinstance(results, Values):
         # print multiple values
         for r in results.get_all_values():
             pr.call_interpret([r])
-            pr.call_interpret([W_String.make("\n")])
+            print
     else:
         raise Exception("Unsupoorted result value : %s" % results.tostring())
 
