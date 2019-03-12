@@ -111,7 +111,6 @@ def sample_sexp():
     return ast.to_sexp()
 
 def dev_mode_metainterp():
-    from pycket.error import ExitException
     load_fasl()
     sexp_to_fasl = get_primitive("s-exp->fasl")
     fasl_to_sexp = get_primitive("fasl->s-exp")

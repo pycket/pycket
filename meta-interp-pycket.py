@@ -10,6 +10,11 @@ from pycket.racket_entry import dev_mode_metainterp
 
 # 1
 
+# The following call fails :
+# -- on PyPy with a TypeError: 'GcForwardReference' object is not hashable
+# -- on CPython it passes everything (annotation, rtyper etc) and fails at runtime with
+#      AttributeError: 'NoneType' object has no attribute '_getattr'
+
 LLJitMixin().meta_interp(dev_mode_metainterp, [], listcomp=True, listops=True, backendopt=True)
 
 # 2
