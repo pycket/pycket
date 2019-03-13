@@ -1069,11 +1069,10 @@ class App(AST):
             except SchemeException:
                 pass
             else:
-                if isinstance(w_prim, values.W_Prim):
-                    if w_prim.simple1 and len(rands) == 1:
-                        return SimplePrimApp1(rator, rands, env_structure, w_prim)
-                    if w_prim.simple2 and len(rands) == 2:
-                        return SimplePrimApp2(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimSimple1) and len(rands) == 1:
+                    return SimplePrimApp1(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimSimple2) and len(rands) == 2:
+                    return SimplePrimApp2(rator, rands, env_structure, w_prim)
         return App(rator, rands, env_structure)
 
     def direct_children(self):
