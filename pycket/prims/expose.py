@@ -328,7 +328,7 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
                     return call1(arg1)
             cls.__name__ += name
         elif call2 is not None:
-            class cls(values.W_PrimSimple1):
+            class cls(values.W_PrimSimple2):
                 def simple2(self, arg1, arg2):
                     return call2(arg1, arg2)
             cls.__name__ += name
