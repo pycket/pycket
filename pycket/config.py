@@ -4,6 +4,18 @@
 from rpython.config.config import OptionDescription, BoolOption, IntOption, ArbitraryOption, FloatOption
 from rpython.config.translationoption import get_combined_translation_config
 
+pycketdummy_descr = OptionDescription("pycket", "Pycket Dummy Options", [
+BoolOption("two_state", "enable the two-state JIT driver",
+               default=True, cmdline="--two-state"),
+BoolOption("callgraph", "enable dynamic callgraph reconstruction",
+               default=True, cmdline="--callgraph")])
+
+def get_dummy_config(**overrides):
+    return get_combined_translation_config(
+            pycketdummy_descr,
+            translating=False,
+            overrides=overrides)
+
 pycketoption_descr = OptionDescription(
         "pycket", "Pycket Options", [
     BoolOption("two_state", "enable the two-state JIT driver",
