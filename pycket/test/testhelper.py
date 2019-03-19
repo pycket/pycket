@@ -332,12 +332,15 @@ def parse_file(fname, *replacements, **kwargs):
         s = s.replace(replace, with_)
     s = s.decode("utf-8")
 
-    if not pytest.config.byte_option:
-        s = expand_string(s)
-        ast = parse_module(s)
-    else:
-        s = expand_from_bytecode(s, True)
-        ast = parse_module(s, bytecode_expand=True)
+    s = expand_string(s)
+    ast = parse_module(s)
+
+    # if not pytest.config.byte_option:
+    #     s = expand_string(s)
+    #     ast = parse_module(s)
+    # else:
+    #     s = expand_from_bytecode(s, True)
+    #     ast = parse_module(s, bytecode_expand=True)
 
     return ast
 
