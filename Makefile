@@ -17,8 +17,8 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 PYFILES := $(shell find . -name '*.py' -type f)
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets
-.PHONY: setup test coverage test-expander test-one test-one-expander test-mark test-mark-expander test-random
-.PHONY: expander regexp fasl
+.PHONY: test coverage test-expander test-one test-one-expander test-mark test-mark-expander test-random
+.PHONY: expander regexp fasl setup-local-racket
 
 PYPY_EXECUTABLE := $(shell which pypy)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
@@ -117,9 +117,30 @@ else
 	$(error Pycket binary does not exist)
 endif
 
+setup-local-racket: download-and-install-racket setup-racket-for-old-pycket
+	$(warning WARNING: PLTHOME needs to be manually set (I can not modify env variables I inherited from my parent process))
+	$(warning Copy paste and run the following: export PLTHOME=`pwd`)
+
+download-and-install-racket:
+	$(info Downloading Racket)
+	$(shell wget http://www.cs.utah.edu/plt/snapshots/current/installers/racket-current-x86_64-linux-precise.sh)
+	$(info Installing Racket)
+	chmod 755 racket-current-x86_64-linux-precise.sh
+	./racket-current-x86_64-linux-precise.sh --in-place --dest racket
+	rm -f racket-current-x86_64-linux-precise.sh
+	$(eval export PLTHOME=$(shell pwd)/racket)
+	$(eval export PLTCOLLECTS=$(shell pwd)/racket/collects)
+	$(info Telling Racket about Pycket)
+	racket/bin/raco pkg install -t dir pycket/pycket-lang/ || \
+	racket/bin/raco pkg update --link pycket/pycket-lang
+
+# Use the one below for non-local Racket builds
 setup-racket-for-old-pycket:
 	raco pkg install -t dir pycket/pycket-lang/ || \
 	raco pkg update --link pycket/pycket-lang
+
+clean-racket:
+	rm -rf racket
 
 clone-pypy:
 	hg clone https://bitbucket.org/pypy/pypy
