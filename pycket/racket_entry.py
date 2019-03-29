@@ -119,6 +119,26 @@ def dev_mode_metainterp():
     sexp_out = fasl_to_sexp.call_interpret([fasl])
     return
 
+def dev_mode_metainterp_fasl_zo():
+    load_fasl()
+    from pycket.prims.input_output import open_infile, open_outfile
+    from pycket.values import W_Path
+    from pycket.error import ExitException
+
+    # Stuff for writing out the fasl
+    if not os.path.exists("sample.fasl"):
+        print("Generating sample.fasl first")
+        sexp_to_fasl = get_primitive("s-exp->fasl")
+        w_replace_sym = W_Symbol.make("replace")
+        sexp = sample_sexp()
+        out_port = open_outfile(W_Path("sample.fasl"), "w", w_replace_sym)
+        sexp_to_fasl.call_interpret([sexp, out_port])
+
+    fasl_to_sexp = get_primitive("fasl->s-exp")
+    port = open_infile(W_Path("sample.fasl"), "r")
+    r = fasl_to_sexp.call_interpret([port, w_true])
+    raise ExitException(r)
+
 def dev_mode_entry(eval_sexp_str=None):
     from pycket.values import W_Fixnum
     from pycket.error import ExitException
