@@ -46,6 +46,7 @@ def print_help(argv):
   --save-callgraph                   : save the jit output
 
  Meta options:
+  --run-as-linklet                   : takes a rkt, uses Racket to extract a single linklet as json and runs it
   --expander-zo                      : make the expander.zo
   --load-regexp                      : Loads the regexp linklet
   --dev                              : Flag to be used in development, behavior depends
@@ -94,7 +95,7 @@ conf_opts = ["-c", "--no-compiled",
              "-L", "--syslog",
              "--kernel",
              "--save-callgraph"]
-meta_opts = ["--expander-zo", "--dev", "--load-regexp", "--eval-linklet", "--just-init", "--verbose", "--jit", "-h"]
+meta_opts = ["--run-as-linklet", "--expander-zo", "--dev", "--load-regexp", "--eval-linklet", "--just-init", "--verbose", "--jit", "-h"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
 
@@ -116,7 +117,8 @@ config = {
     'use-compiled' : True,
     'compile-machine-independent' : False,
     'load-regexp' : False,
-    'expander-zo' : False
+    'expander-zo' : False,
+    'run-as-linklet' : False,
 }
 
 def add_name(names, name, val, replace=False):
@@ -378,6 +380,17 @@ def parse_args(argv):
             config['dev-mode'] = True
             i += 1
             add_name(names, 'eval-sexp', argv[i])
+
+        elif argv[i] == "--run-as-linklet":
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            config['run-as-linklet'] = True
+            config['just-init'] = True
+            config['dev-mode'] = True
+            i += 1
+            add_name(names, 'run-as-linklet', argv[i])
 
         elif argv[i] == "--load-regexp":
             config['load-regexp'] = True

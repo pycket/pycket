@@ -1,6 +1,6 @@
 from pycket.prims.linklet import W_Linklet, do_compile_linklet, W_LinkletInstance
 from pycket.interpreter import check_one_val, Done
-from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell
+from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell, w_void
 from pycket.values_string import W_String
 from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
@@ -60,7 +60,10 @@ def load_fasl(debug=False):
 def load_regexp(debug):
     load_bootstrap_linklet("regexp", debug)
 
-def load_bootstrap_linklets(debug=False, dev_mode=False, do_load_regexp=False, eval_sexp=None, gen_expander_zo=False):
+def load_bootstrap_linklets(debug=False, dev_mode=False, do_load_regexp=False, eval_sexp=None, gen_expander_zo=False, run_as_linklet=None):
+
+    if run_as_linklet:
+        return None
 
     sys_config = load_fasl(debug)
 
@@ -109,6 +112,26 @@ def sample_sexp():
     json = pycket_json.loads(data)
     ast = JsonLoader().to_ast(json) #module
     return ast.to_sexp()
+
+def run_as_linklet_json(rkt_file_name):
+    # uses expander's extract to turn it into a linklet
+    # gets the bytecodes and uses zo-expand to turn it into a json
+    # and loads and instantiates it
+    import os
+    from pycket.util import os_get_env_var
+    from subprocess import call
+    PLTHOME = os_get_env_var("PLTHOME")
+    EXPANDER_DIR = os.path.join(PLTHOME, os.path.join("racket", "src", "expander"))
+
+    prep_cmd = "raco make -v %s/bootstrap-run.rkt" % EXPANDER_DIR
+    call(prep_cmd, shell=True)
+    extract_cmd = "racket -t %s/bootstrap-run.rkt -- -c compiled/cache-src/ ++knot read - -s -x -B -t %s -o %s/compiled/%s.zo" % (EXPANDER_DIR, rkt_file_name, EXPANDER_DIR, rkt_file_name)
+    call(extract_cmd, shell=True)
+    linklet_json_cmd = "racket linklet-extractor/linkl-expand.rkt -e --output %s.linklet %s/compiled/%s.zo" % (rkt_file_name, EXPANDER_DIR, rkt_file_name)
+    call(linklet_json_cmd, shell=True)
+
+    load_inst_linklet_json("%s.linklet" % rkt_file_name)
+    raise ExitException(w_void)
 
 def dev_mode_metainterp():
     load_fasl()
@@ -173,13 +196,18 @@ def dev_mode_entry(eval_sexp_str=None):
         console_log(sexp_out.tostring(), 1)
         raise ExitException(sexp_out)
 
-def initiate_boot_sequence(command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False, do_load_regexp=False, eval_sexp=None, gen_expander_zo=False):
+def initiate_boot_sequence(command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False, do_load_regexp=False, eval_sexp=None, gen_expander_zo=False, run_as_linklet=None):
     from pycket.env import w_version
 
-    sysconfig = load_bootstrap_linklets(debug, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp, gen_expander_zo=gen_expander_zo)
+    sysconfig = load_bootstrap_linklets(debug, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp, gen_expander_zo=gen_expander_zo, run_as_linklet=run_as_linklet)
 
     if dev_mode:
-        dev_mode_entry(eval_sexp)
+        if eval_sexp:
+            dev_mode_entry(eval_sexp)
+        elif run_as_linklet:
+            run_as_linklet_json(run_as_linklet)
+        else:
+            dev_mode_metainterp_fasl_zo()
 
     if gen_expander_zo:
         return 0
@@ -312,10 +340,10 @@ def racket_entry(names, config, command_line_arguments):
 
     linklet_perf.init()
 
-    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo = get_options(names, config)
+    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo, run_as_linklet = get_options(names, config)
 
     with PerfRegion("startup"):
-        initiate_boot_sequence(command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp, gen_expander_zo=gen_expander_zo)
+        initiate_boot_sequence(command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp, gen_expander_zo=gen_expander_zo, run_as_linklet=run_as_linklet)
 
     if just_init:
         return 0
@@ -480,6 +508,7 @@ def get_options(names, config):
 
     dev_mode = config['dev-mode']
     eval_sexp = names['eval-sexp'][0] if 'eval-sexp' in names else ""
+    run_as_linklet = names['run-as-linklet'][0] if 'run-as-linklet' in names else ""
 
     loads_print_str = []
     loads = []
@@ -506,6 +535,7 @@ verbosity-keywords : %s
 dev-mode           : %s
 eval-s-sexp        : %s
 gen expander-zo    : %s
+run-as-linklet     : %s
 """ % (loads_print_str,
        set_run_file,
        set_collects_dir,
@@ -521,8 +551,9 @@ gen expander-zo    : %s
        verbosity_keywords,
        dev_mode,
        eval_sexp,
-       gen_expander_zo)
+       gen_expander_zo,
+       run_as_linklet)
 
     console_log(log_str, debug=debug)
 
-    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo
+    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo, run_as_linklet
