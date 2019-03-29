@@ -508,7 +508,7 @@ def get_options(names, config):
 
     dev_mode = config['dev-mode']
     eval_sexp = names['eval-sexp'][0] if 'eval-sexp' in names else ""
-    run_as_linklet = names['run-as-linklet'][0] if 'run-as-linklet' in config else ""
+    run_as_linklet = names['run-as-linklet'][0] if config['run-as-linklet'] else ""
 
     loads_print_str = []
     loads = []
