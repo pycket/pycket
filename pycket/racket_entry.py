@@ -6,7 +6,7 @@ from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
 from pycket.util import console_log, LinkletPerf, linklet_perf, PerfRegion
 from pycket.prims.correlated import syntax_primitives
-
+from pycket.error import ExitException
 from rpython.rlib.debug import debug_start, debug_stop, debug_print
 
 def locate_linklet(file_name):
@@ -113,22 +113,23 @@ def sample_sexp():
     ast = JsonLoader().to_ast(json) #module
     return ast.to_sexp()
 
-def run_as_linklet_json(rkt_file_name):
+def run_as_linklet_json(rkt_file_name=""):
     # uses expander's extract to turn it into a linklet
     # gets the bytecodes and uses zo-expand to turn it into a json
     # and loads and instantiates it
     import os
     from pycket.util import os_get_env_var
-    from subprocess import call
+    from rpython.rlib.rfile import create_popen_file
     PLTHOME = os_get_env_var("PLTHOME")
-    EXPANDER_DIR = os.path.join(PLTHOME, os.path.join("racket", "src", "expander"))
+    EXPANDER_DIR = os.path.join(PLTHOME, os.path.join("racket", os.path.join("src", "expander")))
 
+    # FIXME: error check
     prep_cmd = "raco make -v %s/bootstrap-run.rkt" % EXPANDER_DIR
-    call(prep_cmd, shell=True)
+    pipe1 = create_popen_file(prep_cmd, "r")
     extract_cmd = "racket -t %s/bootstrap-run.rkt -- -c compiled/cache-src/ ++knot read - -s -x -B -t %s -o %s/compiled/%s.zo" % (EXPANDER_DIR, rkt_file_name, EXPANDER_DIR, rkt_file_name)
-    call(extract_cmd, shell=True)
+    pipe2 = create_popen_file(extract_cmd, "r")
     linklet_json_cmd = "racket linklet-extractor/linkl-expand.rkt -e --output %s.linklet %s/compiled/%s.zo" % (rkt_file_name, EXPANDER_DIR, rkt_file_name)
-    call(linklet_json_cmd, shell=True)
+    pipe3 = create_popen_file(linklet_json_cmd, "r")
 
     load_inst_linklet_json("%s.linklet" % rkt_file_name)
     raise ExitException(w_void)
@@ -146,7 +147,7 @@ def dev_mode_metainterp_fasl_zo():
     load_fasl()
     from pycket.prims.input_output import open_infile, open_outfile
     from pycket.values import W_Path
-    from pycket.error import ExitException
+    import os
 
     # Stuff for writing out the fasl
     if not os.path.exists("sample.fasl"):
@@ -164,7 +165,6 @@ def dev_mode_metainterp_fasl_zo():
 
 def dev_mode_entry(eval_sexp_str=None):
     from pycket.values import W_Fixnum
-    from pycket.error import ExitException
     from pycket.util import console_log
     from pycket.prims.linklet import W_LinkletInstance
 
@@ -196,7 +196,7 @@ def dev_mode_entry(eval_sexp_str=None):
         console_log(sexp_out.tostring(), 1)
         raise ExitException(sexp_out)
 
-def initiate_boot_sequence(command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False, do_load_regexp=False, eval_sexp=None, gen_expander_zo=False, run_as_linklet=None):
+def initiate_boot_sequence(command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False, do_load_regexp=False, eval_sexp=None, gen_expander_zo=False, run_as_linklet=""):
     from pycket.env import w_version
 
     sysconfig = load_bootstrap_linklets(debug, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp, gen_expander_zo=gen_expander_zo, run_as_linklet=run_as_linklet)
@@ -508,7 +508,7 @@ def get_options(names, config):
 
     dev_mode = config['dev-mode']
     eval_sexp = names['eval-sexp'][0] if 'eval-sexp' in names else ""
-    run_as_linklet = names['run-as-linklet'][0] if 'run-as-linklet' in names else ""
+    run_as_linklet = names['run-as-linklet'][0] if 'run-as-linklet' in config else ""
 
     loads_print_str = []
     loads = []
