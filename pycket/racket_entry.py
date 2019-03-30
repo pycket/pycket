@@ -60,18 +60,13 @@ def load_fasl(debug=False):
 def load_regexp(debug):
     load_bootstrap_linklet("regexp", debug)
 
-def load_bootstrap_linklets(debug=False, dev_mode=False, do_load_regexp=False, eval_sexp=None, gen_expander_zo=False, run_as_linklet=None):
-
-    if run_as_linklet:
-        return None
+def load_bootstrap_linklets(debug=False, do_load_regexp=False, gen_expander_zo=False):
 
     sys_config = load_fasl(debug)
+    load_expander(debug, gen_expander_zo)
 
     if do_load_regexp:
         load_regexp(debug)
-
-    if not dev_mode or eval_sexp:
-        load_expander(debug, gen_expander_zo)
 
     console_log("Bootstrap linklets are ready.")
     return sys_config
@@ -162,52 +157,34 @@ def dev_mode_metainterp_fasl_zo():
     port = open_infile(W_Path("sample.fasl"), "r")
     r = fasl_to_sexp.call_interpret([port, w_true])
 
-def dev_mode_entry(eval_sexp_str=None):
+def dev_mode_entry_sexp(eval_sexp_str=None):
     from pycket.values import W_Fixnum
     from pycket.util import console_log
     from pycket.prims.linklet import W_LinkletInstance
 
-    if eval_sexp_str:
-        from pycket.prims.linklet import do_compile_linklet
-        from pycket.env import ToplevelEnv
-        from pycket.cont import NilCont
 
-        linkl_sexp = racket_read_str(eval_sexp_str)
-        linkl = None
-        try:
-            do_compile_linklet(linkl_sexp, W_Symbol.make("linkl"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
-        except Done, e:
-            linkl = e.values
+    from pycket.prims.linklet import do_compile_linklet
+    from pycket.env import ToplevelEnv
+    from pycket.cont import NilCont
 
-        instantiate_linklet = get_primitive("instantiate-linklet")
-        target = W_LinkletInstance(W_Symbol.make("target"), {})
+    linkl_sexp = racket_read_str(eval_sexp_str)
+    linkl = None
+    try:
+        do_compile_linklet(linkl_sexp, W_Symbol.make("linkl"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
+    except Done, e:
+        linkl = e.values
 
-        res = instantiate_linklet.call_interpret([linkl, w_null, target, w_false])
-        print("result : %s" % res.tostring())
-        raise ExitException(linkl_sexp)
-    else:
-        sexp_to_fasl = get_primitive("s-exp->fasl")
-        fasl_to_sexp = get_primitive("fasl->s-exp")
-        sexp = sample_sexp()
-        fasl = sexp_to_fasl.call_interpret([sexp])
-        console_log(fasl.tostring(), 1)
-        sexp_out = fasl_to_sexp.call_interpret([fasl])
-        console_log(sexp_out.tostring(), 1)
-        raise ExitException(sexp_out)
+    instantiate_linklet = get_primitive("instantiate-linklet")
+    target = W_LinkletInstance(W_Symbol.make("target"), {})
 
-def initiate_boot_sequence(command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, dev_mode=False, do_load_regexp=False, eval_sexp=None, gen_expander_zo=False, run_as_linklet=""):
+    res = instantiate_linklet.call_interpret([linkl, w_null, target, w_false])
+    print("result : %s" % res.tostring())
+    raise ExitException(linkl_sexp)
+
+def initiate_boot_sequence(command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, do_load_regexp=False, gen_expander_zo=False):
     from pycket.env import w_version
 
-    sysconfig = load_bootstrap_linklets(debug, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp, gen_expander_zo=gen_expander_zo, run_as_linklet=run_as_linklet)
-
-    if dev_mode:
-        if eval_sexp:
-            dev_mode_entry(eval_sexp)
-        elif run_as_linklet:
-            run_as_linklet_json(run_as_linklet)
-        else:
-            dev_mode_metainterp_fasl_zo()
-        return 0
+    sysconfig = load_bootstrap_linklets(debug, do_load_regexp=do_load_regexp, gen_expander_zo=gen_expander_zo)
 
     if gen_expander_zo:
         return 0
@@ -334,6 +311,15 @@ def namespace_require_plus(spec):
     if module_declared.call_interpret([main, w_true]) is w_true:
         dynamic_require.call_interpret([main, w_false])
 
+def dev_mode_entry(dev_mode, eval_sexp, run_as_linklet):
+    if eval_sexp:
+        dev_mode_entry_sexp(eval_sexp)
+    elif run_as_linklet:
+        run_as_linklet_json(run_as_linklet)
+    else:
+        dev_mode_metainterp_fasl_zo()
+
+
 def racket_entry(names, config, command_line_arguments):
     from pycket.prims.general import executable_yield_handler
     from pycket.values import W_Fixnum
@@ -342,8 +328,12 @@ def racket_entry(names, config, command_line_arguments):
 
     loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo, run_as_linklet = get_options(names, config)
 
+    if dev_mode:
+        dev_mode_entry(dev_mode, eval_sexp, run_as_linklet)
+        return 0
+
     with PerfRegion("startup"):
-        initiate_boot_sequence(command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, dev_mode=dev_mode, do_load_regexp=do_load_regexp, eval_sexp=eval_sexp, gen_expander_zo=gen_expander_zo, run_as_linklet=run_as_linklet)
+        initiate_boot_sequence(command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, do_load_regexp=do_load_regexp, gen_expander_zo=gen_expander_zo)
 
     if just_init:
         return 0
