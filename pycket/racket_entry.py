@@ -157,11 +157,12 @@ def dev_mode_metainterp_fasl_zo():
         sexp = sample_sexp()
         out_port = open_outfile(W_Path("sample.fasl"), "w", w_replace_sym)
         sexp_to_fasl.call_interpret([sexp, out_port])
+        out_port.close()
 
     fasl_to_sexp = get_primitive("fasl->s-exp")
     port = open_infile(W_Path("sample.fasl"), "r")
     r = fasl_to_sexp.call_interpret([port, w_true])
-    raise ExitException(r)
+    return
 
 def dev_mode_entry(eval_sexp_str=None):
     from pycket.values import W_Fixnum
@@ -207,7 +208,7 @@ def initiate_boot_sequence(command_line_arguments, use_compiled, debug=False, se
         elif run_as_linklet:
             run_as_linklet_json(run_as_linklet)
         else:
-            dev_mode_metainterp_fasl_zo()
+            return dev_mode_metainterp_fasl_zo()
 
     if gen_expander_zo:
         return 0
