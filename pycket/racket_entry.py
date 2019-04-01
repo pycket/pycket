@@ -149,6 +149,15 @@ def dev_mode_metainterp():
     fasl = sexp_to_fasl.call_interpret([sexp])
     sexp_out = fasl_to_sexp.call_interpret([fasl])
 
+def dev_mode_branchy():
+    from pycket.values import W_Cons, W_Fixnum
+    branchy = get_primitive("branchy-function")
+    total = 1000000
+    lst = w_null
+    for i in range(total):
+        lst = W_Cons.make(W_Fixnum(i % 40), lst)
+    branchy.call_interpret([lst])
+
 def dev_mode_metainterp_fasl_zo():
     load_fasl()
     from pycket.prims.input_output import open_infile, open_outfile
@@ -339,7 +348,8 @@ def dev_mode_entry(dev_mode, eval_sexp, run_as_linklet):
     elif run_as_linklet:
         run_as_linklet_json(run_as_linklet)
     else:
-        dev_mode_metainterp_fasl_zo()
+        #dev_mode_metainterp_fasl_zo()
+        dev_mode_branchy()
 
 def racket_entry(names, config, command_line_arguments):
     from pycket.prims.general import executable_yield_handler
