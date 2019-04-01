@@ -399,7 +399,11 @@ def parse_args(argv):
                 print "missing argument after %s" % argv[i]
                 retval = MISSING_ARG
                 break
-            #i += 1
+            if not argv[i+1].endswith(".linklet"):
+                print "--load-linklet : expects files ending with .linklet, given : %s" % argv[i+1]
+                retval = BAD_ARG
+                break
+
             while(argv[i+1] not in all_opts and not argv[i+1].endswith(".rkt")):
                 if not argv[i+1].endswith(".linklet"):
                     print "please provide files ending with .linklet"
