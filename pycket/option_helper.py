@@ -46,17 +46,21 @@ def print_help(argv):
   --save-callgraph                   : save the jit output
 
  Meta options:
-  --run-as-linklet                   : takes a rkt, uses Racket to extract a single linklet as json and runs it
   --expander-zo                      : make the expander.zo
   --load-regexp                      : Loads the regexp linklet
-  --dev                              : Flag to be used in development, behavior depends
-  --eval-linklet                     : puts the given expression in a linklet and evaluates over empty target
-  --just-init                        : Ignore all parameters, initialize the bootstrap linklets and exit
   --verbose <level>                  : Print the debug logs. <level> : natural number (defaults to 0)
   --jit <jitargs>                    : Set RPython JIT options may be 'default', 'off',
                                        or 'param=value,param=value' list
   --                                 : No argument following this switch is used as a switch
   -h, --help                         : Show this information and exits, ignoring other options
+
+Dev options:
+  --dev                              : Flag to be used in development, behavior unspecified
+  --load-linklets                    : loads the given .linklet files at boot and makes their functions ready at runtime
+  --eval-linklet                     : puts the given expression in a linklet and evaluates over empty target
+  --run-as-linklet                   : takes a rkt, uses Racket to extract a single linklet as json and runs it
+  --just-init                        : Ignore all parameters, initialize the bootstrap linklets and exit
+
 Default options:
  If only an argument is specified, it is loaded and evaluated
 """ % (argv[0])
@@ -95,15 +99,25 @@ conf_opts = ["-c", "--no-compiled",
              "-L", "--syslog",
              "--kernel",
              "--save-callgraph"]
-meta_opts = ["--run-as-linklet", "--expander-zo", "--dev", "--load-regexp", "--eval-linklet", "--just-init", "--verbose", "--jit", "-h"]
+meta_opts = ["--expander-zo",
+             "--load-regexp",
+             "--verbose",
+             "--jit",
+             "-h", "--help"]
+dev_opts = ["--dev",
+            "--load-linklets",
+            "--eval-linklet",
+            "--run-as-linklet",
+            "--just-init"]
 
-all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
+all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts + dev_opts
 
 INIT = -1
 RETURN_OK = 0
 MISSING_ARG = 5
 JUST_EXIT = 3
 RET_JIT = 2
+BAD_ARG = 5
 
 config = {
     'repl' : False,
@@ -117,8 +131,7 @@ config = {
     'use-compiled' : True,
     'compile-machine-independent' : False,
     'load-regexp' : False,
-    'expander-zo' : False,
-    'run-as-linklet' : False,
+    'expander-zo' : False
 }
 
 def add_name(names, name, val, replace=False):
@@ -381,12 +394,27 @@ def parse_args(argv):
             i += 1
             add_name(names, 'eval-sexp', argv[i])
 
+        elif argv[i] == "--load-linklets":
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            #i += 1
+            while(argv[i+1] not in all_opts and not argv[i+1].endswith(".rkt")):
+                if not argv[i+1].endswith(".linklet"):
+                    print "please provide files ending with .linklet"
+                    retval = BAD_ARG
+                    break
+                add_name(names, 'load-linklets', argv[i+1])
+                i += 1
+            if retval == BAD_ARG:
+                break
+
         elif argv[i] == "--run-as-linklet":
             if to <= i + 1 or argv[i+1] in all_opts:
                 print "missing argument after %s" % argv[i]
                 retval = MISSING_ARG
                 break
-            config['run-as-linklet'] = True
             config['just-init'] = True
             config['dev-mode'] = True
             i += 1

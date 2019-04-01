@@ -90,6 +90,10 @@ def load_inst_linklet_json(json_file_name, debug=False, set_version=False, gener
     console_log("DONE with the %s." % json_file_name)
     return linkl_instance, sys_config
 
+def load_linklets_at_startup(linklet_file_names):
+    for linklet_file in linklet_file_names:
+        load_inst_linklet_json(linklet_file)
+
 def set_path(kind_str, path_str):
     import os
     from pycket.racket_paths import racket_sys_paths
@@ -319,14 +323,16 @@ def dev_mode_entry(dev_mode, eval_sexp, run_as_linklet):
     else:
         dev_mode_metainterp_fasl_zo()
 
-
 def racket_entry(names, config, command_line_arguments):
     from pycket.prims.general import executable_yield_handler
     from pycket.values import W_Fixnum
 
     linklet_perf.init()
 
-    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo, run_as_linklet = get_options(names, config)
+    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo, run_as_linklet, load_linklets = get_options(names, config)
+
+    if load_linklets:
+        load_linklets_at_startup(load_linklets)
 
     if dev_mode:
         dev_mode_entry(dev_mode, eval_sexp, run_as_linklet)
@@ -498,7 +504,8 @@ def get_options(names, config):
 
     dev_mode = config['dev-mode']
     eval_sexp = names['eval-sexp'][0] if 'eval-sexp' in names else ""
-    run_as_linklet = names['run-as-linklet'][0] if config['run-as-linklet'] else ""
+    run_as_linklet = names['run-as-linklet'][0] if 'run-as-linklet' in names else ""
+    load_linklets = names['load-linklets'] if 'load-linklets' in names else []
 
     loads_print_str = []
     loads = []
@@ -526,6 +533,7 @@ dev-mode           : %s
 eval-s-sexp        : %s
 gen expander-zo    : %s
 run-as-linklet     : %s
+load-linklets      : %s
 """ % (loads_print_str,
        set_run_file,
        set_collects_dir,
@@ -542,8 +550,9 @@ run-as-linklet     : %s
        dev_mode,
        eval_sexp,
        gen_expander_zo,
-       run_as_linklet)
+       run_as_linklet,
+       load_linklets)
 
     console_log(log_str, debug=debug)
 
-    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo, run_as_linklet
+    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo, run_as_linklet, load_linklets
