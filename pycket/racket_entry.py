@@ -128,11 +128,16 @@ def run_as_linklet_json(rkt_file_name=""):
     # FIXME: error check
     prep_cmd = "raco make -v %s/bootstrap-run.rkt" % EXPANDER_DIR
     pipe1 = create_popen_file(prep_cmd, "r")
-    extract_cmd = "racket -t %s/bootstrap-run.rkt -- -c compiled/cache-src/ ++knot read - -s -x -B -t %s -o %s/compiled/%s.zo" % (EXPANDER_DIR, rkt_file_name, EXPANDER_DIR, rkt_file_name)
+    pipe1.read()
+    pipe1.close()
+    extract_cmd = "racket -t %s/bootstrap-run.rkt -- -c compiled/cache-src/ ++knot read - -s -x -B -t %s -o compiled/%s.zo" % (EXPANDER_DIR, rkt_file_name, rkt_file_name)
     pipe2 = create_popen_file(extract_cmd, "r")
-    linklet_json_cmd = "racket linklet-extractor/linkl-expand.rkt -e --output %s.linklet %s/compiled/%s.zo" % (rkt_file_name, EXPANDER_DIR, rkt_file_name)
+    pipe2.read()
+    pipe2.close()
+    linklet_json_cmd = "racket linklet-extractor/linkl-expand.rkt -e --output %s.linklet compiled/%s.zo" % (rkt_file_name, rkt_file_name)
     pipe3 = create_popen_file(linklet_json_cmd, "r")
-
+    pipe3.read()
+    pipe3.close()
     load_inst_linklet_json("%s.linklet" % rkt_file_name)
     raise ExitException(w_void)
 
