@@ -71,7 +71,7 @@ def load_bootstrap_linklets(debug=False, do_load_regexp=False, gen_expander_zo=F
     console_log("Bootstrap linklets are ready.")
     return sys_config
 
-def load_inst_linklet_json(json_file_name, debug=False, set_version=False, generate_zo=False):
+def load_inst_linklet_json(json_file_name, debug=False, set_version=False, generate_zo=False, expose_vars=False):
     from pycket.env import w_version
 
     debug_start("loading-linklet")
@@ -87,12 +87,15 @@ def load_inst_linklet_json(json_file_name, debug=False, set_version=False, gener
     linkl_instance = instantiate_linklet.call_interpret([linkl, w_null, w_false, w_false])
     debug_print("DONE Instantiating %s ...."  % json_file_name)
     debug_stop("loading-linklet")
+    if expose_vars:
+        console_log("Exporting vars of %s" % json_file_name)
+        linkl_instance.expose_vars_to_prim_env()
     console_log("DONE with the %s." % json_file_name)
     return linkl_instance, sys_config
 
 def load_linklets_at_startup(linklet_file_names):
     for linklet_file in linklet_file_names:
-        load_inst_linklet_json(linklet_file)
+        load_inst_linklet_json(linklet_file, expose_vars=True)
 
 def set_path(kind_str, path_str):
     import os
