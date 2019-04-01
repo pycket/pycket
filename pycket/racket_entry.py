@@ -185,7 +185,17 @@ def dev_mode_entry_sexp(eval_sexp_str=None):
     print("result : %s" % res.tostring())
     raise ExitException(linkl_sexp)
 
-def initiate_boot_sequence(command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", compile_any=False, do_load_regexp=False, gen_expander_zo=False):
+#FIXME : tidy up the arguments (e.g. pass the options dict)
+def initiate_boot_sequence(command_line_arguments,
+                           use_compiled=False,
+                           debug=False,
+                           set_run_file="",
+                           set_collects_dir="",
+                           set_config_dir="",
+                           set_addon_dir="",
+                           compile_any=False,
+                           do_load_regexp=False,
+                           gen_expander_zo=False):
     from pycket.env import w_version
 
     sysconfig = load_bootstrap_linklets(debug, do_load_regexp=do_load_regexp, gen_expander_zo=gen_expander_zo)
@@ -329,7 +339,28 @@ def racket_entry(names, config, command_line_arguments):
 
     linklet_perf.init()
 
-    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, c_a, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo, run_as_linklet, load_linklets = get_options(names, config)
+    loads, startup_options, flags = get_options(names, config)
+
+    init_library     = startup_options['init_library'][0]
+    set_run_file     = startup_options['set_run_file'][0]
+    set_collects_dir = startup_options['set_collects_dir'][0]
+    set_config_dir   = startup_options['set_config_dir'][0]
+    set_addon_dir    = startup_options['set_addon_dir'][0]
+    eval_sexp        = startup_options['eval_sexp'][0]
+    run_as_linklet   = startup_options['run_as_linklet'][0]
+    load_linklets    = startup_options['load_linklets']
+
+    is_repl          = flags['is_repl']
+    no_lib           = flags['no_lib']
+    just_kernel      = flags['just_kernel']
+    just_init        = flags['just_init']
+    use_compiled     = flags['use_compiled']
+    debug            = flags['debug']
+    version          = flags['version']
+    c_a              = flags['compile_any']
+    do_load_regexp   = flags['do_load_regexp']
+    gen_expander_zo  = flags['gen_expander_zo']
+    dev_mode         = flags['dev_mode']
 
     if load_linklets:
         load_linklets_at_startup(load_linklets)
@@ -339,7 +370,16 @@ def racket_entry(names, config, command_line_arguments):
         return 0
 
     with PerfRegion("startup"):
-        initiate_boot_sequence(command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, compile_any=c_a, do_load_regexp=do_load_regexp, gen_expander_zo=gen_expander_zo)
+        initiate_boot_sequence(command_line_arguments,
+                               use_compiled,
+                               debug,
+                               set_run_file,
+                               set_collects_dir,
+                               set_config_dir,
+                               set_addon_dir,
+                               compile_any=c_a,
+                               do_load_regexp=do_load_regexp,
+                               gen_expander_zo=gen_expander_zo)
 
     if just_init:
         return 0
@@ -481,14 +521,6 @@ def get_primitive(prim_name_str):
 
 def get_options(names, config):
 
-    load_rators = names['loads'] if 'loads' in names else []
-    load_rands = names['load_arguments'] if 'load_arguments' in names else []
-    set_run_file = names['set-run-file'][0] if 'set-run-file' in names else ""
-    set_collects_dir = names['set-collects-dir'][0] if 'set-collects-dir' in names else ""
-    set_config_dir = names['set-config-dir'][0] if 'set-config-dir' in names else ""
-    set_addon_dir = names['set-addon-dir'][0] if 'set-addon-dir' in names else ""
-
-    init_library = names['init-lib'][0] if 'init-lib' in names else "racket/base" # racket/init
     is_repl = config['repl']
     no_lib = config['no-lib']
     just_kernel = config['just_kernel']
@@ -497,14 +529,21 @@ def get_options(names, config):
     debug = config['verbose']
     version = config['version']
     compile_any = config['compile-machine-independent']
-    verbosity_lvl = int(names['verbosity_level'][0]) if debug else -1
-    verbosity_keywords = names['verbosity_keywords'] if 'verbosity_keywords' in names else []
     do_load_regexp = config['load-regexp']
     gen_expander_zo = config['expander-zo']
-
     dev_mode = config['dev-mode']
-    eval_sexp = names['eval-sexp'][0] if 'eval-sexp' in names else ""
-    run_as_linklet = names['run-as-linklet'][0] if 'run-as-linklet' in names else ""
+
+    load_rators = names['loads'] if 'loads' in names else []
+    load_rands = names['load_arguments'] if 'load_arguments' in names else []
+    set_run_file = names['set-run-file'] if 'set-run-file' in names else [""]
+    set_collects_dir = names['set-collects-dir'] if 'set-collects-dir' in names else [""]
+    set_config_dir = names['set-config-dir'] if 'set-config-dir' in names else [""]
+    set_addon_dir = names['set-addon-dir'] if 'set-addon-dir' in names else [""]
+    init_library = names['init-lib'] if 'init-lib' in names else ["racket/base"] # racket/init
+    verbosity_lvl = int(names['verbosity_level'][0]) if debug else -1
+    verbosity_keywords = names['verbosity_keywords'] if 'verbosity_keywords' in names else []
+    eval_sexp = names['eval-sexp'] if 'eval-sexp' in names else [""]
+    run_as_linklet = names['run-as-linklet'] if 'run-as-linklet' in names else [""]
     load_linklets = names['load-linklets'] if 'load-linklets' in names else []
 
     loads_print_str = []
@@ -512,16 +551,20 @@ def get_options(names, config):
     for index, rator in enumerate(load_rators):
         rand = load_rands[index]
         loads_print_str.append("(%s %s)" % (rator, rand))
-        loads.append([rator, rand])
+        loads.append((rator, rand))
 
     log_str = """Options :
 
 loads              : %s
+init_library       : %s
 set-run-file       : %s
 set-collects-dir   : %s
 set-config-dir     : %s
 set-addon-dir      : %s
-init_library       : %s
+eval-s-sexp        : %s
+run-as-linklet     : %s
+load-linklets      : %s
+
 is_repl            : %s
 no_lib             : %s
 just-#%%kernel      : %s
@@ -530,16 +573,17 @@ use-compiled       : %s
 verbosity-level    : %s
 verbosity-keywords : %s
 dev-mode           : %s
-eval-s-sexp        : %s
 gen expander-zo    : %s
-run-as-linklet     : %s
-load-linklets      : %s
 """ % (loads_print_str,
-       set_run_file,
-       set_collects_dir,
-       set_config_dir,
-       set_addon_dir,
-       init_library,
+       init_library[0],
+       set_run_file[0],
+       set_collects_dir[0],
+       set_config_dir[0],
+       set_addon_dir[0],
+       eval_sexp[0],
+       run_as_linklet[0],
+       load_linklets,
+
        is_repl,
        no_lib,
        just_kernel,
@@ -548,11 +592,34 @@ load-linklets      : %s
        verbosity_lvl,
        verbosity_keywords,
        dev_mode,
-       eval_sexp,
-       gen_expander_zo,
-       run_as_linklet,
-       load_linklets)
+       gen_expander_zo
+       )
 
     console_log(log_str, debug=debug)
 
-    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled, compile_any, dev_mode, do_load_regexp, eval_sexp, gen_expander_zo, run_as_linklet, load_linklets
+    startup_options = {
+        'init_library'     : init_library,
+        'set_run_file'     : set_run_file,
+        'set_collects_dir' : set_collects_dir,
+        'set_config_dir'   : set_config_dir,
+        'set_addon_dir'    : set_addon_dir,
+        'eval_sexp'        : eval_sexp,
+        'run_as_linklet'   : run_as_linklet,
+        'load_linklets'    : load_linklets
+    }
+
+    flags = {
+        'is_repl'          : is_repl,
+        'no_lib'           : no_lib,
+        'just_kernel'      : just_kernel,
+        'just_init'        : just_init,
+        'use_compiled'     : use_compiled,
+        'debug'            : debug,
+        'version'          : version,
+        'compile_any'      : compile_any,
+        'do_load_regexp'   : do_load_regexp,
+        'gen_expander_zo'  : gen_expander_zo,
+        'dev_mode'         : dev_mode
+    }
+
+    return loads, startup_options, flags
