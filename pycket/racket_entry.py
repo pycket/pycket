@@ -149,14 +149,20 @@ def dev_mode_metainterp():
     fasl = sexp_to_fasl.call_interpret([sexp])
     sexp_out = fasl_to_sexp.call_interpret([fasl])
 
-def dev_mode_branchy():
-    from pycket.values import W_Cons, W_Fixnum
-    branchy = get_primitive("branchy-function")
-    total = 1000000
-    lst = w_null
-    for i in range(total):
-        lst = W_Cons.make(W_Fixnum(i % 40), lst)
-    branchy.call_interpret([lst])
+# 1) use run-as-linklet to generate a .linklet for a .rkt module that exports a "function : A -> B"
+#    use run-as-linklet to generate a .linklet for a .rkt module that exports thunk "input : -> A"
+# 2) use load-linklets to load those .linklets and apply the "function" to the "(input)"
+def dev_mode_dynamic_metainterp():
+    # trying to get things as close to the
+    # 'dev_mode_metainterp_fasl_zo' below,
+    # otherwise we could just call the 'function' on the 'input' in
+    # the .rkt source and "run-as-linklet" that
+
+    function = get_primitive("function")
+    input_f = get_primitive("input")
+
+    inp = input_f.call_interpret([])
+    function.call_interpret([inp])
 
 def dev_mode_metainterp_fasl_zo():
     load_fasl()
@@ -348,8 +354,7 @@ def dev_mode_entry(dev_mode, eval_sexp, run_as_linklet):
     elif run_as_linklet:
         run_as_linklet_json(run_as_linklet)
     else:
-        #dev_mode_metainterp_fasl_zo()
-        dev_mode_branchy()
+        dev_mode_dynamic_metainterp()
 
 def racket_entry(names, config, command_line_arguments):
     from pycket.prims.general import executable_yield_handler
