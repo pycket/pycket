@@ -117,11 +117,7 @@ else
 	$(error Pycket binary does not exist)
 endif
 
-setup-local-racket: download-and-install-racket setup-racket-for-old-pycket
-	$(warning WARNING: PLTHOME needs to be manually set (I can not modify env variables I inherited from my parent process))
-	$(warning Copy paste and run the following: export PLTHOME=`pwd`)
-
-download-and-install-racket:
+setup-local-racket:
 	$(info Downloading Racket)
 	$(shell wget http://www.cs.utah.edu/plt/snapshots/current/installers/racket-current-x86_64-linux-precise.sh)
 	$(info Installing Racket)
@@ -131,8 +127,10 @@ download-and-install-racket:
 	$(eval export PLTHOME=$(shell pwd)/racket)
 	$(eval export PLTCOLLECTS=$(shell pwd)/racket/collects)
 	$(info Telling Racket about Pycket)
-	racket/bin/raco pkg install -t dir pycket/pycket-lang/ || \
-	racket/bin/raco pkg update --link pycket/pycket-lang
+	./racket/bin/raco pkg install -t dir pycket/pycket-lang/ || \
+	./racket/bin/raco pkg update --link pycket/pycket-lang
+	$(warning WARNING: PLTHOME needs to be manually set (I can not modify env variables I inherited from my parent process))
+	$(warning Copy paste and run the following: export PLTHOME=`pwd`)
 
 # Use the one below for non-local Racket builds
 setup-racket-for-old-pycket:
