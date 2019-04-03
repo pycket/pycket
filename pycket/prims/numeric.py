@@ -773,7 +773,7 @@ def unsafe_flmax(a, b):
 def unsafe_flabs(a):
     return values.W_Flonum(abs(a.value))
 
-@expose("extflonum-availale?", [])
+@expose("extflonum-available?", [])
 def extflonum_available():
     return values.w_false
 
