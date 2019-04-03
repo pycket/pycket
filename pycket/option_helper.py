@@ -57,6 +57,7 @@ def print_help(argv):
 Dev options:
   --dev                              : Flag to be used in development, behavior unspecified
   --load-linklets                    : loads the given .linklet files at boot and makes their functions ready at runtime
+  --load-as-linklets                 : for every given .rkt file, creates a .linklet file and load it into the runtime
   --eval-linklet                     : puts the given expression in a linklet and evaluates over empty target
   --run-as-linklet                   : takes a rkt, uses Racket to extract a single linklet as json and runs it
   --just-init                        : Ignore all parameters, initialize the bootstrap linklets and exit
@@ -106,6 +107,7 @@ meta_opts = ["--expander-zo",
              "-h", "--help"]
 dev_opts = ["--dev",
             "--load-linklets",
+            "--load-as-linklets",
             "--eval-linklet",
             "--run-as-linklet",
             "--just-init"]
@@ -400,7 +402,7 @@ def parse_args(argv):
                 retval = MISSING_ARG
                 break
             if not argv[i+1].endswith(".linklet"):
-                print "--load-linklet : expects files ending with .linklet, given : %s" % argv[i+1]
+                print "--load-linklets : expects files ending with .linklet, given : %s" % argv[i+1]
                 retval = BAD_ARG
                 break
 
@@ -410,6 +412,28 @@ def parse_args(argv):
                     retval = BAD_ARG
                     break
                 add_name(names, 'load-linklets', argv[i+1])
+                i += 1
+            if retval == BAD_ARG:
+                break
+
+        elif argv[i] == "--load-as-linklets":
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+
+            if not argv[i+1].endswith(".rkt"):
+                print "--load-as-linklets : expects files ending with .rkt, given : %s" % argv[i+1]
+                retval = BAD_ARG
+                break
+
+            # eats up all the .rkt afterwards
+            while(to > i+1 and argv[i+1] not in all_opts):
+                if not argv[i+1].endswith(".rkt"):
+                    print "please provide files ending with .rkt, given : %s" % argv[i+1]
+                    retval = BAD_ARG
+                    break
+                add_name(names, 'load-as-linklets', argv[i+1])
                 i += 1
             if retval == BAD_ARG:
                 break

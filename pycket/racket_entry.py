@@ -115,7 +115,8 @@ def sample_sexp():
     ast = JsonLoader().to_ast(json) #module
     return ast.to_sexp()
 
-def run_as_linklet_json(rkt_file_name=""):
+# WARNING: this will use system's Racket, so check "which racket"
+def create_linklet_json(rkt_file_name=""):
     # uses expander's extract to turn it into a linklet
     # gets the bytecodes and uses zo-expand to turn it into a json
     # and loads and instantiates it
@@ -138,8 +139,6 @@ def run_as_linklet_json(rkt_file_name=""):
     pipe3 = create_popen_file(linklet_json_cmd, "r")
     pipe3.read()
     pipe3.close()
-    load_inst_linklet_json("%s.linklet" % rkt_file_name)
-    raise ExitException(w_void)
 
 def dev_mode_metainterp():
     load_fasl()
@@ -348,11 +347,12 @@ def namespace_require_plus(spec):
     if module_declared.call_interpret([main, w_true]) is w_true:
         dynamic_require.call_interpret([main, w_false])
 
-def dev_mode_entry(dev_mode, eval_sexp, run_as_linklet):
+def dev_mode_entry(dev_mode, eval_sexp, run_rkt_as_linklet):
     if eval_sexp:
         dev_mode_entry_sexp(eval_sexp)
-    elif run_as_linklet:
-        run_as_linklet_json(run_as_linklet)
+    elif run_rkt_as_linklet:
+        create_linklet_json(run_rkt_as_linklet)
+        load_inst_linklet_json("%s.linklet" % run_rkt_as_linklet)
     else:
         dev_mode_dynamic_metainterp()
 
@@ -372,6 +372,7 @@ def racket_entry(names, config, command_line_arguments):
     eval_sexp        = startup_options['eval_sexp'][0]
     run_as_linklet   = startup_options['run_as_linklet'][0]
     load_linklets    = startup_options['load_linklets']
+    load_as_linklets = startup_options['load_as_linklets']
 
     is_repl          = flags['is_repl']
     no_lib           = flags['no_lib']
@@ -384,6 +385,11 @@ def racket_entry(names, config, command_line_arguments):
     do_load_regexp   = flags['do_load_regexp']
     gen_expander_zo  = flags['gen_expander_zo']
     dev_mode         = flags['dev_mode']
+
+    if load_as_linklets:
+        for rkt in load_as_linklets:
+            create_linklet_json(rkt)
+            load_inst_linklet_json("%s.linklet" % rkt)
 
     if load_linklets:
         load_linklets_at_startup(load_linklets)
@@ -568,6 +574,7 @@ def get_options(names, config):
     eval_sexp = names['eval-sexp'] if 'eval-sexp' in names else [""]
     run_as_linklet = names['run-as-linklet'] if 'run-as-linklet' in names else [""]
     load_linklets = names['load-linklets'] if 'load-linklets' in names else []
+    load_as_linklets = names['load-as-linklets'] if 'load-as-linklets' in names else []
 
     loads_print_str = []
     loads = []
@@ -587,6 +594,7 @@ set-addon-dir      : %s
 eval-s-sexp        : %s
 run-as-linklet     : %s
 load-linklets      : %s
+load-as-linklets   : %s
 
 is_repl            : %s
 no_lib             : %s
@@ -606,6 +614,7 @@ gen expander-zo    : %s
        eval_sexp[0],
        run_as_linklet[0],
        load_linklets,
+       load_as_linklets,
 
        is_repl,
        no_lib,
@@ -628,7 +637,8 @@ gen expander-zo    : %s
         'set_addon_dir'    : set_addon_dir,
         'eval_sexp'        : eval_sexp,
         'run_as_linklet'   : run_as_linklet,
-        'load_linklets'    : load_linklets
+        'load_linklets'    : load_linklets,
+        'load_as_linklets' : load_as_linklets
     }
 
     flags = {
