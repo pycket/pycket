@@ -134,8 +134,8 @@ setup-local-racket:
 
 # Use the one below for non-local Racket builds
 setup-racket-for-old-pycket:
-	raco pkg install -t dir pycket/pycket-lang/ || \
-	raco pkg update --link pycket/pycket-lang
+	./racket/bin/raco pkg install -t dir pycket/pycket-lang/ || \
+	./racket/bin/raco pkg update --link pycket/pycket-lang
 
 clean-racket:
 	rm -rf racket
