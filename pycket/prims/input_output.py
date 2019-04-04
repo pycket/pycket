@@ -1646,6 +1646,11 @@ def port_print_handler(out, proc):
 def port_count_lines_bang(p):
     return values.w_void
 
+# FIXME: implementation
+@expose("port-counts-lines?", [values.W_Port])
+def port_count_lines_huh(p):
+    return values.w_false
+
 def is_path_string(path):
     return isinstance(path, values.W_Path) or isinstance(path, values_string.W_String)
 
