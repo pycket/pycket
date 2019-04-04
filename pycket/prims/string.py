@@ -527,6 +527,15 @@ def bytes_append(args):
     assert cnt == total_len
     return values.W_MutableBytes(result)
 
+@expose("char-utf-8-length", [values.W_Character])
+def char_utf_8_length(char):
+    # same as (bytes-length (string->bytes/utf-8 (string char)))
+    builder = UnicodeBuilder()
+    builder.append(char.value)
+    w_str = W_String.fromunicode(builder.build())
+    w_bytes = values.W_Bytes.from_charlist(w_str.as_charlist_utf8())
+    return values.W_Fixnum(w_bytes.length())
+
 @expose("bytes-length", [values.W_Bytes])
 def bytes_length(s1):
     return values.W_Fixnum(s1.length())
