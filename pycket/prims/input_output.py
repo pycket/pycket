@@ -24,7 +24,7 @@ from pycket              import values_string
 from pycket.error        import SchemeException, FSException, ContractException, ArityException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
 
-from sys import platform
+from sys import platform, maxint
 
 import os
 
@@ -133,13 +133,20 @@ def read_number_or_id(f, init):
         except:
             return values.W_Symbol.make(got)
 
+@expose("read-string", [values.W_Fixnum, default(values.W_InputPort, None)])
+def read_string_(amt, w_port):
+    return read_string(w_port, amount=amt.value)
+
 # FIXME: replace with a string builder
 # FIXME: unicode
-def read_string(f):
+# FIXME: If no characters are available before an end-of-file, then eof is returned.
+def read_string(f, amount=maxint):
     buf = StringBuilder(64)
     isascii = True
-    while True:
+    count = 0
+    while count < amount:
         c = f.read(1)[0]
+        count += 1
         if c == '"':
             string = buf.build()
             if isascii:
@@ -158,6 +165,10 @@ def read_string(f):
         else:
             isascii &= ord(c) < 128
         buf.append(c)
+    string = buf.build()
+    if isascii:
+        return values_string.W_String.fromascii(string)
+    return values_string.W_String.fromstr_utf8(string)
 
 def is_hash_token(s):
     # already read the #, so the cursor is at position 1 (s.seek(1))
