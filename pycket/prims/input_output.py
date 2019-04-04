@@ -1649,7 +1649,7 @@ def port_count_lines_bang(p):
 # FIXME: implementation
 @expose("port-counts-lines?", [values.W_Port])
 def port_count_lines_huh(p):
-    return values.w_false
+    return values.w_true
 
 def is_path_string(path):
     return isinstance(path, values.W_Path) or isinstance(path, values_string.W_String)
