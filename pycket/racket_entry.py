@@ -150,12 +150,14 @@ def dev_mode_metainterp():
 
 # 1) use run-as-linklet to generate a .linklet for a .rkt module that exports a "function : A -> B"
 #    use run-as-linklet to generate a .linklet for a .rkt module that exports thunk "input : -> A"
-# 2) use load-linklets to load those .linklets and apply the "function" to the "(input)"
 def dev_mode_dynamic_metainterp():
     # trying to get things as close to the
     # 'dev_mode_metainterp_fasl_zo' below,
     # otherwise we could just call the 'function' on the 'input' in
     # the .rkt source and "run-as-linklet" that
+
+    load_inst_linklet_json("function.rkt.linklet", expose_vars=True)
+    load_inst_linklet_json("input.rkt.linklet", expose_vars=True)
 
     function = get_primitive("function")
     input_f = get_primitive("input")
