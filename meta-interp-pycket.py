@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from rpython.jit.metainterp.test.support import LLJitMixin
-from pycket.racket_entry import dev_mode_metainterp_fasl_zo
+from pycket.racket_entry import dev_mode_metainterp_fasl_zo, dev_mode_dynamic_metainterp
 
 from pycket.env import w_global_config as glob
 from pycket.config import get_testing_config
@@ -11,7 +11,7 @@ from pycket.config import get_testing_config
 
 glob.set_pycketconfig(get_testing_config())
 
-LLJitMixin().meta_interp(dev_mode_metainterp_fasl_zo, [], listcomp=True, listops=True, backendopt=True)
+LLJitMixin().meta_interp(dev_mode_dynamic_metainterp, [], listcomp=True, listops=True, backendopt=True)
 
 
 
