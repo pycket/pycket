@@ -2394,7 +2394,7 @@ class Let(SequencedBodyAST):
             try:
                 values = rhs.interpret_stack(env)
             except ConvertStack, cv:
-                cont = LetCont.make(vals_w[:index], self, i, env, None)
+                cont = LetCont.make(vals_w[:index], self, i, env, NilCont())
                 cv.chain(cont)
                 raise
             for j in range(values.num_values()):

@@ -1651,7 +1651,7 @@ class W_Closure(W_Procedure):
     def call_with_extra_info_and_stack(self, args, env, calling_app):
         env, lam = self._construct_env_and_find_lambda(args, env, calling_app)
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
-            env.toplevel_env().callgraph.register_call(lam, calling_app, None, env)
+            env.toplevel_env().callgraph.register_call(lam, calling_app, NilCont(), env)
         return lam._interpret_stack_body(env)
 
     def call(self, args, env, cont):
