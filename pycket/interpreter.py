@@ -2386,6 +2386,14 @@ class Let(SequencedBodyAST):
 
     @jit.unroll_safe
     def _interpret_stack(self, env):
+        from values import parameterization_key, exn_handler_key
+        from values_parameter import top_level_config
+        from pycket.prims.control import default_uncaught_exception_handler
+
+        cont = NilCont()
+        cont.update_cm(parameterization_key, top_level_config)
+        cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+
         vals_w = [None] * len(self.args.elems)
         index = 0
         i = -100
@@ -2394,7 +2402,7 @@ class Let(SequencedBodyAST):
             try:
                 values = rhs.interpret_stack(env)
             except ConvertStack, cv:
-                cont = LetCont.make(vals_w[:index], self, i, env, NilCont())
+                cont = LetCont.make(vals_w[:index], self, i, env, cont)
                 cv.chain(cont)
                 raise
             for j in range(values.num_values()):

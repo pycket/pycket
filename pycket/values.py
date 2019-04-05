@@ -1649,9 +1649,15 @@ class W_Closure(W_Procedure):
         return lam.make_begin_cont(env, cont)
 
     def call_with_extra_info_and_stack(self, args, env, calling_app):
+        from pycket.values_parameter import top_level_config
+        from pycket.prims.control import default_uncaught_exception_handler
+
         env, lam = self._construct_env_and_find_lambda(args, env, calling_app)
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
-            env.toplevel_env().callgraph.register_call(lam, calling_app, NilCont(), env)
+            cont = NilCont()
+            cont.update_cm(parameterization_key, top_level_config)
+            cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         return lam._interpret_stack_body(env)
 
     def call(self, args, env, cont):
