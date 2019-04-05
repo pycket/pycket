@@ -1421,17 +1421,8 @@ class W_Prim(W_Procedure):
         return self.code(args, env, cont, extra_call_info)
 
     def call_with_extra_info_and_stack(self, args, env, extra_call_info):
-        if self.simple1 is not None and len(args) == 1:
-            result = self.simple1(args[0])
-        elif self.simple2 is not None and len(args) == 2:
-            result = self.simple2(args[0], args[1])
-        else:
-            return W_Procedure.call_with_extra_info_and_stack(
-                    self, args, env, extra_call_info)
-        if result is None:
-            result = w_void
-        return result
-
+        return W_Procedure.call_with_extra_info_and_stack(
+            self, args, env, extra_call_info)
 
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
