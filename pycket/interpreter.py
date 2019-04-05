@@ -1088,24 +1088,25 @@ class App(AST):
                 isinstance(rator, ModuleVar) and
                 rator.is_primitive()):
             self.set_should_enter() # to jit downrecursion
+        w_callable = rator.interpret_simple(env)
+        args_w = [None] * len(self.rands)
+        for i, rand in enumerate(self.rands):
+            args_w[i] = rand.interpret_simple(env)
+        if isinstance(w_callable, values.W_PromotableClosure):
+            # fast path
+            jit.promote(w_callable)
+            w_callable = w_callable.closure
+
+        return w_callable, args_w
+
+    def interpret(self, env, cont):
         try:
-            w_callable = rator.interpret_simple(env)
-            args_w = [None] * len(self.rands)
-            for i, rand in enumerate(self.rands):
-                args_w[i] = rand.interpret_simple(env)
-            if isinstance(w_callable, values.W_PromotableClosure):
-                # fast path
-                jit.promote(w_callable)
-                w_callable = w_callable.closure
+            w_callable, args_w = self._eval_callable_and_args(env)
         except SchemeException, exn:
             return convert_runtime_exception(exn, env, cont)
         except OSError, exn:
             return convert_os_error(exn, env, cont)
-            
-        return w_callable, args_w
 
-    def interpret(self, env, cont):
-        w_callable, args_w = self._eval_callable_and_args(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def _interpret_stack(self, env):
