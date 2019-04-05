@@ -1286,7 +1286,15 @@ class SequencedBodyAST(AST):
             try:
                 res = body.interpret_stack(env)
             except ConvertStack, cv:
-                cont = BeginCont(self.counting_asts[i + 1], env, None)
+                from values import parameterization_key, exn_handler_key
+                from values_parameter import top_level_config
+                from pycket.prims.control import default_uncaught_exception_handler
+
+                cont = NilCont()
+                cont.update_cm(parameterization_key, top_level_config)
+                cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+
+                cont = BeginCont(self.counting_asts[i + 1], env, cont)
                 cv.chain(cont)
                 raise
         return W_StackTrampoline(self.body[-1], env)

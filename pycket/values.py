@@ -1727,9 +1727,16 @@ class W_Closure1AsEnv(ConsEnv):
         return self.call_with_extra_info(args, env, cont, None)
 
     def call_with_extra_info_and_stack(self, args, env, calling_app):
+        from values_parameter import top_level_config
+        from pycket.prims.control import default_uncaught_exception_handler
+
         lam = self.caselam.lams[0]
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
-            env.toplevel_env().callgraph.register_call(lam, calling_app, None, env)
+            cont = NilCont()
+            cont.update_cm(parameterization_key, top_level_config)
+            cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+
+            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         env = self._construct_env(args, env, calling_app)
         return lam._interpret_stack_body(env)
 
