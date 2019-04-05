@@ -1425,8 +1425,6 @@ class W_Prim(W_Procedure):
             result = self.simple1(args[0])
         elif self.simple2 is not None and len(args) == 2:
             result = self.simple2(args[0], args[1])
-        elif self.have_simple:
-            result = self.func_simple(args)
         else:
             return W_Procedure.call_with_extra_info_and_stack(
                     self, args, env, extra_call_info)
