@@ -22,11 +22,78 @@ from pycket.test.testhelper import parse_file
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
-from pycket.expand import JsonLoader, expand, expand_string, parse_module
+from pycket.expand import JsonLoader, expand, expand_string, parse_module, finalize_module
 from pycket import pycket_json
 
 
 class TestLLtype(LLJitMixin):
+
+    def test_sieve00(self):
+        self.run_string(u"""
+#lang pycket
+
+;; Use the partner file "streams.rkt" to implement the Sieve of Eratosthenes.
+;; Then compute and print the 10,000th prime number.
+
+
+;; ;; A stream is a cons of a value and a thunk that computes the next value when applied
+(struct stream (first rest))
+
+;;--------------------------------------------------------------------------------------------------
+
+(define (make-stream hd thunk)
+  (stream hd thunk))
+
+;; Destruct a stream into its first value and the new stream produced by de-thunking the tail
+(define (stream-unfold st)
+  (values (stream-first st) ((stream-rest st))))
+
+;; [stream-get st i] Get the [i]-th element from the stream [st]
+(define (stream-get st i)
+  (define-values (hd tl) (stream-unfold st))
+  (cond [(= i 0) hd]
+        [else    (stream-get tl (sub1 i))]))
+
+;; [stream-take st n] Collect the first [n] elements of the stream [st].
+(define (stream-take st n)
+  (cond [(= n 0) '()]
+        [else (define-values (hd tl) (stream-unfold st))
+              (cons hd (stream-take tl (sub1 n)))]))
+;;--------------------------------------------------------------------------------------------------
+
+;; `count-from n` Build a stream of integers starting from `n` and iteratively adding 1
+(define (count-from n)
+  (make-stream n (lambda () (count-from (add1 n)))))
+
+;; `sift n st` Filter all elements in `st` that are equal to `n`.
+;; Return a new stream.
+(define (sift n st)
+  (define-values (hd tl) (stream-unfold st))
+  (cond [(= 0 (modulo hd n)) (sift n tl)]
+        [else (make-stream hd (lambda () (sift n tl)))]))
+
+;; `sieve st` Sieve of Eratosthenes
+(define (sieve st)
+  (define-values (hd tl) (stream-unfold st))
+  (make-stream hd (lambda () (sieve (sift hd tl)))))
+
+;; stream of prime numbers
+(define primes (sieve (count-from 2)))
+
+;; Compute the 10,000th prime number
+(define N-1 9)
+
+(define (main)
+  (printf "The ~a-th prime number is: ~a\n" (add1 N-1) (stream-get primes N-1)))
+
+(time (main))
+"""
+)
+
+
+    def test_sieve01(self):
+        self.run_file("sieve01.rkt")
+
 
     def test_unroll_regression(self):
         self.run_string(u"""
@@ -153,15 +220,14 @@ class TestLLtype(LLJitMixin):
 
     # needs to be fixed to use modules
     def run_string(self, str):
-        _json = pycket_json.loads(expand_string(str))
-        _env = ToplevelEnv()
+        _json = expand_string(str)
+        env = ToplevelEnv()
 
         def interp_w():
             loader = JsonLoader(False)
-            ast = loader.to_module(_json).assign_convert_module()
-            env = _env
+            ast = parse_module(_json)
             env.globalconfig.load(ast)
-            env.commanline_arguments = []
+            env.commandline_arguments = []
             interpret_module(ast, env)
 
         interp_w() # check that it runs
@@ -185,7 +251,6 @@ class TestLLtype(LLJitMixin):
         env = ToplevelEnv()
         env.globalconfig.load(ast)
         def interp_w():
-            parse_ast('{"quote":{"number":{"integer":"0"}}}')
             val = interpret_module(ast, env)
             return val
 
@@ -278,7 +343,7 @@ class TestLLtype(LLJitMixin):
         self.run_string("""
         #lang pycket
         (let () (define (append a b)
-          (if (null? a) 
+          (if (null? a)
               b
               (cons (car a) (append (cdr a) b))))
          (append (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3) (list 4 5 6)))
@@ -300,7 +365,7 @@ class TestLLtype(LLJitMixin):
         ast = to_ast(expand("""
         (let ()
         (define (append-anormal a b)
-          (if (null? a) 
+          (if (null? a)
               b
               (let* ([ca (car a)]
                      [cd (cdr a)]
@@ -431,7 +496,7 @@ class TestLLtype(LLJitMixin):
         ;(require (only-in '#%kernel map))
         (letrec
             ([inc      (lambda (x) (+ 1 x))]
-             [makelist (lambda (a) 
+             [makelist (lambda (a)
                          (if (zero? a)
                              '()
                              (cons (modulo a 20) (makelist (- a 1)))))]
@@ -446,4 +511,18 @@ class TestLLtype(LLJitMixin):
 
     def test_ctak(self):
         self.run_file("ctak.rkt", run_untranslated=False)
+
+    def test_tak(self):
+        self.run_string("""
+        #lang pycket
+
+        (define (tak x y z)
+          (if (not (< y x))
+              z
+              (tak (tak (- x 1) y z)
+                   (tak (- y 1) z x)
+                   (tak (- z 1) x y))))
+
+        (time (for ([i (in-range 1000)]) (tak 18 12 6)))
+        """)
 

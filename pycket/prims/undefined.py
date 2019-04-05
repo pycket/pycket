@@ -52,5 +52,5 @@ def csuu(obj):
     mut    = [make_mutator(typ.mutator, i) for i in range(fields)]
     h1     = [accessor_handler] * fields
     h2     = [mutator_handler] * fields
-    return imp.W_ChpStruct(obj, acc + mut, h1 + h2, [], [])
+    return imp.make_struct_proxy(imp.W_ChpStruct, obj, acc + mut, h1 + h2, [], [])
 

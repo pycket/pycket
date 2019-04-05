@@ -26,11 +26,13 @@ def test_substring(doctest):
 def test_string_copy_bang(doctest):
     r"""
     > (define s (string #\A #\p #\p #\l #\e))
+    > (define s2 (make-string 10 #\x))
     > (string-copy! s 4 "y")
     > (string-copy! s 0 s 3 4)
     > s
     "lpply"
     E (let ([s (string #\a #\b #\c)]) (string-copy! s 0 "abde" 0) s)
+    E (string-copy! s 1 "hello" 3 6)
     """
 
 def test_string_comparison(doctest):
@@ -213,6 +215,20 @@ def test_char_integer(doctest):
     65
     """
 
+def test_char_general_category(doctest):
+    """
+    > (char-general-category #\ )
+    'zs
+    > (char-general-category #\c)
+    'll
+    > (char-general-category #\.)
+    'po
+    > (char-general-category #\\\\)
+    'po
+    > (char-general-category #\|)
+    'sm
+    """
+
 def test_string_change_case(doctest):
     """
     > (string-upcase "abc")
@@ -383,6 +399,16 @@ def test_list_to_string(doctest):
     #f
     """
 
+def test_list_to_bytes(doctest):
+    u"""
+    > (list->bytes '(0 1 2 3 4))
+    (bytes 0 1 2 3 4)
+    > (list->bytes '())
+    (bytes)
+    > (list->bytes '(250 251 252 253 254 255))
+    (bytes 250 251 252 253 254 255)
+    """
+
 def test_string_to_list(doctest):
     u"""
     > (string->list "")
@@ -425,4 +451,31 @@ def test_string_to_number(doctest):
     3.14
     > (string->number "1111111112983718926391623986912350912395612093409182368590812")
     1111111112983718926391623986912350912395612093409182368590812
+    > (string->number "9e6495a3" 16)
+    2657392035
+    """
+
+def test_string_utf_8_length(doctest):
+    """
+    ! (define-values (h) (string-append "caner" (bytes->string/utf-8 (bytes 195 167 195 176 195 182 194 163))))
+    > (string-length h)
+    9
+    > (string-utf-8-length h)
+    13
+    > (string-utf-8-length h 1 5)
+    4
+    > (string-utf-8-length h 2 7)
+    7
+    > (string-utf-8-length (substring h 2 7))
+    7
+    """
+
+def test_bytes_utf_8_length(doctest):
+    """
+    > (bytes-utf-8-length (bytes 195 167 195 176 195 182 194 163))
+    4
+    > (bytes-length (bytes 195 167 195 176 195 182 194 163))
+    8
+    > (bytes-utf-8-length (make-bytes 5 65))
+    5
     """

@@ -9,6 +9,8 @@ from pycket.prims.expose import unsafe, default, expose, expose_val
 
 expose_val("current-inspector", values_struct.current_inspector_param)
 
+expose_val("current-code-inspector", values_struct.current_inspector_param)
+
 @expose("make-inspector", [default(values_struct.W_StructInspector, None)], simple=False)
 def do_make_instpector(inspector, env, cont):
     from pycket.interpreter import return_value
@@ -25,13 +27,27 @@ def do_make_sibling_instpector(inspector, env, cont):
     new_inspector = values_struct.W_StructInspector.make(inspector, issibling=True)
     return return_value(new_inspector, env, cont)
 
+@expose("inspector-superior?", [values_struct.W_StructInspector, values_struct.W_StructInspector])
+def inspector_superior_huh(inspector, maybe_subinspector):
+    if inspector is maybe_subinspector:
+        return values.w_false
+
+    s = maybe_subinspector.super
+    while(s is not None):
+        if inspector is s:
+            return values.w_true
+        s = s.super
+
+    return values.w_false
+
 @expose("struct?", [values.W_Object], simple=False)
 def do_is_struct(v, env, cont):
     from pycket.interpreter import return_value
     current_inspector = values_struct.current_inspector_param.get(cont)
-    result = (isinstance(v, values_struct.W_RootStruct) and
-              current_inspector.has_control(v.struct_type()))
-    return return_value(values.W_Bool.make(result), env, cont)
+    if isinstance(v, values_struct.W_RootStruct):
+        if current_inspector.has_control(v.struct_type()):
+            return return_value(values.w_true, env, cont)
+    return return_value(values.w_false, env, cont)
 
 @expose("struct-info", [values.W_Object], simple=False)
 def do_struct_info(v, env, cont):
@@ -82,8 +98,11 @@ def do_make_struct_type(name, super_type, w_init_field_cnt, w_auto_field_cnt,
     if inspector is None:
         inspector = values_struct.current_inspector_param.get(cont)
 
+    if constr_name is not values.w_false and not isinstance(constr_name, values.W_Symbol):
+        raise SchemeException("make-struct-type: constructor name mustbe be symbol? or #f")
+
     if not isinstance(super_type, values_struct.W_StructType) and super_type is not values.w_false:
-        raise SchemeException("make-struct-type: expected a struct-type? or #f")
+        raise SchemeException("make-struct-type: expected a struct-type? or #f for the super type , but got %s : %s" % (super_type, super_type.tostring()))
 
     init_field_cnt = w_init_field_cnt.value
     auto_field_cnt = w_auto_field_cnt.value
@@ -139,7 +158,6 @@ def do_prefab_struct_key(v):
 
 @expose("make-prefab-struct", arity=Arity.geq(1))
 def do_make_prefab_struct(args):
-    assert len(args) > 1
     key  = args[0]
     vals = args[1:]
     return values_struct.W_Struct.make_prefab(key, vals)
@@ -153,13 +171,15 @@ def expose_prefab_key2struct_type(w_key, field_count):
 def do_prefab_key(v):
     return values_struct.W_PrefabKey.is_prefab_key(v)
 
+w_can_impersonate = values.W_Symbol.make("can-impersonate")
+
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
                                       default(values.W_List, values.w_null),
                                       default(values.W_Object, values.w_false)])
 def mk_stp(sym, guard, supers, _can_imp):
     can_imp = False
-    if guard is values.W_Symbol.make("can-impersonate"):
+    if guard is w_can_impersonate:
         guard = values.w_false
         can_imp = True
     if _can_imp is not values.w_false:
@@ -180,7 +200,7 @@ def unsafe_struct_ref(v, k):
 @expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum),
     values.W_Object])
 def unsafe_struct_set(v, k, val):
-    v = imp. get_base_object(v)
+    v = imp.get_base_object(v)
     assert isinstance(v, values_struct.W_Struct)
     assert 0 <= k.value < v.struct_type().total_field_cnt
     return v._set(k.value, val)

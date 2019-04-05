@@ -54,11 +54,11 @@ def regexp_match(w_re, w_str, inp_start, inp_end, output_port, prefix):
           isinstance(w_re, values_regex.W_Regexp) or \
           isinstance(w_re, values_string.W_String)):
         return values.to_list([values_string.W_String.fromstr_utf8(r)
-                               if r else values.w_false
+                               if r is not None else values.w_false
                                for r in result])
     else:
         return values.to_list([values.W_Bytes.from_string(r)
-                               if r else values.w_false
+                               if r is not None else values.w_false
                                for r in result])
 
 def promote_to_regexp(w_re):
@@ -72,6 +72,11 @@ def promote_to_regexp(w_re):
 
 def match(w_re, w_str, start=0, end=sys.maxint):
     w_re = promote_to_regexp(w_re)
+    if isinstance(w_str, values.W_Path):
+        from pycket.prims.input_output import extract_path
+        s = extract_path(w_str)
+        result = w_re.match_string(s, start, end)
+        return result
     if isinstance(w_str, values_string.W_String):
         s = w_str.as_str_utf8() # XXX for now
         result = w_re.match_string(s, start, end)
@@ -183,18 +188,25 @@ def rmpe(pat, input, inp_start, inp_end, output_port, prefix, count, env, cont):
     start = max(0, end - length)
 
     assert start >= 0 and end >= 0
-    matched = input.getslice(start, end)
-    bytestring = ['\0'] * (end - start)
-    for i in range(end - start):
-        bytestring[i] = chr(ord(matched.getitem(i)) % 256)
-    bytes = values.W_Bytes(bytestring)
+
+    if isinstance(input, values_string.W_String):
+        bytestring = ['\0'] * (end - start)
+        matched = input.getslice(start, end)
+        for i in range(end - start):
+            bytestring[i] = chr(ord(matched.getitem(i)) % 256)
+    elif isinstance(input, values.W_Bytes):
+        bytestring = input.getslice(start, end)
+    else:
+        raise SchemeException("regexp-match-positions/end: unsupported input type")
+
+    bytes = values.W_Bytes.from_charlist(bytestring, immutable=False)
     result = values.Values._make2(acc, bytes)
     return return_multi_vals(result, env, cont)
 
 @expose("regexp-match?", [values.W_Object, values.W_Object])
 def regexp_matchp(w_r, w_o):
     result = match(w_r, w_o)
-    if result:
+    if result is not None:
         return values.w_true
     else:
         return values.w_false
@@ -212,20 +224,23 @@ def regexp_max_lookbehind(obj):
          default(values.W_Bytes, EMPTY_BYTES)])
 def regexp_replace(pattern, input, insert, prefix):
     matches = match_positions(pattern, input)
-    if not matches:
+    if matches is None:
         return input
     if isinstance(input, values_string.W_String):
         str = input.as_unicode()
     elif isinstance(input, values.W_Bytes):
         str = input.as_str().decode("utf-8")
     else:
-        raise SchemeException("regexp-replace*: expected string or bytes input")
+        raise SchemeException("regexp-replace: expected string or bytes input, given : %s" % input.tostring())
     if isinstance(insert, values_string.W_String):
         ins = insert.as_unicode()
     elif isinstance(insert, values.W_Bytes):
         ins = insert.as_str().decode("utf-8")
+    elif isinstance(insert, values.W_Procedure):
+        # FIXME: hack
+        return input
     else:
-        raise SchemeException("regexp-replace*: expected string or bytes insert string")
+        raise SchemeException("regexp-replace: expected string or bytes as insert, given : %s" % insert.tostring())
     formatter = values_regex.parse_insert_string(ins)
     subs = values_regex.do_input_substitution(formatter, str, matches)
     start, end = matches[0]
@@ -237,23 +252,26 @@ def regexp_replace(pattern, input, insert, prefix):
         [values.W_Object,
          values.W_Object,
          values.W_Object,
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
+         default(values.W_Object, values.w_false),
          default(values.W_Bytes, EMPTY_BYTES)])
-def regexp_replace_star(pattern, input, insert, prefix):
+def regexp_replace_star(pattern, input, insert, start, end, prefix):
+    # FIXME : start end
     matches = match_all_positions("regexp-replace*", pattern, input)
-    if not matches:
+    if matches is None:
         return input
     if isinstance(input, values_string.W_String):
         str = input.as_unicode()
     elif isinstance(input, values.W_Bytes):
         str = input.as_str().decode("utf-8")
     else:
-        raise SchemeException("regexp-replace*: expected string or bytes input")
+        raise SchemeException("regexp-replace*: expected string or bytes input, given : %s" % input.tostring())
     if isinstance(insert, values_string.W_String):
         ins = insert.as_unicode()
     elif isinstance(insert, values.W_Bytes):
         ins = insert.as_str().decode("utf-8")
     else:
-        raise SchemeException("regexp-replace*: expected string or bytes insert string")
+        raise SchemeException("regexp-replace*: expected string or bytes as insert, given : %s" % insert.tostring())
     builder = rstring.UnicodeBuilder()
     lhs = 0
     formatter = values_regex.parse_insert_string(ins)

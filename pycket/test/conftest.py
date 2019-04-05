@@ -4,24 +4,52 @@
 # conftest - configuring pytest, especially funcargs
 #
 import pycket.config # to configure early
+import random
 
 import pytest
+from rpython.rlib.objectmodel import specialize, we_are_translated
+
+def replace(func):
+    @specialize.call_location()
+    def replacement(*args):
+        if we_are_translated():
+            return func(*args)
+        return bool(random.getrandbits(1))
+    replacement.__name__ = func.__name__ + "_replaced"
+    return replacement
 
 def pytest_addoption(parser):
-	parser.addoption('--bytecode', action='store', default="", help='Run pycket with bytecode expansion')
+    parser.addoption('--bytecode', action='store', default='', help='Run pycket with bytecode expansion')
+    parser.addoption('--random', action='store_true', help='Override functions in rpython.rlib.jit.py to test special cases for the JIT')
+    parser.addoption('--new', action='store_true', default=False, help='Use the entry point of the NEW Pycket')
+    parser.addoption('--use-expander', action='store_true', default=False, help='Run the tests using the reader and evaluator from expander linklet')
 
 def pytest_configure(config):
-    byte_flag = config.getvalue('bytecode')
+    if config.getvalue('random'):
+        from rpython.rlib import jit
+        jit.isconstant = replace(jit.isconstant)
+        jit.isvirtual = replace(jit.isvirtual)
+        # XXX: Being able to patch we_are_jitted would be nice as well,
+        # but too much code depends on it behaving deterministically
 
-    if byte_flag == "":
-        print "We have regular pycket expansion"
-        config.byte_option = False
-    elif byte_flag == "nonRecursive":
-        print "We have NON-recursive bytecode expansion"
-        config.byte_option = "non-recursive"
-    elif byte_flag == "recursive":
-        print "We have recursive bytecode expansion"
-        config.byte_option = "recursive"
+    from pycket.env import w_global_config
+
+    config.byte_option = False
+    config.new_pycket = False
+    config.load_expander = False
+
+    if config.getvalue('--new'):
+        print("\nTesting with NEW Pycket... ")
+        config.new_pycket = True
+        if config.getvalue('--use-expander'):
+            print("using the expander linklet...\n")
+            w_global_config.set_config_val('expander_loaded', 1)
+            config.load_expander = True
+        else:
+            print("WITHOUT using the expander linklet...\n")
+    else:
+        print("\nTesting with OLD Pycket... ")
+        w_global_config.set_linklet_mode_off()
 
 def pytest_funcarg__racket_file(request):
     tmpdir = request.getfuncargvalue('tmpdir')
@@ -42,6 +70,13 @@ def pytest_funcarg__source(request):
     assert request.function.__doc__ is not None
     code = request.function.__doc__
     return code
+
+def pytest_funcarg__cool_mod(request):
+    def make_filename():
+        import inspect, py
+        module_file = inspect.getmodule(request.function).__file__
+        return str(py.path.local(module_file).dirpath("cool-mod.rkt"))
+    return request.cached_setup(setup=make_filename, scope="session")
 
 def pytest_funcarg__doctest(request):
     from textwrap import dedent
@@ -83,6 +118,6 @@ def pytest_funcarg__doctest(request):
         pairs.extend(pair)
     check_equal(*pairs, extra="\n".join(setup))
     for error in errors:
-        with pytest.raises(SchemeException):
+        with pytest.raises(Exception):
             execute(error, extra="\n".join(setup))
     return True

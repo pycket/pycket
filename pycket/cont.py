@@ -2,36 +2,57 @@ import inspect
 
 from rpython.rlib import jit, objectmodel, unroll
 
-class Link(object):
+class AbstractLink(object):
+
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+    def clone_links(self):
+        raise NotImplementedError("abstract base class")
+
+class Link(AbstractLink):
+
     _immutable_fields_ = ["key", "next"]
+
     def __init__(self, k, v, next):
         from pycket.values import W_Object
         assert isinstance(k, W_Object) and isinstance(v, W_Object)
-        assert next is None or isinstance(next, Link)
+        # assert next is None or isinstance(next, Link)
         self.key = k
         self.val = v
         self.next = next
 
     @jit.unroll_safe
-    def clone(self):
-        marks = None
-        while self is not None:
-            marks = Link(self.key, self.val, marks)
-            self = self.next
-        return marks
+    def clone_links(self):
+        next = self.next
+        rest = None
+        if next is not None:
+            rest = next.clone_links()
+        return Link(self.key, self.val, rest)
+
+class ForwardLink(AbstractLink):
+
+    _immutable_fields_ = ["cont"]
+
+    def __init__(self, cont):
+        assert isinstance(cont, BaseCont)
+        self.cont = cont
+
+    def clone_links(self):
+        return self
 
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
     # so that they can be saved without saving the whole continuation.
-    _immutable_fields_ = []
     _attrs_ = ['marks']
+    _immutable_fields_ = []
 
     # This field denotes whether or not it is safe to directly invoke the
     # plug_reduce operation of the continuation.
     return_safe = False
 
-    def __init__(self):
-        self.marks = None
+    def __init__(self, marks=None):
+        self.marks = marks
 
     def has_unwind(self):
         return False
@@ -43,10 +64,14 @@ class BaseCont(object):
         from pycket.interpreter import return_void
         return return_void(env, cont)
 
+    def rewind(self, env, cont):
+        from pycket.interpreter import return_void
+        return return_void(env, cont)
+
     def clone(self):
         result = self._clone()
         if self.marks is not None:
-            result.marks = self.marks.clone()
+            result.marks = self.marks.clone_links()
         else:
             result.marks = None
         return result
@@ -67,17 +92,18 @@ class BaseCont(object):
     def find_cm(self, k, not_found=None):
         from pycket.prims.equal import eqp_logic
         l = self.marks
-        while l is not None:
+        while isinstance(l, Link):
             if eqp_logic(l.key, k):
-                return l.val
+                return l.val, None
             l = l.next
-        return not_found
+        marks = l.cont if isinstance(l, ForwardLink) else None
+        return not_found, marks
 
     @jit.unroll_safe
     def update_cm(self, k, v):
         from pycket.prims.equal import eqp_logic
         l = self.marks
-        while l is not None:
+        while isinstance(l, Link):
             if eqp_logic(l.key, k):
                 l.val = v
                 return
@@ -86,19 +112,27 @@ class BaseCont(object):
 
     def get_marks(self, key, upto=[]):
         from pycket import values
-        v = self.find_cm(key)
-        return values.W_Cons.make(v, values.w_null) if v is not None else values.w_null
+        v, _ = self.find_cm(key)
+        if v is not None:
+            result = values.W_Cons.make(v, values.w_null)
+        else:
+            result = values.w_null
+        return result
 
-    # XXX: why isn't this in Cont?
     @jit.unroll_safe
     def get_mark_first(self, key, upto=[]):
         p = self
         while p is not None:
-            v = p.find_cm(key)
+            v, next = p.find_cm(key)
             if v is not None:
                 return v
-            p = p.get_previous_continuation(upto=upto)
+            if p.stop_at(upto):
+                break
+            p = next
         return None
+
+    def stop_at(self, upto):
+        return False
 
     def append(self, tail, upto=None, stop=None):
         return tail
@@ -116,6 +150,8 @@ class BaseCont(object):
 # Continuation used to signal that the computation is done.
 class NilCont(BaseCont):
 
+    _attrs_ = []
+
     def _clone(self):
         return NilCont()
 
@@ -123,12 +159,27 @@ class NilCont(BaseCont):
         from pycket.interpreter import Done
         raise Done(vals)
 
+def get_forward_mark(prev):
+    # Cannot forward through continuation prompts or barriers, as they can delimit
+    # the search for continuation marks.
+    if isinstance(prev, Prompt) or isinstance(prev, Barrier):
+        return ForwardLink(prev)
+
+    assert isinstance(prev, BaseCont)
+    marks = prev.marks
+
+    if isinstance(marks, ForwardLink):
+        return marks
+    if marks is not None:
+        return ForwardLink(prev)
+    return None
+
 class Cont(BaseCont):
 
-    _immutable_fields_ = ['env', 'prev']
+    _attrs_ = _immutable_fields_ = ['env', 'prev']
 
     def __init__(self, env, prev):
-        BaseCont.__init__(self)
+        BaseCont.__init__(self, marks=get_forward_mark(prev))
         self.env = env
         self.prev = prev
 
@@ -143,7 +194,7 @@ class Cont(BaseCont):
 
     def append(self, tail, upto=None, stop=None):
         if self is stop:
-            return tail
+            return self.clone()
         rest = self.prev.append(tail, upto, stop)
         head = self.clone()
         assert isinstance(head, Cont)
@@ -153,7 +204,7 @@ class Cont(BaseCont):
     def get_marks(self, key, upto=[]):
         from pycket import values
         while self is not None:
-            v = self.find_cm(key)
+            v, _ = self.find_cm(key)
             prev = self.get_previous_continuation(upto=upto)
             if v is not None:
                 rest = prev.get_marks(key, upto=upto) if prev is not None else values.w_null
@@ -163,7 +214,7 @@ class Cont(BaseCont):
 
 class Prompt(Cont):
 
-    _immutable_fields_ = ['tag', 'handler']
+    _attrs_ = _immutable_fields_ = ['tag', 'handler']
 
     def __init__(self, tag, handler, env, prev):
         Cont.__init__(self, env, prev)
@@ -173,11 +224,15 @@ class Prompt(Cont):
     def _clone(self):
         return Prompt(self.tag, self.handler, self.env, self.prev)
 
-    def get_previous_continuation(self, upto=[]):
+    @jit.unroll_safe
+    def stop_at(self, upto):
         for tag in upto:
             if tag is self.tag:
-                return None
-        return self.prev
+                return True
+        return False
+
+    def get_previous_continuation(self, upto=[]):
+        return self.prev if not self.stop_at(upto) else None
 
     def append(self, tail, upto=None, stop=None):
         if upto is self.tag or stop is tail:
@@ -189,11 +244,13 @@ class Prompt(Cont):
 
 class Barrier(Cont):
 
+    _attrs_ = []
+
     def _clone(self):
         return Barrier(self.env, self.prev)
 
     def get_previous_continuation(self, upto=[]):
-        return None
+        return self.prev
 
     def plug_reduce(self, _vals, env):
         return self.prev.plug_reduce(_vals, env)
@@ -202,7 +259,7 @@ def _make_args_class(base, argnames):
     unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
 
     class Args(base):
-        _immutable_fields_ = getattr(base, '_immutable_fields_', []) + argnames
+        _attrs_ = _immutable_fields_ = argnames
         def _init_args(self, *args):
             for i, name in unroll_argnames:
                 setattr(self, name, args[i])
@@ -243,11 +300,10 @@ def continuation(func):
         env = args[-2]
         cont = args[-1]
         Cont.__init__(self, env, cont)
-        args = args[:-2]
         self._init_args(*args)
     PrimCont.__init__ = __init__
 
-    def clone(self):
+    def _clone(self):
         result = objectmodel.instantiate(PrimCont)
         Cont.__init__(result, self.env, self.prev)
         self._copy_args(result)
@@ -258,7 +314,7 @@ def continuation(func):
         args += (self.env, self.prev, vals,)
         return func(*args)
 
-    PrimCont.clone = clone
+    PrimCont._clone = _clone
     PrimCont.plug_reduce = plug_reduce
     PrimCont.__name__ = func.func_name + "PrimCont"
 
@@ -269,6 +325,7 @@ def continuation(func):
     return make_continuation
 
 def make_label(func, enter=False):
+    import pycket.values
     from pycket.AST import AST
 
     func = jit.unroll_safe(func)
@@ -276,7 +333,7 @@ def make_label(func, enter=False):
     assert not varkw and not defaults
     if varargs: # grrr, bad
         class Args(Cont):
-            _immutable_fields_ = ["args"]
+            _attrs_ = _immutable_fields_ = ["args"]
             def __init__(self, *args):
                 Cont.__init__(self, args[-2], args[-1])
                 self.args = args[:-2]
@@ -288,6 +345,7 @@ def make_label(func, enter=False):
                 return "%s%s" % (self.__class__.__name__, len(self._get_args()))
 
     else:
+        assert func_argnames[-1] == "cont", "last argument to %s must be named 'cont', not %r" % (func.func_name, func_argnames[-1])
         assert func_argnames[-2] == "env", "next to last argument to %s must be named 'env', not %r" % (func.func_name, func_argnames[-2])
 
         Args = _make_args_class(Cont, func_argnames[:-2])
@@ -295,7 +353,6 @@ def make_label(func, enter=False):
             env = args[-2]
             cont = args[-1]
             Cont.__init__(self, env, cont)
-            args = args[:-2]
             self._init_args(*args)
         Args.__init__ = __init__
 
@@ -326,11 +383,16 @@ def make_label(func, enter=False):
 
     return make
 
-# Choose whether or not to use a loop label based on a given predicate
-def guarded_loop(pred):
+# Choose whether or not to use a loop label based on a given predicate.
+# The always_use_labels parameter will ensure that a label is used whether the
+# predicate tests True or False.
+# When always_use_labels is False, we will only use a label when the predicate
+# is true, saving the overhead of trampolining under the assumption that the
+# predicate gives some indication of the recursion depth.
+def guarded_loop(pred, always_use_labels=True):
     def wrapper(func):
         loop   = make_label(func, enter=True)
-        noloop = make_label(func, enter=False)
+        noloop = make_label(func, enter=False) if always_use_labels else func
         return lambda *args: loop(*args) if pred(*args) else noloop(*args)
     return wrapper
 

@@ -10,11 +10,6 @@ pycketoption_descr = OptionDescription(
                default=True, cmdline="--two-state"),
     BoolOption("callgraph", "enable dynamic callgraph reconstruction",
                default=True, cmdline="--callgraph"),
-    BoolOption("log_callgraph", "log the callgraph decisions",
-               default=False, cmdline="--log-callgraph",
-               requires=[("pycket.callgraph", True)]),
-    BoolOption("fuse_conts", "fuse the continuations",
-               default=False, cmdline="--fuse-conts"),
     BoolOption("with_branch", "build the git branch name into the executable name",
                default=False, cmdline="--with-branch"),
     BoolOption("strategies", "strategies for data structures (vectors, cells, hashmaps, etc)",
@@ -25,6 +20,10 @@ pycketoption_descr = OptionDescription(
                default=True, cmdline="--prune-env"),
     BoolOption("immutable_boolean_field_elision", "elide immutable boolean fields from structs",
                default=False, cmdline="--ibfe"),
+    BoolOption("hidden_classes", "use hidden classes to implement impersonators",
+               default=True, cmdline="--hidden-classes"),
+    BoolOption("linklets", "use 'new pycket', ie based on linklets",
+               default=False, cmdline="--linklets"),
 ])
 
 def get_testing_config(**overrides):
@@ -37,6 +36,8 @@ def get_testing_config(**overrides):
 def compute_executable_suffix(config):
     config = config.pycket
     res = []
+    if config.linklets:
+        res.append("-linklets")
     if not config.callgraph:
         res.append("-no-callgraph")
     if not config.prune_env:
@@ -47,10 +48,8 @@ def compute_executable_suffix(config):
         res.append("-no-strategies")
     if not config.type_size_specialization:
         res.append("-no-type-size-specialization")
-    if config.fuse_conts:
-        res.append("-fuse-conts")
-    if config.log_callgraph:
-        res.append("-log")
+    if not config.hidden_classes:
+        res.append("-no-hidden-classes")
     if config.immutable_boolean_field_elision:
         res.append("-ibfe")
     return "".join(res)
@@ -66,6 +65,7 @@ exposed_options = ['strategies',
                    'type_size_specialization',
                    'prune_env',
                    'immutable_boolean_field_elision',
+                   'hidden_classes',
 ]
 
 def expose_options(config):

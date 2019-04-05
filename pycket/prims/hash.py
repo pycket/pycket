@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
+import sys
 from pycket              import impersonators as imp
-from pycket              import values
+from pycket              import values, values_string
 from pycket.hash.base    import W_HashTable, W_ImmutableHashTable, w_missing
 from pycket.hash.simple  import (
     W_EqvMutableHashTable, W_EqMutableHashTable,
@@ -9,6 +10,7 @@ from pycket.hash.simple  import (
     make_simple_mutable_table, make_simple_mutable_table_assocs,
     make_simple_immutable_table, make_simple_immutable_table_assocs)
 from pycket.hash.equal   import W_EqualHashTable
+from pycket.impersonators.baseline import W_ImpHashTable, W_ChpHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
@@ -17,22 +19,28 @@ from rpython.rlib        import jit, objectmodel
 _KEY = 0
 _VALUE = 1
 _KEY_AND_VALUE = 2
+_PAIR = 3
 
-@expose("hash-iterate-first", [W_HashTable])
+PREFIXES = ["unsafe-mutable", "unsafe-immutable"]
+
+def prefix_hash_names(base):
+    result = [base]
+    for pre in PREFIXES:
+        result.append("%s-%s" % (pre, base))
+    return result
+
+@expose(prefix_hash_names("hash-iterate-first"), [W_HashTable])
 def hash_iterate_first(ht):
     if ht.length() == 0:
         return values.w_false
     return values.W_Fixnum.ZERO
 
-@expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
+@expose(prefix_hash_names("hash-iterate-next"), [W_HashTable, values.W_Fixnum])
 def hash_iterate_next(ht, pos):
-    index = pos.value
-    if index >= ht.length() - 1:
-        return values.w_false
-    return values.W_Fixnum(index + 1)
+    return ht.hash_iterate_next(pos)
 
 @objectmodel.specialize.arg(4)
-def hash_iter_ref(ht, n, env, cont, returns=_KEY_AND_VALUE):
+def hash_iter_ref(ht, n, env, cont, returns):
     from pycket.interpreter import return_value, return_multi_vals
     try:
         w_key, w_val = ht.get_item(n)
@@ -43,25 +51,38 @@ def hash_iter_ref(ht, n, env, cont, returns=_KEY_AND_VALUE):
         if returns == _KEY_AND_VALUE:
             vals = values.Values._make2(w_key, w_val)
             return return_multi_vals(vals, env, cont)
+        if returns == _PAIR:
+            vals = values.W_Cons.make(w_key, w_val)
+            return return_value(vals, env, cont)
+        assert False, "unknown return code"
     except KeyError:
         raise SchemeException("hash-iterate-key: invalid position")
     except IndexError:
         raise SchemeException("hash-iterate-key: invalid position")
 
-@expose("hash-iterate-key",  [W_HashTable, values.W_Fixnum], simple=False)
+@expose(prefix_hash_names("hash-iterate-key"),
+        [W_HashTable, values.W_Fixnum], simple=False)
 def hash_iterate_key(ht, pos, env, cont):
     return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY)
 
-@expose("hash-iterate-value",  [W_HashTable, values.W_Fixnum], simple=False)
+@expose(prefix_hash_names("hash-iterate-value"),
+        [W_HashTable, values.W_Fixnum], simple=False)
 def hash_iterate_value(ht, pos, env, cont):
     return hash_iter_ref(ht, pos.value, env, cont, returns=_VALUE)
 
-@expose("hash-iterate-key+value", [W_HashTable, values.W_Fixnum], simple=False)
+@expose(prefix_hash_names("hash-iterate-key+value"),
+        [W_HashTable, values.W_Fixnum], simple=False)
 def hash_iterate_key_value(ht, pos, env, cont):
     return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY_AND_VALUE)
 
-@expose("hash-for-each", [W_HashTable, procedure], simple=False)
-def hash_for_each(ht, f, env, cont):
+@expose(prefix_hash_names("hash-iterate-pair"),
+        [W_HashTable, values.W_Fixnum], simple=False)
+def hash_iterate_pair(ht, pos, env, cont):
+    return hash_iter_ref(ht, pos.value, env, cont, returns=_PAIR)
+
+@expose("hash-for-each", [W_HashTable, procedure, default(values.W_Object, values.w_false)], simple=False)
+def hash_for_each(ht, f, try_order, env, cont):
+    # FIXME: implmeent try-order? -- see hash-map
     return hash_for_each_loop(ht, f, 0, env, cont)
 
 @loop_label
@@ -80,8 +101,12 @@ def hash_for_each_loop(ht, f, index, env, cont):
 def hash_for_each_cont(ht, f, index, env, cont, _vals):
     return hash_for_each_loop(ht, f, index + 1, env, cont)
 
-@expose("hash-map", [W_HashTable, procedure], simple=False)
-def hash_map(h, f, env, cont):
+@expose("hash-map", [W_HashTable, procedure, default(values.W_Object, values.w_false)], simple=False)
+def hash_map(h, f, try_order, env, cont):
+    # FIXME : If try-order? is true, then the order of keys and values
+    # passed to proc is normalized under certain circumstances, such
+    # as when the keys are all symbols and hash is not an
+    # impersonator.
     from pycket.interpreter import return_value
     acc = values.w_null
     return hash_map_loop(f, h, 0, acc, env, cont)
@@ -122,10 +147,15 @@ def from_assocs(assocs, fname):
         vals.append(val.cdr())
     return keys[:], vals[:]
 
-@expose("make-weak-hasheq", [])
-def make_weak_hasheq():
+@expose("make-weak-hasheq", [default(values.W_List, values.w_null)])
+def make_weak_hasheq(assocs):
     # FIXME: not actually weak
-    return make_simple_mutable_table(W_EqvMutableHashTable, None, None)
+    return make_simple_mutable_table_assocs(W_EqMutableHashTable, assocs, "make-weak-hasheq")
+
+@expose("make-weak-hasheqv", [default(values.W_List, values.w_null)])
+def make_weak_hasheqv(assocs):
+    # FIXME: not actually weak
+    return make_simple_mutable_table_assocs(W_EqvMutableHashTable, assocs, "make-weak-hasheqv")
 
 @expose(["make-weak-hash", "make-late-weak-hasheq"], [default(values.W_List, None)])
 def make_weak_hash(assocs):
@@ -204,7 +234,6 @@ def hash_set(table, key, val, env, cont):
     from pycket.interpreter import return_value
     if not table.immutable():
         raise SchemeException("hash-set: not given an immutable table")
-
     # Fast path
     if isinstance(table, W_ImmutableHashTable):
         new_table = table.assoc(key, val)
@@ -214,23 +243,25 @@ def hash_set(table, key, val, env, cont):
             hash_set_cont(key, val, env, cont))
 
 @continuation
-def hash_ref_cont(default, env, cont, _vals):
+def hash_ref_cont(default, k, env, cont, _vals):
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(_vals)
     if val is not w_missing:
         return return_value(val, env, cont)
     if default is None:
-        raise SchemeException("key not found")
+        raise SchemeException("key %s not found"%k.tostring())
     if default.iscallable():
         return default.call([], env, cont)
     return return_value(default, env, cont)
 
 @expose("hash-ref", [W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
 def hash_ref(ht, k, default, env, cont):
-    return ht.hash_ref(k, env, hash_ref_cont(default, env, cont))
+    return ht.hash_ref(k, env, hash_ref_cont(default, k, env, cont))
 
 @expose("hash-remove!", [W_HashTable, values.W_Object], simple=False)
 def hash_remove_bang(ht, k, env, cont):
+    if ht.immutable():
+        raise SchemeException("hash-remove!: expected mutable hash table")
     return ht.hash_remove_inplace(k, env, cont)
 
 @expose("hash-remove", [W_HashTable, values.W_Object], simple=False)
@@ -239,13 +270,78 @@ def hash_remove(ht, k, env, cont):
         raise SchemeException("hash-remove: expected immutable hash table")
     return ht.hash_remove(k, env, cont)
 
-define_nyi("hash-clear!", [W_HashTable])
+@continuation
+def hash_clear_cont(ht, env, cont, _vals):
+    return hash_clear_loop(ht, env, cont)
+
+def hash_clear_loop(ht, env, cont):
+    from pycket.interpreter import return_value
+    if ht.length() == 0:
+        return return_value(values.w_void, env, cont)
+
+    w_k, w_v = ht.get_item(0)
+    return ht.hash_remove_inplace(w_k, env, hash_clear_cont(ht, env, cont))
+
+@expose("hash-clear!", [W_HashTable], simple=False)
+def hash_clear_bang(ht, env, cont):
+    from pycket.interpreter import return_value
+
+    if ht.is_impersonator():
+        ht.hash_clear_proc(env, cont)
+
+        return hash_clear_loop(ht, env, cont)
+    else:
+        ht.hash_empty()
+        return return_value(values.w_void, env, cont)
 
 define_nyi("hash-clear", [W_HashTable])
 
 @expose("hash-count", [W_HashTable])
 def hash_count(hash):
     return values.W_Fixnum(hash.length())
+
+@continuation
+def hash_keys_subset_huh_cont(keys_vals, hash_2, idx, env, cont, _vals):
+    from pycket.interpreter import return_value, check_one_val
+    val = check_one_val(_vals)
+    if val is values.w_false:
+        return return_value(values.w_false, env, cont)
+    else:
+        return hash_keys_subset_huh_loop(keys_vals, hash_2, idx + 1, env, cont)
+
+@loop_label
+def hash_keys_subset_huh_loop(keys_vals, hash_2, idx, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= len(keys_vals):
+        return return_value(values.w_true, env, cont)
+    else:
+        return hash_ref([hash_2, keys_vals[idx][0], values.w_false], env,
+                        hash_keys_subset_huh_cont(keys_vals, hash_2, idx, env, cont))
+
+@jit.elidable
+def uses_same_eq_comparison(hash_1, hash_2):
+    h_1 = hash_1
+    h_2 = hash_2
+
+    if hash_1.is_impersonator() or hash_1.is_chaperone():
+        h_1 = hash_1.get_proxied()
+    if hash_2.is_impersonator() or hash_2.is_chaperone():
+        h_2 = hash_2.get_proxied()
+
+    if isinstance(h_1, W_EqualHashTable):
+        return isinstance(h_2, W_EqualHashTable)
+    elif isinstance(h_1, W_EqMutableHashTable) or isinstance(h_1, W_EqImmutableHashTable):
+        return isinstance(h_2, W_EqMutableHashTable) or isinstance(h_2, W_EqImmutableHashTable)
+    elif isinstance(h_1, W_EqvMutableHashTable) or isinstance(h_1, W_EqvImmutableHashTable):
+        return isinstance(h_2, W_EqvMutableHashTable) or isinstance(h_2, W_EqvImmutableHashTable)
+    else:
+        return False
+
+@expose("hash-keys-subset?", [W_HashTable, W_HashTable], simple=False)
+def hash_keys_subset_huh(hash_1, hash_2, env, cont):
+    if not uses_same_eq_comparison(hash_1, hash_2):
+        raise SchemeException("hash-keys-subset?: given hash tables do not use the same key comparison -- first table : %s - second table: %s" % (hash_1.tostring(), hash_2.tostring()))
+    return hash_keys_subset_huh_loop(hash_1.hash_items(), hash_2, 0, env, cont)
 
 @continuation
 def hash_copy_ref_cont(keys, idx, src, new, env, cont, _vals):
@@ -269,8 +365,11 @@ def hash_copy_loop(keys, idx, src, new, env, cont):
 def hash_copy(src, env, cont):
     from pycket.interpreter import return_value
     if isinstance(src, W_ImmutableHashTable):
-        return return_value(src.make_copy(), env, cont)
+        new = src.make_copy()
+        return return_value(new, env, cont)
     new = src.make_empty()
+    if src.length() == 0:
+        return return_value(new, env, cont)
     return hash_copy_loop(src.hash_items(), 0, src, new, env, cont)
 
 expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
@@ -278,8 +377,40 @@ expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
 # FIXME: not implemented
 @expose("equal-hash-code", [values.W_Object])
 def equal_hash_code(v):
+
+    # only for improper path cache entries
+    if isinstance(v, values.W_Cons):
+        if v.is_proper_list():
+            return values.W_Fixnum.ZERO
+
+        nm = v.car()
+        p = v.cdr()
+        if isinstance(nm, values_string.W_String) and \
+           isinstance(p, values.W_Path) and \
+           isinstance(p.path, str):
+            return values.W_Fixnum(objectmodel.compute_hash((nm.tostring(), p.path)))
+
     return values.W_Fixnum.ZERO
 
 @expose("equal-secondary-hash-code", [values.W_Object])
 def equal_secondary_hash_code(v):
     return values.W_Fixnum.ZERO
+
+@expose("eq-hash-code", [values.W_Object])
+def eq_hash_code(v):
+    t = type(v)
+    if t is values.W_Fixnum:
+        return v
+
+    if t is values.W_Flonum:
+        hash = objectmodel.compute_hash(v.value)
+    elif t is values.W_Character:
+        hash = objectmodel.compute_hash(v.value)
+    else:
+        hash = objectmodel.compute_hash(v)
+    return values.W_Fixnum(hash)
+
+@expose("eqv-hash-code", [values.W_Object])
+def eqv_hash_code(v):
+    hash = v.hash_eqv()
+    return values.W_Fixnum(hash)

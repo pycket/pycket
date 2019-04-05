@@ -9,6 +9,8 @@ from pycket.error        import SchemeException
 from pycket.prims.expose import expose, procedure
 from rpython.rlib        import jit, objectmodel
 
+from pycket.hash.base   import W_HashTable
+
 # All of my hate...
 # Configuration table for information about how to perform equality checks.
 # Based on the Racket internal implementation.
@@ -92,6 +94,37 @@ def equal_vec_done_cont(a, b, idx, info, env, cont, _vals):
     inc = idx + 1
     return equal_vec_func(a, b, inc, info, env, cont)
 
+@continuation
+def equal_ht_done_cont(hash_1_items, hash_2, idx, info, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    eq = check_one_val(_vals)
+    if eq is values.w_false:
+        return return_value(values.w_false, env, cont)
+    inc = idx + 1
+    return equal_ht_func(hash_1_items, hash_2, inc, info, env, cont)
+
+@continuation
+def equal_ht_cont(hash_1_items, hash_2, idx, info, env, cont, _vals):
+    from pycket.interpreter import return_value, check_one_val
+    hash_2_val = check_one_val(_vals)
+    if hash_2_val is values.w_false:
+        return return_value(values.w_false, env, cont)
+    else:
+        return equal_func(hash_1_items[idx][1], hash_2_val, info, env,
+                          equal_ht_done_cont(hash_1_items, hash_2, idx, info, env, cont))
+
+@loop_label
+def equal_ht_func(hash_1_items, hash_2, idx, info, env, cont):
+    from pycket.interpreter import return_value
+    from pycket.prims.hash import hash_ref
+
+    if idx >= len(hash_1_items):
+        return return_value(values.w_true, env, cont)
+    else:
+        return hash_ref([hash_2, hash_1_items[idx][0], values.w_false],
+                        env,
+                        equal_ht_cont(hash_1_items, hash_2, idx, info, env, cont))
+
 def equal_func(a, b, info, env, cont):
     return equal_func_loop(a, b, info, env, cont)
 
@@ -110,10 +143,10 @@ def equal_func_loop(a, b, info, env, cont):
 def equal_func_impl(a, b, info, env, cont, n):
     from pycket.interpreter import return_value
 
-    for_chaperone = jit.promote(info.for_chaperone)
     if a.eqv(b):
         return return_value(values.w_true, env, cont)
 
+    for_chaperone = jit.promote(info).for_chaperone
     if (for_chaperone >= EqualInfo.CHAPERONE and b.is_non_interposing_chaperone()):
         return equal_func_unroll_n(a, b.get_proxied(), info, env, cont, n)
 
@@ -162,6 +195,11 @@ def equal_func_impl(a, b, info, env, cont, n):
             return return_value(values.w_false, env, cont)
         return equal_vec_func(a, b, 0, info, env, cont)
 
+    if isinstance(a, W_HashTable) and isinstance(b, W_HashTable):
+        if len(a.hash_items()) != len(b.hash_items()):
+            return return_value(values.w_false, env, cont)
+        return equal_ht_func(a.hash_items(), b, 0, info, env, cont)
+
     if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
         a_type = a.struct_type()
         b_type = b.struct_type()
@@ -173,16 +211,19 @@ def equal_func_impl(a, b, info, env, cont, n):
                 # FIXME: it should work with cycles properly and be an equal?-recur
                 w_equal_recur = equalp.w_prim
                 return w_equal_proc.call([a, b, w_equal_recur], env, cont)
-        if not a.struct_type().isopaque and not b.struct_type().isopaque:
+        if not a_type.isopaque and not b_type.isopaque:
             # This is probably not correct even if struct2vector were done
             # correct, due to side effects, but it is close enough for now.
             # Though the racket documentation says that `equal?` can elide
             # impersonator/chaperone handlers.
-            a_imm = len(a_type.immutables) == a_type.total_field_cnt
-            b_imm = len(b_type.immutables) == b_type.total_field_cnt
+            a_imm = a_type.all_fields_immutable()
+            b_imm = b_type.all_fields_immutable()
             a = values_struct.struct2vector(a, immutable=a_imm)
             b = values_struct.struct2vector(b, immutable=b_imm)
             return equal_func_unroll_n(a, b, info, env, cont, n)
+
+    if for_chaperone == EqualInfo.BASIC and a.is_proxy() and b.is_proxy():
+        return equal_func_unroll_n(a.get_proxied(), b.get_proxied(), info, env, cont, n)
 
     if a.equal(b):
         return return_value(values.w_true, env, cont)
@@ -221,24 +262,25 @@ def procedure_closure_contents_eq_n(a, b, n):
         return values.w_true
     if n == 0:
         return values.w_false
-    if isinstance(a, values.W_Closure1AsEnv):
-        if isinstance(b, values.W_Closure1AsEnv):
-            if a.caselam is not b.caselam:
-                return values.w_false
-            size = a._get_size_list()
-            if size != b._get_size_list():
-                return values.w_false
-            for i in range(size):
-                a_i = a._get_list(i)
-                b_i = b._get_list(i)
-                if a_i is b_i:
-                    continue
-                if isinstance(a_i, values.W_Closure1AsEnv) and isinstance(b_i, values.W_Closure1AsEnv):
-                    if values.w_false is procedure_closure_contents_eq_n(a_i, b_i, n-1):
-                        return values.w_false
-                elif not eqp_logic(a_i, b_i):
+    if (isinstance(a, values.W_Closure1AsEnv) and
+        isinstance(b, values.W_Closure1AsEnv)):
+        if a.caselam is not b.caselam:
+            return values.w_false
+        size = a._get_size_list()
+        if size != b._get_size_list():
+            return values.w_false
+        for i in range(size):
+            a_i = a._get_list(i)
+            b_i = b._get_list(i)
+            if a_i is b_i:
+                continue
+            if (isinstance(a_i, values.W_Closure1AsEnv) and
+                isinstance(b_i, values.W_Closure1AsEnv)):
+                if values.w_false is procedure_closure_contents_eq_n(a_i, b_i, n-1):
                     return values.w_false
-            return values.w_true
+            elif not eqp_logic(a_i, b_i):
+                return values.w_false
+        return values.w_true
     return values.w_false
 
 @expose("procedure-closure-contents-eq?", [procedure] * 2)

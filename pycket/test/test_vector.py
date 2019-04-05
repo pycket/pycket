@@ -6,15 +6,16 @@ from pycket.impersonators import *
 from pycket.vector import *
 from pycket.prims import *
 from pycket.test.testhelper import run_fix, run, run_mod, execute, check_equal
+import sys
 
 def test_vec():
     assert isinstance(run('(vector 1)'), W_Vector)
-    run('(vector? \'#(0 (2 2 2 2) "Anna"))', w_true)
-    run("(vector? '#())", w_true)
-    run_fix("(let ([v (vector 1 2 3)]) (vector-length v))", 3)
-    run("(let ([v (vector 1 2 3)]) (vector-set! v 0 0))", w_void)
-    run_fix("(let ([v (vector 1 2 3)]) (vector-set! v 0 0) (vector-length v))", 3)
-    run_fix("(let ([v (vector 1 2 3)]) (vector-set! v 0 0) (vector-ref v 0))", 0)
+    #run('(vector? (quote #(0 (2 2 2 2)) "Anna"))', w_true)
+    #run("(vector? (quote #())", w_true)
+    run_fix("(let-values ([(v) (vector 1 2 3)]) (vector-length v))", 3)
+    run("(let-values ([(v) (vector 1 2 3)]) (vector-set! v 0 0))", w_void)
+    run_fix("(let-values ([(v) (vector 1 2 3)]) (vector-set! v 0 0) (vector-length v))", 3)
+    run_fix("(let-values ([(v) (vector 1 2 3)]) (vector-set! v 0 0) (vector-ref v 0))", 0)
 
 def test_vec_equal():
     run("(equal? (vector 1 2 3) (vector 1 2 3))", w_true)
@@ -22,8 +23,8 @@ def test_vec_equal():
     run("(equal? (vector 1 2 3) (vector 1 2 5))", w_false)
 
 def test_make_vector():
-    run_fix("(let ([v (vector)]) (vector-length v))", 0)
-    run_fix("(let ([v (make-vector 5)]) (vector-length v))", 5)
+    run_fix("(let-values ([(v) (vector)]) (vector-length v))", 0)
+    run_fix("(let-values ([(v) (make-vector 5)]) (vector-length v))", 5)
     vec = run('(make-vector 5)')
     for i in range(vec.length()):
         assert vec.ref(i).value == 0
@@ -37,24 +38,24 @@ def test_vec_strategies_empty():
     assert isinstance(vec.strategy, ObjectVectorStrategy)
     vec = run("(vector-immutable)")
     assert isinstance(vec.strategy, ObjectImmutableVectorStrategy)
-    vec = run("(vector-immutable 'hello)")
+    vec = run("(vector-immutable (quote hello))")
     assert isinstance(vec.strategy, ObjectImmutableVectorStrategy)
 
 def test_vec_strategies_fixnum():
     vec = run("(vector 1 2 3)")
     assert isinstance(vec.strategy, FixnumVectorStrategy)
     vec = run("(make-vector 2)")
-    assert isinstance(vec.strategy, FixnumVectorStrategy)
+    assert isinstance(vec.strategy, ConstantVectorStrategy)
 
 def test_vec_strategies_flonum():
     vec = run("(vector 1.0 2.1 3.2)")
     assert isinstance(vec.strategy, FlonumVectorStrategy)
     vec = run("(make-vector 2 1.2)")
-    assert isinstance(vec.strategy, FlonumVectorStrategy)
+    assert isinstance(vec.strategy, ConstantVectorStrategy)
 
 def test_vec_strategies_fixnum_singleton():
     vec1 = run("(vector 1 2 3)")
-    vec2 = run("(make-vector 2)")
+    vec2 = run("(vector 3 2 1)")
     assert vec1.strategy is vec2.strategy
 
 def test_vec_strategies_object():
@@ -64,16 +65,37 @@ def test_vec_strategies_object():
     assert isinstance(vec.strategy, ObjectImmutableVectorStrategy)
 
 def test_vec_strategies_stays_fixnum():
-    vec = run("(let ([vec (make-vector 3)]) (vector-set! vec 1 5) vec)")
+    vec = run("(let-values ([(vec) (vector 0 0 0)]) (vector-set! vec 1 5) vec)")
     assert isinstance(vec.strategy, FixnumVectorStrategy)
 
 def test_vec_strategies_stays_flonum():
-    vec = run("(let ([vec (make-vector 3 1.2)]) (vector-set! vec 1 5.5) vec)")
+    vec = run("(let-values ([(vec) (vector 1.2 1.2 1.2)]) (vector-set! vec 1 5.5) vec)")
     assert isinstance(vec.strategy, FlonumVectorStrategy)
+    vec = run("(let-values ([(vec) (vector 1.2 1.2 1.2)]) (vector-set! vec 1 0) vec)")
+
+    # Test that we can encode the full range of signed 32-bit values in the tagged
+    # flonum strategy
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+    vec = run("(let-values ([(vec) (vector 1.2 1.2 1.2)]) (vector-set! vec 1 %d) vec)" % (2 ** 31 - 1))
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+    vec = run("(let-values ([(vec) (vector 1.2 1.2 1.2)]) (vector-set! vec 1 %d) vec)" % (-(2 ** 31)))
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+
+    # Test transitions from the constant vector strategy to the tagged flonum strategy
+    vec = run("(let-values ([(vec) (make-vector 10 0)]) (vector-set! vec 1 1.1) vec)")
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+    vec = run("(let-values ([(vec) (make-vector 10 %d)]) (vector-set! vec 1 1.1) vec)" % (2 ** 31 - 1))
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+    vec = run("(let-values ([(vec) (make-vector 10 %d)]) (vector-set! vec 1 1.1) vec)" % (-(2 ** 31)))
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
 
 def test_vec_strategies_dehomogenize():
-    vec = run('(let ([vec (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')
+    vec = run('(let-values ([(vec) (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')
     assert isinstance(vec.strategy, ObjectVectorStrategy)
+    vec = run('(let-values ([(vec) (make-vector 3 1)]) (vector-set! vec 1 "Anna") vec)')
+    assert isinstance(vec.strategy, ObjectVectorStrategy)
+    vec = run('(let-values ([(vec) (make-vector 3 1)]) (vector-set! vec 1 2) vec)')
+    assert isinstance(vec.strategy, FixnumVectorStrategy)
 
 def test_vec_strategies_character():
     vec1 = run(r"(vector #\A #\B #\C)")
@@ -82,12 +104,12 @@ def test_vec_strategies_character():
     assert isinstance(vec2.strategy, CharacterVectorStrategy)
 
 def test_vec_strategies_stays_character():
-    vec = run(r"(let ([vec (make-vector 3 #\A)]) (vector-set! vec 1 #\D) vec)")
+    vec = run(r"(let-values ([(vec) (vector #\A #\A #\A)]) (vector-set! vec 1 #\D) vec)")
     assert isinstance(vec.strategy, CharacterVectorStrategy)
 
 def test_vec_strategies_character_singleton():
     vec1 = run(r"(vector #\A #\A #\A)")
-    vec2 = run(r"(make-vector 2 #\B)")
+    vec2 = run(r"(vector #\B #\B)")
     assert vec1.strategy is vec2.strategy
 
 def test_vec_strategies_character_ref(doctest):
@@ -101,32 +123,47 @@ def test_vec_strategies_character_ref(doctest):
     #\c
     """
 
+def run_unsafe_expander(e,v):
+    run("(begin (#%%require (quote #%%unsafe)) %s)" % e,v,extra="")
+def run_fix_unsafe_expander(e,v):
+    run_fix("(begin (#%%require (quote #%%unsafe)) %s)" % e,v,extra="")
+
 def run_unsafe(e,v):
     run(e,v,extra="")
 def run_fix_unsafe(e,v):
     run_fix(e,v,extra="")
 
 def test_unsafe_impersonators():
-    run_unsafe("(equal? 3 (unsafe-vector-length (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))))", w_true)
-    run_unsafe("(equal? 3 (unsafe-vector-ref (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) 2))", w_true)
-    run_fix_unsafe("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
+    ru = run_unsafe
+    ru_fix = run_fix_unsafe
+    if pytest.config.load_expander:
+        ru = run_unsafe_expander
+        ru_fix = run_fix_unsafe_expander
+    ru("(equal? 3 (unsafe-vector-length (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))))", w_true)
+    ru("(equal? 3 (unsafe-vector-ref (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) 2))", w_true)
+    ru_fix("(let-values ([(v) (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
 
 def test_unsafe():
-    run_unsafe("(equal? 3 (unsafe-vector-length (vector 1 2 3)))", w_true)
-    run_unsafe("(equal? 3 (unsafe-vector*-length (vector 1 2 3)))", w_true)
-    run_unsafe("(equal? 3 (unsafe-vector-ref (vector 1 2 3) 2))", w_true)
-    run_unsafe("(equal? 3 (unsafe-vector*-ref (vector 1 2 3) 2))", w_true)
-    run_fix_unsafe("(let ([v (vector 1 2 3)]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
-    run_fix_unsafe("(let ([v (vector 1 2 3)]) (unsafe-vector*-set! v 0 0) (unsafe-vector*-ref v 0))", 0)
+    ru = run_unsafe
+    ru_fix = run_fix_unsafe
+    if pytest.config.load_expander:
+        ru = run_unsafe_expander
+        ru_fix = run_fix_unsafe_expander
 
+    ru("(equal? 3 (unsafe-vector-length (vector 1 2 3)))", w_true)
+    ru("(equal? 3 (unsafe-vector*-length (vector 1 2 3)))", w_true)
+    ru("(equal? 3 (unsafe-vector-ref (vector 1 2 3) 2))", w_true)
+    ru("(equal? 3 (unsafe-vector*-ref (vector 1 2 3) 2))", w_true)
+    ru_fix("(let-values ([(v) (vector 1 2 3)]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
+    ru_fix("(let-values ([(v) (vector 1 2 3)]) (unsafe-vector*-set! v 0 0) (unsafe-vector*-ref v 0))", 0)
 
 def test_vec_imp():
     assert isinstance(run('(impersonate-vector (vector 1) values values)'), W_ImpVector)
-    run('(vector? (chaperone-vector \'#(0 (2 2 2 2) "Anna") values values))', w_true)
-    run_fix("(let ([v (impersonate-vector (vector 1 2 3) values values)]) (vector-length v))", 3)
-    run("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0))", w_void)
-    run_fix("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0) (vector-length v))", 3)
-    run_fix("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0) (vector-ref v 0))", 0)
+    #run('(vector? (chaperone-vector \'#(0 (2 2 2 2) "Anna") values values))', w_true)
+    run_fix("(let-values ([(v) (impersonate-vector (vector 1 2 3) values values)]) (vector-length v))", 3)
+    run("(let-values ([(v) (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0))", w_void)
+    run_fix("(let-values ([(v) (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0) (vector-length v))", 3)
+    run_fix("(let-values ([(v) (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0) (vector-ref v 0))", 0)
 
 def test_vec_equal_imp():
     run("(equal? (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) (vector 1 2 3))", w_true)
@@ -134,9 +171,10 @@ def test_vec_equal_imp():
     run("(equal? (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) (vector 1 2 5))", w_false)
 
 def test_make_vector_imp():
-    run_fix("(let ([v (impersonate-vector (vector) (lambda (x y z) z) (lambda (x y z) z))]) (vector-length v))", 0)
-    run_fix("(let ([v (impersonate-vector (make-vector 5) (lambda (x y z) z) (lambda (x y z) z))]) (vector-length v))", 5)
+    run_fix("(let-values ([(v) (impersonate-vector (vector) (lambda (x y z) z) (lambda (x y z) z))]) (vector-length v))", 0)
+    run_fix("(let-values ([(v) (impersonate-vector (make-vector 5) (lambda (x y z) z) (lambda (x y z) z))]) (vector-length v))", 5)
 
+@pytest.mark.skipif(pytest.config.new_pycket and not pytest.config.load_expander, reason="-and- is not in kernel")
 def test_bug_symbol_in_vector():
     # FIXME somebody who knows expand
     run("#('a)")
@@ -187,11 +225,16 @@ def test_flvector_set_wrong_type():
 def test_vector_copy_bang(doctest):
     """
     > (define v (vector 'A 'p 'p 'l 'e))
+    > (define src (vector))
+    > (define dest (vector 1))
     > (vector-copy! v 4 #(y))
     > (vector-copy! v 0 v 3 4)
     > v
     '#(l p p l y)
-    > (vector-copy v 0 #() 0 0)
+    > (vector-copy! v 0 #() 0 0)
+    > (vector-copy! dest 1 src 0)
+    > dest
+    '#(1)
     """
 
 def test_list_vector_conversion():
@@ -235,3 +278,9 @@ def test_copy_vector_strategy_preserve():
     assert vec.strategy is CharacterImmutableVectorStrategy.singleton
     vec = run(r"(vector->immutable-vector (vector #\a #\b #\c 1 1.0))")
     assert vec.strategy is ObjectImmutableVectorStrategy.singleton
+
+def test_constant_strategy():
+    vec = run("(make-vector 10 #f)")
+    assert vec.strategy is ConstantVectorStrategy.singleton
+    vec = run("(vector->immutable-vector (make-vector 10 #t))")
+    assert vec.strategy is ConstantImmutableVectorStrategy.singleton

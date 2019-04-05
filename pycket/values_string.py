@@ -7,13 +7,21 @@ from rpython.rlib.objectmodel import compute_hash, we_are_translated
 from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
 
-@jit.elidable
+@jit.unroll_safe
 def _is_ascii(s):
+    if not jit.loop_unrolling_heuristic(s, len(s)):
+        return _is_ascii_elidable(s)
     for c in s:
         if ord(c) >= 128:
             return False
     return True
 
+@jit.elidable
+def _is_ascii_elidable(s):
+    for c in s:
+        if ord(c) >= 128:
+            return False
+    return True
 
 class W_String(W_Object):
     errorname = "string"
@@ -94,6 +102,12 @@ class W_String(W_Object):
     def as_unicharlist(self):
         return self.get_strategy().as_unicharlist(self)
 
+    def as_escaped_utf8(self):
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        r = self.as_str_utf8()
+        assert r is not None
+        return string_escape_encode(r, '')
+
     # string operations
     def length(self):
         return self.get_strategy().length(self)
@@ -136,10 +150,9 @@ class W_String(W_Object):
 
     def tostring(self):
         from pypy.objspace.std.bytesobject import string_escape_encode
-        #return string_escape_encode(self.value, '"')
-        result = self.as_str_utf8()
-        assert result is not None
-        return result
+        r = self.as_str_utf8()
+        assert r is not None
+        return string_escape_encode(r, '"')
 
     def setitem(self, index, unichar):
         raise SchemeException("can't mutate string")
@@ -149,6 +162,8 @@ class W_String(W_Object):
 
 
 class W_MutableString(W_String):
+
+    _attrs_ = ['storage', 'strategy']
 
     def __init__(self, strategy, storage):
         self.change_strategy(strategy, storage)
@@ -191,6 +206,7 @@ class W_ImmutableString(W_String):
     # abstract base class of immutable strings
     # there are concrete subclasses for every immutable strategy
 
+    _attrs_ = ['storage']
     _immutable_fields_ = ['storage']
 
     def __init__(self, strategy, storage):
@@ -455,13 +471,17 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
             return w_str.setitem(index, unichar)
 
     def setslice(self, w_str, index, w_from, fromstart, fromend):
-        target = self.unerase(w_str.get_storage())
-        # XXX inefficient
-        for sourceindex in range(fromstart, fromend):
-            char = ord(w_from.getitem(sourceindex))
-            assert char < 128 # XXX
-            target[index] = chr(char)
-            index += 1
+        if w_from.get_strategy() is self:
+            target = self.unerase(w_str.get_storage())
+            # XXX inefficient
+            for sourceindex in range(fromstart, fromend):
+                char = ord(w_from.getitem(sourceindex))
+                assert char < 128 # XXX
+                target[index] = chr(char)
+                index += 1
+        else:
+            self.make_unicode(w_str)
+            return w_str.setslice(index, w_from, fromstart, fromend)
 
     def upper(self, w_str):
         # XXX inefficient

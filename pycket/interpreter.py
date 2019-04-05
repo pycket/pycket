@@ -1,18 +1,28 @@
-from pycket.AST               import AST, ConvertStack
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from pycket                   import config
 from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
-from pycket.prims.expose      import prim_env, make_call_method
-from pycket.error             import SchemeException
-from pycket.cont              import Cont, NilCont, label
-from pycket.env               import SymList, ConsEnv, ToplevelEnv
+from pycket.AST               import AST, ConvertStack
 from pycket.arity             import Arity
-from pycket                   import config
 from pycket.base              import W_StackTrampoline
+from pycket.cont              import Cont, NilCont, label, continuation
+from pycket.env               import SymList, ConsEnv, ToplevelEnv
+from pycket.error             import SchemeException
+from pycket.prims.expose      import prim_env, make_call_method
+from pycket.prims.control     import convert_runtime_exception, convert_os_error
+from pycket.prims.parameter   import current_cmd_args_param
+from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
 from rpython.rlib             import jit, debug, objectmodel
+from rpython.rlib.objectmodel import import_from_mixin
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
+from rpython.rlib.rarithmetic import r_uint
+from rpython.tool.pairtype    import extendabletype
 from small_list               import inline_small_list
 
+import inspect
 import sys
 
 # imported for side effects
@@ -29,12 +39,261 @@ BUILTIN_MODULES = [
     "#%builtin",
     "#%extfl",
     "#%futures",
+    "#%core",
+    "#%linklet",
+    "#%linklet-primitive",
     "#%network" ]
 
+class BindingFormMixin(object):
+    _immutable_fields_ = ['_mutable_var_flags[*]']
+    _mutable_var_flags = None
+
+    def init_mutable_var_flags(self, flags):
+        if True in flags:
+            self._mutable_var_flags = flags
+        else:
+            self._mutable_var_flags = None
+
+    @jit.unroll_safe
+    def binds_mutable_var(self):
+        if self._mutable_var_flags is None:
+            return False
+        for flag in self._mutable_var_flags:
+            if flag:
+                return True
+        return False
+
+    @objectmodel.always_inline
+    def is_mutable_var(self, i):
+        return self._mutable_var_flags is not None and self._mutable_var_flags[i]
+
+    @objectmodel.always_inline
+    def wrap_value(self, val, i):
+        if self.is_mutable_var(i):
+            val = values.W_Cell(val)
+        return val
+
+class Context(object):
+
+    __metaclass__ = extendabletype
+    _attrs_ = []
+
+    def plug(self, ast):
+        raise NotImplementedError("absract base class")
+
+class __extend__(Context):
+
+    # Below are the set of defunctionalized continuations used in the
+    # paper "The Essence of Compiling with Continuations"
+    # https://dl.acm.org/citation.cfm?id=989393.989443&coll=DL&dl=GUIDE
+
+    def context(func):
+        argspec = inspect.getargspec(func)
+        assert argspec.varargs  is None
+        assert argspec.keywords is None
+        assert argspec.defaults is None
+        argnames = argspec.args[:-1]
+
+        class PrimContext(Context):
+            _attrs_ = _immutable_fields_ = ["args"]
+
+            def __init__(self, *args):
+                Context.__init__(self)
+                self.args = args
+
+            def plug_direct(self, ast):
+                args = self.args + (ast,)
+                return func(*args)
+
+            def plug(self, ast):
+                return the_ast, TrampolineContext(ast, self)
+
+            __getitem__ = plug
+
+        class TrampolineAST(AST):
+
+            _attrs_ = _immutable_fields_ = []
+
+            def normalize(self, context):
+                assert type(context) is TrampolineContext
+                ast, context = context.ast, context.prev
+                return context.plug_direct(ast)
+
+        class TrampolineContext(Context):
+
+            _attrs_ = _immutable_fields_ = ["ast", "prev"]
+
+            def __init__(self, ast, prev):
+                assert type(prev) is PrimContext
+                self.ast  = ast
+                self.prev = prev
+
+            def plug_direct(self, ast):
+                return self.prev.plug_direct(ast)
+
+            plug = plug_direct
+
+        the_ast = TrampolineAST()
+
+        @objectmodel.always_inline
+        def make_context(*args):
+            return PrimContext(*args)
+        make_context.__name__ = "%sContext" % func.__name__.replace("_", "")
+
+        return make_context
+
+    class Done(Exception):
+        def __init__(self, ast):
+            self.ast = ast
+
+    class AstList(AST):
+        _attrs_ = ["nodes"]
+        def __init__(self, nodes):
+            self.nodes = nodes
+
+    EmptyList = AstList([])
+
+    @staticmethod
+    @objectmodel.always_inline
+    def yields(ast):
+        raise Context.Done(ast)
+
+    @context
+    def Nil(ast):
+        Context.yields(ast)
+
+    Nil = Nil()
+
+    @staticmethod
+    @specialize.arg(2)
+    def normalize_term(expr, context=Nil, expect=AST):
+        """
+        This will perform A-normalization on the given expression. The given
+        context is a value of type Context which contains the surrounding binding
+        context of the current expression. The context is needed to properly
+        re-build the expression inside out, as the given expression is traversed
+        from outside inward.
+        The transformation is trampolined in order to overcome Python's
+        improverished call stack.
+        """
+        try:
+            while True:
+                expr, context = expr.normalize(context)
+        except Context.Done as e:
+            expr = e.ast
+        assert isinstance(expr, expect)
+        return expr
+
+    @staticmethod
+    def normalize_name(expr, context, hint="g"):
+        context = Context.Name(context, hint)
+        return expr, context
+
+    @staticmethod
+    def normalize_names(exprs, context, i=0):
+        if i >= len(exprs):
+            return context.plug(Context.EmptyList)
+        expr = exprs[i]
+        context = Context.Names(exprs, i, context)
+        return Context.normalize_name(expr, context, hint="AppRand")
+
+    @staticmethod
+    @context
+    def Name(context, hint, ast):
+        if ast.simple:
+            return context.plug(ast)
+        sym  = Gensym.gensym(hint=hint)
+        var  = LexicalVar(sym)
+        body = Context.normalize_term(var, context)
+        Context.yields(make_let_singlevar(sym, ast, [body]))
+
+    @staticmethod
+    @context
+    def Names(exprs, i, context, ast):
+        context = Context.Append(ast, context)
+        return Context.normalize_names(exprs, context, i+1)
+
+    @staticmethod
+    def Let(xs, Ms, body, context):
+        return Context._Let(xs, Ms, body, 0, context)
+
+    @staticmethod
+    @context
+    def _Let(xs, Ms, body, i, context, ast):
+        assert len(xs) == len(Ms)
+        if i == len(Ms) - 1:
+            body = Context.normalize_term(body, context)
+            # Body may have been wrapped in a begin for convenience
+            body = body.body if isinstance(body, Begin) else [body]
+            Context.yields(make_let([xs[i]], [ast], body))
+        X = xs[i]
+        i += 1
+        x_, M = xs[i], Ms[i]
+        context  = Context._Let(xs, Ms, body, i, context)
+        body  = Context.normalize_term(M, context)
+        Context.yields(make_let([X], [ast], [body]))
+
+    @staticmethod
+    @context
+    def If(thn, els, context, tst):
+        thn = Context.normalize_term(thn)
+        els = Context.normalize_term(els)
+        result = If.make(tst, thn, els)
+        return context.plug(result)
+
+    @staticmethod
+    @context
+    def AppRator(args, context, ast):
+        context = Context.AppRand(ast, context)
+        return Context.normalize_names(args, context)
+
+    @staticmethod
+    @context
+    def AppRand(rator, context, ast):
+        assert isinstance(ast, Context.AstList)
+        rands  = ast.nodes
+        result = App.make(rator, rands)
+        return context.plug(result)
+
+    @staticmethod
+    @context
+    def Append(expr, context, ast):
+        assert isinstance(ast, Context.AstList)
+        ast = Context.AstList([expr] + ast.nodes)
+        return context.plug(ast)
+
+    @staticmethod
+    @context
+    def SetBang(var, context, ast):
+        ast = SetBang(var, ast)
+        return context.plug(ast)
+
+@objectmodel.always_inline
+def equal(a, b):
+    assert a is None or isinstance(a, values.W_Symbol)
+    assert b is None or isinstance(b, values.W_Symbol)
+    return a is b
+
+@objectmodel.always_inline
+def hashfun(v):
+    assert v is None or isinstance(v, values.W_Symbol)
+    return r_uint(compute_hash(v))
+
+SymbolSet = make_persistent_hash_type(
+    super=values.W_ProtoObject,
+    base=object,
+    keytype=values.W_Symbol,
+    valtype=values.W_Symbol,
+    name="SymbolSet",
+    hashfun=hashfun,
+    equal=equal)
+
 def is_builtin_module(mod):
-    return mod in BUILTIN_MODULES
+    return (mod in BUILTIN_MODULES) or (0 <= mod.find("pycket-lang/extra-prims"))
 
 class Done(Exception):
+    _attrs_ = ["values"]
+    _immutable_ = True
     def __init__(self, vals):
         self.values = vals
 
@@ -43,14 +302,16 @@ def var_eq(a, b):
         return a.sym is b.sym
     elif isinstance(a, ModuleVar) and isinstance(b, ModuleVar):
         # two renamed variables can be the same
-        return (a.srcmod == b.srcmod and a.srcsym is b.srcsym)
+        return a.srcsym is b.srcsym
     return False
 
 def var_hash(a):
     if isinstance(a, LexicalVar):
         return compute_hash(a.sym)
+    elif isinstance(a, LinkletVar):
+        return compute_hash(a.sym)
     elif isinstance(a, ModuleVar):
-        return compute_hash( (a.srcsym, a.srcmod) )
+        return compute_hash(a.srcsym)
     assert False
 
 def variable_set():
@@ -71,7 +332,7 @@ def check_one_val(vals):
     return vals
 
 class LetrecCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
@@ -109,7 +370,9 @@ class LetrecCont(Cont):
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
+    _attrs_ = ["counting_ast", "_get_size_list"]
     _immutable_fields_ = ["counting_ast"]
+
     return_safe = True
 
     def __init__(self, counting_ast, env, prev):
@@ -127,30 +390,9 @@ class LetCont(Cont):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals_w, ast, rhsindex, env, prev, fuse=True, pruning_done=False):
-        if not env.pycketconfig().fuse_conts:
-            fuse = False
+    def make(vals_w, ast, rhsindex, env, prev):
         counting_ast = ast.counting_asts[rhsindex]
-
-        # try to fuse the two Conts
-        if fuse and not vals_w:
-            if isinstance(prev, LetCont) and prev._get_size_list() == 0:
-                prev_counting_ast = prev.counting_ast
-                prev_ast, _ = prev_counting_ast.unpack(Let)
-                # check whether envs are the same:
-                if prev_ast.args.prev is ast.args.prev and env is prev.env:
-                    combined_ast = counting_ast.combine(prev_counting_ast)
-                    return FusedLet0Let0Cont(combined_ast, env, prev.prev)
-            elif isinstance(prev, BeginCont):
-                prev_counting_ast = prev.counting_ast
-                prev_ast, _ = prev_counting_ast.unpack(SequencedBodyAST)
-                # check whether envs are the same:
-                if env is prev.env: # XXX could use structure to check plausibility
-                    combined_ast = counting_ast.combine(prev_counting_ast)
-                    return FusedLet0BeginCont(combined_ast, env, prev.prev)
-
-        if not pruning_done:
-            env = ast._prune_env(env, rhsindex + 1)
+        env = ast._prune_env(env, rhsindex + 1)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -170,10 +412,9 @@ class LetCont(Cont):
                 # speculate moar!
                 if _env is self.env:
                     prev = _env
-                else:
-                    if not jit.we_are_jitted():
-                        ast.env_speculation_works = False
-            env = self._construct_env(len_self, vals, len_vals, new_length, prev)
+                elif not jit.we_are_jitted():
+                    ast.env_speculation_works = False
+            env = self._construct_env(ast, len_self, vals, len_vals, new_length, prev)
             return ast.make_begin_cont(env, self.prev)
         else:
             # XXX remove copy
@@ -190,7 +431,8 @@ class LetCont(Cont):
                                  self.env, self.prev))
 
     @jit.unroll_safe
-    def _construct_env(self, len_self, vals, len_vals, new_length, prev):
+    def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
+        assert isinstance(ast, Let)
         # this is a complete mess. however, it really helps warmup a lot
         if new_length == 0:
             return ConsEnv.make0(prev)
@@ -200,6 +442,7 @@ class LetCont(Cont):
             else:
                 assert len_self == 0 and len_vals == 1
                 elem = vals.get_value(0)
+            elem = ast.wrap_value(elem, 0)
             return ConsEnv.make1(elem, prev)
         if new_length == 2:
             if len_self == 0:
@@ -214,60 +457,25 @@ class LetCont(Cont):
                 assert len_self == 2 and len_vals == 0
                 elem1 = self._get_list(0)
                 elem2 = self._get_list(1)
+            elem1 = ast.wrap_value(elem1, 0)
+            elem2 = ast.wrap_value(elem2, 1)
             return ConsEnv.make2(elem1, elem2, prev)
         env = ConsEnv.make_n(new_length, prev)
         i = 0
         for j in range(len_self):
-            env._set_list(i, self._get_list(j))
+            val = self._get_list(j)
+            val = ast.wrap_value(val, i)
+            env._set_list(i, val)
             i += 1
         for j in range(len_vals):
-            env._set_list(i, vals.get_value(j))
+            val = vals.get_value(j)
+            val = ast.wrap_value(val, i)
+            env._set_list(i, val)
             i += 1
         return env
 
-class FusedLet0Let0Cont(Cont):
-    _immutable_fields_ = ["combined_ast"]
-    return_safe = True
-    def __init__(self, combined_ast, env, prev):
-        Cont.__init__(self, env, prev)
-        self.combined_ast = combined_ast
-
-    def get_ast(self):
-        return self.combined_ast.ast1.ast
-
-    def plug_reduce(self, vals, env):
-        ast1, ast2 = self.combined_ast.unpack()
-        ast1, index1 = ast1.unpack(Let)
-        ast2, index2 = ast2.unpack(Let)
-        actual_cont = LetCont.make(
-                None, ast1, index1, self.env,
-                LetCont.make(
-                    None, ast2, index2, self.env, self.prev, fuse=False,
-                    pruning_done=True),
-                fuse=False)
-        return actual_cont.plug_reduce(vals, env)
-
-class FusedLet0BeginCont(Cont):
-    _immutable_fields_ = ["combined_ast"]
-    return_safe = True
-    def __init__(self, combined_ast, env, prev):
-        Cont.__init__(self, env, prev)
-        self.combined_ast = combined_ast
-
-    def get_ast(self):
-        return self.combined_ast.ast1.ast
-
-    def plug_reduce(self, vals, env):
-        ast1, ast2 = self.combined_ast.unpack()
-        ast1, index1 = ast1.unpack(Let)
-        actual_cont = LetCont.make(
-                None, ast1, index1, self.env,
-                BeginCont(ast2, self.env, self.prev),
-                fuse=False)
-        return actual_cont.plug_reduce(vals, env)
-
 class CellCont(Cont):
-    _immutable_fields_ = ['ast']
+    _attrs_ = _immutable_fields_ = ['ast']
 
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -290,25 +498,8 @@ class CellCont(Cont):
             vals_w.append(w_val)
         return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
-class SetBangCont(Cont):
-    _immutable_fields_ = ["ast"]
-    def __init__(self, ast, env, prev):
-        Cont.__init__(self, env, prev)
-        self.ast = ast
-
-    def _clone(self):
-        return SetBangCont(self.ast, self.env, self.prev)
-
-    def get_ast(self):
-        return self.ast
-
-    def plug_reduce(self, vals, env):
-        w_val = check_one_val(vals)
-        self.ast.var._set(w_val, self.env)
-        return return_value(values.w_void, self.env, self.prev)
-
 class BeginCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     return_safe = True
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -328,9 +519,39 @@ class BeginCont(Cont):
         ast, i = self.counting_ast.unpack(SequencedBodyAST)
         return ast.make_begin_cont(self.env, self.prev, i)
 
+@inline_small_list(immutable=True, attrname="vals_w",
+                   unbox_num=True, factoryname="_make")
+class Begin0BodyCont(Cont):
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
+    return_safe = True
+
+    def __init__(self, ast, env, prev):
+        Cont.__init__(self, env, prev)
+        self.counting_ast = ast
+
+    @staticmethod
+    def make(vals, ast, index, env, prev):
+        counting_ast = ast.counting_asts[index]
+        return Begin0BodyCont._make(vals, counting_ast, env, prev)
+
+    def get_ast(self):
+        return self.counting_ast.ast
+
+    def get_next_executed_ast(self):
+        ast, i = self.counting_ast.unpack(Begin0)
+        return ast.body[i]
+
+    def plug_reduce(self, vals, env):
+        ast, index = self.counting_ast.unpack(Begin0)
+        vals = self._get_full_list()
+        if index == len(ast.body) - 1:
+            return return_multi_vals(values.Values.make(vals), env, self.prev)
+        return (ast.body[index + 1], self.env,
+                Begin0BodyCont.make(vals, ast, index + 1, self.env, self.prev))
+
 # FIXME: it would be nice to not need two continuation types here
 class Begin0Cont(Cont):
-    _immutable_fields_ = ["ast"]
+    _attrs_ = _immutable_fields_ = ["ast"]
     return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -346,23 +567,12 @@ class Begin0Cont(Cont):
         return self.ast
 
     def plug_reduce(self, vals, env):
-        return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
-
-class Begin0FinishCont(Cont):
-    _immutable_fields_ = ["ast", "vals"]
-    def __init__(self, ast, vals, env, prev):
-        Cont.__init__(self, env, prev)
-        self.ast = ast
-        self.vals = vals
-
-    def _clone(self):
-        return Begin0FinishCont(self.ast, self.vals, self.env, self.prev)
-
-    def plug_reduce(self, vals, env):
-        return return_multi_vals(self.vals, self.env, self.prev)
+        ast = jit.promote(self.ast)
+        vals_w = vals.get_all_values()
+        return ast.body[0], self.env, Begin0BodyCont.make(vals_w, ast, 0, self.env, self.prev)
 
 class WCMKeyCont(Cont):
-    _immutable_fields_ = ["ast"]
+    _attrs_ = _immutable_fields_ = ["ast"]
     return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -382,7 +592,7 @@ class WCMKeyCont(Cont):
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
 
 class WCMValCont(Cont):
-    _immutable_fields_ = ["ast", "key"]
+    _attrs_ = _immutable_fields_ = ["ast", "key"]
     return_safe = True
     def __init__(self, ast, key, env, prev):
         Cont.__init__(self, env, prev)
@@ -403,7 +613,7 @@ class WCMValCont(Cont):
         key = self.key
 
         if isinstance(key, values.W_ContinuationMarkKey):
-            body = values.W_ThunkBodyCMK(self.ast.body)
+            body = values.W_ThunkBodyCMK(self.ast.body, self.env)
             return key.set_cmk(body, val, self.prev, env, self.prev)
 
         # Perform a shallow copying of the continuation to ensure any marks
@@ -414,8 +624,15 @@ class WCMValCont(Cont):
 
         return self.ast.body, self.env, cont
 
+class ModuleInfo(object):
+    def __init__(self, current_module):
+        self.current_module = current_module
+        self.submodules = []
+        self.requires   = []
+
 class Module(AST):
     _immutable_fields_ = ["name", "body[*]", "requires[*]", "parent", "submodules[*]", "interpreted?", "lang"]
+    visitable = True
     simple = True
 
     def __init__(self, name, body, config, lang=None):
@@ -423,17 +640,15 @@ class Module(AST):
         self.lang = lang
         self.name = name
 
-        self.body     = [b for b in body if not isinstance(b, Require)]
-        self.requires = [b for b in body if isinstance(b, Require)]
-
-        # Collect submodules and set their parents
-        submodules = []
-        for b in self.body:
-            b.collect_submodules(submodules)
-        self.submodules = submodules[:]
-        for s in self.submodules:
-            assert isinstance(s, Module)
-            s.set_parent_module(self)
+        info = ModuleInfo(self)
+        todo = body[:]
+        while todo:
+            curr = todo.pop()
+            rest = curr.collect_module_info(info)
+            todo.extend(rest)
+        self.submodules = info.submodules[:]
+        self.requires   = info.requires[:]
+        self.body       = [b for b in body if not isinstance(b, Require)]
 
         self.env = None
         self.interpreted = False
@@ -441,7 +656,7 @@ class Module(AST):
 
         defs = {}
         for b in self.body:
-            defs.update(b.defined_vars())
+            b.defined_vars(defs)
         self.defs = defs
 
     def rebuild_body(self):
@@ -451,10 +666,14 @@ class Module(AST):
         assert isinstance(parent, Module)
         self.parent = parent
 
-    def collect_submodules(self, acc):
-        acc.append(self)
+    def collect_module_info(self, info):
+        info.submodules.append(self)
+        self.set_parent_module(info.current_module)
+        return []
 
     def full_module_path(self):
+        if self.parent is None:
+            return self.name
         path = []
         while self is not None:
             path.append(self.name)
@@ -471,34 +690,26 @@ class Module(AST):
             raise SchemeException("use of module variable before definition %s" % (sym.tostring()))
         return v
 
-    def _mutated_vars(self):
-        return variable_set()
-
-    # all the module-bound variables that are mutated
-    def mod_mutated_vars(self):
+    def mod_mutated_vars(self, cache):
+        """ return all the module-bound variables that are mutated"""
         x = variable_set()
         for r in self.body:
-            x.update(r.mutated_vars())
+            x.update(r.mutated_vars(cache))
         return x
-
-    def assign_convert(self, vars, env_structure):
-        return self.assign_convert_module()
 
     def direct_children(self):
         return self.rebuild_body()
 
-    def assign_convert_module(self):
-        """
-        Because references to modules are kept in the module environment, modules
-        should never be duplicated/copied. Rather than producing a converted module,
-        update the body of the module with the assingnment convert body.
-        """
-        local_muts = self.mod_mutated_vars()
-        self.body = [b.assign_convert(local_muts, None) for b in self.body]
-        return self
-
     def _tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
+
+    def to_sexp(self):
+        mod_sym = values.W_Symbol.make("module")
+        name_s_exp = values_string.W_String.fromstr_utf8(self.name)
+        lang_s_exp = self.lang.to_sexp()
+        bodies_s_exp = values.to_list([b.to_sexp() for b in self.body])
+        cons = values.W_Cons.make
+        return cons(mod_sym, cons(name_s_exp, cons(lang_s_exp, bodies_s_exp)))
 
     def interpret_simple(self, env):
         """ Interpretation of a module is a no-op from the outer module.
@@ -537,10 +748,18 @@ class Module(AST):
 
     @jit.unroll_safe
     def resolve_submodule_path(self, path):
+        if path is None:
+            return self
         for p in path:
             self = self.find_submodule(p)
             assert self is not None
         return self
+
+    def normalize(self, context):
+        # Return the current module, as it is not safe to duplicate module forms
+        for i, b in enumerate(self.body):
+            self.body[i] = Context.normalize_term(b)
+        return context.plug(self)
 
     def _interpret_mod(self, env):
         self.env = env
@@ -572,18 +791,13 @@ class Module(AST):
 
 class Require(AST):
     _immutable_fields_ = ["fname", "loader", "path[*]"]
+    visitable = True
     simple = True
 
     def __init__(self, fname, loader, path=None):
-        self.fname  = fname
-        self.path   = path if path is not None else []
+        self.fname = fname
+        self.path = path
         self.loader = loader
-
-    def _mutated_vars(self):
-        return variable_set()
-
-    def assign_convert(self, vars, env_structure):
-        return self
 
     def find_module(self, env):
         assert not jit.we_are_jitted()
@@ -603,8 +817,23 @@ class Require(AST):
         module.interpret_mod(top)
         return values.w_void
 
+    def collect_module_info(self, info):
+        for r in info.requires:
+            assert isinstance(r, Require)
+            if (self.fname == r.fname and
+                self.path == r.path and
+                self.loader is r.loader):
+                break
+        else:
+            info.requires.append(self)
+        return []
+
     def _tostring(self):
         return "(require %s)" % self.fname
+
+    def to_sexp(self):
+        req_sym = values.W_Symbol.make("require")
+        return values.to_list([req_sym, values_string.W_String.fromstr_utf8(self.fname)])
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make1(w_val), env, cont)
@@ -634,6 +863,7 @@ def return_void(env, cont):
 
 class Cell(AST):
     _immutable_fields_ = ["expr", "need_cell_flags[*]"]
+    visitable = True
     def __init__(self, expr, need_cell_flags=None):
         if need_cell_flags is None:
             need_cell_flags = [True]
@@ -643,72 +873,88 @@ class Cell(AST):
     def interpret(self, env, cont):
         return self.expr, env, CellCont(self, env, cont)
 
-    def assign_convert(self, vars, env_structure):
-        return Cell(self.expr.assign_convert(vars, env_structure))
-
     def direct_children(self):
         return [self.expr]
-
-    def _mutated_vars(self):
-        return self.expr.mutated_vars()
 
     def _tostring(self):
         return "Cell(%s)"%self.expr.tostring()
 
+    def write(self, port, env):
+        port.write("Cell(")
+        self.expr.write(port, env)
+        port.write(" . %s)" % self.need_cell_flags)
+
 class Quote(AST):
     _immutable_fields_ = ["w_val"]
+
+    visitable = True
     simple = True
+    ispure = True
+
     def __init__ (self, w_val):
         self.w_val = w_val
 
     def interpret_simple(self, env):
         return self.w_val
 
-    def assign_convert(self, vars, env_structure):
-        return self
-
     def direct_children(self):
         return []
 
-    def _mutated_vars(self):
-        return variable_set()
-
     def _tostring(self):
         if (isinstance(self.w_val, values.W_Bool) or
-                isinstance(self.w_val, values.W_Number) or
-                isinstance(self.w_val, values_string.W_String) or
-                isinstance(self.w_val, values.W_Symbol)):
+            isinstance(self.w_val, values.W_Number) or
+            isinstance(self.w_val, values_string.W_String)):
             return "%s" % self.w_val.tostring()
         return "'%s" % self.w_val.tostring()
 
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(quote ")
+        write_loop(self.w_val, port, env)
+        port.write(")")
+
+    def to_sexp(self):
+        q_sym = values.W_Symbol.make("quote")
+        return values.W_Cons.make(q_sym, values.W_Cons.make(self.w_val, values.w_null))
+
 class QuoteSyntax(AST):
     _immutable_fields_ = ["w_val"]
+    visitable = True
     simple = True
+    ispure = True
+
     def __init__ (self, w_val):
         self.w_val = w_val
 
     def interpret_simple(self, env):
-        return values.W_Syntax(self.w_val)
-
-    def assign_convert(self, vars, env_structure):
-        return self
+        from pycket.prims.correlated import W_Correlated
+        return W_Correlated(self.w_val, values.w_false, {})
 
     def direct_children(self):
         return []
 
-    def _mutated_vars(self):
-        return variable_set()
-
     def _tostring(self):
         return "#'%s" % self.w_val.tostring()
 
+    def to_sexp(self):
+        qs_sym = values.W_Symbol.make("quote-syntax")
+        return values.W_Cons.make(qs_sym, values.W_Cons.make(self.w_val.to_sexp(), values.w_null))
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(quote-syntax ")
+        write_loop(self.w_val, port, env)
+        port.write(")")
+
 class VariableReference(AST):
-    _immutable_fields_ = ["var", "is_mut", "path"]
+    _immutable_fields_ = ["var", "is_mut", "path", "unsafe"]
+    visitable = True
     simple = True
-    def __init__ (self, var, path, is_mut=False):
+    def __init__ (self, var, path, is_mut=False, unsafe=False):
         self.var = var
         self.path = path
         self.is_mut = is_mut
+        self.unsafe = unsafe
 
     def is_mutable(self, env):
         if self.is_mut:
@@ -720,29 +966,51 @@ class VariableReference(AST):
             return False
 
     def interpret_simple(self, env):
-        return values.W_VariableReference(self)
-
-    def assign_convert(self, vars, env_structure):
-        v = self.var
-        if isinstance(v, LexicalVar) and v in vars:
-            return VariableReference(v, self.path, True)
-        # top-level variables are always mutable
-        if isinstance(v, ToplevelVar):
-            return VariableReference(v, self.path, True)
-        else:
-            return self
+        instance_var_sym = values.W_Symbol.make("instance-variable-reference")
+        try:
+            instance = env.toplevel_env().toplevel_lookup(instance_var_sym)
+        except SchemeException:
+            instance = None
+        return values.W_VariableReference(self, instance)
 
     def direct_children(self):
         return []
 
-    def _mutated_vars(self):
-        return variable_set()
-
     def _tostring(self):
         return "#<#%variable-reference>"
 
+    def to_sexp(self):
+        from pycket.values_string import W_String
+
+        vr_sym = values.W_Symbol.make("#%variable-reference")
+        var_sexp = self.var.to_sexp() if self.var else values.w_false
+        path_sexp = values.w_false
+        if isinstance(self.path, str):
+            path_sexp = W_String.fromascii(self.path)
+        mut_sexp = values.w_true if self.is_mut else values.w_false
+        return values.to_list([vr_sym, var_sexp, path_sexp, mut_sexp])
+
+    def write(self, port, env):
+        port.write("(#%variable-reference ")
+        if self.var:
+            self.var.write(port, env)
+        else:
+            port.write(" #f")
+
+        if self.path:
+            port.write(" %s " % self.path)
+        else:
+            port.write(" #f")
+
+        if self.is_mut:
+            port.write(" #t")
+        else:
+            port.write(" #f")
+        port.write(")")
+
 class WithContinuationMark(AST):
     _immutable_fields_ = ["key", "value", "body"]
+    visitable = True
 
     def __init__(self, key, value, body):
         self.key = key
@@ -754,30 +1022,42 @@ class WithContinuationMark(AST):
                                                     self.value.tostring(),
                                                     self.body.tostring())
 
-    def assign_convert(self, vars, env_structure):
-        return WithContinuationMark(self.key.assign_convert(vars, env_structure),
-                                    self.value.assign_convert(vars, env_structure),
-                                    self.body.assign_convert(vars, env_structure))
-
     def direct_children(self):
         return [self.key, self.value, self.body]
-
-    def _mutated_vars(self):
-        x = self.key.mutated_vars()
-        for r in [self.value, self.body]:
-            x.update(r.mutated_vars())
-        return x
 
     def interpret(self, env, cont):
         return self.key, env, WCMKeyCont(self, env, cont)
 
+    def normalize(self, context):
+        key    = Context.normalize_term(self.key)
+        value  = Context.normalize_term(self.value)
+        body   = Context.normalize_term(self.body)
+        result = WithContinuationMark(key, value, body)
+        return context.plug(result)
+
+    def to_sexp(self):
+        wcm_sym = values.W_Symbol.make("with-continuation-mark")
+        assert self.key and self.value and self.body
+        return values.to_list([wcm_sym, self.key.to_sexp(), self.value.to_sexp(), self.body.to_sexp()])
+
+    def write(self, port, env):
+        port.write("(with-continuation-mark ")
+        if self.key:
+            self.key.write(port, env)
+            port.write(" ")
+        if self.value:
+            self.value.write(port, env)
+            port.write(" ")
+        if self.body:
+            self.body.write(port, env)
+            port.write(" ")
+        port.write(")")
+
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
+    visitable = True
 
     def __init__ (self, rator, rands, env_structure=None):
-        assert rator.simple
-        for r in rands:
-            assert r.simple
         self.rator = rator
         self.rands = rands
         self.env_structure = env_structure
@@ -790,56 +1070,14 @@ class App(AST):
             except SchemeException:
                 pass
             else:
-                if isinstance(w_prim, values.W_Prim):
-                    if w_prim.simple1 and len(rands) == 1:
-                        return SimplePrimApp1(rator, rands, env_structure, w_prim)
-                    if w_prim.simple2 and len(rands) == 2:
-                        return SimplePrimApp2(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimSimple1) and len(rands) == 1:
+                    return SimplePrimApp1(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimSimple2) and len(rands) == 2:
+                    return SimplePrimApp2(rator, rands, env_structure, w_prim)
         return App(rator, rands, env_structure)
-
-    @staticmethod
-    def make_let_converted(rator, rands):
-        all_args = [rator] + rands
-        fresh_vars = []
-        fresh_rhss = []
-
-        name = "AppRator_"
-        for i, rand in enumerate(all_args):
-            if not rand.simple:
-                fresh_rand = Gensym.gensym(name)
-                fresh_rand_var = LexicalVar(fresh_rand)
-                if isinstance(rand, Let) and len(rand.body) == 1:
-                    # this is quadratic for now :-(
-                    if not fresh_vars:
-                        all_args[i] = fresh_rand_var
-                        return rand.replace_innermost_with_app(fresh_rand, all_args[0], all_args[1:])
-                    else:
-                        fresh_body = [App.make_let_converted(all_args[0], all_args[1:])]
-                        return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
-                all_args[i] = fresh_rand_var
-                fresh_rhss.append(rand)
-                fresh_vars.append(fresh_rand)
-            name = "AppRand%s_"%i
-        # The body is an App operating on the freshly bound symbols
-        if fresh_vars:
-            fresh_body = [App.make(all_args[0], all_args[1:])]
-            return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
-        else:
-            return App.make(rator, rands)
-
-    def assign_convert(self, vars, env_structure):
-        rator = self.rator.assign_convert(vars, env_structure)
-        rands = [r.assign_convert(vars, env_structure) for r in self.rands]
-        return App.make(rator, rands, env_structure=env_structure)
 
     def direct_children(self):
         return [self.rator] + self.rands
-
-    def _mutated_vars(self):
-        x = self.rator.mutated_vars()
-        for r in self.rands:
-            x.update(r.mutated_vars())
-        return x
 
     # Let conversion ensures that all the participants in an application
     # are simple.
@@ -850,14 +1088,20 @@ class App(AST):
                 isinstance(rator, ModuleVar) and
                 rator.is_primitive()):
             self.set_should_enter() # to jit downrecursion
-        w_callable = rator.interpret_simple(env)
-        args_w = [None] * len(self.rands)
-        for i, rand in enumerate(self.rands):
-            args_w[i] = rand.interpret_simple(env)
-        if isinstance(w_callable, values.W_PromotableClosure):
-            # fast path
-            jit.promote(w_callable)
-            w_callable = w_callable.closure
+        try:
+            w_callable = rator.interpret_simple(env)
+            args_w = [None] * len(self.rands)
+            for i, rand in enumerate(self.rands):
+                args_w[i] = rand.interpret_simple(env)
+            if isinstance(w_callable, values.W_PromotableClosure):
+                # fast path
+                jit.promote(w_callable)
+                w_callable = w_callable.closure
+        except SchemeException, exn:
+            return convert_runtime_exception(exn, env, cont)
+        except OSError, exn:
+            return convert_os_error(exn, env, cont)
+            
         return w_callable, args_w
 
     def interpret(self, env, cont):
@@ -869,19 +1113,44 @@ class App(AST):
         return w_callable.call_with_extra_info_and_stack(
                 args_w, env, self)
 
+    def normalize(self, context):
+        context = Context.AppRator(self.rands, context)
+        return Context.normalize_name(self.rator, context, hint="AppRator")
+
     def _tostring(self):
         elements = [self.rator] + self.rands
         return "(%s)" % " ".join([r.tostring() for r in elements])
 
+    def to_sexp(self):
+        rator_sexp = self.rator.to_sexp()
+        rands_sexp = values.w_null
+        for rand in reversed(self.rands):
+            rands_sexp = values.W_Cons.make(rand.to_sexp(), rands_sexp)
+
+        return values.W_Cons.make(rator_sexp, rands_sexp)
+
+    def write(self, port, env):
+        port.write("(")
+        self.rator.write(port, env)
+        for r in self.rands:
+            port.write(" ")
+            r.write(port, env)
+        port.write(")")
+
 class SimplePrimApp1(App):
     _immutable_fields_ = ['w_prim', 'rand1']
     simple = True
+    visitable = False
 
     def __init__(self, rator, rands, env_structure, w_prim):
         App.__init__(self, rator, rands, env_structure)
         assert len(rands) == 1
         self.rand1, = rands
         self.w_prim = w_prim
+
+    def normalize(self, context):
+        context = Context.AppRand(self.rator, context)
+        return Context.normalize_names(self.rands, context)
 
     def run(self, env):
         result = self.w_prim.simple1(self.rand1.interpret_simple(env))
@@ -893,19 +1162,20 @@ class SimplePrimApp1(App):
         return check_one_val(self.run(env))
 
     def interpret(self, env, cont):
-        from pycket.prims.control import convert_runtime_exception
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
         try:
             result = self.run(env)
         except SchemeException, exn:
             return convert_runtime_exception(exn, env, cont)
+        except OSError, exn:
+                return convert_os_error(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
-
 
 class SimplePrimApp2(App):
     _immutable_fields_ = ['w_prim', 'rand1', 'rand2']
     simple = True
+    visitable = False
 
     def __init__(self, rator, rands, env_structure, w_prim):
         App.__init__(self, rator, rands, env_structure)
@@ -913,8 +1183,11 @@ class SimplePrimApp2(App):
         self.rand1, self.rand2 = rands
         self.w_prim = w_prim
 
+    def normalize(self, context):
+        context = Context.AppRand(self.rator, context)
+        return Context.normalize_names(self.rands, context)
+
     def run(self, env):
-        from pycket.prims.control import convert_runtime_exception
         arg1 = self.rand1.interpret_simple(env)
         arg2 = self.rand2.interpret_simple(env)
         result = self.w_prim.simple2(arg1, arg2)
@@ -926,36 +1199,84 @@ class SimplePrimApp2(App):
         return check_one_val(self.run(env))
 
     def interpret(self, env, cont):
-        from pycket.prims.control import convert_runtime_exception
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
         try:
             result = self.run(env)
         except SchemeException, exn:
             return convert_runtime_exception(exn, env, cont)
+        except OSError, exn:
+            return convert_os_error(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):
-    _immutable_fields_ = ["body[*]", "counting_asts[*]"]
-    def __init__(self, body, counts_needed=-1):
+    _immutable_fields_ = ["body[*]", "counting_asts[*]",
+                          "_sequenced_env_structure",
+                          "_sequenced_remove_num_envs[*]"]
+
+    visitable = False
+    _sequenced_env_structure = None
+    _sequenced_remove_num_envs = None
+
+    def __init__(self, body, counts_needed=-1, sequenced_env_structure=None, sequenced_remove_num_envs=None):
+        from rpython.rlib.debug import make_sure_not_resized
         assert isinstance(body, list)
         assert len(body) > 0
         self.body = body
+        make_sure_not_resized(self.body)
         if counts_needed < len(self.body) + 1:
             counts_needed = len(self.body) + 1
         self.counting_asts = [
             CombinedAstAndIndex(self, i)
                 for i in range(counts_needed)]
 
+    def init_body_pruning(self, env_structure, remove_num_envs):
+        self._sequenced_env_structure = env_structure
+        self._sequenced_remove_num_envs = remove_num_envs
+
+    def copy_body_pruning(self, other):
+        assert isinstance(other, SequencedBodyAST)
+        self._sequenced_env_structure   = other._sequenced_env_structure
+        self._sequenced_remove_num_envs = other._sequenced_remove_num_envs
+
+    @staticmethod
+    def _check_environment_consistency(env, env_structure):
+        if objectmodel.we_are_translated():
+            return
+        if env_structure is None:
+            assert isinstance(env, ToplevelEnv)
+        else:
+            env_structure.check_plausibility(env)
+
+    @jit.unroll_safe
+    def _prune_sequenced_envs(self, env, i=0):
+        env_structure = self._sequenced_env_structure
+        if env_structure is None:
+            return env
+        if i:
+            already_pruned = self._sequenced_remove_num_envs[i - 1]
+            for j in range(already_pruned):
+                env_structure = env_structure.prev
+        else:
+            already_pruned = 0
+        self._check_environment_consistency(env, env_structure)
+        for i in range(self._sequenced_remove_num_envs[i] - already_pruned):
+            env = env.get_prev(env_structure)
+            env_structure = env_structure.prev
+        return env
+
     @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
         jit.promote(i)
+        if not i:
+            env = self._prune_sequenced_envs(env, 0)
         if i == len(self.body) - 1:
             return self.body[i], env, prev
         else:
+            new_env = self._prune_sequenced_envs(env, i + 1)
             return self.body[i], env, BeginCont(
-                    self.counting_asts[i + 1], env, prev)
+                    self.counting_asts[i + 1], new_env, prev)
 
     @jit.unroll_safe
     def _interpret_stack_body(self, env):
@@ -970,69 +1291,121 @@ class SequencedBodyAST(AST):
         return W_StackTrampoline(self.body[-1], env)
 
 
-class Begin0(AST):
-    _immutable_fields_ = ["first", "body"]
+class Begin0(SequencedBodyAST):
+    _immutable_fields_ = ["first"]
+    visitable = True
 
     @staticmethod
-    def make(fst, rst):
-        if rst:
-            return Begin0(fst, Begin.make(rst))
-        return fst
+    def make(first, rest):
+        rest = remove_pure_ops(rest, always_last=False)
+        if rest:
+            return Begin0(first, rest)
+        return first
 
     def __init__(self, fst, rst):
-        assert isinstance(rst, AST)
+        assert isinstance(rst, list)
+        SequencedBodyAST.__init__(self, rst)
         self.first = fst
-        self.body = rst
-
-    def assign_convert(self, vars, env_structure):
-        return Begin0(self.first.assign_convert(vars, env_structure),
-                      self.body.assign_convert(vars, env_structure))
 
     def direct_children(self):
-        return [self.first, self.body]
-
-    def _mutated_vars(self):
-        x = variable_set()
-        for r in [self.first, self.body]:
-            x.update(r.mutated_vars())
-        return x
+        return [self.first] + self.body
 
     def _tostring(self):
-        return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
+        body = [self.first.tostring()] + [b.tostring() for b in self.body]
+        return "(begin0 %s)" % " ".join(body)
+
+    def normalize(self, context):
+        first = Context.normalize_term(self.first)
+        body  = [Context.normalize_term(b) for b in self.body]
+        result = Begin0(first, body)
+        return context.plug(result)
 
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
 
+    def to_sexp(self):
+        beg0_sym = values.W_Symbol.make("begin0")
+        return values.to_list([beg0_sym] + [b.to_sexp() for b in self.direct_children()])
+
+    def write(self, port, env):
+        port.write("(begin0 ")
+        self.first.write(port, env)
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
+
+@specialize.call_location()
+def remove_pure_ops(ops, always_last=True):
+    """ The specialize annotation is to allow handling of resizable and non-resizable
+        lists as arguments. """
+    if always_last:
+        last = len(ops) - 1
+        return [op for i, op in enumerate(ops) if not op.ispure or i == last]
+    else:
+        return [op for i, op in enumerate(ops) if not op.ispure]
+
 class Begin(SequencedBodyAST):
+    visitable = True
+
     @staticmethod
     def make(body):
+        body = remove_pure_ops(body)
+
         if len(body) == 1:
             return body[0]
-        else:
-            return Begin(body)
 
-    def assign_convert(self, vars, env_structure):
-        return Begin.make([e.assign_convert(vars, env_structure) for e in self.body])
+        # Flatten nested begin expressions
+        flattened = []
+        for b in body:
+            if isinstance(b, Begin):
+                for inner in b.body:
+                    flattened.append(inner)
+            else:
+                flattened.append(b)
+        body = remove_pure_ops(flattened)
+
+        # Convert (begin (let ([...]) letbody) rest ...) =>
+        #         (let ([...]) letbody ... rest ...)
+        b0 = body[0]
+        if isinstance(b0, Let):
+            rest    = body[1:]
+            letbody = b0.body
+            letargs = b0._rebuild_args()
+            letrhss = b0.rhss
+            return make_let(letargs, letrhss, letbody + rest)
+
+        return Begin(body)
 
     def direct_children(self):
         return self.body
-
-    def _mutated_vars(self):
-        x = variable_set()
-        for r in self.body:
-            x.update(r.mutated_vars())
-        return x
 
     @objectmodel.always_inline
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
+    def normalize(self, context):
+        body = [Context.normalize_term(b) for b in self.body]
+        result = Begin.make(body)
+        return context.plug(result)
+
     def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
-class BeginForSyntax(AST):
+    def to_sexp(self):
+        begin_sym = values.W_Symbol.make("begin")
+        return values.to_list([begin_sym] + [b.to_sexp() for b in self.body])
 
+    def write(self, port, env):
+        port.write("(begin ")
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
+
+class BeginForSyntax(AST):
     _immutable_fields_ = ["body[*]"]
+    visitable = True
     simple = True
 
     def __init__(self, body):
@@ -1044,19 +1417,24 @@ class BeginForSyntax(AST):
     def interpret_simple(self, env):
         return values.w_void
 
-    def _mutated_vars(self):
-        return variable_set()
-
-    def assign_convert(self, vars, env_structure):
-        new_body = [b.assign_convert(vars, env_structure) for b in self.body]
-        return BeginForSyntax(new_body)
-
     def _tostring(self):
         return "(begin-for-syntax %s)" % " ".join([b.tostring() for b in self.body])
+
+    def to_sexp(self):
+        bfs_sym = values.W_Symbol.make("begin-for-syntax")
+        return values.to_list([bfs_sym] + [b.to_sexp() for b in self.body])
+
+    def write(self, port, env):
+        port.write("(begin-for-syntax ")
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
 
 class Var(AST):
     _immutable_fields_ = ["sym", "env_structure"]
     simple = True
+    ispure = True
 
     def __init__ (self, sym, env_structure=None):
         assert isinstance(sym, values.W_Symbol)
@@ -1066,27 +1444,28 @@ class Var(AST):
     def interpret_simple(self, env):
         val = self._lookup(env)
         if val is None:
-            raise SchemeException("%s: undefined" % self.sym.utf8value)
+            raise SchemeException("%s: undefined" % self.sym.tostring())
         return val
 
     def direct_children(self):
         return []
 
-    def _mutated_vars(self):
-        return variable_set()
-
-    def _free_vars(self):
-        return {self.sym: None}
+    def _free_vars(self, cache):
+        return SymbolSet.singleton(self.sym)
 
     def _tostring(self):
         return "%s" % self.sym.variable_name()
 
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
+
+    def to_sexp(self):
+        return self.sym
 
 class CellRef(Var):
     simple = True
-
-    def assign_convert(self, vars, env_structure):
-        return CellRef(self.sym, env_structure)
+    visitable = True
 
     def _tostring(self):
         return "CellRef(%s)" % Var._tostring(self)
@@ -1100,6 +1479,10 @@ class CellRef(Var):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
         return v.get_val()
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
 
 class GensymCounter(object):
     _attrs_ = ['_val']
@@ -1129,38 +1512,80 @@ class Gensym(object):
     def gensym(hint="g"):
         counter = Gensym.get_counter(hint)
         count = counter.next_value()
-        return values.W_Symbol(unicode(hint + str(count)))
+        return values.W_Symbol(hint + str(count))
 
+# Same with ToplevelVar(is_free=False)
+# It's better to have LinkletVars only refer to W_LinkletVar
+class LinkletVar(Var):
+    visitable = True
+    _immutable_fields_ = ["sym"]
+
+    def __init__(self, sym):
+        self.sym = sym
+
+    def tostring(self):
+        return "(LinkletVar %s)" % (self.sym.tostring())
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
+
+    def _free_vars(self, cache):
+        return SymbolSet.EMPTY()
+
+    def _set(self, w_val, env):
+        env.toplevel_env().toplevel_set(self.sym, w_val)
+
+    def _lookup(self, env):
+        return env.toplevel_env().toplevel_lookup(self.sym)
+
+class LinkletStaticVar(LinkletVar):
+    _immutable_fields_ = ["sym", "w_value?"]
+
+    def __init__(self, sym):
+        LinkletVar.__init__(self, sym)
+        self.w_value = None
+
+    def _set(self, w_val, env):
+        env.toplevel_env().toplevel_set(self.sym, w_val)
+        self.w_value = w_val
+
+    def _lookup(self, env):
+        if self.w_value:
+            return self.w_value
+        self.w_value = env.toplevel_env().toplevel_lookup(self.sym)
+        return self.w_value
 
 class LexicalVar(Var):
+    visitable = True
     def _lookup(self, env):
-        if not objectmodel.we_are_translated():
-            self.env_structure.check_plausibility(env)
         return env.lookup(self.sym, self.env_structure)
 
     def _set(self, w_val, env):
         assert 0
 
-    def assign_convert(self, vars, env_structure):
-        #assert isinstance(vars, r_dict)
-        if self in vars:
-            return CellRef(self.sym, env_structure)
-        else:
-            return LexicalVar(self.sym, env_structure)
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
 
 class ModuleVar(Var):
     _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?", "path[*]"]
+    visitable = True
 
     def __init__(self, sym, srcmod, srcsym, path=None):
         Var.__init__(self, sym)
         self.srcmod = srcmod
         self.srcsym = srcsym
-        self.path   = path if path is not None else []
+        self.path = path
         self.modenv = None
         self.w_value = None
 
-    def _free_vars(self):
-        return {}
+    def _free_vars(self, cache):
+        return SymbolSet.EMPTY()
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.srcsym, port, env)
 
     def _lookup(self, env):
         w_res = self.w_value
@@ -1182,16 +1607,16 @@ class ModuleVar(Var):
 
     @jit.elidable
     def is_primitive(self):
-        return is_builtin_module(self.srcmod)
+        return self.srcmod is not None and is_builtin_module(self.srcmod)
 
     @jit.elidable
     def _elidable_lookup(self):
         assert self.modenv
         modenv = self.modenv
-        if self.is_primitive():
-            return self._lookup_primitive()
-        elif self.srcmod is None:
+        if self.srcmod is None:
             mod = modenv.current_module
+        elif self.is_primitive():
+            return self._lookup_primitive()
         else:
             mod = modenv._find_module(self.srcmod)
             if mod is None:
@@ -1206,15 +1631,6 @@ class ModuleVar(Var):
         except KeyError:
             raise SchemeException("can't find primitive %s" % (self.srcsym.tostring()))
 
-    def assign_convert(self, vars, env_structure):
-        return self
-        # # we use None here for hashing because we don't have the module name in the
-        # # define-values when we need to look this up.
-        # if ModuleVar(self.sym, None, self.srcsym) in vars:
-        #     return ModCellRef(self.sym, self.srcmod, self.srcsym)
-        # else:
-        #     return self
-
     def _set(self, w_val, env):
         if self.modenv is None:
             self.modenv = env.toplevel_env().module_env
@@ -1222,95 +1638,93 @@ class ModuleVar(Var):
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
 
-# class ModCellRef(Var):
-#     _immutable_fields_ = ["sym", "srcmod", "srcsym", "modvar"]
-
-#     def __init__(self, sym, srcmod, srcsym, env_structure=None):
-#         self.sym = sym
-#         self.srcmod = srcmod
-#         self.srcsym = srcsym
-#         self.modvar = ModuleVar(self.sym, self.srcmod, self.srcsym)
-#     def assign_convert(self, vars, env_structure):
-#         return ModCellRef(self.sym, self.srcmod, self.srcsym)
-#     def _tostring(self):
-#         return "ModCellRef(%s)" %variable_name(self.sym)
-#     def _set(self, w_val, env):
-#         w_res = self.modvar._lookup(env)
-#         assert isinstance(w_res, values.W_Cell)
-#         w_res.set_val(w_val)
-#     def _lookup(self, env):
-#         w_res = self.modvar._lookup(env)
-#         assert isinstance(w_res, values.W_Cell)
-#         return w_res.get_val()
-#     def to_modvar(self):
-#         # we use None here for hashing because we don't have the module name in the
-#         # define-values when we need to look this up.
-#         return ModuleVar(self.sym, None, self.srcsym)
-
-
 class ToplevelVar(Var):
+    visitable = True
+    def __init__(self, sym, env_structure=None, is_free=True):
+        Var.__init__(self, sym, env_structure)
+        self.is_free = is_free
+
+    def _free_vars(self, cache):
+        if self.is_free:
+            return SymbolSet.singleton(self.sym)
+        return SymbolSet.EMPTY()
+
     def _lookup(self, env):
         return env.toplevel_env().toplevel_lookup(self.sym)
-
-    def assign_convert(self, vars, env_structure):
-        return self
 
     def _set(self, w_val, env):
         env.toplevel_env().toplevel_set(self.sym, w_val)
 
-# rewritten version for caching
-def to_modvar(m):
-    return ModuleVar(m.sym, None, m.srcsym)
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
 
 class SetBang(AST):
     _immutable_fields_ = ["var", "rhs"]
+    visitable = True
+    simple = True
+
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs
 
-    def interpret(self, env, cont):
-        return self.rhs, env, SetBangCont(self, env, cont)
+    def interpret_simple(self, env):
+        w_val = self.rhs.interpret_simple(env)
+        self.var._set(w_val, env)
+        return values.w_void
 
-    def assign_convert(self, vars, env_structure):
-        return SetBang(self.var.assign_convert(vars, env_structure),
-                       self.rhs.assign_convert(vars, env_structure))
-
-    def _mutated_vars(self):
-        x = self.rhs.mutated_vars()
+    def _mutated_vars(self, cache):
+        x = self.rhs.mutated_vars(cache)
         var = self.var
         if isinstance(var, CellRef):
             x[LexicalVar(self.var.sym)] = None
         # even though we don't change these to cell refs, we still
         # have to convert the definitions
+        elif isinstance(var, LinkletVar):
+            x[var] = None
         elif isinstance(var, ModuleVar):
-            x[to_modvar(var)] = None
+            x[var] = None
         # do nothing for top-level vars, they're all mutated
         return x
 
     def direct_children(self):
         return [self.var, self.rhs]
 
+    def normalize(self, context):
+        context = Context.SetBang(self.var, context)
+        return Context.normalize_name(self.rhs, context, hint="SetBang")
+
     def _tostring(self):
-        return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())
+        return "(set! %s %s)" % (self.var.tostring(), self.rhs.tostring())
+
+    def to_sexp(self):
+        set_sym = values.W_Symbol.make("set!")
+        return values.to_list([set_sym, self.var.to_sexp(), self.rhs.to_sexp()])
+
+    def write(self, port, env):
+        port.write("(set! ")
+        self.var.write(port, env)
+        port.write(" ")
+        self.rhs.write(port, env)
+        port.write(")")
 
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els"]
-    def __init__ (self, tst, thn, els):
-        assert tst.simple
+    visitable = True
+
+    def __init__(self, tst, thn, els):
         self.tst = tst
         self.thn = thn
         self.els = els
 
     @staticmethod
-    def make_let_converted(tst, thn, els):
-        if tst.simple:
-            return If(tst, thn, els)
-        else:
-            fresh = Gensym.gensym("if_")
-            return Let(SymList([fresh]),
-                       [1],
-                       [tst],
-                       [If(LexicalVar(fresh), thn, els)])
+    def make(tst, thn, els):
+        if isinstance(tst, Quote):
+            if tst.w_val is values.w_false:
+                return els
+            else:
+                return thn
+        return If(tst, thn, els)
 
     @objectmodel.always_inline
     def interpret(self, env, cont):
@@ -1327,44 +1741,55 @@ class If(AST):
         else:
             return W_StackTrampoline(self.thn, env)
 
-
-    def assign_convert(self, vars, env_structure):
-        sub_env_structure = env_structure
-        return If(self.tst.assign_convert(vars, env_structure),
-                  self.thn.assign_convert(vars, sub_env_structure),
-                  self.els.assign_convert(vars, sub_env_structure))
-
     def direct_children(self):
         return [self.tst, self.thn, self.els]
 
-    def _mutated_vars(self):
-        x = variable_set()
-        for b in [self.tst, self.els, self.thn]:
-            x.update(b.mutated_vars())
-        return x
+    def normalize(self, context):
+        context = Context.If(self.thn, self.els, context)
+        return Context.normalize_name(self.tst, context, hint="if")
 
     def _tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
+    def to_sexp(self):
+        if_sym = values.W_Symbol.make("if")
+        return values.to_list([if_sym, self.tst.to_sexp(), self.thn.to_sexp(), self.els.to_sexp()])
+
+    def write(self, port, env):
+        port.write("(if ")
+        self.tst.write(port, env)
+        port.write(" ")
+        self.thn.write(port, env)
+        port.write(" ")
+        self.els.write(port, env)
+        port.write(")")
+
 def make_lambda(formals, rest, body, sourceinfo=None):
+    """
+    Create a λ-node after computing information about the free variables
+    in the body. The 'args' field stores both the function arguments as well
+    as the free variables in a SymList.
+    The 'args' SymList hold the expected environment structure for the body of
+    the λ-expression.
+    """
+    body = remove_pure_ops(body)
     args = SymList(formals + ([rest] if rest else []))
-    frees = SymList(free_vars_lambda(body, args).keys())
+    frees = SymList(free_vars_lambda(body, args, {}).keys())
     args = SymList(args.elems, frees)
     return Lambda(formals, rest, args, frees, body, sourceinfo=sourceinfo)
 
-
-def free_vars_lambda(body, args):
-    x = {}
+def free_vars_lambda(body, args, cache):
+    x = SymbolSet.EMPTY()
     for b in body:
-        x.update(b.free_vars())
-    for v in args.elems:
-        if v in x:
-            del x[v]
+        x = x.union(b.free_vars(cache))
+    x = x.without_many(args.elems)
     return x
 
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?", "_arity"]
+    visitable = True
     simple = True
+    ispure = True
 
     def __init__(self, lams, recursive_sym=None, arity=None):
         ## TODO: drop lams whose arity is redundant
@@ -1372,7 +1797,8 @@ class CaseLambda(AST):
         self.lams = lams
         self.any_frees = False
         for l in lams:
-            if l.frees.elems:
+            frees = l.frees.elems
+            if frees and frees != [recursive_sym]:
                 self.any_frees = True
                 break
         self._closurerepr = None
@@ -1396,42 +1822,49 @@ class CaseLambda(AST):
             # cache closure if there are no free variables and the toplevel env
             # is the same as last time
             w_closure = self.w_closure_if_no_frees
-            if w_closure is None:
+            if w_closure is None or (len(self.lams) > 0 and w_closure.closure._get_list(0).toplevel_env() is not env.toplevel_env()):
                 w_closure = values.W_PromotableClosure(self, env.toplevel_env())
                 self.w_closure_if_no_frees = w_closure
-            else:
-                if not jit.we_are_jitted():
-                    assert w_closure.closure._get_list(0).toplevel_env() is env.toplevel_env()
             return w_closure
         return values.W_Closure.make(self, env)
 
-    def _free_vars(self):
+    def _free_vars(self, cache):
         # call _free_vars() to avoid populating the free vars cache
-        result = AST._free_vars(self)
-        if self.recursive_sym in result:
-            del result[self.recursive_sym]
+        result = AST._free_vars(self, cache)
+        if self.recursive_sym is not None:
+            result = result.without(self.recursive_sym)
         return result
 
     def direct_children(self):
         # the copy is needed for weird annotator reasons that I don't understand :-(
         return [l for l in self.lams]
 
-    def _mutated_vars(self):
-        x = variable_set()
-        for l in self.lams:
-            x.update(l.mutated_vars())
-        return x
-
-    def assign_convert(self, vars, env_structure):
-        ls = [l.assign_convert(vars, env_structure) for l in self.lams]
-        return CaseLambda(ls, recursive_sym=self.recursive_sym, arity=self._arity)
-
     def _tostring(self):
         if len(self.lams) == 1:
             return self.lams[0].tostring()
-        return "(case-lambda %s)" % (" ".join([l.tostring() for l in self.lams]))
+        r_sym_str = self.recursive_sym.tostring() if self.recursive_sym else ""
+        return "(case-lambda (recursive-sym %s) %s)" % (r_sym_str, " ".join([l.tostring() for l in self.lams]))
 
-    @jit.elidable
+    def to_sexp(self):
+        case_sym = values.W_Symbol.make("case-lambda")
+        rec_sym = values.W_Symbol.make("recursive-sym")
+        rec_ls = [rec_sym, self.recursive_sym.to_sexp()] if self.recursive_sym else [rec_sym]
+        rec_sexp = values.to_list(rec_ls)
+        lams_ls = [l.to_sexp() for l in self.lams]
+        return values.to_list([case_sym, rec_sexp] + lams_ls)
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(case-lambda (recursive-sym ")
+        if self.recursive_sym:
+            write_loop(self.recursive_sym, port, env)
+        port.write(")")
+        for l in self.lams:
+            port.write(" ")
+            l.write(port, env)
+        port.write(")")
+
+    @jit.elidable_promote('all')
     def tostring_as_closure(self):
         _closurerepr = self._closurerepr
         if _closurerepr is None:
@@ -1442,6 +1875,7 @@ class CaseLambda(AST):
         if len(self.lams) == 0:
             return "#<procedure>"
         lam = self.lams[0]
+        assert isinstance(lam, Lambda)
         info = lam.sourceinfo
         file, pos = info.sourcefile, info.position
         if file and pos >= 0:
@@ -1470,11 +1904,21 @@ class CaseLambda(AST):
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
 
+    def normalize(self, context):
+        lams   = [Context.normalize_term(lam, expect=Lambda) for lam in self.lams]
+        result = CaseLambda(lams, recursive_sym=self.recursive_sym, arity=self._arity)
+        return context.plug(result)
+
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
-                          "frees", "enclosing_env_structure", 'env_structure',
+                          "frees", "enclosing_env_structure", "env_structure",
                           "sourceinfo"]
+    visitable = True
     simple = True
+    ispure = True
+
+    import_from_mixin(BindingFormMixin)
+
     def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.sourceinfo = sourceinfo
@@ -1486,6 +1930,10 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
+
+    def init_arg_cell_flags(self, args_need_cell_flags):
+        if True in args_need_cell_flags:
+            self.args_need_cell_flags = args_need_cell_flags
 
     def enable_jitting(self):
         self.body[0].set_should_enter()
@@ -1504,31 +1952,6 @@ class Lambda(SequencedBodyAST):
     def interpret_simple(self, env):
         assert False # unreachable
 
-    def assign_convert(self, vars, env_structure):
-        local_muts = variable_set()
-        for b in self.body:
-            local_muts.update(b.mutated_vars())
-        new_lets = []
-        new_vars = vars.copy()
-        for i in self.args.elems:
-            li = LexicalVar(i)
-            if li in new_vars:
-                del new_vars[li]
-            if li in local_muts:
-                new_lets.append(i)
-        for k, v in local_muts.iteritems():
-            new_vars[k] = v
-        if new_lets:
-            sub_env_structure = SymList(new_lets, self.args)
-        else:
-            sub_env_structure = self.args
-        new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
-        if new_lets:
-            cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
-            new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
-        return Lambda(self.formals, self.rest, self.args, self.frees, new_body,
-                      self.sourceinfo, env_structure, sub_env_structure)
-
     def direct_children(self):
         return self.body[:]
 
@@ -1536,31 +1959,52 @@ class Lambda(SequencedBodyAST):
         self.surrounding_lambda = lam
         # don't recurse
 
-    def _mutated_vars(self):
+    def _mutated_vars(self, cache):
         x = variable_set()
         for b in self.body:
-            x.update(b.mutated_vars())
+            x.update(b.mutated_vars(cache))
         for v in self.args.elems:
             lv = LexicalVar(v)
             if lv in x:
                 del x[lv]
         return x
 
-    def _free_vars(self):
-        result = free_vars_lambda(self.body, self.args)
-        return result
+    def _free_vars(self, cache):
+        return free_vars_lambda(self.body, self.args, cache)
 
+    @jit.unroll_safe
+    def _has_mutable_args(self):
+        if self.args_need_cell_flags is None:
+            return False
+        for flag in self.args_need_cell_flags:
+            if flag:
+                return True
+        return False
+
+    def _is_mutable_arg(self, i):
+        return self.args_need_cell_flags is not None and self.args_need_cell_flags[i]
+
+    @jit.unroll_safe
     def match_args(self, args):
         fmls_len = len(self.formals)
         args_len = len(args)
-        if fmls_len != args_len and not self.rest:
+        if fmls_len != args_len and self.rest is None:
             return None
         if fmls_len > args_len:
             return None
-        if self.rest:
-            actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
+        if self.rest is None:
+            if not self.binds_mutable_var():
+                return args
+            numargs = fmls_len
         else:
-            actuals = args
+            numargs = fmls_len + 1
+        actuals = [None] * numargs
+        for i in range(fmls_len):
+            actuals[i] = self.wrap_value(args[i], i)
+        if self.rest is None:
+            return actuals
+        rest = values.to_list(args, start=fmls_len)
+        actuals[-1] = self.wrap_value(rest, -1)
         return actuals
 
     def raise_nice_error(self, args):
@@ -1600,6 +2044,14 @@ class Lambda(SequencedBodyAST):
                 i += 1
         return vals
 
+    def normalize(self, context):
+        body = [Context.normalize_term(b) for b in self.body]
+        result = Lambda(self.formals, self.rest, self.args, self.frees, body,
+                        sourceinfo=self.sourceinfo,
+                        enclosing_env_structure=self.enclosing_env_structure,
+                        env_structure=self.env_structure)
+        return context.plug(result)
+
     def _tostring(self):
         if self.rest and not self.formals:
             return "(lambda %s %s)" % (self.rest.tostring(), [b.tostring() for b in self.body])
@@ -1612,6 +2064,47 @@ class Lambda(SequencedBodyAST):
                 self.body[0].tostring() if len(self.body) == 1 else
                 " ".join([b.tostring() for b in self.body]))
 
+    def to_sexp(self):
+        lam_sym = values.W_Symbol.make("lambda")
+
+        if self.rest and not self.formals:
+            args_sexp = self.rest.to_sexp()
+        elif self.rest:
+            args_sexp = self.rest.to_sexp()
+            for f in reversed(self.formals):
+                args_sexp = values.W_Cons.make(f.to_sexp(), args_sexp)
+        else:
+            args_sexp = values.to_list(self.formals)
+
+        body_ls = [b.to_sexp() for b in self.body]
+        return values.to_list([lam_sym, args_sexp] + body_ls)
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(lambda")
+        port.write(" ")
+        if self.rest and not self.formals:
+            write_loop(self.rest, port, env)
+            port.write(" ")
+        elif self.rest:
+            port.write("(")
+            for f in self.formals:
+                write_loop(f, port, env)
+                port.write(" ")
+            port.write(".")
+            port.write(" ")
+            write_loop(self.rest, port, env)
+            port.write(")")
+        else:
+            port.write("(")
+            for f in self.formals:
+                write_loop(f, port, env)
+                port.write(" ")
+            port.write(")")
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
 
 class CombinedAstAndIndex(AST):
     _immutable_fields_ = ["ast", "index"]
@@ -1657,17 +2150,18 @@ class CombinedAstAndAst(AST):
 
 class Letrec(SequencedBodyAST):
     _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
+    visitable = True
     def __init__(self, args, counts, rhss, body):
         assert len(counts) > 0 # otherwise just use a begin
         assert isinstance(args, SymList)
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
         self.counts = counts
-        total_counts = []
+        total_counts = [0] * len(counts)
         total_count = 0
         for i, count in enumerate(counts):
-            total_counts.append(total_count)
+            total_counts[i] = total_count
             total_count += count
-        self.total_counts = total_counts[:] # copy to make fixed-size
+        self.total_counts = total_counts
         self.rhss = rhss
         self.args = args
 
@@ -1684,53 +2178,96 @@ class Letrec(SequencedBodyAST):
     def direct_children(self):
         return self.rhss + self.body
 
-    def _mutated_vars(self):
+    def _mutated_vars(self, cache):
         x = variable_set()
         for b in self.body + self.rhss:
-            x.update(b.mutated_vars())
+            x.update(b.mutated_vars(cache))
         for v in self.args.elems:
             lv = LexicalVar(v)
             x[lv] = None
         return x
 
-    def _free_vars(self):
-        x = AST._free_vars(self)
-        for v in self.args.elems:
-            if v in x:
-                del x[v]
+    def _free_vars(self, cache):
+        x = AST._free_vars(self, cache)
+        x = x.without_many(self.args.elems)
         return x
 
-    def assign_convert(self, vars, env_structure):
-        local_muts = variable_set()
-        for b in self.body + self.rhss:
-            local_muts.update(b.mutated_vars())
-        for v in self.args.elems:
-            lv = LexicalVar(v)
-            local_muts[lv] = None
-        new_vars = vars.copy()
-        for k, v in local_muts.iteritems():
-            new_vars[k] = v
-        sub_env_structure = SymList(self.args.elems, env_structure)
-        new_rhss = [rhs.assign_convert(new_vars, sub_env_structure) for rhs in self.rhss]
-        new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
-        return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
+    def normalize(self, context):
+        # XXX could we do something smarter here?
+        args = self._rebuild_args()
+        rhss = [Context.normalize_term(rhs) for rhs in self.rhss]
+        body = [Context.normalize_term(b)   for b   in self.body]
+        result = make_letrec(args, rhss, body)
+        return context.plug(result)
+
+    def _rebuild_args(self):
+        start = 0
+        result = [None] * len(self.counts)
+        for i, c in enumerate(self.counts):
+            result[i] = self.args.elems[start:start+c]
+            start += c
+        return result
 
     def _tostring(self):
-        vars = []
-        len = 0
-        for i in self.counts:
-            vars.append(self.args.elems[len:len+i])
-        return "(letrec (%s) %s)" % (
-            [([v.variable_name() for v in vs],
-              self.rhss[i].tostring()) for i, vs in enumerate(vars)],
-            [b.tostring() for b in self.body])
+        varss = self._rebuild_args()
+        bindings = [None] * len(varss)
+        for i, vars in enumerate(varss):
+            lhs = "(%s)" % " ".join([v.variable_name() for v in vars])
+            rhs = self.rhss[i].tostring()
+            bindings[i] = "[%s %s]" % (lhs, rhs)
+        bindings = " ".join(bindings)
+        body = " ".join([b.tostring() for b in self.body])
+        return "(letrec (%s) %s)" % (bindings, body)
+
+    def to_sexp(self):
+        letrec_sym = values.W_Symbol.make("letrec-values")
+        all_bindings_ls = [None]*len(self.counts)
+        total = 0
+        for i, count in enumerate(self.counts):
+            binding_ls = [None]*count
+            for k in range(count):
+                binding_ls[k] = self.args.elems[total+k]
+            total += count
+            current_bindings_sexp = values.to_list(binding_ls)
+            current_rhs_sexp = self.rhss[i].to_sexp()
+            current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
+            current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
+
+            all_bindings_ls[i] = current_ids
+
+        all_bindings = values.to_list(all_bindings_ls)
+
+        body_ls = [b.to_sexp() for b in self.body]
+        return values.to_list([letrec_sym, all_bindings] + body_ls)
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(letrec-values (")
+        j = 0
+        for i, count in enumerate(self.counts):
+            port.write("(")
+            port.write("(")
+            for k in range(count):
+                if k > 0:
+                    port.write(" ")
+                write_loop(self.args.elems[j], port, env)
+                j += 1
+            port.write(")")
+            port.write(" ")
+            self.rhss[i].write(port, env)
+            port.write(")")
+        port.write(")")
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
 
 def _make_symlist_counts(varss):
     counts = []
     argsl = []
     for vars in varss:
         counts.append(len(vars))
-        argsl += vars
+        argsl.extend(vars)
     argsl = argsl[:] # copy to make fixed-size
     return SymList(argsl), counts
 
@@ -1738,6 +2275,7 @@ def make_let(varss, rhss, body):
     if not varss:
         return Begin.make(body)
 
+    body = remove_pure_ops(body)
     if len(body) != 1 or not isinstance(body[0], Let):
         return _make_let_direct(varss, rhss, body)
 
@@ -1747,7 +2285,7 @@ def make_let(varss, rhss, body):
         frees = rhs.free_vars()
         for vars in varss:
             for var in vars:
-                if var in frees:
+                if frees.haskey(var):
                     return _make_let_direct(varss, rhss, [body])
     # At this point, we know the inner let does not
     # reference vars in the outer let
@@ -1765,34 +2303,50 @@ def make_let_singlevar(sym, rhs, body):
         b = body[0]
         if isinstance(b, Let):
             for r in b.rhss:
-                if sym in r.free_vars():
+                if r.free_vars().haskey(sym):
                     break
             else:
                 varss = [[sym]] + b._rebuild_args()
                 rhss  = [rhs] + b.rhss
                 body  = b.body
                 return make_let(varss, rhss, body)
+    body = remove_pure_ops(body)
     return Let(SymList([sym]), [1], [rhs], body)
 
 def _make_let_direct(varss, rhss, body):
     symlist, counts = _make_symlist_counts(varss)
+    if len(body) == 1:
+        b = body[0]
+        if isinstance(b, Begin):
+            body = b.body
     return Let(symlist, counts, rhss, body)
 
 def make_letrec(varss, rhss, body):
     if not varss:
         return Begin.make(body)
-    if 1 == len(varss) and 1 == len(varss[0]):
+    if len(varss) == 1 and len(varss[0]) == 1:
         rhs = rhss[0]
         sym = varss[0][0]
         if isinstance(rhs, CaseLambda) and LexicalVar(sym) not in rhs.mutated_vars():
             reclambda = rhs.make_recursive_copy(sym)
             return make_let_singlevar(sym, reclambda, body)
 
+    # Convert letrec binding no values to a let since the interpreter optimizes
+    # them better
+    for vars in varss:
+        if vars:
+            break
+    else:
+        return make_let(varss, rhss, body)
+
     symlist, counts = _make_symlist_counts(varss)
     return Letrec(symlist, counts, rhss, body)
 
 class Let(SequencedBodyAST):
     _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
+    visitable = True
+
+    import_from_mixin(BindingFormMixin)
 
     def __init__(self, args, counts, rhss, body, remove_num_envs=None):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
@@ -1806,16 +2360,6 @@ class Let(SequencedBodyAST):
             remove_num_envs = [0] * (len(rhss) + 1)
         self.remove_num_envs = remove_num_envs
 
-    def replace_innermost_with_app(self, newsym, rator, rands):
-        assert len(self.body) == 1
-        body = self.body[0]
-        if isinstance(body, Let) and len(body.body) == 1:
-            new_body = body.replace_innermost_with_app(newsym, rator, rands)
-        else:
-            app_body = [App.make_let_converted(rator, rands)]
-            new_body = Let(SymList([newsym]), [1], [body], app_body)
-        return Let(self.args, self.counts, self.rhss, [new_body])
-
     @jit.unroll_safe
     def _prune_env(self, env, i):
         env_structure = self.args.prev
@@ -1826,11 +2370,7 @@ class Let(SequencedBodyAST):
                 env_structure = env_structure.prev
         else:
             already_pruned = 0
-        if not objectmodel.we_are_translated():
-            if env_structure is None:
-                assert isinstance(env, ToplevelEnv)
-            else:
-                env_structure.check_plausibility(env)
+        self._check_environment_consistency(env, env_structure)
         for i in range(self.remove_num_envs[i] - already_pruned):
             env = env.get_prev(env_structure)
             env_structure = env_structure.prev
@@ -1867,136 +2407,38 @@ class Let(SequencedBodyAST):
     def direct_children(self):
         return self.rhss + self.body
 
-    def _mutated_vars(self):
+    def _mutated_vars(self, cache):
         x = variable_set()
         for b in self.body:
-            x.update(b.mutated_vars())
+            x.update(b.mutated_vars(cache))
         for v in self.args.elems:
             lv = LexicalVar(v)
             if lv in x:
                 del x[lv]
         for b in self.rhss:
-            x.update(b.mutated_vars())
+            x.update(b.mutated_vars(cache))
         return x
 
-    def _free_vars(self):
-        x = {}
+    def _free_vars(self, cache):
+        x = SymbolSet.EMPTY()
         for b in self.body:
-            x.update(b.free_vars())
-        for v in self.args.elems:
-            if v in x:
-                del x[v]
+            x = x.union(b.free_vars(cache))
+        x = x.without_many(self.args.elems)
         for b in self.rhss:
-            x.update(b.free_vars())
+            x = x.union(b.free_vars(cache))
         return x
 
-    def assign_convert(self, vars, env_structure):
-        sub_env_structure = SymList(self.args.elems, env_structure)
-        local_muts = variable_set()
-        for b in self.body:
-            local_muts.update(b.mutated_vars())
-        new_vars = vars.copy()
-        for k, v in local_muts.iteritems():
-            new_vars[k] = v
-        self, sub_env_structure, env_structures, remove_num_envs = self._compute_remove_num_envs(
-            new_vars, sub_env_structure)
-
-        new_rhss = [None] * len(self.rhss)
-        offset = 0
-        variables = self.args.elems
-        for i, rhs in enumerate(self.rhss):
-            new_rhs = rhs.assign_convert(vars, env_structures[i])
-            count = self.counts[i]
-            need_cell_flags = [LexicalVar(variables[offset+j]) in local_muts for j in range(count)]
-            if True in need_cell_flags:
-                new_rhs = Cell(new_rhs, need_cell_flags)
-            new_rhss[i] = new_rhs
-            offset += count
-
-        body_env_structure = env_structures[-1]
-
-        new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
-        result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
-        return result
-
-    def _compute_remove_num_envs(self, new_vars, sub_env_structure):
-        if not config.prune_env:
-            remove_num_envs = [0] * (len(self.rhss) + 1)
-            env_structures = [sub_env_structure.prev] * len(self.rhss)
-            env_structures.append(sub_env_structure)
-            return self, sub_env_structure, env_structures, remove_num_envs
-        # find out whether a smaller environment is sufficient for the body
-        free_vars_not_from_let = {}
-        for b in self.body:
-            free_vars_not_from_let.update(b.free_vars())
-        for x in self.args.elems:
-            try:
-                del free_vars_not_from_let[x]
-            except KeyError:
-                pass
-        # at most, we can remove all envs, apart from the one introduced by let
-        curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
-        max_needed = 0
-        free_vars_not_mutated = True
-        for v in free_vars_not_from_let:
-            depth = sub_env_structure.depth_of_var(v)[1] - 1
-            curr_remove = min(curr_remove, depth)
-            max_needed = max(max_needed, depth)
-            if LexicalVar(v) in new_vars:
-                free_vars_not_mutated = False
-        remove_num_envs = [curr_remove]
-        if not curr_remove:
-            body_env_structure = sub_env_structure
-        else:
-            next_structure = sub_env_structure.prev
-            for i in range(curr_remove):
-                next_structure = next_structure.prev
-            body_env_structure = SymList(self.args.elems, next_structure)
-        if (free_vars_not_mutated and max_needed == curr_remove and
-                max_depth > max_needed):
-            before_max_needed = sub_env_structure.prev.prev
-            for i in range(max_needed):
-                before_max_needed = before_max_needed.prev
-            body = self.body[0]
-            if before_max_needed and before_max_needed.depth_and_size()[1]:
-                # there is unneeded local env storage that we will never need
-                # in the body. thus, make a copy of all local variables into
-                # the current let, *before* the last rhs is evaluated
-                # we can reuse the var names
-                copied_vars = free_vars_not_from_let.keys()
-                new_rhss = self.rhss[:-1] + [LexicalVar(v) for v in copied_vars] + [self.rhss[-1]]
-
-                idx = self.counts[-1]
-                cutoff = len(body_env_structure.elems) - idx
-                assert cutoff >= 0
-                new_lhs_vars = body_env_structure.elems[:cutoff] + copied_vars + body_env_structure.elems[cutoff:]
-
-                counts = self.counts[:-1] + [1] * len(copied_vars) + [self.counts[-1]]
-                body_env_structure = SymList(new_lhs_vars)
-                sub_env_structure = SymList(new_lhs_vars, sub_env_structure.prev)
-                self = Let(body_env_structure, counts, new_rhss, self.body)
-                return self._compute_remove_num_envs(new_vars, sub_env_structure)
-
-        env_structures = [body_env_structure]
-        for i in range(len(self.rhss) - 1, -1, -1):
-            rhs = self.rhss[i]
-            free_vars = rhs.free_vars()
-            for v in free_vars:
-                curr_remove = min(curr_remove, sub_env_structure.prev.depth_of_var(v)[1])
-            next_structure = sub_env_structure.prev
-            for i in range(curr_remove):
-                next_structure = next_structure.prev
-            env_structures.append(next_structure)
-            remove_num_envs.append(curr_remove)
-        env_structures.reverse()
-        remove_num_envs.reverse()
-        return self, sub_env_structure, env_structures, remove_num_envs[:]
+    def normalize(self, context):
+        args = self._rebuild_args()
+        body = Begin.make(self.body)
+        context = Context.Let(args, self.rhss, body, context)
+        return self.rhss[0], context
 
     def _rebuild_args(self):
         start = 0
         result = [None] * len(self.counts)
         for i, c in enumerate(self.counts):
-            result[i] = [self.args.elems[start+j] for j in range(c)]
+            result[i] = self.args.elems[start:start+c]
             start += c
         return result
 
@@ -2022,54 +2464,104 @@ class Let(SequencedBodyAST):
         result.append(")")
         return "".join(result)
 
+    def to_sexp(self):
+        let_sym = values.W_Symbol.make("let-values")
+        all_bindings_ls = [None]*len(self.counts)
+        total = 0
+        for i, count in enumerate(self.counts):
+            binding_ls = [None]*count
+            for k in range(count):
+                binding_ls[k] = self.args.elems[total+k]
+            total += count
+            current_bindings_sexp = values.to_list(binding_ls)
+            current_rhs_sexp = self.rhss[i].to_sexp()
+            current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
+            current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
+
+            all_bindings_ls[i] = current_ids
+
+        all_bindings = values.to_list(all_bindings_ls)
+
+        body_ls = [b.to_sexp() for b in self.body]
+        return values.to_list([let_sym, all_bindings] + body_ls)
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(let-values (")
+        j = 0
+        for i, count in enumerate(self.counts):
+            port.write("(")
+            port.write("(")
+            for k in range(count):
+                if k > 0:
+                    port.write(" ")
+                write_loop(self.args.elems[j], port, env)
+                j += 1
+            port.write(")")
+            port.write(" ")
+            self.rhss[i].write(port, env)
+            port.write(")")
+        port.write(")")
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
+
+
 class DefineValues(AST):
     _immutable_fields_ = ["names", "rhs", "display_names"]
-    names = []
-    rhs = Quote(values.w_null)
+    visitable = True
 
     def __init__(self, ns, r, display_names):
         self.names = ns
         self.rhs = r
         self.display_names = display_names
 
-    def defined_vars(self):
-        defs = {} # a dictionary, contains symbols
+    def defined_vars(self, defs):
         for n in self.names:
             defs[n] = None
-        return defs
 
     def interpret(self, env, cont):
         return self.rhs.interpret(env, cont)
 
-    def assign_convert(self, vars, env_structure):
-        mut = False
-        need_cell_flags = [(ModuleVar(i, None, i) in vars) for i in self.names]
-        if True in need_cell_flags:
-            return DefineValues(self.names,
-                                Cell(self.rhs.assign_convert(vars, env_structure),
-                                     need_cell_flags),
-                                self.display_names)
-        else:
-            return DefineValues(self.names,
-                                self.rhs.assign_convert(vars, env_structure),
-                                self.display_names)
-
     def direct_children(self):
         return [self.rhs]
 
-    def _mutated_vars(self):
-        return self.rhs.mutated_vars()
+    def normalize(self, context):
+        rhs    = Context.normalize_term(self.rhs)
+        result = DefineValues(self.names, rhs, self.display_names)
+        return context.plug(result)
 
     def _tostring(self):
-        return "(define-values %s %s)" % (
-            self.display_names, self.rhs.tostring())
+        return "(define-values (%s) %s)" % (
+            ' '.join([n.tostring() for n in self.display_names]), self.rhs.tostring())
 
+    def to_sexp(self):
+        dv_sym = values.W_Symbol.make("define-values")
+        ids = values.w_null
+        for name in reversed(self.display_names):
+            ids = values.W_Cons.make(name, ids)
+
+        rhs = self.rhs.to_sexp()
+        rhs_sexp = values.W_Cons.make(rhs, values.w_null)
+
+        return values.W_Cons.make(dv_sym, values.W_Cons.make(ids, rhs_sexp))
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(define-values (")
+        for n in self.names:
+            port.write(" ")
+            write_loop(n, port, env)
+        port.write(") ")
+        self.rhs.write(port, env)
+        port.write(")")
 
 def get_printable_location_two_state(green_ast, came_from):
     if green_ast is None:
         return 'Green_Ast is None'
     surrounding = green_ast.surrounding_lambda
-    if surrounding is not None and green_ast is surrounding.body[0]:
+    if green_ast.should_enter:
         return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 
@@ -2118,18 +2610,32 @@ def inner_interpret_one_state(ast, env, cont):
         if ast.should_enter:
             driver_one_state.can_enter_jit(ast=ast, env=env, cont=cont)
 
-def interpret_one(ast, env=None):
+def interpret_one(ast, env=None, cont=None):
     if env is None:
         env = ToplevelEnv()
     if env.pycketconfig().two_state:
         inner_interpret = inner_interpret_two_state
     else:
         inner_interpret = inner_interpret_one_state
-    cont = NilCont()
-    cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+
+    from pycket.env import w_global_config
+    w_global_config.set_error_exit(None)
+
+    if cont is None:
+        cont = NilCont()
+
+    if cont.marks is None:
+        cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+
+    if env.toplevel_env().get_commandline_arguments():
+        cell = current_cmd_args_param.get_cell(cont)
+        cell.set(vector.W_Vector.fromelements(env.get_commandline_arguments()))
     try:
         inner_interpret(ast, env, cont)
     except Done, e:
+        if w_global_config.is_error_triggered():
+            from pycket.error import ExitException
+            raise ExitException(e.values)
         return e.values
     except SchemeException, e:
         if e.context_ast is None:
