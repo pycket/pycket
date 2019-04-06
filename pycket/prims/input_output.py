@@ -133,9 +133,12 @@ def read_number_or_id(f, init):
         except:
             return values.W_Symbol.make(got)
 
-@expose("read-string", [values.W_Fixnum, default(values.W_InputPort, None)])
-def read_string_(amt, w_port):
-    return read_string(w_port, amount=amt.value)
+@expose("read-string", [values.W_Fixnum, default(values.W_InputPort, None)], simple=False)
+def read_string_(amt, w_port, env, cont):
+    from pycket.interpreter import return_value
+    if w_port is None:
+        w_port = current_in_param.get(cont)
+    return return_value(read_string(w_port, amount=amt.value), env, cont)
 
 # FIXME: replace with a string builder
 # FIXME: unicode
