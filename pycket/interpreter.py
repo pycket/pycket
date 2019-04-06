@@ -1281,6 +1281,7 @@ class SequencedBodyAST(AST):
 
     @jit.unroll_safe
     def _interpret_stack_body(self, env):
+        i = -1
         for i in range(len(self.body) - 1):
             body = self.body[i]
             try:
@@ -1294,9 +1295,11 @@ class SequencedBodyAST(AST):
                 cont.update_cm(parameterization_key, top_level_config)
                 cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
 
-                cont = BeginCont(self.counting_asts[i + 1], env, cont)
+                new_env = self._prune_sequenced_envs(env, i + 1)
+                cont = BeginCont(self.counting_asts[i + 1], new_env, cont)
                 cv.chain(cont)
                 raise
+        env = self._prune_sequenced_envs(env, i + 1)
         return W_StackTrampoline(self.body[-1], env)
 
 
