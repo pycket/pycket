@@ -392,6 +392,7 @@ def racket_entry(names, config, command_line_arguments):
         for rkt in load_as_linklets:
             create_linklet_json(rkt)
             load_inst_linklet_json("%s.linklet" % rkt)
+        return 0
 
     if load_linklets:
         load_linklets_at_startup(load_linklets)
