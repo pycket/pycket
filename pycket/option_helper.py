@@ -406,13 +406,15 @@ def parse_args(argv):
                 retval = BAD_ARG
                 break
 
-            while(argv[i+1] not in all_opts and not argv[i+1].endswith(".rkt")):
+            # eats up all the .linklets afterwards
+            while(to > i+1 and argv[i+1] not in all_opts):
                 if not argv[i+1].endswith(".linklet"):
-                    print "please provide files ending with .linklet"
+                    print "please provide files ending with .linklet, given : %s" % argv[i+1]
                     retval = BAD_ARG
                     break
                 add_name(names, 'load-linklets', argv[i+1])
                 i += 1
+
             if retval == BAD_ARG:
                 break
 
