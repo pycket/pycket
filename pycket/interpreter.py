@@ -1110,9 +1110,29 @@ class App(AST):
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def _interpret_stack(self, env):
-        w_callable, args_w = self._eval_callable_and_args(env)
-        return w_callable.call_with_extra_info_and_stack(
-                args_w, env, self)
+        from values import parameterization_key, exn_handler_key
+        from values_parameter import top_level_config
+        from pycket.prims.control import default_uncaught_exception_handler
+        from pycket.cont import NilCont, ReturnCont
+
+        if isinstance(self, SimplePrimApp1) or isinstance(self, SimplePrimApp2):
+            return self.run(env)
+
+        rator = self.rator
+        if (not env.pycketconfig().callgraph and
+                isinstance(rator, ModuleVar) and
+                rator.is_primitive()):
+            self.set_should_enter() # to jit downrecursion
+
+        w_callable = rator.interpret_simple(env)
+        args_w = [None] * len(self.rands)
+        for i, rand in enumerate(self.rands):
+            args_w[i] = rand.interpret_simple(env)
+        if isinstance(w_callable, values.W_PromotableClosure):
+            # fast path
+            jit.promote(w_callable)
+            w_callable = w_callable.closure
+        return w_callable.call_with_extra_info_and_stack(args_w, env, self)
 
     def normalize(self, context):
         context = Context.AppRator(self.rands, context)

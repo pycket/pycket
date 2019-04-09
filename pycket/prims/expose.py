@@ -334,7 +334,7 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
             cls.__name__ += name
         p = cls(name, func_result_handling,
                           arity=_arity, result_arity=result_arity,
-                          is_nyi=nyi)
+                          is_nyi=nyi, is_simple=simple)
         for nam in names:
             sym = values.W_Symbol.make(nam)
             if sym in prim_env and prim_env[sym].is_implemented():
