@@ -140,10 +140,13 @@ class AST(object):
     # stackfull mode support methods
 
     def switch_to_interpret_stack(self, env, cont):
+        from pycket.util import console_log
         try:
+            console_log("CEK -> STACKFUL : ast ---- %s" % (self), debug=True)
             w_val = self.interpret_stack(env)
         except ConvertStack, cv:
             cv.chain(cont)
+            console_log("STACKFUL -> CEK : ast ---- %s : %s" % (cv.ast, cv.ast.tostring()), debug=True)
             return cv.ast, cv.env, cv.topcont
         return cont.plug_reduce(w_val, env)
 
