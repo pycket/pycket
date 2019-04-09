@@ -1285,6 +1285,7 @@ class SequencedBodyAST(AST):
         for i in range(len(self.body) - 1):
             body = self.body[i]
             try:
+                env = self._prune_sequenced_envs(env, i)
                 res = body.interpret_stack(env)
             except ConvertStack, cv:
                 from values import parameterization_key, exn_handler_key
@@ -1295,8 +1296,8 @@ class SequencedBodyAST(AST):
                 cont.update_cm(parameterization_key, top_level_config)
                 cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
 
-                new_env = self._prune_sequenced_envs(env, i + 1)
-                cont = BeginCont(self.counting_asts[i + 1], new_env, cont)
+                env = self._prune_sequenced_envs(env, i + 1)
+                cont = BeginCont(self.counting_asts[i + 1], env, cont)
                 cv.chain(cont)
                 raise
         env = self._prune_sequenced_envs(env, i + 1)
