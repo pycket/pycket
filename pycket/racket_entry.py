@@ -396,6 +396,7 @@ def racket_entry(names, config, command_line_arguments):
 
     if load_linklets:
         load_linklets_at_startup(load_linklets)
+        return 0
 
     if dev_mode:
         dev_mode_entry(dev_mode, eval_sexp, run_as_linklet)
