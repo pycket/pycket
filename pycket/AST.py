@@ -142,11 +142,11 @@ class AST(object):
     def switch_to_interpret_stack(self, env, cont):
         from pycket.util import console_log
         try:
-            console_log("CEK -> STACKFUL : ast ---- %s" % (self), debug=True)
+            console_log("CEK -> STACKFUL : ast ---- %s" % (self), 1)
             w_val = self.interpret_stack(env)
         except ConvertStack, cv:
             cv.chain(cont)
-            console_log("STACKFUL -> CEK : ast ---- %s : %s" % (cv.ast, cv.ast.tostring()), debug=True)
+            console_log("STACKFUL -> CEK : ast ---- %s" % (cv.ast.tostring()), 1)
             return cv.ast, cv.env, cv.topcont
         return cont.plug_reduce(w_val, env)
 
@@ -195,5 +195,3 @@ class ConvertStack(Exception):
             assert isinstance(patchcont, Cont)
             patchcont.prev = newcont
         self.patchcont = newcont
-
-
