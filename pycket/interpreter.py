@@ -1407,6 +1407,10 @@ class Begin(SequencedBodyAST):
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
+    @jit.unroll_safe
+    def _interpret_stack(self, env):
+        return self._interpret_stack_body(env)
+
     def normalize(self, context):
         body = [Context.normalize_term(b) for b in self.body]
         result = Begin.make(body)
