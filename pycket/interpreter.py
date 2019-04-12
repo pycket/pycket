@@ -2437,7 +2437,7 @@ class Let(SequencedBodyAST):
                 cv.chain(cont)
                 raise
             for j in range(values.num_values()):
-                vals_w[index] = self.wrap_value(values.get_value(j), j)
+                vals_w[index] = self.wrap_value(values.get_value(j), index)
                 index += 1
         assert i != -100
         env = self._prune_env(env, i + 1)
