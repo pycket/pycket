@@ -403,7 +403,6 @@ class LetCont(Cont):
         jit.promote(len_self)
         new_length = len_self + len_vals
         ast, rhsindex = self.counting_ast.unpack(Let)
-        assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len_vals:
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
