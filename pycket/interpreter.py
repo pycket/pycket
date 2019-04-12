@@ -1113,7 +1113,6 @@ class App(AST):
     def _interpret_stack(self, env):
         if isinstance(self, SimplePrimApp1) or isinstance(self, SimplePrimApp2):
             return self.run(env)
-
         # try:
         #     w_callable, args_w = self._eval_callable_and_args(env)
         # except SchemeException, exn:
@@ -1121,7 +1120,6 @@ class App(AST):
         # except OSError, exn:
         #     return convert_os_error(exn, env, cont)
         w_callable, args_w = self._eval_callable_and_args(env)
-
         return w_callable.call_with_extra_info_and_stack(args_w, env, self)
 
     def normalize(self, context):
@@ -2412,7 +2410,7 @@ class Let(SequencedBodyAST):
 
     @jit.unroll_safe
     def _interpret_stack(self, env):
-        from values import parameterization_key, exn_handler_key
+        from values import parameterization_key, exn_handler_key, W_Cell
         from values_parameter import top_level_config
         from pycket.prims.control import default_uncaught_exception_handler
 
@@ -2428,7 +2426,14 @@ class Let(SequencedBodyAST):
             try:
                 values = rhs.interpret_stack(env)
             except ConvertStack, cv:
-                cont = LetCont.make(vals_w[:index], self, i, env, cont)
+                # Since we don't know if we're gonna switch back to
+                # the CEK we wrap our values as we go on on the stack. (see the self.wrap_value.. line below)
+                # However the LetCont also wrap the values while
+                # "_construct_env"ing when "plug_reduce"ing.
+                # So we need to unwrap the values before switching.
+
+                unwrapped_vals = [v.get_val() if isinstance(v, W_Cell) else v for v in vals_w[:index]]
+                cont = LetCont.make(unwrapped_vals, self, i, env, cont)
                 cv.chain(cont)
                 raise
             for j in range(values.num_values()):
