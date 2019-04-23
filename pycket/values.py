@@ -1391,9 +1391,9 @@ class W_ThunkProcCMK(W_Procedure):
 class W_Prim(W_Procedure):
     from pycket.arity import Arity
 
-    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "is_nyi", "is_simple"]
+    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "is_nyi"]
 
-    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, is_nyi=False, is_simple=False):
+    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, is_nyi=False):
         from pycket.arity import Arity
         self.name = W_Symbol.make(name)
         self.code = code
@@ -1401,10 +1401,6 @@ class W_Prim(W_Procedure):
         self.arity = arity
         self.result_arity = result_arity
         self.is_nyi = is_nyi
-        self.is_simple = is_simple
-
-    def is_simple_prim(self):
-        return self.is_simple
 
     def is_implemented(self):
         return not self.is_nyi
@@ -1427,31 +1423,15 @@ class W_Prim(W_Procedure):
         jit.promote(self)
         return self.code(args, env, cont, extra_call_info)
 
-    def call_with_extra_info_and_stack(self, args, env, calling_app):
-        # return W_Procedure.call_with_extra_info_and_stack(
-        #     self, args, env, extra_call_info
-
-        from pycket.values_parameter import top_level_config
-        from pycket.prims.control import default_uncaught_exception_handler
-        from pycket.cont import ReturnCont
-        from pycket.interpreter import Done
-        from pycket.AST import ConvertStack
-
-        if not self.is_simple_prim():
-            raise ConvertStack(calling_app, env)
-
-        cont = ReturnCont()
-        cont.update_cm(parameterization_key, top_level_config)
-        cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
-        try:
-            self.call_with_extra_info(args, env, cont, calling_app)
-        except Done, e:
-            return e.values
-        # should be impossible to reach
-        raise SchemeException("shouldn't reach here")
-
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
+
+class W_PrimSimple(W_Prim):
+    from pycket.arity import Arity
+
+    def simple_func(self, args):
+        """ overridden by the generated subclasses in expose.py"""
+        raise NotImplementedError("abstract base class")
 
 class W_PrimSimple1(W_Prim):
     from pycket.arity import Arity

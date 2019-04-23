@@ -324,17 +324,23 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
         cls = values.W_Prim
         if call1 is not None:
             class cls(values.W_PrimSimple1):
-                def simple1(self, arg1):
-                    return call1(arg1)
+                def simple1(self, w_arg):
+                    return call1(w_arg)
             cls.__name__ += name
         elif call2 is not None:
             class cls(values.W_PrimSimple2):
-                def simple2(self, arg1, arg2):
-                    return call2(arg1, arg2)
+                def simple2(self, w_arg1, w_arg2):
+                    return call2(w_arg1, w_arg2)
             cls.__name__ += name
+        elif simple:
+            class cls(values.W_PrimSimple):
+                def simple_func(self, args):
+                    return func_arg_unwrap(args)
+            cls.__name__ += name
+
         p = cls(name, func_result_handling,
-                          arity=_arity, result_arity=result_arity,
-                          is_nyi=nyi, is_simple=simple)
+                arity=_arity, result_arity=result_arity,
+                is_nyi=nyi)
         for nam in names:
             sym = values.W_Symbol.make(nam)
             if sym in prim_env and prim_env[sym].is_implemented():

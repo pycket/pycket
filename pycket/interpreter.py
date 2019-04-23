@@ -1073,6 +1073,8 @@ class App(AST):
                     return SimplePrimApp1(rator, rands, env_structure, w_prim)
                 if isinstance(w_prim, values.W_PrimSimple2) and len(rands) == 2:
                     return SimplePrimApp2(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimSimple):
+                    return SimplePrimApp(rator, rands, env_structure, w_prim)
         return App(rator, rands, env_structure)
 
     def direct_children(self):
@@ -1098,27 +1100,29 @@ class App(AST):
 
         return w_callable, args_w
 
-    def interpret(self, env, cont):
+    def get_callable_and_args(self, env):
         try:
             w_callable, args_w = self._eval_callable_and_args(env)
         except SchemeException, exn:
-            return convert_runtime_exception(exn, env, cont)
+            #return convert_runtime_exception(exn, env, cont)
+            from pycket.AST import ConvertStack
+            raise ConvertStack(self, env)
         except OSError, exn:
-            return convert_os_error(exn, env, cont)
+            #return convert_os_error(exn, env, cont)
+            from pycket.AST import ConvertStack
+            raise ConvertStack(self, env)
+        return w_callable, args_w
 
+    def interpret(self, env, cont):
+        w_callable, args_w = self.get_callable_and_args(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     @jit.unroll_safe
     def _interpret_stack(self, env):
-        if isinstance(self, SimplePrimApp1) or isinstance(self, SimplePrimApp2):
-            return self.run(env)
-        # try:
-        #     w_callable, args_w = self._eval_callable_and_args(env)
-        # except SchemeException, exn:
-        #     return convert_runtime_exception(exn, env, cont)
-        # except OSError, exn:
-        #     return convert_os_error(exn, env, cont)
-        w_callable, args_w = self._eval_callable_and_args(env)
+        w_callable, args_w = self.get_callable_and_args(env)
+        if isinstance(self, SimplePrimApp):
+            return self.run(args_w, env)
+
         return w_callable.call_with_extra_info_and_stack(args_w, env, self)
 
     def normalize(self, context):
@@ -1145,77 +1149,57 @@ class App(AST):
             r.write(port, env)
         port.write(")")
 
-class SimplePrimApp1(App):
-    _immutable_fields_ = ['w_prim', 'rand1']
+class SimplePrimApp(App):
+    _immutable_fields_ = ['w_prim']
     simple = True
     visitable = False
 
     def __init__(self, rator, rands, env_structure, w_prim):
         App.__init__(self, rator, rands, env_structure)
+        self.w_prim = w_prim
+
+    def normalize(self, context):
+        context = Context.AppRand(self.rator, context)
+        return Context.normalize_names(self.rands, context)
+
+    def interpret_simple(self, env):
+        w_args = [r.interpret_simple(env) for r in self.rands]
+        return check_one_val(self.run(w_args, env))
+
+    def run(self, w_args, env):
+        return self.w_prim.simple_func(w_args)
+
+class SimplePrimApp1(SimplePrimApp):
+    _immutable_fields_ = ['w_prim']
+    simple = True
+    visitable = False
+
+    def __init__(self, rator, rands, env_structure, w_prim):
+        SimplePrimApp.__init__(self, rator, rands, env_structure, w_prim)
         assert len(rands) == 1
-        self.rand1, = rands
         self.w_prim = w_prim
 
-    def normalize(self, context):
-        context = Context.AppRand(self.rator, context)
-        return Context.normalize_names(self.rands, context)
-
-    def run(self, env):
-        result = self.w_prim.simple1(self.rand1.interpret_simple(env))
+    def run(self, w_args, env):
+        result = self.w_prim.simple1(w_args[0])
         if result is None:
             result = values.w_void
         return result
 
-    def interpret_simple(self, env):
-        return check_one_val(self.run(env))
-
-    def interpret(self, env, cont):
-        if not env.pycketconfig().callgraph:
-            self.set_should_enter() # to jit downrecursion
-        try:
-            result = self.run(env)
-        except SchemeException, exn:
-            return convert_runtime_exception(exn, env, cont)
-        except OSError, exn:
-                return convert_os_error(exn, env, cont)
-        return return_multi_vals_direct(result, env, cont)
-
-class SimplePrimApp2(App):
-    _immutable_fields_ = ['w_prim', 'rand1', 'rand2']
+class SimplePrimApp2(SimplePrimApp):
+    _immutable_fields_ = ['w_prim']
     simple = True
     visitable = False
 
     def __init__(self, rator, rands, env_structure, w_prim):
-        App.__init__(self, rator, rands, env_structure)
+        SimplePrimApp.__init__(self, rator, rands, env_structure, w_prim)
         assert len(rands) == 2
-        self.rand1, self.rand2 = rands
         self.w_prim = w_prim
 
-    def normalize(self, context):
-        context = Context.AppRand(self.rator, context)
-        return Context.normalize_names(self.rands, context)
-
-    def run(self, env):
-        arg1 = self.rand1.interpret_simple(env)
-        arg2 = self.rand2.interpret_simple(env)
-        result = self.w_prim.simple2(arg1, arg2)
+    def run(self, w_args, env):
+        result = self.w_prim.simple2(w_args[0], w_args[1])
         if result is None:
             result = values.w_void
         return result
-
-    def interpret_simple(self, env):
-        return check_one_val(self.run(env))
-
-    def interpret(self, env, cont):
-        if not env.pycketconfig().callgraph:
-            self.set_should_enter() # to jit downrecursion
-        try:
-            result = self.run(env)
-        except SchemeException, exn:
-            return convert_runtime_exception(exn, env, cont)
-        except OSError, exn:
-            return convert_os_error(exn, env, cont)
-        return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):
     _immutable_fields_ = ["body[*]", "counting_asts[*]",
