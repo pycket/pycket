@@ -1120,9 +1120,6 @@ class App(AST):
     @jit.unroll_safe
     def _interpret_stack(self, env):
         w_callable, args_w = self.get_callable_and_args(env)
-        if isinstance(self, SimplePrimApp):
-            return self.run(args_w, env)
-
         return w_callable.call_with_extra_info_and_stack(args_w, env, self)
 
     def normalize(self, context):
@@ -1162,9 +1159,13 @@ class SimplePrimApp(App):
         context = Context.AppRand(self.rator, context)
         return Context.normalize_names(self.rands, context)
 
+    @jit.unroll_safe
     def interpret_simple(self, env):
         w_args = [r.interpret_simple(env) for r in self.rands]
-        return check_one_val(self.run(w_args, env))
+        return self.run(w_args, env)
+
+    def _interpret_stack(self, env):
+        return self.interpret_simple(env)
 
     def run(self, w_args, env):
         return self.w_prim.simple_func(w_args)
