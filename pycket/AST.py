@@ -151,10 +151,23 @@ class AST(object):
         return cont.plug_reduce(w_val, env)
 
     def interpret_stack(self, env):
+        from pycket.interpreter import App
+        from pycket.values import W_Prim
+        from pycket.values_parameter import W_Parameter
+        from pycket.env import ConsEnv
+
         from pycket.base import W_StackTrampoline
         while 1:
             stackfull_driver.jit_merge_point(ast=self, env=env)
-            w_val = self._interpret_stack(env)
+            if isinstance(self, App):
+                w_callable, args_w = self.get_callable_and_args(env)
+                if type(w_callable) is W_Prim or isinstance(w_callable, W_Parameter):
+                    raise ConvertStack(self, env)
+
+                w_val = self._interpret_stack_app(w_callable, args_w)
+            else:
+                w_val = self._interpret_stack(env)
+
             if isinstance(w_val, W_StackTrampoline):
                 self = w_val.ast
                 assert self is not None

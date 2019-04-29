@@ -1117,6 +1117,9 @@ class App(AST):
         w_callable, args_w = self.get_callable_and_args(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
+    def _interpret_stack_app(self, w_callable, args_w):
+        return w_callable.call_with_extra_info_and_stack(args_w, self)
+
     def interpret_stack_app(self, w_callable, args_w):
         return w_callable.call_with_extra_info_and_stack(args_w, self)
 
@@ -1162,6 +1165,9 @@ class SimplePrimApp(App):
         w_args = [r.interpret_simple(env) for r in self.rands]
         return self.run(w_args)
 
+    def _interpret_stack_app(self, w_callable, w_args):
+        return self.run(w_args)
+
     def interpret_stack_app(self, w_callable, w_args):
         return self.run(w_args)
 
@@ -1172,15 +1178,18 @@ class SimplePrimApp(App):
         return result
 
 
-class SimplePrimApp1(SimplePrimApp):
+class SimplePrimApp1(App):
     _immutable_fields_ = ['w_prim']
     simple = True
     visitable = False
 
     def __init__(self, rator, rands, env_structure, w_prim):
-        SimplePrimApp.__init__(self, rator, rands, env_structure, w_prim)
+        App.__init__(self, rator, rands, env_structure)
         assert len(rands) == 1
         self.w_prim = w_prim
+
+    def _interpret_stack_app(self, w_callable, w_args):
+        return self.run(w_args[0])
 
     def interpret_stack_app(self, w_callable, w_args):
         return self.run(w_args[0])
@@ -1191,15 +1200,18 @@ class SimplePrimApp1(SimplePrimApp):
             result = values.w_void
         return result
 
-class SimplePrimApp2(SimplePrimApp):
+class SimplePrimApp2(App):
     _immutable_fields_ = ['w_prim']
     simple = True
     visitable = False
 
     def __init__(self, rator, rands, env_structure, w_prim):
-        SimplePrimApp.__init__(self, rator, rands, env_structure, w_prim)
+        App.__init__(self, rator, rands, env_structure)
         assert len(rands) == 2
         self.w_prim = w_prim
+
+    def _interpret_stack_app(self, w_callable, w_args):
+        return self.run(w_args[0], w_args[1])
 
     def interpret_stack_app(self, w_callable, w_args):
         return self.run(w_args[0], w_args[1])
