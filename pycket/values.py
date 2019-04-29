@@ -1654,16 +1654,19 @@ class W_Closure(W_Procedure):
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         return lam.make_begin_cont(env, cont)
 
-    def call_with_extra_info_and_stack(self, args, env, calling_app):
+    def call_with_extra_info_and_stack(self, args, calling_app):
         from pycket.values_parameter import top_level_config
         from pycket.prims.control import default_uncaught_exception_handler
+        from pycket.env import ConsEnv
+        (actuals, closure_env, lam) = self._find_lam(args)
+        # env, lam = self._construct_env_and_find_lambda(args, env, calling_app)
+        env = ConsEnv.make(actuals, closure_env)
+        # if not jit.we_are_jitted() and env.pycketconfig().callgraph:
+        #     cont = NilCont()
+        #     cont.update_cm(parameterization_key, top_level_config)
+        #     cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+        #     env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
 
-        env, lam = self._construct_env_and_find_lambda(args, env, calling_app)
-        if not jit.we_are_jitted() and env.pycketconfig().callgraph:
-            cont = NilCont()
-            cont.update_cm(parameterization_key, top_level_config)
-            cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
-            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         return lam._interpret_stack_body(env)
 
     def call(self, args, env, cont):
@@ -1732,18 +1735,20 @@ class W_Closure1AsEnv(ConsEnv):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-    def call_with_extra_info_and_stack(self, args, env, calling_app):
+    def call_with_extra_info_and_stack(self, args, calling_app):
         from values_parameter import top_level_config
         from pycket.prims.control import default_uncaught_exception_handler
-
+        from pycket.env import ConsEnv
         lam = self.caselam.lams[0]
-        if not jit.we_are_jitted() and env.pycketconfig().callgraph:
-            cont = NilCont()
-            cont.update_cm(parameterization_key, top_level_config)
-            cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+        actuals = lam.match_args(args)
+        env = ConsEnv.make(actuals, self)
+        # env = self._construct_env(args, env, calling_app)
+        # if not jit.we_are_jitted() and env.pycketconfig().callgraph:
+        #     cont = NilCont()
+        #     cont.update_cm(parameterization_key, top_level_config)
+        #     cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
 
-            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
-        env = self._construct_env(args, env, calling_app)
+        #     env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         return lam._interpret_stack_body(env)
 
 

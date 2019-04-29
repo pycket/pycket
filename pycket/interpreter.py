@@ -1117,10 +1117,8 @@ class App(AST):
         w_callable, args_w = self.get_callable_and_args(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
-    @jit.unroll_safe
-    def _interpret_stack(self, env):
-        w_callable, args_w = self.get_callable_and_args(env)
-        return w_callable.call_with_extra_info_and_stack(args_w, env, self)
+    def interpret_stack_app(self, w_callable, args_w):
+        return w_callable.call_with_extra_info_and_stack(args_w, self)
 
     def normalize(self, context):
         context = Context.AppRator(self.rands, context)
@@ -1162,13 +1160,17 @@ class SimplePrimApp(App):
     @jit.unroll_safe
     def interpret_simple(self, env):
         w_args = [r.interpret_simple(env) for r in self.rands]
-        return self.run(w_args, env)
+        return self.run(w_args)
 
-    def _interpret_stack(self, env):
-        return self.interpret_simple(env)
+    def interpret_stack_app(self, w_callable, w_args):
+        return self.run(w_args)
 
-    def run(self, w_args, env):
-        return self.w_prim.simple_func(w_args)
+    def run(self, w_args):
+        result = self.w_prim.simple_func(w_args)
+        if result is None:
+            result = values.w_void
+        return result
+
 
 class SimplePrimApp1(SimplePrimApp):
     _immutable_fields_ = ['w_prim']
@@ -1180,8 +1182,11 @@ class SimplePrimApp1(SimplePrimApp):
         assert len(rands) == 1
         self.w_prim = w_prim
 
-    def run(self, w_args, env):
-        result = self.w_prim.simple1(w_args[0])
+    def interpret_stack_app(self, w_callable, w_args):
+        return self.run(w_args[0])
+
+    def run(self, w_arg):
+        result = self.w_prim.simple1(w_arg)
         if result is None:
             result = values.w_void
         return result
@@ -1196,8 +1201,11 @@ class SimplePrimApp2(SimplePrimApp):
         assert len(rands) == 2
         self.w_prim = w_prim
 
-    def run(self, w_args, env):
-        result = self.w_prim.simple2(w_args[0], w_args[1])
+    def interpret_stack_app(self, w_callable, w_args):
+        return self.run(w_args[0], w_args[1])
+
+    def run(self, w_arg1, w_arg2):
+        result = self.w_prim.simple2(w_arg1, w_arg2)
         if result is None:
             result = values.w_void
         return result
@@ -1273,12 +1281,24 @@ class SequencedBodyAST(AST):
 
     @jit.unroll_safe
     def _interpret_stack_body(self, env):
+        from pycket.AST import ConvertStack
+        from pycket.interpreter import App
+        from pycket.values import W_Prim
+        from pycket.values_parameter import W_Parameter
+
         i = -1
         for i in range(len(self.body) - 1):
             body = self.body[i]
             try:
                 env = self._prune_sequenced_envs(env, i)
-                res = body.interpret_stack(env)
+                if isinstance(body, App):
+                    w_callable, args_w = body.get_callable_and_args(env)
+                    if type(w_callable) is W_Prim or isinstance(w_callable, W_Parameter):
+                        raise ConvertStack(body, env)
+
+                    res = body.interpret_stack_app(w_callable, args_w)
+                else:
+                    res = body.interpret_stack(env)
             except ConvertStack, cv:
                 from values import parameterization_key, exn_handler_key
                 from values_parameter import top_level_config
@@ -1294,7 +1314,6 @@ class SequencedBodyAST(AST):
                 raise
         env = self._prune_sequenced_envs(env, i + 1)
         return W_StackTrampoline(self.body[-1], env)
-
 
 class Begin0(SequencedBodyAST):
     _immutable_fields_ = ["first"]
@@ -2397,6 +2416,10 @@ class Let(SequencedBodyAST):
         from values import parameterization_key, exn_handler_key, W_Cell
         from values_parameter import top_level_config
         from pycket.prims.control import default_uncaught_exception_handler
+        from pycket.AST import ConvertStack
+        from pycket.interpreter import App
+        from pycket.values import W_Prim
+        from pycket.values_parameter import W_Parameter
 
         cont = NilCont()
         cont.update_cm(parameterization_key, top_level_config)
@@ -2408,7 +2431,14 @@ class Let(SequencedBodyAST):
         for i, rhs in enumerate(self.rhss):
             env = self._prune_env(env, i)
             try:
-                values = rhs.interpret_stack(env)
+                if isinstance(rhs, App):
+                    w_callable, args_w = rhs.get_callable_and_args(env)
+                    if type(w_callable) is W_Prim or isinstance(w_callable, W_Parameter):
+                        raise ConvertStack(rhs, env)
+
+                    values = rhs.interpret_stack_app(w_callable, args_w)
+                else:
+                    values = rhs.interpret_stack(env)
             except ConvertStack, cv:
                 # Since we don't know if we're gonna switch back to
                 # the CEK we wrap our values as we go on on the stack. (see the self.wrap_value.. line below)

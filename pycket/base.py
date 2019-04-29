@@ -56,10 +56,6 @@ class W_Object(W_ProtoObject):
     def call_with_extra_info(self, args, env, cont, calling_app):
         return self.call(args, env, cont)
 
-    def call_with_extra_info_and_stack(self, args, env, app):
-        from pycket.AST import ConvertStack
-        raise ConvertStack(app, env)
-
     def call_interpret(self, racket_vals):
         from pycket.interpreter import Done, interpret_one
         from pycket.env import ToplevelEnv, w_global_config
