@@ -1120,9 +1120,6 @@ class App(AST):
     def _interpret_stack_app(self, w_callable, args_w):
         return w_callable.call_with_extra_info_and_stack(args_w, self)
 
-    def interpret_stack_app(self, w_callable, args_w):
-        return w_callable.call_with_extra_info_and_stack(args_w, self)
-
     def normalize(self, context):
         context = Context.AppRator(self.rands, context)
         return Context.normalize_name(self.rator, context, hint="AppRator")
@@ -1168,9 +1165,6 @@ class SimplePrimApp(App):
     def _interpret_stack_app(self, w_callable, w_args):
         return self.run(w_args)
 
-    def interpret_stack_app(self, w_callable, w_args):
-        return self.run(w_args)
-
     def run(self, w_args):
         result = self.w_prim.simple_func(w_args)
         if result is None:
@@ -1189,9 +1183,6 @@ class SimplePrimApp1(App):
         self.w_prim = w_prim
 
     def _interpret_stack_app(self, w_callable, w_args):
-        return self.run(w_args[0])
-
-    def interpret_stack_app(self, w_callable, w_args):
         return self.run(w_args[0])
 
     def run(self, w_arg):
@@ -1303,14 +1294,7 @@ class SequencedBodyAST(AST):
             body = self.body[i]
             try:
                 env = self._prune_sequenced_envs(env, i)
-                if isinstance(body, App):
-                    w_callable, args_w = body.get_callable_and_args(env)
-                    if type(w_callable) is W_Prim or isinstance(w_callable, W_Parameter):
-                        raise ConvertStack(body, env)
-
-                    res = body.interpret_stack_app(w_callable, args_w)
-                else:
-                    res = body.interpret_stack(env)
+                res = body.interpret_stack(env)
             except ConvertStack, cv:
                 from values import parameterization_key, exn_handler_key
                 from values_parameter import top_level_config
@@ -2437,20 +2421,14 @@ class Let(SequencedBodyAST):
         cont.update_cm(parameterization_key, top_level_config)
         cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
 
-        vals_w = [None] * len(self.args.elems)
+        args_len = len(self.args.elems)
+        vals_w = [None] * args_len
         index = 0
         i = -100
         for i, rhs in enumerate(self.rhss):
             env = self._prune_env(env, i)
             try:
-                if isinstance(rhs, App):
-                    w_callable, args_w = rhs.get_callable_and_args(env)
-                    if type(w_callable) is W_Prim or isinstance(w_callable, W_Parameter):
-                        raise ConvertStack(rhs, env)
-
-                    values = rhs.interpret_stack_app(w_callable, args_w)
-                else:
-                    values = rhs.interpret_stack(env)
+                values = rhs.interpret_stack(env)
             except ConvertStack, cv:
                 # Since we don't know if we're gonna switch back to
                 # the CEK we wrap our values as we go on on the stack. (see the self.wrap_value.. line below)
