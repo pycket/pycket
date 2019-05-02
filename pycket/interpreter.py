@@ -2445,7 +2445,12 @@ class Let(SequencedBodyAST):
                 index += 1
         assert i != -100
         env = self._prune_env(env, i + 1)
-        env = ConsEnv.make(vals_w, env)
+        if args_len == 1:
+            env = ConsEnv.make1(vals_w[0], env)
+        elif args_len == 2:
+            env = ConsEnv.make2(vals_w[0], vals_w[1], env)
+        elif args_len > 2:
+            env = ConsEnv.make(vals_w, env)
         return SequencedBodyAST._interpret_stack_body(self, env)
 
     def direct_children(self):

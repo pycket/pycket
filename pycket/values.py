@@ -1660,7 +1660,16 @@ class W_Closure(W_Procedure):
         from pycket.env import ConsEnv
         (actuals, closure_env, lam) = self._find_lam(args)
         # env, lam = self._construct_env_and_find_lambda(args, env, calling_app)
-        env = ConsEnv.make(actuals, closure_env)
+
+        args_len = len(args)
+        env = closure_env
+        if args_len == 1:
+            env = ConsEnv.make1(actuals[0], closure_env)
+        elif args_len == 2:
+            env = ConsEnv.make2(actuals[0], actuals[1], closure_env)
+        elif args_len > 2:
+            env = ConsEnv.make(actuals, closure_env)
+
         # if not jit.we_are_jitted() and env.pycketconfig().callgraph:
         #     cont = NilCont()
         #     cont.update_cm(parameterization_key, top_level_config)
@@ -1741,7 +1750,16 @@ class W_Closure1AsEnv(ConsEnv):
         from pycket.env import ConsEnv
         lam = self.caselam.lams[0]
         actuals = lam.match_args(args)
-        env = ConsEnv.make(actuals, self)
+
+        args_len = len(args)
+        env = self
+        if args_len == 1:
+            env = ConsEnv.make1(actuals[0], self)
+        elif args_len == 2:
+            env = ConsEnv.make2(actuals[0], actuals[1], self)
+        elif args_len > 2:
+            env = ConsEnv.make(actuals, self)
+
         # env = self._construct_env(args, env, calling_app)
         # if not jit.we_are_jitted() and env.pycketconfig().callgraph:
         #     cont = NilCont()
