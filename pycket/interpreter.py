@@ -896,6 +896,9 @@ class Quote(AST):
     def interpret_simple(self, env):
         return self.w_val
 
+    def get_val_direct(self):
+        return self.w_val
+
     def direct_children(self):
         return []
 
@@ -1113,12 +1116,45 @@ class App(AST):
             raise ConvertStack(self, env)
         return w_callable, args_w
 
+    @jit.unroll_safe
+    def pick_callable_and_args_under_let(self, let_bindings, w_let_bounds, env):
+        from pycket.interpreter import Var, LexicalVar
+        from pycket.values import W_PromotableClosure
+
+        w_callable = None
+        if self.rator.get_sym() in let_bindings:
+            w_callable = w_let_bounds[let_bindings.index(self.rator.get_sym())]
+        else:
+            w_callable = self.rator.interpret_simple(env)
+
+        if isinstance(w_callable, W_PromotableClosure):
+            # fast path
+            jit.promote(w_callable)
+            w_callable = w_callable.closure
+
+        w_args = [None]*len(self.rands)
+        for rand_index, rand in enumerate(self.rands):
+            if isinstance(rand, Var):
+                r_sym = rand.get_sym()
+                if r_sym in let_bindings:
+                    w_args[rand_index] = w_let_bounds[let_bindings.index(r_sym)]
+                elif isinstance(rand, LexicalVar):
+                    w_args[rand_index] = env.lookup(r_sym, rand.env_structure.prev)
+            else:
+                w_args[rand_index] = rand.interpret_simple(env)
+
+        return w_callable, w_args
+
     def interpret(self, env, cont):
         w_callable, args_w = self.get_callable_and_args(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def _interpret_stack_app(self, w_callable, args_w):
         return w_callable.call_with_extra_info_and_stack(args_w, self)
+
+    def _bounce(self, w_callable, w_args, prev_env):
+        # de-a-normalize
+        return W_StackTrampoline(ReadyApp(Quote(w_callable), [Quote(w_val) for w_val in w_args], self.env_structure), prev_env)
 
     def normalize(self, context):
         context = Context.AppRator(self.rands, context)
@@ -1144,6 +1180,83 @@ class App(AST):
             r.write(port, env)
         port.write(")")
 
+class ReadyApp(AST):
+    _immutable_fields_ = ["quoted_w_callable", "quoted_w_args[*]", "env_structure"]
+    simple = True
+    visitable = False
+
+    def __init__(self, q_w_callable, q_w_args, env_structure=None):
+        self.quoted_w_callable = q_w_callable
+        self.quoted_w_args = q_w_args
+        self.env_structure = env_structure
+
+    @jit.unroll_safe
+    def _get_callable_and_args(self):
+        w_callable = self.quoted_w_callable.get_val_direct()
+        w_args = [arg.get_val_direct() for arg in self.quoted_w_args]
+        return w_callable, w_args
+
+    def _interpret_stack(self, env):
+        w_callable, w_args = self._get_callable_and_args()
+        return w_callable.call_with_extra_info_and_stack(w_args, self)
+
+class ReadyAppSimple(ReadyApp):
+    _immutable_field_ = ['w_prim']
+    simple = True
+    visitable = False
+
+    def __init__(self, q_w_callable, q_w_args, w_prim):
+        ReadyApp.__init__(self, q_w_callable, q_w_args)
+        self.w_prim = w_prim
+
+    def _interpret_stack(self, env):
+        w_callable, w_args = self._get_callable_and_args()
+        return self.run(w_args)
+
+    def run(self, w_args):
+        result = self.w_prim.simple_func(w_args)
+        if result is None:
+            result = values.w_void
+        return result
+
+class ReadyAppSimple1(ReadyApp):
+    _immutable_field_ = ['w_prim']
+    simple = True
+    visitable = False
+
+    def __init__(self, q_w_callable, q_w_args, w_prim):
+        ReadyApp.__init__(self, q_w_callable, q_w_args)
+        self.w_prim = w_prim
+
+    def _interpret_stack(self, env):
+        w_callable, w_args = self._get_callable_and_args()
+        return self.run(w_args[0])
+
+    def run(self, w_arg):
+        result = self.w_prim.simple1(w_arg)
+        if result is None:
+            result = values.w_void
+        return result
+
+class ReadyAppSimple2(ReadyApp):
+    _immutable_field_ = ['w_prim']
+    simple = True
+    visitable = False
+
+    def __init__(self, q_w_callable, q_w_args, w_prim):
+        ReadyApp.__init__(self, q_w_callable, q_w_args)
+        self.w_prim = w_prim
+
+    def _interpret_stack(self, env):
+        w_callable, w_args = self._get_callable_and_args()
+        return self.run(w_args[0], w_args[1])
+
+    def run(self, w_arg1, w_arg2):
+        result = self.w_prim.simple2(w_arg1, w_arg2)
+        if result is None:
+            result = values.w_void
+        return result
+
 class SimplePrimApp(App):
     _immutable_fields_ = ['w_prim']
     simple = True
@@ -1165,6 +1278,10 @@ class SimplePrimApp(App):
     def _interpret_stack_app(self, w_callable, w_args):
         return self.run(w_args)
 
+    def _bounce(self, w_callable, w_args, prev_env):
+        # de-a-normalize
+        return W_StackTrampoline(ReadyAppSimple(Quote(w_callable), [Quote(w_val) for w_val in w_args], self.w_prim), prev_env)
+
     def run(self, w_args):
         result = self.w_prim.simple_func(w_args)
         if result is None:
@@ -1184,6 +1301,10 @@ class SimplePrimApp1(App):
 
     def _interpret_stack_app(self, w_callable, w_args):
         return self.run(w_args[0])
+
+    def _bounce(self, w_callable, w_args, prev_env):
+        # de-a-normalize
+        return W_StackTrampoline(ReadyAppSimple1(Quote(w_callable), [Quote(w_args[0])], self.w_prim), prev_env)
 
     def run(self, w_arg):
         result = self.w_prim.simple1(w_arg)
@@ -1206,6 +1327,10 @@ class SimplePrimApp2(App):
 
     def interpret_stack_app(self, w_callable, w_args):
         return self.run(w_args[0], w_args[1])
+
+    def _bounce(self, w_callable, w_args, prev_env):
+        # de-a-normalize
+        return W_StackTrampoline(ReadyAppSimple2(Quote(w_callable), [Quote(w_args[0]), Quote(w_args[1])], self.w_prim), prev_env)
 
     def run(self, w_arg1, w_arg2):
         result = self.w_prim.simple2(w_arg1, w_arg2)
@@ -1484,8 +1609,11 @@ class Var(AST):
         from pycket.prims.input_output import write_loop
         write_loop(self.sym, port, env)
 
-    def to_sexp(self):
+    def get_sym(self):
         return self.sym
+
+    def to_sexp(self):
+        return self.get_sym()
 
 class CellRef(Var):
     simple = True
@@ -2444,6 +2572,22 @@ class Let(SequencedBodyAST):
                 vals_w[index] = self.wrap_value(values.get_value(j), index)
                 index += 1
         assert i != -100
+
+        if len(self.body) == 1 and isinstance(self.body[0], App):
+            # to eliminate the extra allocation coming from a-normalization:
+            # (func (expr arg)) -> (let ([X (expr arg)]) (func X))
+
+            # can't just run
+            # w_callable, w_args = self.body[0].get_callable_and_args(env)
+            # because we're messing up the env_structure here (by not extending the env)
+
+            w_callable, w_args = self.body[0].pick_callable_and_args_under_let(self.args.elems, vals_w, env)
+
+            if type(w_callable) is not W_Prim and not isinstance(w_callable, W_Parameter):
+                # de-a-normalize and bounce it off the trampoline to
+                # keep the tail calls
+                return self.body[0]._bounce(w_callable, w_args, env)
+
         env = self._prune_env(env, i + 1)
         if args_len == 1:
             env = ConsEnv.make1(vals_w[0], env)
@@ -2451,6 +2595,7 @@ class Let(SequencedBodyAST):
             env = ConsEnv.make2(vals_w[0], vals_w[1], env)
         elif args_len > 2:
             env = ConsEnv.make(vals_w, env)
+
         return SequencedBodyAST._interpret_stack_body(self, env)
 
     def direct_children(self):
