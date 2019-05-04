@@ -1182,6 +1182,10 @@ class SimplePrimApp1(App):
         assert len(rands) == 1
         self.w_prim = w_prim
 
+    def interpret_simple(self, env):
+        w_arg = self.rands[0].interpret_simple(env)
+        return self.run(w_arg)
+
     def _interpret_stack_app(self, w_callable, w_args):
         return self.run(w_args[0])
 
@@ -1200,6 +1204,11 @@ class SimplePrimApp2(App):
         App.__init__(self, rator, rands, env_structure)
         assert len(rands) == 2
         self.w_prim = w_prim
+
+    def interpret_simple(self, env):
+        w_arg0 = self.rands[0].interpret_simple(env)
+        w_arg1 = self.rands[1].interpret_simple(env)
+        return self.run(w_arg0, w_arg1)
 
     def _interpret_stack_app(self, w_callable, w_args):
         return self.run(w_args[0], w_args[1])
