@@ -17,9 +17,9 @@
 (hash-set! generators 'complex
            (lambda () (make-rectangular (random 100) (random 100))))
 (hash-set! generators 'symbol
-           (lambda () (gensym)))
+           (lambda () (gensym 'symbol)))
 (hash-set! generators 'string
-           (lambda () (symbol->string (gensym))))
+           (lambda () (symbol->string (gensym 'string))))
 (hash-set! generators 'char
            (lambda () (integer->char (random 1000))))
 (hash-set! generators 'boolean
