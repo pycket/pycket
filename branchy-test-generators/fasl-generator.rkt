@@ -1,8 +1,8 @@
 #lang racket/base
 
-(require racket/fasl)
+(require racket/fasl racket/cmdline)
 
-(provide generate generate-file pick-a-value)
+(provide (all-defined-out))
 
 ;; Random S-Exp generator
 
@@ -55,14 +55,14 @@
              (list-ref (hash-keys generators)
                        (random (hash-count generators))))])
     ((hash-ref generators pick-a-key))))
-     
+
 ; let's not worry about nesting for now
 ; just generate a flat list of values
 (define (generate size [override-key #f])
   (build-list size (lambda (x) (pick-a-value override-key))))
-    
 
-(define (generate-file size file-name [override-key #f][outer-iteration 15][inner-iteration 500])
+
+(define (generate-fasl-test-file size file-name [override-key #f][outer-iteration 15][inner-iteration 500])
   (with-output-to-file file-name
     (lambda ()
       (printf "#lang racket/base
