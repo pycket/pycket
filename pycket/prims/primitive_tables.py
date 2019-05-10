@@ -96,7 +96,7 @@ foreign_str = ["_bool", "_bytes", "_double", "_double*",
                "prop:cpointer", "ptr-add", "ptr-add!", "ptr-equal?",
                "ptr-offset", "ptr-ref", "ptr-set!", "saved-errno",
                "set-cpointer-tag!", "set-ptr-offset!", "vector->cpointer",
-               "ffi-callback-maker", "ffi-call-maker"]
+               "ffi-callback-maker", "ffi-call-maker", "make-late-will-executor"]
 
 linklet_str = ["linklet?", "compile-linklet", "recompile-linklet", "eval-linklet", "read-compiled-linklet", "instantiate-linklet",
                "linklet-import-variables", "linklet-export-variables", "instance?", "make-instance", "instance-name", "instance-data",
