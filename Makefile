@@ -158,14 +158,32 @@ setup-old-pycket: setup-racket-for-old-pycket update-pypy
 regexp:
 	$(MAKE) -C linklet-extractor regexp
 
+
 expander:
 	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
 	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
 	$(MAKE) -C linklet-extractor expander
-	./pycket-c-linklets --expander-zo --verbose 1
+
+regexp:
+	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
+	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
+	$(MAKE) -C linklet-extractor regexp
 
 fasl:
 	$(MAKE) -C linklet-extractor fasl
+
+expander-bytecode:
+	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
+	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
+	$(MAKE) -C linklet-extractor expander-bytecode
+
+regexp-bytecode:
+	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
+	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
+	$(MAKE) -C linklet-extractor regexp-bytecode
+
+fasl-bytecode:
+	$(MAKE) -C linklet-extractor fasl-bytecode
 
 test:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py

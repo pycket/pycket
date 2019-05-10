@@ -1516,23 +1516,6 @@ class LinkletVar(Var):
     def _lookup(self, env):
         return env.toplevel_env().toplevel_lookup(self.sym)
 
-class LinkletStaticVar(LinkletVar):
-    _immutable_fields_ = ["sym", "w_value?"]
-
-    def __init__(self, sym):
-        LinkletVar.__init__(self, sym)
-        self.w_value = None
-
-    def _set(self, w_val, env):
-        env.toplevel_env().toplevel_set(self.sym, w_val)
-        self.w_value = w_val
-
-    def _lookup(self, env):
-        if self.w_value:
-            return self.w_value
-        self.w_value = env.toplevel_env().toplevel_lookup(self.sym)
-        return self.w_value
-
 class LexicalVar(Var):
     visitable = True
     def _lookup(self, env):
