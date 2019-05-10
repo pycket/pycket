@@ -155,10 +155,6 @@ update-pypy: pull-pypy
 
 setup-old-pycket: setup-racket-for-old-pycket update-pypy
 
-regexp:
-	$(MAKE) -C linklet-extractor regexp
-
-
 expander:
 	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
 	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
