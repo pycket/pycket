@@ -36,13 +36,13 @@ def locate_linklet(file_name):
 
     return file_path
 
-def load_bootstrap_linklet(which_str, debug, is_it_expander=False, generate_zo=False):
+def load_bootstrap_linklet(which_str, debug, is_it_expander=False):
     with PerfRegion("%s-linklet" % which_str):
         console_log("Loading the %s linklet..." % which_str)
         linklet_file_path = locate_linklet("%s.rktl.linklet" % which_str)
 
         # load the linklet
-        _instance, sys_config = load_inst_linklet_json(linklet_file_path, debug, set_version=is_it_expander, generate_zo=generate_zo)
+        _instance, sys_config = load_inst_linklet_json(linklet_file_path, debug, set_version=is_it_expander)
         _instance.expose_vars_to_prim_env(excludes=syntax_primitives)
 
         if is_it_expander:
@@ -51,8 +51,8 @@ def load_bootstrap_linklet(which_str, debug, is_it_expander=False, generate_zo=F
 
         return sys_config
 
-def load_expander(debug, generate_zo):
-    load_bootstrap_linklet("expander", debug, is_it_expander=True, generate_zo=generate_zo)
+def load_expander(debug):
+    load_bootstrap_linklet("expander", debug, is_it_expander=True)
 
 def load_fasl(debug=False):
     load_bootstrap_linklet("fasl", debug)
@@ -60,10 +60,10 @@ def load_fasl(debug=False):
 def load_regexp(debug):
     load_bootstrap_linklet("regexp", debug)
 
-def load_bootstrap_linklets(debug=False, do_load_regexp=False, gen_expander_zo=False):
+def load_bootstrap_linklets(debug=False, do_load_regexp=False):
 
     sys_config = load_fasl(debug)
-    load_expander(debug, gen_expander_zo)
+    load_expander(debug)
 
     if do_load_regexp:
         load_regexp(debug)
@@ -71,14 +71,14 @@ def load_bootstrap_linklets(debug=False, do_load_regexp=False, gen_expander_zo=F
     console_log("Bootstrap linklets are ready.")
     return sys_config
 
-def load_inst_linklet_json(json_file_name, debug=False, set_version=False, generate_zo=False, expose_vars=False):
+def load_inst_linklet_json(json_file_name, debug=False, set_version=False, expose_vars=False):
     from pycket.env import w_version
 
     debug_start("loading-linklet")
     debug_print("loading and instantiating : %s" % json_file_name)
 
     console_log("Loading linklet from %s" % json_file_name)
-    linkl, sys_config = W_Linklet.load_linklet(json_file_name, set_version, generate_zo=generate_zo)
+    linkl, sys_config = W_Linklet.load_linklet(json_file_name, set_version)
     debug_print("DONE with loading : %s" % json_file_name)
 
     console_log("Instantiating %s ...."  % json_file_name)
@@ -131,11 +131,11 @@ def create_linklet_json(rkt_file_name=""):
     pipe1 = create_popen_file(prep_cmd, "r")
     pipe1.read()
     pipe1.close()
-    extract_cmd = "racket -t %s/bootstrap-run.rkt -- -c compiled/cache-src/ ++knot read - -s -x -B -t %s -o compiled/%s.zo" % (EXPANDER_DIR, rkt_file_name, rkt_file_name)
+    extract_cmd = "racket -t %s/bootstrap-run.rkt -- -c compiled/cache-src/ ++knot read - -s -x -t %s -o compiled/%s.sexp" % (EXPANDER_DIR, rkt_file_name, rkt_file_name)
     pipe2 = create_popen_file(extract_cmd, "r")
     pipe2.read()
     pipe2.close()
-    linklet_json_cmd = "racket linklet-extractor/linkl-expand.rkt -e --output %s.linklet compiled/%s.zo" % (rkt_file_name, rkt_file_name)
+    linklet_json_cmd = "racket linklet-extractor/linklet-sexp-to-json.rkt --output %s.linklet compiled/%s.sexp" % (rkt_file_name, rkt_file_name)
     pipe3 = create_popen_file(linklet_json_cmd, "r")
     pipe3.read()
     pipe3.close()
@@ -218,14 +218,10 @@ def initiate_boot_sequence(command_line_arguments,
                            set_config_dir="",
                            set_addon_dir="",
                            compile_any=False,
-                           do_load_regexp=False,
-                           gen_expander_zo=False):
+                           do_load_regexp=False):
     from pycket.env import w_version
 
-    sysconfig = load_bootstrap_linklets(debug, do_load_regexp=do_load_regexp, gen_expander_zo=gen_expander_zo)
-
-    if gen_expander_zo:
-        return 0
+    sysconfig = load_bootstrap_linklets(debug, do_load_regexp=do_load_regexp)
 
     with PerfRegion("set-params"):
 
@@ -385,7 +381,6 @@ def racket_entry(names, config, command_line_arguments):
     version          = flags['version']
     c_a              = flags['compile_any']
     do_load_regexp   = flags['do_load_regexp']
-    gen_expander_zo  = flags['gen_expander_zo']
     dev_mode         = flags['dev_mode']
 
     if load_as_linklets:
@@ -411,8 +406,7 @@ def racket_entry(names, config, command_line_arguments):
                                set_config_dir,
                                set_addon_dir,
                                compile_any=c_a,
-                               do_load_regexp=do_load_regexp,
-                               gen_expander_zo=gen_expander_zo)
+                               do_load_regexp=do_load_regexp)
 
     if just_init:
         return 0
@@ -563,7 +557,6 @@ def get_options(names, config):
     version = config['version']
     compile_any = config['compile-machine-independent']
     do_load_regexp = config['load-regexp']
-    gen_expander_zo = config['expander-zo']
     dev_mode = config['dev-mode']
 
     load_rators = names['loads'] if 'loads' in names else []
@@ -608,7 +601,6 @@ use-compiled       : %s
 verbosity-level    : %s
 verbosity-keywords : %s
 dev-mode           : %s
-gen expander-zo    : %s
 """ % (loads_print_str,
        init_library[0],
        set_run_file[0],
@@ -627,8 +619,7 @@ gen expander-zo    : %s
        use_compiled,
        verbosity_lvl,
        verbosity_keywords,
-       dev_mode,
-       gen_expander_zo
+       dev_mode
        )
 
     console_log(log_str, debug=debug)
@@ -655,7 +646,6 @@ gen expander-zo    : %s
         'version'          : version,
         'compile_any'      : compile_any,
         'do_load_regexp'   : do_load_regexp,
-        'gen_expander_zo'  : gen_expander_zo,
         'dev_mode'         : dev_mode
     }
 
