@@ -230,10 +230,10 @@ toplevels = (flatten-and-append importss exports internals lifts)
   (when debug
     (printf "\n main-linklet \n\n ~a\n\n" main-linklet))
 
-  (define _final-json-hash
+  (define final-json-hash
     (handle-linkl main-linklet '() debug module-name "rkt" sub-dirs-str))
 
-  (define final-json-hash
+  #;(define final-json-hash
     (normalize-linklet _final-json-hash))
 
   (unless (jsexpr? final-json-hash)
