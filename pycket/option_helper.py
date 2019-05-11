@@ -46,7 +46,6 @@ def print_help(argv):
   --save-callgraph                   : save the jit output
 
  Meta options:
-  --expander-zo                      : make the expander.zo
   --load-regexp                      : Loads the regexp linklet
   --verbose <level>                  : Print the debug logs. <level> : natural number (defaults to 0)
   --jit <jitargs>                    : Set RPython JIT options may be 'default', 'off',
@@ -100,8 +99,7 @@ conf_opts = ["-c", "--no-compiled",
              "-L", "--syslog",
              "--kernel",
              "--save-callgraph"]
-meta_opts = ["--expander-zo",
-             "--load-regexp",
+meta_opts = ["--load-regexp",
              "--verbose",
              "--jit",
              "-h", "--help"]
@@ -132,8 +130,7 @@ config = {
     'dev-mode' : False,
     'use-compiled' : True,
     'compile-machine-independent' : False,
-    'load-regexp' : False,
-    'expander-zo' : False
+    'load-regexp' : False
 }
 
 def add_name(names, name, val, replace=False):
@@ -454,10 +451,10 @@ def parse_args(argv):
             config['load-regexp'] = True
             #retval = RETURN_OK
 
-        elif argv[i] == "--expander-zo":
-            config['expander-zo'] = True
-            config['just-init'] = True
-            retval = RETURN_OK
+        # elif argv[i] == "--expander-zo":
+        #     config['expander-zo'] = True
+        #     config['just-init'] = True
+        #     retval = RETURN_OK
 
         elif argv[i] == "--just-init":
             config['just-init'] = True
