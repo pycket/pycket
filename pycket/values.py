@@ -294,6 +294,9 @@ class W_VectorSuper(W_Object):
     def vector_ref(self, i, env, cont, app=None):
         raise NotImplementedError("abstract base class")
 
+    def vector_ref_stack(self, i):
+        raise NotImplementedError("abstract base class")
+
     def length(self):
         raise NotImplementedError("abstract base class")
 
@@ -1387,6 +1390,23 @@ class W_ThunkProcCMK(W_Procedure):
     @make_call_method([], simple=False)
     def call(self, env, cont):
         return self.proc.call(self.args, env, cont)
+
+class W_StackPrim(W_Procedure):
+    from pycket.arity import Arity
+
+    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "is_nyi"]
+
+    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, is_nyi=False):
+        from pycket.arity import Arity
+        self.name = W_Symbol.make(name)
+        self.code = code
+        assert isinstance(arity, Arity)
+        self.arity = arity
+        self.result_arity = result_arity
+        self.is_nyi = is_nyi
+
+    def call_with_extra_info_and_stack(self, args, extra_call_info):
+        return self.code(args)
 
 class W_Prim(W_Procedure):
     from pycket.arity import Arity

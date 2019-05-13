@@ -419,6 +419,9 @@ class W_InterposeVector(values.W_MVector):
             self = self.inner
         return self.vector_ref(i, env, cont, app=app)
 
+    def vector_ref_stack(self, i):
+        raise NotImplementedError("will be ConvertStack with env")
+
 @specialize.arg(0)
 def make_interpose_vector(cls, vector, refh, seth, prop_keys, prop_vals):
     return cls(vector, refh, seth, prop_keys, prop_vals)

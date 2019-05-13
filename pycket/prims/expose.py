@@ -4,6 +4,7 @@ from pycket.error import SchemeException
 from pycket.arity import Arity
 
 prim_env = {}
+prim_env_stack = {}
 
 SAFE = 0
 UNSAFE = 1
@@ -270,7 +271,7 @@ def make_remove_extra_info(func):
     remove_extra_info.__name__ += func.__name__
     return remove_extra_info
 
-def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, only_old=False):
+def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, only_old=False, stackful=False):
     """
     n:          names that the function should be exposed under
     argstypes:  if None, the list of args is passed directly to the function
@@ -338,15 +339,21 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
                     return func_arg_unwrap(args)
             cls.__name__ += name
 
-        p = cls(name, func_result_handling,
-                arity=_arity, result_arity=result_arity,
-                is_nyi=nyi)
-        for nam in names:
-            sym = values.W_Symbol.make(nam)
-            if sym in prim_env and prim_env[sym].is_implemented():
-                raise SchemeException("name %s already defined" % nam)
-            prim_env[sym] = p
-        func_arg_unwrap.w_prim = p
+        if stackful:
+            p = values.W_StackPrim(name, func_arg_unwrap,
+                                   arity=_arity, result_arity=result_arity,
+                                   is_nyi=nyi)
+            prim_env_stack[values.W_Symbol.make(name)] = p
+        else:
+            p = cls(name, func_result_handling,
+                    arity=_arity, result_arity=result_arity,
+                    is_nyi=nyi)
+            for nam in names:
+                sym = values.W_Symbol.make(nam)
+                if sym in prim_env and prim_env[sym].is_implemented():
+                    raise SchemeException("name %s already defined" % nam)
+                prim_env[sym] = p
+            func_arg_unwrap.w_prim = p
         return func_arg_unwrap
     return wrapper
 
@@ -386,7 +393,7 @@ def expose_val(name, w_v, only_old=False):
     from pycket.env import w_global_config as glob
 
     if only_old and (glob.are_we_in_linklet_mode() and glob.is_expander_loaded()):
-        return 
+        return
 
     sym = values.W_Symbol.make(name)
     if sym in prim_env and prim_env[sym].is_implemented():

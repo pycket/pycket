@@ -10,7 +10,7 @@ from pycket.base              import W_StackTrampoline
 from pycket.cont              import Cont, NilCont, label, continuation
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.error             import SchemeException
-from pycket.prims.expose      import prim_env, make_call_method
+from pycket.prims.expose      import prim_env, prim_env_stack, make_call_method
 from pycket.prims.control     import convert_runtime_exception, convert_os_error
 from pycket.prims.parameter   import current_cmd_args_param
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
@@ -1640,9 +1640,12 @@ class ModuleVar(Var):
         return mod.resolve_submodule_path(self.path).lookup(self.srcsym)
 
     def _lookup_primitive(self):
+        from pycket.env import w_global_config
         # we don't separate these the way racket does
         # but maybe we should
         try:
+            if w_global_config.are_we_in_stackful() and self.srcsym in prim_env_stack:
+                return prim_env_stack[self.srcsym]
             return prim_env[self.srcsym]
         except KeyError:
             raise SchemeException("can't find primitive %s" % (self.srcsym.tostring()))

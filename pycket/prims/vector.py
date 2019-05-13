@@ -69,6 +69,16 @@ def vector_star_ref(v, i, env, cont, calling_app):
         raise SchemeException("vector*-ref is constrained to work on vectors that are not impersonators.")
     return vector_ref_impl(v, i, env, cont, calling_app)
 
+# FIXME: what to do if it's called with an impersonated vector.
+# we need the env to raise a ConvertStack from within the primitive
+# (if say we make the the "simple" conditional in expose,
+# like convert_for=[W_InterposeVector])
+@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=True, stackful=True)
+def vector_ref(v, i):
+    if not (0 <= i.value < v.length()):
+        raise SchemeException("vector-ref: index out of bounds")
+    return v.vector_ref_stack(i.value)
+
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False, extra_info=True)
 def vector_ref(v, i, env, cont, calling_app):
     return vector_ref_impl(v, i, env, cont, calling_app)
@@ -281,4 +291,3 @@ def unsafe_vector_star_length(v):
 @expose("unsafe-flvector-length", [unsafe(values_vector.W_FlVector)])
 def unsafe_flvector_length(v):
     return values.W_Fixnum(v.length())
-

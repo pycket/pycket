@@ -76,6 +76,9 @@ class StrategyVectorMixin(object):
         from pycket.interpreter import return_value
         return return_value(self.ref(i), env, cont)
 
+    def vector_ref_stack(self, i):
+        return self.ref(i)
+
     # unsafe versions
     def unsafe_ref(self, i):
         return self.get_strategy().ref(self, i, check=False)
