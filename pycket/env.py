@@ -110,7 +110,8 @@ class GlobalConfig(object):
                        'repl_loaded':0,
                        'debug_active':0,
                        'boot_done':0,
-                       'linklet_mode':1}
+                       'linklet_mode':1,
+                       'stackful':0}
         self.error_exit = None
         self.verbose_keywords = []
         self.environment_vars = {}
@@ -137,6 +138,15 @@ class GlobalConfig(object):
 
     def boot_is_completed(self):
         self.config['boot_done'] = 1
+
+    def enter_stackful(self):
+        self.config['stackful'] = 1
+
+    def exit_stackful(self):
+        self.config['stackful'] = 1
+
+    def are_we_in_stackful(self):
+        return self.config['stackful']
 
     def set_error_exit(self, exn):
         self.error_exit = exn

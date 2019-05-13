@@ -141,13 +141,18 @@ class AST(object):
 
     def switch_to_interpret_stack(self, env, cont):
         from pycket.util import console_log
+        from pycket.env import w_global_config
+
         try:
             console_log("CEK -> STACKFUL : ast ---- %s" % (self), 1)
+            w_global_config.enter_stackful()
             w_val = self.interpret_stack(env)
         except ConvertStack, cv:
             cv.chain(cont)
             console_log("STACKFUL -> CEK : ast ---- %s" % (cv.ast.tostring()), 1)
+            w_global_config.exit_stackful()
             return cv.ast, cv.env, cv.topcont
+        w_global_config.exit_stackful()
         return cont.plug_reduce(w_val, env)
 
     def interpret_stack(self, env):
