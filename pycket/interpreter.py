@@ -1411,7 +1411,8 @@ class Begin(SequencedBodyAST):
 
     @objectmodel.always_inline
     def interpret(self, env, cont):
-        return self.make_begin_cont(env, cont)
+        return self.switch_to_interpret_stack(env, cont)
+        #return self.make_begin_cont(env, cont)
 
     @jit.unroll_safe
     def _interpret_stack(self, env):
