@@ -1,5 +1,6 @@
 from pycket.util  import snake_case
 from rpython.rlib import jit, objectmodel
+from rpython.rlib.rstack import stack_almost_full
 
 class Visitable(type):
     def __new__(cls, name, bases, dct):
@@ -154,7 +155,27 @@ class AST(object):
         from pycket.interpreter import App
         from pycket.values import W_Prim
         from pycket.values_parameter import W_Parameter
-        from pycket.env import ConsEnv
+
+        if stack_almost_full():
+            #console_log("************* ABOUT TO OVERFLOW **************", 1)
+
+            # this is not the correct way to handle the stack
+            # overflow, as it switches back to the CEK and continue
+            # there until it gets back here again, which is extra
+            # allocation+GC
+
+            # coming up (to stay in the stackful):
+            # i)   raise another type of exception (e.g. BounceException)
+            # ii) make some continuations for the stackful and collect
+            #      them instead of CEK continuations (e.g. LetCont)
+            #      (i.e. anybody calls to interpret_stack catches the
+            #      BounceException and attaches it's own stackful
+            #      continuation to it)
+            # iii) place the trampoline in switch_to_interpret_stack
+            #      above and continue with the current ast in
+            #      BounceException, and 'plug_reduce_stack' the value
+            #      whenever we manage to get one
+            raise ConvertStack(self, env)
 
         from pycket.base import W_StackTrampoline
         while 1:
