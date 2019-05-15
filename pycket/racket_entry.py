@@ -51,7 +51,7 @@ def load_bootstrap_linklet(which_str, debug, is_it_expander=False):
 
         return sys_config
 
-def load_expander(debug):
+def load_expander(debug=False):
     load_bootstrap_linklet("expander", debug, is_it_expander=True)
 
 def load_fasl(debug=False):
@@ -61,9 +61,8 @@ def load_regexp(debug):
     load_bootstrap_linklet("regexp", debug)
 
 def load_bootstrap_linklets(debug=False, do_load_regexp=False):
-
-    sys_config = load_fasl(debug)
     load_expander(debug)
+    sys_config = load_fasl(debug)
 
     if do_load_regexp:
         load_regexp(debug)
@@ -71,26 +70,35 @@ def load_bootstrap_linklets(debug=False, do_load_regexp=False):
     console_log("Bootstrap linklets are ready.")
     return sys_config
 
-def load_inst_linklet_json(json_file_name, debug=False, set_version=False, expose_vars=False):
-    from pycket.env import w_version
-
+def load_linklet_from_json(json_file_name, set_version=False):
     debug_start("loading-linklet")
-    debug_print("loading and instantiating : %s" % json_file_name)
+    debug_print("loading : %s" % json_file_name)
 
     console_log("Loading linklet from %s" % json_file_name)
     linkl, sys_config = W_Linklet.load_linklet(json_file_name, set_version)
     debug_print("DONE with loading : %s" % json_file_name)
+    debug_stop("loading-linklet")
+    return linkl, sys_config
 
+def instantiate_linkl(linkl, json_file_name, expose_vars=False):
     console_log("Instantiating %s ...."  % json_file_name)
+    debug_start("instantiating-linklet")
     debug_print("Instantiating %s ...."  % json_file_name)
     instantiate_linklet = get_primitive("instantiate-linklet")
     linkl_instance = instantiate_linklet.call_interpret([linkl, w_null, w_false, w_false])
     debug_print("DONE Instantiating %s ...."  % json_file_name)
-    debug_stop("loading-linklet")
+    debug_stop("instantiating-linklet")
     if expose_vars:
         console_log("Exporting vars of %s" % json_file_name)
         linkl_instance.expose_vars_to_prim_env()
     console_log("DONE with the %s." % json_file_name)
+    return linkl_instance
+
+def load_inst_linklet_json(json_file_name, debug=False, set_version=False, expose_vars=False):
+
+    linkl, sys_config = load_linklet_from_json(json_file_name, set_version)
+    linkl_instance = instantiate_linkl(linkl, json_file_name, expose_vars)
+
     return linkl_instance, sys_config
 
 def load_linklets_at_startup(linklet_file_names):
@@ -221,7 +229,8 @@ def initiate_boot_sequence(command_line_arguments,
                            do_load_regexp=False):
     from pycket.env import w_version
 
-    sysconfig = load_bootstrap_linklets(debug, do_load_regexp=do_load_regexp)
+    #sysconfig = load_bootstrap_linklets(debug, do_load_regexp=do_load_regexp)
+    sysconfig = None
 
     with PerfRegion("set-params"):
 

@@ -29,7 +29,10 @@ def make_entry_point(pycketconfig=None):
     from pycket.option_helper import parse_args, JUST_EXIT, RETURN_OK, MISSING_ARG
     from pycket.old_pycket_option_helper import parse_args as old_pycket_parse_args, ensure_json_ast
     from pycket.values_string import W_String
-    from pycket.racket_entry import load_inst_linklet_json, racket_entry
+    from pycket.racket_entry import load_inst_linklet_json, racket_entry, load_expander, load_fasl
+
+    load_fasl()
+    load_expander()
 
     def entry_point(argv):
         if not objectmodel.we_are_translated():
