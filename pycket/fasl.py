@@ -90,11 +90,25 @@ def fasl_to_sexp(stream):
 # we probably won't have any sexp deeper than the stack anyways
 def fasl_to_sexp_recursive(fasl_string, pos):
     #from pycket.interpreter import *
-    from pycket.values import to_list, W_Symbol, W_Fixnum
+    from pycket.values import to_list, W_Symbol, W_Fixnum, w_false, w_true, w_null, w_void, eof_object
 
     typ, pos = read_byte_no_eof(fasl_string, pos)
 
-    if typ == FASL_SYMBOL_TYPE:
+    if typ == FASL_FALSE_TYPE:
+        return w_false, pos
+    elif typ == FASL_TRUE_TYPE:
+        return w_true, pos
+    elif typ == FASL_NULL_TYPE:
+        return w_null, pos
+    elif typ == FASL_VOID_TYPE:
+        return w_void, pos
+    elif typ == FASL_EOF_TYPE:
+        return eof_object, pos
+    elif typ == FASL_INTEGER_TYPE:
+        num, pos = read_fasl_integer(fasl_string, pos)
+        return W_Fixnum(num), pos
+
+    elif typ == FASL_SYMBOL_TYPE:
         sym_len, pos = read_fasl_integer(fasl_string, pos)
         sym_str, pos = read_fasl_string(fasl_string, pos, sym_len)
         return W_Symbol.make(sym_str), pos
