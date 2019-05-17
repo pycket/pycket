@@ -90,32 +90,33 @@ def fasl_to_sexp(stream):
 # we probably won't have any sexp deeper than the stack anyways
 def fasl_to_sexp_recursive(fasl_string, pos):
     #from pycket.interpreter import *
-    from pycket.values import to_list, W_Symbol, W_Fixnum, w_false, w_true, w_null, w_void, eof_object
+    from pycket import values as v
+    #from pycket.values import to_list, W_Symbol, W_Fixnum, w_false, w_true, w_null, w_void, eof_object
     from pycket.values_string import W_String
 
     typ, pos = read_byte_no_eof(fasl_string, pos)
 
     if typ == FASL_FALSE_TYPE:
-        return w_false, pos
+        return v.w_false, pos
     elif typ == FASL_TRUE_TYPE:
-        return w_true, pos
+        return v.w_true, pos
     elif typ == FASL_NULL_TYPE:
-        return w_null, pos
+        return v.w_null, pos
     elif typ == FASL_VOID_TYPE:
-        return w_void, pos
+        return v.w_void, pos
     elif typ == FASL_EOF_TYPE:
-        return eof_object, pos
+        return v.eof_object, pos
     elif typ == FASL_INTEGER_TYPE:
         num, pos = read_fasl_integer(fasl_string, pos)
-        return W_Fixnum(num), pos
+        return v.W_Fixnum(num), pos
     elif typ == FASL_FLONUM_TYPE:
         from pycket.prims.numeric import float_bytes_to_real
         num_str, pos = read_bytes_exactly(fasl_string, pos, 8)
-        return float_bytes_to_real(num_str, w_false), pos
+        return float_bytes_to_real(num_str, v.w_false), pos
     elif typ == FASL_SINGLE_FLONUM_TYPE:
         from pycket.prims.numeric import float_bytes_to_real
         num_str, pos = read_bytes_exactly(fasl_string, pos, 4)
-        real = float_bytes_to_real(num_str, w_false)
+        real = float_bytes_to_real(num_str, v.w_false)
         return real.arith_exact_inexact(), pos
     elif typ == FASL_EXTFLONUM_TYPE:
         from pycket.prims.string import _str2num
@@ -123,20 +124,46 @@ def fasl_to_sexp_recursive(fasl_string, pos):
         num_str, pos = read_bytes_exactly(fasl_string, pos, bstr_len)
         return _str2num(W_String.fromstr_utf8(num_str).as_str_utf8(), 10), pos
     elif typ == FASL_RATIONAL_TYPE:
-        from pycket.values import W_Rational
         num, pos = fasl_to_sexp_recursive(fasl_string, pos)
         den, pos = fasl_to_sexp_recursive(fasl_string, pos)
-        return W_Rational.make(num, den), pos
+        return v.W_Rational.make(num, den), pos
     elif typ == FASL_COMPLEX_TYPE:
-        from pycket.values import W_Complex
         re, pos = fasl_to_sexp_recursive(fasl_string, pos)
         im, pos = fasl_to_sexp_recursive(fasl_string, pos)
-        return W_Complex.from_real_pair(re, im), pos
-
+        return v.W_Complex.from_real_pair(re, im), pos
+    elif typ == FASL_CHAR_TYPE:
+        _chr, pos = read_fasl_integer(fasl_string, pos)
+        return v.W_Character(unichr(_chr)), pos
     elif typ == FASL_SYMBOL_TYPE:
-        sym_len, pos = read_fasl_integer(fasl_string, pos)
-        sym_str, pos = read_fasl_string(fasl_string, pos, sym_len)
-        return W_Symbol.make(sym_str), pos
+        sym_str, pos = read_fasl_string(fasl_string, pos)
+        return v.W_Symbol.make(sym_str), pos
+    elif typ == FASL_UNREADABLE_SYMBOL_TYPE:
+        sym_str, pos = read_fasl_string(fasl_string, pos)
+        return v.W_Symbol.make_unreadable(sym_str), pos
+    elif typ == FASL_UNINTERNED_SYMBOL_TYPE:
+        sym_str, pos = read_fasl_string(fasl_string, pos)
+        return v.W_Symbol(sym_str), pos
+    elif typ == FASL_KEYWORD_TYPE:
+        key_str, pos = read_fasl_string(fasl_string, pos)
+        return v.W_Keyword.make(key_str), pos
+    elif typ == FASL_STRING_TYPE:
+        str_str, pos = read_fasl_string(fasl_string, pos)
+        return W_String.make(str_str), pos
+    elif typ == FASL_IMMUTABLE_STRING_TYPE:
+        str_str, pos = read_fasl_string(fasl_string, pos)
+        return W_String.make(str_str).make_immutable(), pos
+    elif typ == FASL_BYTES_TYPE:
+        byts, pos = read_fasl_bytes(fasl_string, pos)
+        return v.W_Bytes.from_string(byts, immutable=False), pos
+    elif typ == FASL_IMMUTABLE_BYTES_TYPE:
+        byts, pos = read_fasl_bytes(fasl_string, pos)
+        return v.W_Bytes.from_string(byts), pos
+    elif typ == FASL_PATH_TYPE:
+        byts, pos = read_fasl_bytes(fasl_string, pos)
+        return v.W_Path(byts), pos
+    elif typ == FASL_RELATIVE_PATH_TYPE: # FIXME: check this
+        byts, pos = read_fasl_bytes(fasl_string, pos)
+        return v.W_Path(byts), pos
     elif typ == FASL_LIST_TYPE:
         list_len, pos = read_fasl_integer(fasl_string, pos)
         lst_chunk = fasl_string[pos:pos+list_len]
@@ -151,9 +178,14 @@ def fasl_to_sexp_recursive(fasl_string, pos):
         else:
             raise Exception("unrecognized fasl tag : %s" % typ)
 
-def read_fasl_string(fasl_string, pos, length):
-    return read_bytes_exactly(fasl_string, pos, length)
-    # TODO: utf-8
+def read_fasl_string(fasl_string, pos):
+    sym_len, pos = read_fasl_integer(fasl_string, pos)
+    return read_bytes_exactly(fasl_string, pos, sym_len)
+    # TODO: check utf-8
+
+def read_fasl_bytes(fasl_string, pos):
+    bytes_len, pos = read_fasl_integer(fasl_string, pos)
+    return read_bytes_exactly(fasl_string, pos, bytes_len)
 
 def read_byte_no_eof(fasl_string, pos):
     return ord(fasl_string[pos]), pos+1
