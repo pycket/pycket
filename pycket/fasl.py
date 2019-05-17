@@ -94,6 +94,10 @@ def fasl_to_sexp_recursive(fasl_string, pos):
     from pycket.values_regex import W_Regexp, W_PRegexp, W_ByteRegexp, W_BytePRegexp
     from pycket.vector import W_Vector
     from pycket.values_struct import W_Struct
+    from pycket.hash import simple as hash_simple
+    from pycket.hash.equal import W_EqualHashTable
+    from pycket.prims.numeric import float_bytes_to_real
+    from pycket.prims.string import _str2num
 
     typ, pos = read_byte_no_eof(fasl_string, pos)
 
@@ -111,16 +115,13 @@ def fasl_to_sexp_recursive(fasl_string, pos):
         num, pos = read_fasl_integer(fasl_string, pos)
         return v.W_Fixnum(num), pos
     elif typ == FASL_FLONUM_TYPE:
-        from pycket.prims.numeric import float_bytes_to_real
         num_str, pos = read_bytes_exactly(fasl_string, pos, 8)
         return float_bytes_to_real(num_str, v.w_false), pos
     elif typ == FASL_SINGLE_FLONUM_TYPE:
-        from pycket.prims.numeric import float_bytes_to_real
         num_str, pos = read_bytes_exactly(fasl_string, pos, 4)
         real = float_bytes_to_real(num_str, v.w_false)
         return real.arith_exact_inexact(), pos
     elif typ == FASL_EXTFLONUM_TYPE:
-        from pycket.prims.string import _str2num
         bstr_len, pos = read_fasl_integer(fasl_string, pos)
         num_str, pos = read_bytes_exactly(fasl_string, pos, bstr_len)
         return _str2num(W_String.fromstr_utf8(num_str).as_str_utf8(), 10), pos
@@ -165,7 +166,6 @@ def fasl_to_sexp_recursive(fasl_string, pos):
     elif typ == FASL_RELATIVE_PATH_TYPE: # FIXME: check this
         byts, pos = read_fasl_bytes(fasl_string, pos)
         return v.W_Path(byts), pos
-
     elif typ == FASL_PREGEXP_TYPE:
         str_str, pos = read_fasl_string(fasl_string, pos)
         return W_PRegexp(str_str), pos
@@ -178,7 +178,6 @@ def fasl_to_sexp_recursive(fasl_string, pos):
     elif typ == FASL_BYTE_REGEXP_TYPE:
         str_str, pos = read_fasl_string(fasl_string, pos)
         return W_ByteRegexp(str_str), pos
-
     elif typ == FASL_LIST_TYPE:
         list_len, pos = read_fasl_integer(fasl_string, pos)
         lst_chunk = fasl_string[pos:pos+list_len]
@@ -198,7 +197,6 @@ def fasl_to_sexp_recursive(fasl_string, pos):
         for i in range(list_len-1, -1, -1):
             return_list = v.W_Cons.make(lst[i], return_list)
         return return_list, pos
-
     elif typ == FASL_VECTOR_TYPE or typ == FASL_IMMUTABLE_VECTOR_TYPE:
         vec_len, pos = read_fasl_integer(fasl_string, pos)
         storage, pos = read_multi_into_rpython_list(fasl_string, pos, vec_len)
@@ -217,18 +215,48 @@ def fasl_to_sexp_recursive(fasl_string, pos):
         vals, pos = read_multi_into_rpython_list(fasl_string, pos, length)
         return W_Struct.make_prefab(key, vals), pos
     elif typ == FASL_HASH_TYPE:
-        import pdb;pdb.set_trace()
+        variant, pos = read_byte_no_eof(fasl_string, pos)
+        length, pos = read_fasl_integer(fasl_string, pos)
+        keys, vals, pos = read_multi_double_into_rpython_list(fasl_string, pos, length)
+        if variant == FASL_HASH_EQUAL_VARIANT:
+            return W_EqualHashTable(keys, vals, immutable=False), pos
+        elif variant == FASL_HASH_EQ_VARIANT:
+            return hash_simple.make_simple_mutable_table(hash_simple.W_EqMutableHashTable, keys, vals), pos
+        elif variant == FASL_HASH_EQV_VARIANT:
+            return hash_simple.make_simple_mutable_table(hash_simple.W_EqvMutableHashTable, keys, vals), pos
     elif typ == FASL_IMMUTABLE_HASH_TYPE:
-        import pdb;pdb.set_trace()
-
+        variant, pos = read_byte_no_eof(fasl_string, pos)
+        length, pos = read_fasl_integer(fasl_string, pos)
+        keys, vals, pos = read_multi_double_into_rpython_list(fasl_string, pos, length)
+        if variant == FASL_HASH_EQUAL_VARIANT:
+            return W_EqualHashTable(keys, vals, immutable=True), pos
+        elif variant == FASL_HASH_EQ_VARIANT:
+            return hash_simple.make_simple_immutable_table(hash_simple.W_EqImmutableHashTable, keys, vals), pos
+        elif variant == FASL_HASH_EQV_VARIANT:
+            return hash_simple.make_simple_immutable_table(hash_simple.W_EqvImmutableHashTable, keys, vals), pos
     elif typ == FASL_SRCLOC:
-        import pdb;pdb.set_trace()
-
+        # difficult to create an instance of srcloc struct so defer that to the runtime
+        source, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        line, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        column, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        position, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        span, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        return v.to_list([v.W_Symbol.make("srcloc"), source, line, column, position, span]), pos
     else:
         if typ >= FASL_SMALL_INTEGER_START:
             return v.W_Fixnum((typ-FASL_SMALL_INTEGER_START)+FASL_LOWEST_SMALL_INTEGER), pos
         else:
             raise Exception("unrecognized fasl tag : %s" % typ)
+
+def read_multi_double_into_rpython_list(fasl_string, pos, length):
+    keys = [None]*length
+    vals = [None]*length
+    for i in range(length):
+        k, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        v, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        keys[i] = k
+        vals[i] = v
+    return keys, vals, pos
 
 def read_multi_into_rpython_list(fasl_string, pos, length):
     vals = [None]*length
