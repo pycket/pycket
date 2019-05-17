@@ -177,7 +177,6 @@ def fasl_to_sexp_recursive(fasl_string, pos):
         return W_BytePRegexp(str_str), pos
     elif typ == FASL_BYTE_REGEXP_TYPE:
         str_str, pos = read_fasl_string(fasl_string, pos)
-        import pdb;pdb.set_trace()
         return W_ByteRegexp(str_str), pos
 
     elif typ == FASL_LIST_TYPE:
@@ -187,10 +186,46 @@ def fasl_to_sexp_recursive(fasl_string, pos):
         for i in range(list_len):
             element, pos = fasl_to_sexp_recursive(fasl_string, pos)
             lst[i] = element
-        return to_list(lst), pos
+        return v.to_list(lst), pos
+    elif typ == FASL_PAIR_TYPE:
+        car, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        cdr, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        return v.W_Cons.make(car, cdr)
+    elif typ == FASL_LIST_STAR_TYPE:
+        list_len, pos = read_fasl_integer(fasl_string, pos)
+        # list_len is the length of the proper part
+        lst_chunk = fasl_string[pos:pos+list_len]
+        lst = [None]*list_len
+        for i in range(list_len):
+            element, pos = fasl_to_sexp_recursive(fasl_string, pos)
+            lst[i] = element
+        # read the last element
+        return_list, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        for i in range(list_len-1, -1, -1):
+            return_list = v.W_Cons.make(lst[i], return_list)
+        return return_list, pos
+
+    elif typ == FASL_VECTOR_TYPE:
+        import pdb;pdb.set_trace()
+    elif typ == FASL_IMMUTABLE_VECTOR_TYPE:
+        import pdb;pdb.set_trace()
+    elif typ == FASL_BOX_TYPE:
+        import pdb;pdb.set_trace()
+    elif typ == FASL_IMMUTABLE_BOX_TYPE:
+        import pdb;pdb.set_trace()
+    elif typ == FASL_PREFAB_TYPE:
+        import pdb;pdb.set_trace()
+    elif typ == FASL_HASH_TYPE:
+        import pdb;pdb.set_trace()
+    elif typ == FASL_IMMUTABLE_HASH_TYPE:
+        import pdb;pdb.set_trace()
+
+    elif typ == FASL_SRCLOC:
+        import pdb;pdb.set_trace()
+
     else:
         if typ >= FASL_SMALL_INTEGER_START:
-            return W_Fixnum((typ-FASL_SMALL_INTEGER_START)+FASL_LOWEST_SMALL_INTEGER), pos
+            return v.W_Fixnum((typ-FASL_SMALL_INTEGER_START)+FASL_LOWEST_SMALL_INTEGER), pos
         else:
             raise Exception("unrecognized fasl tag : %s" % typ)
 
