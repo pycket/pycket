@@ -66,6 +66,9 @@ FASL_HASH_EQV_VARIANT = 2
 from rpython.rlib             import streamio as sio
 import os
 
+GLOBAL_SHARED_COUNT = -1
+SHARED = []
+
 def fasl_to_sexp_file(file_name):
     stream = sio.open_file_as_stream(file_name, "rb", buffering=2**21)
     return fasl_to_sexp(stream)
@@ -77,7 +80,8 @@ def fasl_to_sexp(stream):
         raise Exception("unrecognized prefix : % " % prefix)
 
     shared_count = read_fasl_integer_stream(stream)
-    shared = [None]*shared_count
+    GLOBAL_SHARED_COUNT = shared_count
+    SHARED = [None]*shared_count
 
     length = read_fasl_integer_stream(stream)
     # read the entire thing and work with a byte-string and a position
@@ -101,7 +105,19 @@ def fasl_to_sexp_recursive(fasl_string, pos):
 
     typ, pos = read_byte_no_eof(fasl_string, pos)
 
-    if typ == FASL_FALSE_TYPE:
+    if typ == FASL_GRAPH_DEF_TYPE:
+        position, pos = read_fasl_integer(fasl_string, pos)
+        val, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        if position >= GLOBAL_SHARED_COUNT:
+            raise Exception("fasl: bad graph index")
+        SHARED[position] = val
+        return val, pos
+    elif typ == FASL_GRAPH_REF_TYPE:
+        position, pos = read_fasl_integer(fasl_string, pos)
+        if position >= GLOBAL_SHARED_COUNT:
+            raise Exception("fasl: bad graph index")
+        return SHARED[position], pos
+    elif typ == FASL_FALSE_TYPE:
         return v.w_false, pos
     elif typ == FASL_TRUE_TYPE:
         return v.w_true, pos
