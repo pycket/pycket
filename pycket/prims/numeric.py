@@ -599,8 +599,10 @@ def float_bytes_to_real(bytes, signed):
          default(values.W_Fixnum, None)])
 def integer_bytes_to_integer(bstr, signed, big_endian, w_start, w_end):
     bytes = bstr.as_bytes_list()
+    return _integer_bytes_to_integer(bytes, signed, big_endian, w_start.value, w_end)
 
-    start = w_start.value
+def _integer_bytes_to_integer(bytes, signed, big_endian, start=0, w_end=None):
+
     if w_end is None:
         end = len(bytes)
     else:
