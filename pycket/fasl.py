@@ -93,6 +93,7 @@ def fasl_to_sexp_recursive(fasl_string, pos):
     from pycket import values as v
     #from pycket.values import to_list, W_Symbol, W_Fixnum, w_false, w_true, w_null, w_void, eof_object
     from pycket.values_string import W_String
+    from pycket.values_regex import W_Regexp, W_PRegexp, W_ByteRegexp, W_BytePRegexp
 
     typ, pos = read_byte_no_eof(fasl_string, pos)
 
@@ -164,6 +165,21 @@ def fasl_to_sexp_recursive(fasl_string, pos):
     elif typ == FASL_RELATIVE_PATH_TYPE: # FIXME: check this
         byts, pos = read_fasl_bytes(fasl_string, pos)
         return v.W_Path(byts), pos
+
+    elif typ == FASL_PREGEXP_TYPE:
+        str_str, pos = read_fasl_string(fasl_string, pos)
+        return W_PRegexp(str_str), pos
+    elif typ == FASL_REGEXP_TYPE:
+        str_str, pos = read_fasl_string(fasl_string, pos)
+        return W_Regexp(str_str), pos
+    elif typ == FASL_BYTE_PREGEXP:
+        str_str, pos = read_fasl_string(fasl_string, pos)
+        return W_BytePRegexp(str_str), pos
+    elif typ == FASL_BYTE_REGEXP_TYPE:
+        str_str, pos = read_fasl_string(fasl_string, pos)
+        import pdb;pdb.set_trace()
+        return W_ByteRegexp(str_str), pos
+
     elif typ == FASL_LIST_TYPE:
         list_len, pos = read_fasl_integer(fasl_string, pos)
         lst_chunk = fasl_string[pos:pos+list_len]
