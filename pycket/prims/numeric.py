@@ -378,7 +378,7 @@ def bitwise_bit_field(w_n, w_start, w_end):
         raise SchemeException("bitwise-bit-field: third argument must be non-negative")
     diff = w_end.arith_sub(w_start)
     assert isinstance(diff, values.W_Fixnum)
-    v0 = arith_shift(values.W_Fixnum.ONE, diff) 
+    v0 = arith_shift(values.W_Fixnum.ONE, diff)
     assert isinstance(v0, values.W_Fixnum)
     mw_start = values.W_Fixnum.ZERO.arith_sub(w_start)
     assert isinstance(mw_start, values.W_Fixnum)
@@ -386,7 +386,7 @@ def bitwise_bit_field(w_n, w_start, w_end):
     assert isinstance(rhs, values.W_Fixnum)
     v = v0.arith_sub1().arith_and(rhs)
     return v
-    
+
 @expose("bitwise-bit-set?", [values.W_Integer, values.W_Integer])
 def bitwise_bit_setp(w_n, w_m):
     if w_m.arith_negativep() is values.w_true:
@@ -559,12 +559,13 @@ def pycket_longlong2float(llval):
         floatval = d_array[0]
         return floatval
 
-
-@expose("floating-point-bytes->real",
-        [values.W_Bytes, default(values.W_Object, values.w_false)])
+@expose("floating-point-bytes->real", [values.W_Bytes, default(values.W_Object, values.w_false)])
 def float_bytes_to_real(bstr, signed):
-    # XXX Currently does not make use of the signed parameter
     bytes = bstr.as_bytes_list()
+    return float_bytes_to_real(bytes, signed)
+
+def float_bytes_to_real(bytes, signed):
+    # XXX Currently does not make use of the signed parameter
     if len(bytes) not in (4, 8):
         raise SchemeException(
                 "floating-point-bytes->real: byte string must have length 2, 4, or 8")

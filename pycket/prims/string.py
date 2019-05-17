@@ -29,12 +29,15 @@ def string_to_symbol(v):
                            default(values.W_Symbol, values.W_Symbol.make("number-or-false")),
                            default(values.W_Symbol, values.W_Symbol.make("decimal-as-exact"))])
 def str2num(w_s, radix, convert_mode, decimal_mode):
+    radix = radix.toint()
+    s = w_s.as_str_utf8()
+    return _str2num(s, radix)
+
+def _str2num(s, radix):
     from rpython.rlib import rarithmetic, rfloat, rbigint
     from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
     from rpython.rlib.rsre import rsre_re as re
     import math
-    radix = radix.toint()
-    s = w_s.as_str_utf8()
     try:
         if ((radix == 16 and re.match("^[0-9A-Fa-f]+$", s)) or
             (radix == 8 and re.match("^[0-7]+$", s)) or
@@ -83,7 +86,7 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
 
         if "." in s or re.match("[+-]?([\d]+)(\.[\d]+)?e[+-][\d]+$", s):
             if not radix == 10: # FIXME
-                raise SchemeException("string->number : floats with base different than 10 are not supported yet : given number : %s - radix : %s" % (w_s.tostring(), str(radix)))
+                raise SchemeException("string->number : floats with base different than 10 are not supported yet : given number : %s - radix : %s" % (s, str(radix)))
             return values.W_Flonum(rfloat.string_to_float(s))
         else:
             try:

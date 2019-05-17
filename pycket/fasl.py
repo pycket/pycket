@@ -91,6 +91,7 @@ def fasl_to_sexp(stream):
 def fasl_to_sexp_recursive(fasl_string, pos):
     #from pycket.interpreter import *
     from pycket.values import to_list, W_Symbol, W_Fixnum, w_false, w_true, w_null, w_void, eof_object
+    from pycket.values_string import W_String
 
     typ, pos = read_byte_no_eof(fasl_string, pos)
 
@@ -107,6 +108,30 @@ def fasl_to_sexp_recursive(fasl_string, pos):
     elif typ == FASL_INTEGER_TYPE:
         num, pos = read_fasl_integer(fasl_string, pos)
         return W_Fixnum(num), pos
+    elif typ == FASL_FLONUM_TYPE:
+        from pycket.prims.numeric import float_bytes_to_real
+        num_str, pos = read_bytes_exactly(fasl_string, pos, 8)
+        return float_bytes_to_real(num_str, w_false), pos
+    elif typ == FASL_SINGLE_FLONUM_TYPE:
+        from pycket.prims.numeric import float_bytes_to_real
+        num_str, pos = read_bytes_exactly(fasl_string, pos, 4)
+        real = float_bytes_to_real(num_str, w_false)
+        return real.arith_exact_inexact(), pos
+    elif typ == FASL_EXTFLONUM_TYPE:
+        from pycket.prims.string import _str2num
+        bstr_len, pos = read_fasl_integer(fasl_string, pos)
+        num_str, pos = read_bytes_exactly(fasl_string, pos, bstr_len)
+        return _str2num(W_String.fromstr_utf8(num_str).as_str_utf8(), 10), pos
+    elif typ == FASL_RATIONAL_TYPE:
+        from pycket.values import W_Rational
+        num, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        den, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        return W_Rational.make(num, den), pos
+    elif typ == FASL_COMPLEX_TYPE:
+        from pycket.values import W_Complex
+        re, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        im, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        return W_Complex.from_real_pair(re, im), pos
 
     elif typ == FASL_SYMBOL_TYPE:
         sym_len, pos = read_fasl_integer(fasl_string, pos)
