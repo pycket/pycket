@@ -89,11 +89,11 @@ def fasl_to_sexp(stream):
 # let's not worry about the CPS'in this right now
 # we probably won't have any sexp deeper than the stack anyways
 def fasl_to_sexp_recursive(fasl_string, pos):
-    #from pycket.interpreter import *
     from pycket import values as v
-    #from pycket.values import to_list, W_Symbol, W_Fixnum, w_false, w_true, w_null, w_void, eof_object
     from pycket.values_string import W_String
     from pycket.values_regex import W_Regexp, W_PRegexp, W_ByteRegexp, W_BytePRegexp
+    from pycket.vector import W_Vector
+    from pycket.values_struct import W_Struct
 
     typ, pos = read_byte_no_eof(fasl_string, pos)
 
@@ -182,10 +182,7 @@ def fasl_to_sexp_recursive(fasl_string, pos):
     elif typ == FASL_LIST_TYPE:
         list_len, pos = read_fasl_integer(fasl_string, pos)
         lst_chunk = fasl_string[pos:pos+list_len]
-        lst = [None]*list_len
-        for i in range(list_len):
-            element, pos = fasl_to_sexp_recursive(fasl_string, pos)
-            lst[i] = element
+        lst, pos = read_multi_into_rpython_list(fasl_string, pos, list_len)
         return v.to_list(lst), pos
     elif typ == FASL_PAIR_TYPE:
         car, pos = fasl_to_sexp_recursive(fasl_string, pos)
@@ -195,26 +192,30 @@ def fasl_to_sexp_recursive(fasl_string, pos):
         list_len, pos = read_fasl_integer(fasl_string, pos)
         # list_len is the length of the proper part
         lst_chunk = fasl_string[pos:pos+list_len]
-        lst = [None]*list_len
-        for i in range(list_len):
-            element, pos = fasl_to_sexp_recursive(fasl_string, pos)
-            lst[i] = element
+        lst, pos = read_multi_into_rpython_list(fasl_string, pos, list_len)
         # read the last element
         return_list, pos = fasl_to_sexp_recursive(fasl_string, pos)
         for i in range(list_len-1, -1, -1):
             return_list = v.W_Cons.make(lst[i], return_list)
         return return_list, pos
 
-    elif typ == FASL_VECTOR_TYPE:
-        import pdb;pdb.set_trace()
-    elif typ == FASL_IMMUTABLE_VECTOR_TYPE:
-        import pdb;pdb.set_trace()
+    elif typ == FASL_VECTOR_TYPE or typ == FASL_IMMUTABLE_VECTOR_TYPE:
+        vec_len, pos = read_fasl_integer(fasl_string, pos)
+        storage, pos = read_multi_into_rpython_list(fasl_string, pos, vec_len)
+        if typ == FASL_IMMUTABLE_VECTOR_TYPE:
+            return W_Vector.fromelements(storage, immutable=True), pos
+        return W_Vector.fromelements(storage), pos
     elif typ == FASL_BOX_TYPE:
-        import pdb;pdb.set_trace()
+        element, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        return v.W_MBox(element), pos
     elif typ == FASL_IMMUTABLE_BOX_TYPE:
-        import pdb;pdb.set_trace()
+        element, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        return v.W_IBox(element), pos
     elif typ == FASL_PREFAB_TYPE:
-        import pdb;pdb.set_trace()
+        key, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        length, pos = read_fasl_integer(fasl_string, pos)
+        vals, pos = read_multi_into_rpython_list(fasl_string, pos, length)
+        return W_Struct.make_prefab(key, vals), pos
     elif typ == FASL_HASH_TYPE:
         import pdb;pdb.set_trace()
     elif typ == FASL_IMMUTABLE_HASH_TYPE:
@@ -228,6 +229,13 @@ def fasl_to_sexp_recursive(fasl_string, pos):
             return v.W_Fixnum((typ-FASL_SMALL_INTEGER_START)+FASL_LOWEST_SMALL_INTEGER), pos
         else:
             raise Exception("unrecognized fasl tag : %s" % typ)
+
+def read_multi_into_rpython_list(fasl_string, pos, length):
+    vals = [None]*length
+    for i in range(length):
+        element, pos = fasl_to_sexp_recursive(fasl_string, pos)
+        vals[i] = element
+    return vals, pos
 
 def read_fasl_string(fasl_string, pos):
     sym_len, pos = read_fasl_integer(fasl_string, pos)
