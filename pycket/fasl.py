@@ -103,6 +103,7 @@ def fasl_to_sexp_recursive(fasl_string, pos):
     from pycket.hash.equal import W_EqualHashTable
     from pycket.prims.numeric import float_bytes_to_real
     from pycket.prims.string import _str2num
+    from rpython.rlib.rbigint import rbigint
 
     typ, pos = read_byte_no_eof(fasl_string, pos)
 
@@ -130,6 +131,8 @@ def fasl_to_sexp_recursive(fasl_string, pos):
         return v.eof_object, pos
     elif typ == FASL_INTEGER_TYPE:
         num, pos = read_fasl_integer(fasl_string, pos)
+        if isinstance(num, rbigint):
+            return v.W_Bignum(num), pos
         return v.W_Fixnum(num), pos
     elif typ == FASL_FLONUM_TYPE:
         num_str, pos = read_bytes_exactly(fasl_string, pos, 8)
@@ -282,14 +285,16 @@ def read_multi_into_rpython_list(fasl_string, pos, length):
         vals[i] = element
     return vals, pos
 
-def read_fasl_string(fasl_string, pos):
-    sym_len, pos = read_fasl_integer(fasl_string, pos)
-    return read_bytes_exactly(fasl_string, pos, sym_len)
+def read_fasl_string(fasl_string, pos, length=None):
+    if not length:
+        length, pos = read_fasl_integer(fasl_string, pos)
+    return read_bytes_exactly(fasl_string, pos, length)
     # TODO: check utf-8
 
-def read_fasl_string_stream(stream):
-    str_len = read_fasl_integer_stream(stream)
-    return read_bytes_exactly_stream(stream, str_len)
+def read_fasl_string_stream(stream, length=None):
+    if not length:
+        length = read_fasl_integer_stream(stream)
+    return read_bytes_exactly_stream(stream, length)
     # TODO: check utf-8
 
 def read_fasl_bytes(fasl_string, pos):
@@ -323,6 +328,8 @@ def read_fasl_integer(fasl_string, pos):
 def fasl_integer_inner(fasl_string, pos, b):
     from pycket import values as v
     from pycket.prims.numeric import _integer_bytes_to_integer
+    from pycket.prims.string import _str2num
+    from pycket.values_string import W_String
 
     if b <= 127:
         return b, pos
@@ -339,10 +346,10 @@ def fasl_integer_inner(fasl_string, pos, b):
         return _integer_bytes_to_integer(num_str, v.w_true, v.w_false).value, pos
     elif b == 131:
         length, pos = read_fasl_integer(fasl_string, pos)
-        str_str, pos = read_fasl_string(fasl_string, pos)
-        if len(str_str) != length:
+        num_str, pos = read_fasl_string(fasl_string, pos, length)
+        if len(num_str) != length:
             raise Exception("fasl: truncated stream at number")
-        import pdb;pdb.set_trace()
+        return _str2num(W_String.fromstr_utf8(num_str).as_str_utf8(), 16).value, pos
     else:
         raise Exception("fasl: internal error on integer mode")
 
@@ -353,6 +360,8 @@ def read_fasl_integer_stream(stream):
 def fasl_integer_inner_stream(stream, b):
     from pycket import values as v
     from pycket.prims.numeric import _integer_bytes_to_integer
+    from pycket.prims.string import _str2num
+    from pycket.values_string import W_String
 
     if b <= 127:
         return b
@@ -369,9 +378,9 @@ def fasl_integer_inner_stream(stream, b):
         return _integer_bytes_to_integer(num_str, v.w_true, v.w_false).value
     elif b == 131:
         length = read_fasl_integer_stream(stream)
-        str_str = read_fasl_string_stream(stream)
-        if len(str_str) != length:
+        num_str = read_fasl_string_stream(stream, length)
+        if len(num_str) != length:
             raise Exception("fasl: truncated stream at number")
-        import pdb;pdb.set_trace()
+        return _str2num(W_String.fromstr_utf8(num_str).as_str_utf8(), 16).value
     else:
         raise Exception("fasl: internal error on integer mode")
