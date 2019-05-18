@@ -74,6 +74,7 @@ def fasl_to_sexp_file(file_name):
     return fasl_to_sexp(stream)
 
 def fasl_to_sexp(stream):
+    global GLOBAL_SHARED_COUNT, SHARED
 
     prefix = stream.read(FASL_PREFIX_LENGTH)
     if prefix != FASL_PREFIX:
@@ -202,7 +203,7 @@ def fasl_to_sexp_recursive(fasl_string, pos):
     elif typ == FASL_PAIR_TYPE:
         car, pos = fasl_to_sexp_recursive(fasl_string, pos)
         cdr, pos = fasl_to_sexp_recursive(fasl_string, pos)
-        return v.W_Cons.make(car, cdr)
+        return v.W_Cons.make(car, cdr), pos
     elif typ == FASL_LIST_STAR_TYPE:
         list_len, pos = read_fasl_integer(fasl_string, pos)
         # list_len is the length of the proper part
@@ -316,7 +317,7 @@ def read_bytes_exactly_stream(stream, n):
     return bytes
 
 def read_fasl_integer(fasl_string, pos):
-    b, new_pos = read_byte_no_eof(fasl_string, pos)
+    b, pos = read_byte_no_eof(fasl_string, pos)
     return fasl_integer_inner(fasl_string, pos, b)
 
 def fasl_integer_inner(fasl_string, pos, b):
