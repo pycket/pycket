@@ -1075,6 +1075,8 @@ class App(AST):
                     return SimplePrimApp2(rator, rands, env_structure, w_prim)
                 if isinstance(w_prim, values.W_PrimSimple):
                     return SimplePrimApp(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimMaybeSimple):
+                    return MaybeSimplePrimApp(rator, rands, env_structure, w_prim)
         return App(rator, rands, env_structure)
 
     def direct_children(self):
@@ -1143,6 +1145,22 @@ class App(AST):
             port.write(" ")
             r.write(port, env)
         port.write(")")
+
+class MaybeSimplePrimApp(App):
+    _immutable_fields_ = ['w_prim']
+    #simple = True
+    visitable = False
+
+    def __init__(self, rator, rands, env_structure, w_prim):
+        App.__init__(self, rator, rands, env_structure)
+        self.w_prim = w_prim
+
+    def normalize(self, context):
+        context = Context.AppRand(self.rator, context)
+        return Context.normalize_names(self.rands, context)
+
+    def _interpret_stack_app(self, w_callable, args_w):
+        return self.w_prim.simple_func(args_w)
 
 class SimplePrimApp(App):
     _immutable_fields_ = ['w_prim']

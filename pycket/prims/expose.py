@@ -224,12 +224,15 @@ def _make_result_handling_func(func_arg_unwrap, simple):
             # Fixme : It's difficult to figure out when there's
             # supposed to be an extra argument *after* the env, cont
             # pair.
+
             a = args[-1]
             if isinstance(a, BaseCont):
+                assert len(args) >= 2
                 assert isinstance(args[-2], Env)
                 env = args[-2]
                 cont = args[-1]
             else:
+                assert len(args) >= 3
                 assert isinstance(args[-2], BaseCont) and isinstance(args[-3], Env)
                 env = args[-3]
                 cont = args[-2]
@@ -271,7 +274,7 @@ def make_remove_extra_info(func):
     remove_extra_info.__name__ += func.__name__
     return remove_extra_info
 
-def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, only_old=False, stackful=False):
+def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, only_old=False, new_simple=False, simple_pred=None, simple_func=None):
     """
     n:          names that the function should be exposed under
     argstypes:  if None, the list of args is passed directly to the function
@@ -333,27 +336,30 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
                 def simple2(self, w_arg1, w_arg2):
                     return call2(w_arg1, w_arg2)
             cls.__name__ += name
+        elif new_simple:
+            class cls(values.W_PrimMaybeSimple):
+                def simple_func(self, args):
+                    assert simple_pred and simple_func
+                    if simple_pred(args):
+                        return simple_func(args)
+                    return func_result_handling(args)
+            cls.__name__ += name
+
         elif simple:
             class cls(values.W_PrimSimple):
                 def simple_func(self, args):
                     return func_arg_unwrap(args)
             cls.__name__ += name
 
-        if stackful:
-            p = values.W_StackPrim(name, func_arg_unwrap,
-                                   arity=_arity, result_arity=result_arity,
-                                   is_nyi=nyi)
-            prim_env_stack[values.W_Symbol.make(name)] = p
-        else:
-            p = cls(name, func_result_handling,
-                    arity=_arity, result_arity=result_arity,
-                    is_nyi=nyi)
-            for nam in names:
-                sym = values.W_Symbol.make(nam)
-                if sym in prim_env and prim_env[sym].is_implemented():
-                    raise SchemeException("name %s already defined" % nam)
-                prim_env[sym] = p
-            func_arg_unwrap.w_prim = p
+        p = cls(name, func_result_handling,
+                arity=_arity, result_arity=result_arity,
+                is_nyi=nyi)
+        for nam in names:
+            sym = values.W_Symbol.make(nam)
+            if sym in prim_env and prim_env[sym].is_implemented():
+                raise SchemeException("name %s already defined" % nam)
+            prim_env[sym] = p
+        func_arg_unwrap.w_prim = p
         return func_arg_unwrap
     return wrapper
 

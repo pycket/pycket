@@ -73,13 +73,19 @@ def vector_star_ref(v, i, env, cont, calling_app):
 # we need the env to raise a ConvertStack from within the primitive
 # (if say we make the the "simple" conditional in expose,
 # like convert_for=[W_InterposeVector])
-@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=True, stackful=True)
-def vector_ref(v, i):
+
+def vector_ref_simple_predicate(args):
+    vec = args[0]
+    return not isinstance(vec, W_ImpVector)
+def vector_ref_simple(args): # args has to be a list (b/c of expose)
+    assert len(args) == 2
+    v = args[0]
+    i = args[1]
+    assert isinstance(i, values.W_Fixnum)
     if not (0 <= i.value < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
     return v.vector_ref_stack(i.value)
-
-@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False, extra_info=True)
+@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False, extra_info=True, new_simple=True, simple_pred=vector_ref_simple_predicate, simple_func=vector_ref_simple)
 def vector_ref(v, i, env, cont, calling_app):
     return vector_ref_impl(v, i, env, cont, calling_app)
 

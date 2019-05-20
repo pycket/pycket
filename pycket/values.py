@@ -1446,6 +1446,14 @@ class W_Prim(W_Procedure):
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
 
+class W_PrimMaybeSimple(W_Prim):
+    from pycket.arity import Arity
+
+    def simple_func(self, args):
+        """ overridden by the generated subclasses in expose.py"""
+        raise NotImplementedError("abstract base class")
+
+
 class W_PrimSimple(W_Prim):
     from pycket.arity import Arity
 
