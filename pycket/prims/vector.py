@@ -160,7 +160,14 @@ def copy_vector_ref_cont(v, data, len, idx, env, cont, _vals):
     data.set(idx, val)
     return copy_vector_loop(v, data, len, idx + 1, env, cont)
 
-@expose("vector->immutable-vector", [values_vector.W_MVector], simple=False)
+def vector2immutablevector_pred(args):
+    v = args[0]
+    return v.immutable()
+def vector2immutablevector_simple(args):
+    assert len(args) == 1
+    v = args[0]
+    return v
+@expose("vector->immutable-vector", [values_vector.W_MVector], simple=False, new_simple=True, simple_pred=vector2immutablevector_pred, simple_func=vector2immutablevector_simple)
 def vector2immutablevector(v, env, cont):
     from pycket.interpreter import return_value
     if v.immutable():
