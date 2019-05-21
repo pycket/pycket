@@ -338,11 +338,12 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
             cls.__name__ += name
         elif new_simple:
             class cls(values.W_PrimMaybeSimple):
-                def simple_func(self, args):
+                def simple_func(self, args, env=None, cont=None, extra=None):
                     assert simple_pred and simple_func
                     if simple_pred(args):
                         return simple_func(args)
-                    return func_result_handling(args)
+                    assert env and cont and extra
+                    return func_result_handling(args, env, cont, extra)
             cls.__name__ += name
 
         elif simple:

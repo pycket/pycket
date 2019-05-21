@@ -1159,6 +1159,11 @@ class MaybeSimplePrimApp(App):
         context = Context.AppRand(self.rator, context)
         return Context.normalize_names(self.rands, context)
 
+    def interpret(self, env, cont):
+        w_callable, args_w = self.get_callable_and_args(env)
+        return self.w_prim.simple_func(args_w, env, cont, self)
+        #return w_callable.call_with_extra_info(args_w, env, cont, self)
+
     def _interpret_stack_app(self, w_callable, args_w):
         return self.w_prim.simple_func(args_w)
 

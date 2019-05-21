@@ -1449,7 +1449,7 @@ class W_Prim(W_Procedure):
 class W_PrimMaybeSimple(W_Prim):
     from pycket.arity import Arity
 
-    def simple_func(self, args):
+    def simple_func(self, args, env=None, cont=None, extra=None):
         """ overridden by the generated subclasses in expose.py"""
         raise NotImplementedError("abstract base class")
 
