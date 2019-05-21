@@ -160,6 +160,11 @@ expander:
 	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
 	$(MAKE) -C linklet-extractor expander
 
+expander-json:
+	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
+	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
+	$(MAKE) -C linklet-extractor expander-json
+
 regexp:
 	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
 	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
@@ -167,6 +172,9 @@ regexp:
 
 fasl:
 	$(MAKE) -C linklet-extractor fasl
+
+fasl-json:
+	$(MAKE) -C linklet-extractor fasl-json
 
 expander-bytecode:
 	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"

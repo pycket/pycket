@@ -4,15 +4,25 @@
 EXPANDER_DIR := $(PLTHOME)/racket/src/expander
 REGEXP_DIR := $(PLTHOME)/racket/src/regexp
 
-expander:
-	$(MAKE) -C $(EXPANDER_DIR) expander-src-generate
-	cp $(EXPANDER_DIR)/compiled/expander.rktl .
+expander: expander-sexp
+	racket linklet-sexp-to-fasl.rkt --version --output ../expander.fasl expander.rktl
+
+expander-json: expander-sexp
 	racket linklet-sexp-to-json.rkt --output ../expander.rktl.linklet expander.rktl
 
-fasl:
+expander-sexp:
+	$(MAKE) -C $(EXPANDER_DIR) expander-src-generate
+	cp $(EXPANDER_DIR)/compiled/expander.rktl .
+
+fasl: fasl-sexp
+	racket linklet-sexp-to-fasl.rkt --output ../fasl.fasl fasl.rktl
+
+fasl-json: fasl-sexp
+	racket linklet-sexp-to-json.rkt --output ../fasl.rktl.linklet fasl.rktl
+
+fasl-sexp:
 	raco make -v $(EXPANDER_DIR)/bootstrap-run.rkt
 	racket -t $(EXPANDER_DIR)/bootstrap-run.rkt -- -c compiled/cache-src ++knot read - -s -x -t fasl.rkt -o fasl.rktl
-	racket linklet-sexp-to-json.rkt --output ../fasl.rktl.linklet fasl.rktl
 
 regexp:
 	$(MAKE) -C $(REGEXP_DIR) regexp-src-generate
