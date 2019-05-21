@@ -160,6 +160,7 @@ class AST(object):
         from pycket.interpreter import App
         from pycket.values import W_Prim
         from pycket.values_parameter import W_Parameter
+        from pycket.values_struct import W_RootStruct, W_StructConstructor, W_StructAccessor, W_StructFieldMutator, W_StructMutator, W_StructPropertyAccessor
 
         if stack_almost_full():
             #console_log("************* ABOUT TO OVERFLOW **************", 1)
@@ -187,7 +188,10 @@ class AST(object):
             stackfull_driver.jit_merge_point(ast=self, env=env)
             if isinstance(self, App):
                 w_callable, args_w = self.get_callable_and_args(env)
-                if type(w_callable) is W_Prim or isinstance(w_callable, W_Parameter):
+                if type(w_callable) is W_Prim or isinstance(w_callable, W_Parameter) or \
+                   isinstance(w_callable, W_RootStruct) or isinstance(w_callable, W_StructConstructor) or \
+                   isinstance(w_callable, W_StructAccessor) or isinstance(w_callable, W_StructFieldMutator) or \
+                   isinstance(w_callable, W_StructMutator) or isinstance(w_callable, W_StructPropertyAccessor):
                     raise ConvertStack(self, env)
 
                 w_val = self._interpret_stack_app(w_callable, args_w)
