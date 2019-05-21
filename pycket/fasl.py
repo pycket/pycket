@@ -84,6 +84,7 @@ class Fasl(object):
         _length = self.read_fasl_integer_stream(port)
         # this length is useless until we have our own s-exp->fasl
 
+        #assert isinstance(port.buf, str)
         fasl_string = port.buf
         pos = port.pos
 
@@ -132,12 +133,6 @@ class Fasl(object):
         return self.read_bytes_exactly(fasl_string, pos, length)
         # TODO: check utf-8
 
-    def read_fasl_string_stream(self, stream, length=None):
-        if not length:
-            length = self.read_fasl_integer_stream(stream)
-        return self.read_bytes_exactly_stream(stream, length)
-        # TODO: check utf-8
-
     def read_fasl_bytes(self, fasl_string, pos):
         bytes_len, pos = self.read_fasl_integer(fasl_string, pos)
         return self.read_bytes_exactly(fasl_string, pos, bytes_len)
@@ -145,22 +140,10 @@ class Fasl(object):
     def read_byte_no_eof(self, fasl_string, pos):
         return ord(fasl_string[pos]), pos+1
 
-    def read_byte_no_eof_stream(self, stream):
-        b = stream.read(1)
-        if not b:
-            raise Exception("truncated stream - got eof")
-        return b
-
     def read_bytes_exactly(self, fasl_string, pos, n):
         if pos+n > len(fasl_string):
             raise Exception("truncated stream")
         return fasl_string[pos:pos+n], pos+n
-
-    def read_bytes_exactly_stream(self, stream, n):
-        bytes = stream.read(n)
-        if len(bytes) != n:
-            raise Exception("truncated stream")
-        return bytes
 
     def read_fasl_integer(self, fasl_string, pos):
         b, pos = self.read_byte_no_eof(fasl_string, pos)
@@ -178,53 +161,59 @@ class Fasl(object):
             return b-256, pos
         elif b == 128:
             num_str, pos = self.read_bytes_exactly(fasl_string, pos, 2)
-            return _integer_bytes_to_integer(num_str, v.w_true, v.w_false).value, pos
+            return _integer_bytes_to_integer(list(num_str), v.w_true, v.w_false).toint(), pos
         elif b == 129:
             num_str, pos = self.read_bytes_exactly(fasl_string, pos, 4)
-            return _integer_bytes_to_integer(num_str, v.w_true, v.w_false).value, pos
+            return _integer_bytes_to_integer(list(num_str), v.w_true, v.w_false).toint(), pos
         elif b == 130:
             num_str, pos = self.read_bytes_exactly(fasl_string, pos, 8)
-            return _integer_bytes_to_integer(num_str, v.w_true, v.w_false).value, pos
+            return _integer_bytes_to_integer(list(num_str), v.w_true, v.w_false).toint(), pos
         elif b == 131:
             length, pos = self.read_fasl_integer(fasl_string, pos)
             num_str, pos = self.read_fasl_string(fasl_string, pos, length)
             if len(num_str) != length:
                 raise Exception("fasl: truncated stream at number")
-            return _str2num(W_String.fromstr_utf8(num_str).as_str_utf8(), 16).value, pos
+            return _str2num(W_String.fromstr_utf8(num_str).as_str_utf8(), 16).toint(), pos
         else:
             raise Exception("fasl: internal error on integer mode")
 
-    def read_fasl_integer_stream(self, stream):
-        _b = self.read_byte_no_eof_stream(stream)
-        assert isinstance(_b, str)
-        b = ord(_b)
-        return self.fasl_integer_inner_stream(stream, b)
+    def read_bytes_exactly_stream(self, stream, n):
+        bytes = stream.read(n)
+        if len(bytes) != n:
+            raise Exception("truncated stream")
+        return bytes
 
-    def fasl_integer_inner_stream(self, stream, b):
+    def read_fasl_integer_stream(self, stream):
         from pycket import values as v
         from pycket.prims.numeric import _integer_bytes_to_integer
         from pycket.prims.string import _str2num
         from pycket.values_string import W_String
+        b = stream.read(1)
+        if not b:
+            raise Exception("truncated stream - got eof")
 
-        if b <= 127:
-            return b
-        elif b >= 132:
-            return b-256
-        elif b == 128:
+        #b = ord(_b)
+
+        if b <= chr(127):
+            return ord(b)
+        elif b >= chr(132):
+            return ord(b)-256
+        elif b == chr(128):
             num_str = self.read_bytes_exactly_stream(stream, 2)
-            return _integer_bytes_to_integer(num_str, v.w_true, v.w_false).value
-        elif b == 129:
+            return _integer_bytes_to_integer(list(num_str), v.w_true, v.w_false).toint()
+        elif b == chr(129):
             num_str = self.read_bytes_exactly_stream(stream, 4)
-            return _integer_bytes_to_integer(num_str, v.w_true, v.w_false).value
-        elif b == 130:
+            return _integer_bytes_to_integer(list(num_str), v.w_true, v.w_false).toint()
+        elif b == chr(130):
             num_str = self.read_bytes_exactly_stream(stream, 8)
-            return _integer_bytes_to_integer(num_str, v.w_true, v.w_false).value
-        elif b == 131:
+            return _integer_bytes_to_integer(list(num_str), v.w_true, v.w_false).toint()
+        elif b == chr(131):
             length = self.read_fasl_integer_stream(stream)
-            num_str = self.read_fasl_string_stream(stream, length)
+            assert isinstance(length, int)
+            num_str = self.read_bytes_exactly_stream(stream, length)
             if len(num_str) != length:
                 raise Exception("fasl: truncated stream at number")
-            return _str2num(W_String.fromstr_utf8(num_str).as_str_utf8(), 16).value
+            return _str2num(W_String.fromstr_utf8(num_str).as_str_utf8(), 16).toint()
         else:
             raise Exception("fasl: internal error on integer mode")
 
