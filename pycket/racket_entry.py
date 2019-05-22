@@ -37,14 +37,19 @@ def locate_linklet(file_name):
     return file_path
 
 def load_bootstrap_linklet(which_str, debug, is_it_expander=False, from_fasl=True):
+    from pycket.error import SchemeException
+
     with PerfRegion("%s-linklet" % which_str):
         console_log("Loading the %s linklet..." % which_str)
         linklet_file_path = locate_linklet("%s.rktl.linklet" % which_str)
         if from_fasl:
-            linklet_file_path = locate_linklet("%s.fasl" % which_str)
+            try:
+                linklet_file_path = locate_linklet("%s.zo" % which_str)
+            except SchemeException:
+                linklet_file_path = locate_linklet("%s.fasl" % which_str)
 
         # load the linklet
-        _instance = load_inst_linklet_json(linklet_file_path, debug, set_version=is_it_expander, from_fasl=from_fasl)
+        _instance = load_inst_linklet(linklet_file_path, debug, set_version=is_it_expander, from_fasl=from_fasl)
         _instance.expose_vars_to_prim_env(excludes=syntax_primitives)
 
         if is_it_expander:
@@ -80,14 +85,34 @@ def load_linklet_from_json(file_name, set_version=False):
     debug_stop("loading-linklet")
     return linkl
 
-def load_linklet_from_fasl(file_name, set_version=False):
-    from pycket.prims.linklet import do_compile_linklet
-    from pycket.env import ToplevelEnv
-    from pycket.cont import NilCont
+def make_zo_for(linklet_name):
+    from pycket.ast_vs_sexp import ast_to_sexp
+    from pycket.values import W_Cons
+    from pycket.prims.input_output import open_outfile
 
+    # load the linklet
+    linklet, version_sexp = load_linklet_from_fasl(linklet_name + ".fasl", set_version="expander" in linklet_name)
+
+    # s-exp->fasl the linklet into a .zo
+    sexp_to_fasl = get_primitive("s-exp->fasl")
+    out_port = open_outfile(W_Path(linklet_name + ".zo"), "w", W_Symbol.make("replace"))
+    linklet_sexp = ast_to_sexp(linklet)
+    if "expander" in linklet_name:
+        sexp_to_fasl.call_interpret([W_Cons.make(version_sexp, linklet_sexp), out_port])
+    else:
+        sexp_to_fasl.call_interpret([linklet_sexp, out_port])
+    out_port.close()
+
+def make_bootstrap_zos():
+    load_fasl()
+    make_zo_for("fasl")
+    make_zo_for("expander")
+
+def load_linklet_from_fasl(file_name, set_version=False):
     from pycket.fasl import Fasl
     from pycket.env import w_version
     from pycket.util import console_log
+    from pycket.ast_vs_sexp import deserialize_loop
 
     debug_start("loading-linklet")
     debug_print("Loading linklet from fasl -- %s" % file_name)
@@ -99,10 +124,12 @@ def load_linklet_from_fasl(file_name, set_version=False):
     else:
         linklet_sexp = sexp
     linklet = None
-    try: # FIXME: write the compiled zo fasl and load it without the normalization etc.
-        do_compile_linklet(linklet_sexp, W_Symbol.make("linkl"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
-    except Done, e:
-        linklet = e.values
+    if "zo" in file_name:
+        linklet = deserialize_loop(linklet_sexp)
+    else:
+        console_log("Run pycket with --make-linklet-zos to make the compiled zo files for bootstrap linklets", 1)
+        compile_linklet = get_primitive("compile-linklet")
+        linklet = compile_linklet.call_interpret([linklet_sexp, W_Symbol.make("linkl"), w_false, w_false, w_false])
 
     if set_version:
         ver = version_sexp.as_str_ascii()
@@ -110,7 +137,7 @@ def load_linklet_from_fasl(file_name, set_version=False):
         w_version.set_version(ver)
 
     debug_stop("loading-linklet")
-    return linklet
+    return linklet, version_sexp
 
 def _instantiate_linklet(file_name_for_log, linkl):
     debug_start("instantiating-linklet")
@@ -121,23 +148,23 @@ def _instantiate_linklet(file_name_for_log, linkl):
     debug_stop("instantiating-linklet")
     return linkl_instance
 
-def load_inst_linklet_json(json_file_name, debug=False, set_version=False, expose_vars=False, from_fasl=False):
+def load_inst_linklet(file_path, debug=False, set_version=False, expose_vars=False, from_fasl=False):
     from pycket.env import w_version
     linkl = None
     if from_fasl:
-        linkl = load_linklet_from_fasl(json_file_name, set_version)
+        linkl, _ = load_linklet_from_fasl(file_path, set_version)
     else:
-        linkl = load_linklet_from_json(json_file_name, set_version)
-    linkl_instance = _instantiate_linklet(json_file_name, linkl)
+        linkl = load_linklet_from_json(file_path, set_version)
+    linkl_instance = _instantiate_linklet(file_path, linkl)
     if expose_vars:
-        console_log("Exporting vars of %s" % json_file_name)
+        console_log("Exporting vars of %s" % file_path)
         linkl_instance.expose_vars_to_prim_env()
-    console_log("DONE with the %s." % json_file_name)
+    console_log("DONE with the %s." % file_path)
     return linkl_instance
 
 def load_linklets_at_startup(linklet_file_names):
     for linklet_file in linklet_file_names:
-        load_inst_linklet_json(linklet_file, expose_vars=True)
+        load_inst_linklet(linklet_file, expose_vars=True)
 
 def set_path(kind_str, path_str):
     import os
@@ -198,8 +225,8 @@ def dev_mode_dynamic_metainterp():
     # otherwise we could just call the 'function' on the 'input' in
     # the .rkt source and "run-as-linklet" that
 
-    load_inst_linklet_json("function.rkt.linklet", expose_vars=True)
-    load_inst_linklet_json("input.rkt.linklet", expose_vars=True)
+    load_inst_linklet("function.rkt.linklet", expose_vars=True)
+    load_inst_linklet("input.rkt.linklet", expose_vars=True)
 
     function = get_primitive("function")
     input_f = get_primitive("input")
@@ -392,13 +419,17 @@ def dev_mode_entry(dev_mode, eval_sexp, run_rkt_as_linklet):
         dev_mode_entry_sexp(eval_sexp)
     elif run_rkt_as_linklet:
         create_linklet_json(run_rkt_as_linklet)
-        load_inst_linklet_json("%s.linklet" % run_rkt_as_linklet)
+        load_inst_linklet("%s.linklet" % run_rkt_as_linklet)
     else:
         dev_mode_dynamic_metainterp()
 
 def racket_entry(names, config, command_line_arguments):
     from pycket.prims.general import executable_yield_handler
     from pycket.values import W_Fixnum
+
+    if config['make-zos']:
+        make_bootstrap_zos()
+        return 0
 
     linklet_perf.init()
 
@@ -428,7 +459,7 @@ def racket_entry(names, config, command_line_arguments):
     if load_as_linklets:
         for rkt in load_as_linklets:
             create_linklet_json(rkt)
-            load_inst_linklet_json("%s.linklet" % rkt)
+            load_inst_linklet("%s.linklet" % rkt)
         return 0
 
     if load_linklets:
