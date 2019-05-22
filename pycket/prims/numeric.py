@@ -560,7 +560,7 @@ def pycket_longlong2float(llval):
         return floatval
 
 @expose("floating-point-bytes->real", [values.W_Bytes, default(values.W_Object, values.w_false)])
-def float_bytes_to_real(bstr, signed):
+def float_bytes_to_real_(bstr, signed):
     bytes = bstr.as_bytes_list()
     return float_bytes_to_real(bytes, signed)
 

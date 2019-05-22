@@ -75,7 +75,7 @@ class Fasl(object):
         port = sio.open_file_as_stream(file_name, "rb", buffering=2**21)
         prefix = port.read(FASL_PREFIX_LENGTH)
         if prefix != FASL_PREFIX:
-            raise Exception("unrecognized prefix : % " % prefix)
+            raise Exception("unrecognized prefix : %s " % prefix)
 
         shared_count = self.read_fasl_integer_stream(port)
         self.GLOBAL_SHARED_COUNT = shared_count
@@ -85,8 +85,9 @@ class Fasl(object):
         # this length is useless until we have our own s-exp->fasl
 
         #assert isinstance(port.buf, str)
-        fasl_string = port.buf
-        pos = port.pos
+        #pos = port.tell()
+        fasl_string = port.readall()
+        pos = 0
 
         sexp, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
         return sexp
@@ -94,7 +95,7 @@ class Fasl(object):
     def to_sexp_from_w_port(self, port):
         prefix = port.read(FASL_PREFIX_LENGTH)
         if prefix != FASL_PREFIX:
-            raise Exception("unrecognized prefix : % " % prefix)
+            raise Exception("unrecognized prefix : %s " % prefix)
 
         shared_count = self.read_fasl_integer_stream(port)
         self.GLOBAL_SHARED_COUNT = shared_count
@@ -127,8 +128,8 @@ class Fasl(object):
             vals[i] = element
         return vals, pos
 
-    def read_fasl_string(self, fasl_string, pos, length=None):
-        if not length:
+    def read_fasl_string(self, fasl_string, pos, length=-1):
+        if length < 0:
             length, pos = self.read_fasl_integer(fasl_string, pos)
         return self.read_bytes_exactly(fasl_string, pos, length)
         # TODO: check utf-8
@@ -143,7 +144,7 @@ class Fasl(object):
     def read_bytes_exactly(self, fasl_string, pos, n):
         if pos+n > len(fasl_string):
             raise Exception("truncated stream")
-        return fasl_string[pos:pos+n], pos+n
+        return self.get_slice(fasl_string, pos, pos+n), pos+n
 
     def read_fasl_integer(self, fasl_string, pos):
         b, pos = self.read_byte_no_eof(fasl_string, pos)
@@ -188,26 +189,26 @@ class Fasl(object):
         from pycket.prims.numeric import _integer_bytes_to_integer
         from pycket.prims.string import _str2num
         from pycket.values_string import W_String
-        b = stream.read(1)
-        if not b:
+        _b = stream.read(1)[0]
+        if not _b:
             raise Exception("truncated stream - got eof")
 
-        #b = ord(_b)
+        b = ord(_b)
 
-        if b <= chr(127):
-            return ord(b)
-        elif b >= chr(132):
-            return ord(b)-256
-        elif b == chr(128):
+        if b <= 127:
+            return b
+        elif b >= 132:
+            return b-256
+        elif b == 128:
             num_str = self.read_bytes_exactly_stream(stream, 2)
             return _integer_bytes_to_integer(list(num_str), v.w_true, v.w_false).toint()
-        elif b == chr(129):
+        elif b == 129:
             num_str = self.read_bytes_exactly_stream(stream, 4)
             return _integer_bytes_to_integer(list(num_str), v.w_true, v.w_false).toint()
-        elif b == chr(130):
+        elif b == 130:
             num_str = self.read_bytes_exactly_stream(stream, 8)
             return _integer_bytes_to_integer(list(num_str), v.w_true, v.w_false).toint()
-        elif b == chr(131):
+        elif b == 131:
             length = self.read_fasl_integer_stream(stream)
             assert isinstance(length, int)
             num_str = self.read_bytes_exactly_stream(stream, length)
@@ -216,6 +217,10 @@ class Fasl(object):
             return _str2num(W_String.fromstr_utf8(num_str).as_str_utf8(), 16).toint()
         else:
             raise Exception("fasl: internal error on integer mode")
+
+    def get_slice(self, string, start, stop):
+        assert stop > 0 and start >= 0
+        return string[start:stop]
 
     # let's not worry about the CPS'in this right now
     # we probably won't have any sexp deeper than the stack anyways
@@ -261,10 +266,10 @@ class Fasl(object):
             return v.W_Fixnum(num), pos
         elif typ == FASL_FLONUM_TYPE:
             num_str, pos = self.read_bytes_exactly(fasl_string, pos, 8)
-            return float_bytes_to_real(num_str, v.w_false), pos
+            return float_bytes_to_real(list(num_str), v.w_false), pos
         elif typ == FASL_SINGLE_FLONUM_TYPE:
             num_str, pos = self.read_bytes_exactly(fasl_string, pos, 4)
-            real = float_bytes_to_real(num_str, v.w_false)
+            real = float_bytes_to_real(list(num_str), v.w_false)
             return real.arith_exact_inexact(), pos
         elif typ == FASL_EXTFLONUM_TYPE:
             bstr_len, pos = self.read_fasl_integer(fasl_string, pos)
@@ -325,7 +330,7 @@ class Fasl(object):
             return W_ByteRegexp(str_str), pos
         elif typ == FASL_LIST_TYPE:
             list_len, pos = self.read_fasl_integer(fasl_string, pos)
-            lst_chunk = fasl_string[pos:pos+list_len]
+            lst_chunk = self.get_slice(fasl_string, pos, pos+list_len)
             lst, pos = self.read_multi_into_rpython_list(fasl_string, pos, list_len)
             return v.to_list(lst), pos
         elif typ == FASL_PAIR_TYPE:
@@ -335,7 +340,7 @@ class Fasl(object):
         elif typ == FASL_LIST_STAR_TYPE:
             list_len, pos = self.read_fasl_integer(fasl_string, pos)
             # list_len is the length of the proper part
-            lst_chunk = fasl_string[pos:pos+list_len]
+            lst_chunk = self.get_slice(fasl_string, pos, pos+list_len)
             lst, pos = self.read_multi_into_rpython_list(fasl_string, pos, list_len)
             # read the last element
             return_list, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
@@ -363,22 +368,22 @@ class Fasl(object):
             variant, pos = self.read_byte_no_eof(fasl_string, pos)
             length, pos = self.read_fasl_integer(fasl_string, pos)
             keys, vals, pos = self.read_multi_double_into_rpython_list(fasl_string, pos, length)
-            if variant == FASL_HASH_EQUAL_VARIANT:
-                return W_EqualHashTable(keys, vals, immutable=False), pos
-            elif variant == FASL_HASH_EQ_VARIANT:
+            if variant == FASL_HASH_EQ_VARIANT:
                 return hash_simple.make_simple_mutable_table(hash_simple.W_EqMutableHashTable, keys, vals), pos
             elif variant == FASL_HASH_EQV_VARIANT:
                 return hash_simple.make_simple_mutable_table(hash_simple.W_EqvMutableHashTable, keys, vals), pos
+            else: # variant == FASL_HASH_EQUAL_VARIANT:
+                return W_EqualHashTable(keys, vals, immutable=False), pos
         elif typ == FASL_IMMUTABLE_HASH_TYPE:
             variant, pos = self.read_byte_no_eof(fasl_string, pos)
             length, pos = self.read_fasl_integer(fasl_string, pos)
             keys, vals, pos = self.read_multi_double_into_rpython_list(fasl_string, pos, length)
-            if variant == FASL_HASH_EQUAL_VARIANT:
-                return W_EqualHashTable(keys, vals, immutable=True), pos
-            elif variant == FASL_HASH_EQ_VARIANT:
+            if variant == FASL_HASH_EQ_VARIANT:
                 return hash_simple.make_simple_immutable_table(hash_simple.W_EqImmutableHashTable, keys, vals), pos
             elif variant == FASL_HASH_EQV_VARIANT:
                 return hash_simple.make_simple_immutable_table(hash_simple.W_EqvImmutableHashTable, keys, vals), pos
+            else: # variant == FASL_HASH_EQUAL_VARIANT:
+                return W_EqualHashTable(keys, vals, immutable=True), pos
         elif typ == FASL_SRCLOC:
             # difficult to create an instance of srcloc struct so defer that to the runtime
             source, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
