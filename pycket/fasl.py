@@ -70,22 +70,28 @@ class Fasl(object):
         self.GLOBAL_SHARED_COUNT = -1
         self.SHARED = []
 
-    def to_sexp_from_file(self, file_name):
-        from rpython.rlib             import streamio as sio
-        port = sio.open_file_as_stream(file_name, "rb", buffering=2**21)
+    def read_and_check_prefix(self, port):
         prefix = port.read(FASL_PREFIX_LENGTH)
         if prefix != FASL_PREFIX:
             raise Exception("unrecognized prefix : %s " % prefix)
 
+    def set_up_the_shared(self, port):
         shared_count = self.read_fasl_integer_stream(port)
         self.GLOBAL_SHARED_COUNT = shared_count
         self.SHARED = [None]*shared_count
 
-        _length = self.read_fasl_integer_stream(port)
-        # this length is useless until we have our own s-exp->fasl
+    def read_length(self, port): # and throw it away
+        # FIXME: check the length
+        return self.read_fasl_integer_stream(port)
 
-        #assert isinstance(port.buf, str)
-        #pos = port.tell()
+    def to_sexp_from_file(self, file_name):
+        from rpython.rlib             import streamio as sio
+        port = sio.open_file_as_stream(file_name, "rb", buffering=2**21)
+
+        self.read_and_check_prefix(port)
+        self.set_up_the_shared(port)
+        self.read_length(port)
+
         fasl_string = port.readall()
         pos = 0
 
@@ -93,16 +99,9 @@ class Fasl(object):
         return sexp
 
     def to_sexp_from_w_port(self, port):
-        prefix = port.read(FASL_PREFIX_LENGTH)
-        if prefix != FASL_PREFIX:
-            raise Exception("unrecognized prefix : %s " % prefix)
-
-        shared_count = self.read_fasl_integer_stream(port)
-        self.GLOBAL_SHARED_COUNT = shared_count
-        self.SHARED = [None]*shared_count
-
-        _length = self.read_fasl_integer_stream(port)
-        # this length is useless until we have our own s-exp->fasl
+        self.read_and_check_prefix(port)
+        self.set_up_the_shared(port)
+        self.read_length(port)
 
         length = port._length_up_to_end()
         fasl_string = port.read(length)
