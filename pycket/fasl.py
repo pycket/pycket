@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
 FASL_GRAPH_DEF_TYPE = 1
 FASL_GRAPH_REF_TYPE = 2
 
@@ -70,41 +69,23 @@ class Fasl(object):
     def __init__(self, relative_dir=None):
         self.GLOBAL_SHARED_COUNT = -1
         self.SHARED = []
+        self.current_relative_dir = relative_dir
 
-    def read_and_check_prefix(self, port):
+    def to_sexp_from_file(self, file_name):
+        from pycket.values_string import W_String
+        from pycket.prims.input_output import open_infile
+        port = open_infile(W_String.make(file_name), "rb")
+        return self.to_sexp_from_w_port(port)
+
+    def to_sexp_from_w_port(self, port):
         prefix = port.read(FASL_PREFIX_LENGTH)
         if prefix != FASL_PREFIX:
             raise Exception("unrecognized prefix : %s " % prefix)
-
-    def set_up_the_shared(self, port):
         shared_count = self.read_fasl_integer_stream(port)
         self.GLOBAL_SHARED_COUNT = shared_count
         self.SHARED = [None]*shared_count
+        length = self.read_fasl_integer_stream(port)
 
-    def read_length(self, port): # and throw it away
-        # FIXME: check the length
-        return self.read_fasl_integer_stream(port)
-
-    def to_sexp_from_file(self, file_name):
-        from rpython.rlib             import streamio as sio
-        port = sio.open_file_as_stream(file_name, "rb", buffering=2**21)
-
-        self.read_and_check_prefix(port)
-        self.set_up_the_shared(port)
-        self.read_length(port)
-
-        fasl_string = port.readall()
-        pos = 0
-
-        sexp, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
-        return sexp
-
-    def to_sexp_from_w_port(self, port):
-        self.read_and_check_prefix(port)
-        self.set_up_the_shared(port)
-        self.read_length(port)
-
-        length = port._length_up_to_end()
         fasl_string = port.read(length)
         pos = 0
 
@@ -341,7 +322,6 @@ class Fasl(object):
             return W_ByteRegexp(str_str), pos
         elif typ == FASL_LIST_TYPE:
             list_len, pos = self.read_fasl_integer(fasl_string, pos)
-            lst_chunk = self.get_slice(fasl_string, pos, pos+list_len)
             lst, pos = self.read_multi_into_rpython_list(fasl_string, pos, list_len)
             return v.to_list(lst), pos
         elif typ == FASL_PAIR_TYPE:
@@ -351,7 +331,6 @@ class Fasl(object):
         elif typ == FASL_LIST_STAR_TYPE:
             list_len, pos = self.read_fasl_integer(fasl_string, pos)
             # list_len is the length of the proper part
-            lst_chunk = self.get_slice(fasl_string, pos, pos+list_len)
             lst, pos = self.read_multi_into_rpython_list(fasl_string, pos, list_len)
             # read the last element
             return_list, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
