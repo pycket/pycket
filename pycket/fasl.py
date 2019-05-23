@@ -64,9 +64,10 @@ FASL_HASH_EQV_VARIANT = 2
 #################################################
 
 class Fasl(object):
-    _attrs_ = ["GLOBAL_SHARED_COUNT", "SHARED"]
+    _attrs_ = ["GLOBAL_SHARED_COUNT", "SHARED", "current_relative_dir"]
+    _immutable_fields_ = ["current_relative_dir"]
 
-    def __init__(self):
+    def __init__(self, relative_dir=None):
         self.GLOBAL_SHARED_COUNT = -1
         self.SHARED = []
 
@@ -234,8 +235,11 @@ class Fasl(object):
         from pycket.prims.numeric import float_bytes_to_real
         from pycket.prims.string import _str2num
         from rpython.rlib.rbigint import rbigint
+        from pycket.prims.input_output import build_path, bytes_to_path_element
+        from pycket.ast_vs_sexp import to_rpython_list
 
         typ, pos = self.read_byte_no_eof(fasl_string, pos)
+
         if typ == FASL_GRAPH_DEF_TYPE:
             position, pos = self.read_fasl_integer(fasl_string, pos)
             val, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
@@ -312,9 +316,17 @@ class Fasl(object):
         elif typ == FASL_PATH_TYPE:
             byts, pos = self.read_fasl_bytes(fasl_string, pos)
             return v.W_Path(byts), pos
-        elif typ == FASL_RELATIVE_PATH_TYPE: # FIXME: check this
-            byts, pos = self.read_fasl_bytes(fasl_string, pos)
-            return v.W_Path(byts), pos
+        elif typ == FASL_RELATIVE_PATH_TYPE:
+            wrt_dir = self.current_relative_dir
+            p_w_lst, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
+            p_r_lst, _ = to_rpython_list(p_w_lst)
+            rel_elems = [bytes_to_path_element(p) if isinstance(p, v.W_Bytes) else p for p in p_r_lst]
+            if wrt_dir:
+                return build_path([wrt_dir] + rel_elems), pos
+            elif rel_elems == []:
+                return build_path([v.W_Symbol.make("same")]), pos
+            else:
+                return build_path(rel_elems), pos
         elif typ == FASL_PREGEXP_TYPE:
             str_str, pos = self.read_fasl_string(fasl_string, pos)
             return W_PRegexp(str_str), pos
