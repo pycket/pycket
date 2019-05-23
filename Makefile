@@ -155,12 +155,14 @@ update-pypy: pull-pypy
 
 setup-old-pycket: setup-racket-for-old-pycket update-pypy
 
+bootstrap-linklets: expander fasl
+	@echo "ASSUMES: a built pycket-c-linklets binary"
+	./pycket-c-linklets --make-linklet-zos
+
 expander:
 	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
 	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	@echo "ASSUMES: a built pycket-c-linklets binary"
 	$(MAKE) -C linklet-extractor expander
-	./pycket-c-linklets --make-linklet-zos
 
 expander-json:
 	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
