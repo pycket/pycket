@@ -598,7 +598,7 @@ def read_linklet_bundle_hash(in_port, env, cont):
     current_load_relative_dir_path = get_primitive("current-load-relative-directory").get_cell_value(cont)
 
     fasl_to_s_exp = get_primitive("fasl->s-exp")
-    with PerfRegionCPS("fasl->s-exp"):
+    with PerfRegion("fasl->s-exp"):
         bundle_map = Fasl(current_load_relative_dir_path).to_sexp_from_w_port(in_port)
         #return fasl_to_s_exp.call([in_port, values.w_true], env, read_linklet_cont(env, cont))
     if not isinstance(bundle_map, W_HashTable):
