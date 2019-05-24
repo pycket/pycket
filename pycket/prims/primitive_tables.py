@@ -96,7 +96,7 @@ foreign_str = ["_bool", "_bytes", "_double", "_double*",
                "prop:cpointer", "ptr-add", "ptr-add!", "ptr-equal?",
                "ptr-offset", "ptr-ref", "ptr-set!", "saved-errno",
                "set-cpointer-tag!", "set-ptr-offset!", "vector->cpointer",
-               "ffi-callback-maker", "ffi-call-maker"]
+               "ffi-callback-maker", "ffi-call-maker", "make-late-will-executor"]
 
 linklet_str = ["linklet?", "compile-linklet", "recompile-linklet", "eval-linklet", "read-compiled-linklet", "instantiate-linklet",
                "linklet-import-variables", "linklet-export-variables", "instance?", "make-instance", "instance-name", "instance-data",
@@ -159,7 +159,7 @@ unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-thread-at-root", "unsafe-make-custodian-at-root", "unsafe-custodian-register",
               "unsafe-custodian-unregister", "unsafe-register-process-global", "unsafe-make-security-guard-at-root",
               "unsafe-abort-current-continuation/no-wind", "unsafe-call-with-composable-continuation/no-wind",
-              "unsafe-poller",
+              "unsafe-poller", "unsafe-poll-fd",
               "unsafe-poll-ctx-fd-wakeup", "unsafe-poll-ctx-eventmask-wakeup", "unsafe-poll-ctx-milliseconds-wakeup",
               "unsafe-signal-received", "unsafe-set-sleep-in-thread!",
               "unsafe-file-descriptor->port", "unsafe-socket->port",

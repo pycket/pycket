@@ -54,6 +54,17 @@ class SymList(object):
             depth += 1
         return depth, size
 
+    def to_sexp(self):
+        from pycket import values as v
+        d,s = self.depth_and_size()
+        lst = [None]*d
+        i = 0
+        while self is not None:
+            lst[i] = v.to_list(self.elems)
+            self = self.prev
+            i += 1
+        return v.to_list(lst)
+
     def depth_of_var(self, var):
         depth = 0
         while self is not None:

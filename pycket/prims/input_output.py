@@ -24,7 +24,7 @@ from pycket              import values_string
 from pycket.error        import SchemeException, FSException, ContractException, ArityException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
 
-from sys import platform
+from sys import platform, maxint
 
 import os
 
@@ -133,13 +133,23 @@ def read_number_or_id(f, init):
         except:
             return values.W_Symbol.make(got)
 
+@expose("read-string", [values.W_Fixnum, default(values.W_InputPort, None)], simple=False)
+def read_string_(amt, w_port, env, cont):
+    from pycket.interpreter import return_value
+    if w_port is None:
+        w_port = current_in_param.get(cont)
+    return return_value(read_string(w_port, amount=amt.value), env, cont)
+
 # FIXME: replace with a string builder
 # FIXME: unicode
-def read_string(f):
+# FIXME: If no characters are available before an end-of-file, then eof is returned.
+def read_string(f, amount=maxint):
     buf = StringBuilder(64)
     isascii = True
-    while True:
+    count = 0
+    while count < amount:
         c = f.read(1)[0]
+        count += 1
         if c == '"':
             string = buf.build()
             if isascii:
@@ -158,6 +168,10 @@ def read_string(f):
         else:
             isascii &= ord(c) < 128
         buf.append(c)
+    string = buf.build()
+    if isascii:
+        return values_string.W_String.fromascii(string)
+    return values_string.W_String.fromstr_utf8(string)
 
 def is_hash_token(s):
     # already read the #, so the cursor is at position 1 (s.seek(1))
@@ -815,7 +829,7 @@ def split_path(w_path, env, cont):
     result = values.Values.make([base, name, must_be_dir])
     return return_multi_vals(result, env, cont)
 
-@expose("build-path")
+
 def build_path(args):
     # XXX Does not check that we are joining absolute paths
     # Sorry again Windows
@@ -841,6 +855,8 @@ def build_path(args):
         return ROOT
 
     return values.W_Path(path)
+
+expose("build-path")(build_path)
 
 @expose("simplify-path", [values.W_Object, default(values.W_Bool, values.w_false)])
 def simplify_path(path, use_filesystem):
@@ -1646,6 +1662,11 @@ def port_print_handler(out, proc):
 def port_count_lines_bang(p):
     return values.w_void
 
+# FIXME: implementation
+@expose("port-counts-lines?", [values.W_Port])
+def port_count_lines_huh(p):
+    return values.w_true
+
 def is_path_string(path):
     return isinstance(path, values.W_Path) or isinstance(path, values_string.W_String)
 
@@ -1888,8 +1909,8 @@ def wrap_write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
 def do_has_custom_write(v):
     return values.w_false
 
-@expose("bytes->path-element", [values.W_Bytes, default(values.W_Symbol, None)])
-def bytes_to_path_element(bytes, path_type):
+
+def bytes_to_path_element(bytes, path_type=None):
     from pycket.prims.general import w_unix_sym, w_windows_sym
     if path_type is None:
         path_type = w_windows_sym if platform in ('win32', 'cygwin') else w_unix_sym
@@ -1899,6 +1920,8 @@ def bytes_to_path_element(bytes, path_type):
     if os.sep in str:
         raise SchemeException("bytes->path-element: cannot be converted to a path element %s" % str)
     return values.W_Path(str)
+
+expose("bytes->path-element", [values.W_Bytes, default(values.W_Symbol, None)])(bytes_to_path_element)
 
 def shutdown(env):
     # called before the interpreter exits

@@ -678,7 +678,7 @@ class W_RootStruct(values.W_Object):
                 return total_hash_val
             else:
                 from pycket.prims.hash import equal_hash_code
-                w_hash_proc = prop_equal_hash.cdr().car()
+                w_hash_proc = self.get_hash_proc(prop_equal_hash)
                 w_hash_proc_recur = equal_hash_code.w_prim
                 h = w_hash_proc.call_interpret([self, w_hash_proc_recur])
                 assert isinstance(h, values.W_Fixnum)
@@ -859,7 +859,7 @@ class W_Struct(W_RootStruct):
                 # #t for write mode, #f for display mode,
                 # or 0 or 1 indicating the current quoting depth for print mode
                 mode = values.w_true
-                w_write_proc.call_interpret([self, port, mode], pycketconfig)
+                w_write_proc.call_interpret([self, port, mode])
             else:
                 port.write("(%s " % typename)
                 self.write_values(port, w_type, env)
@@ -1154,7 +1154,7 @@ class W_StructAccessor(values.W_Procedure):
             raise SchemeException("%s got %s" % (self.tostring(), struct.tostring()))
         offset = st.get_offset(self.type)
         if offset == -1:
-            raise SchemeException("cannot access field of the struct : %s" % st.name.tostring())
+            raise SchemeException("%s: expected a %s but got a %s" % (self.tostring(), self.type.name.tostring(), st.name.tostring()))
         return struct.ref_with_extra_info(field + offset, app, env, cont)
 
     @make_call_method([values.W_Object, values.W_Fixnum], simple=False,

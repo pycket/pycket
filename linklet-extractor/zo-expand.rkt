@@ -453,6 +453,8 @@ put the usual application-rands to the operands
                                    (append symbols-for-formals (list rest-formal) localref-stack)
                                    (append symbols-for-formals localref-stack))]
 
+         ;; FIXME: capruing variables and syntax objects, needs a major refactoring
+
          ;; capture-prefix : a vector of stack positions that are captured when
          ;;                  evaluating the lambda form to create a closure.
          [capture-prefix (vector->list (lam-closure-map lam-form))] ;; vector->list
@@ -503,6 +505,7 @@ put the usual application-rands to the operands
                                       (string-contains? s-sym "letone")
                                       (string-contains? s-sym "let-void")
                                       (string-contains? s-sym "-letrec")
+                                      (string-contains? s-sym "lamrest")
                                       (string-contains? s-sym "app-empty-slot"))))
                               localref-stack)]
 

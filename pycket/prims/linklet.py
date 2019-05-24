@@ -148,18 +148,18 @@ def finish_perf_region_cont(label, env, cont, _vals):
     return return_value(_vals, env, cont)
 
 @continuation
-def instantiate_val_cont(linkl, index, gensym_count, return_val, target, env, cont, _vals):
-    if index >= len(linkl.forms):
+def instantiate_val_cont(forms, index, return_val, target, env, cont, _vals):
+    if index >= len(forms):
         if return_val:
             return return_value(_vals, env, cont)
         else:
             return return_value(target, env, cont)
 
     # there's more
-    return instantiate_loop(linkl, index, gensym_count, return_val, target, env, cont)
+    return instantiate_loop(forms, index, return_val, target, env, cont)
 
 @continuation
-def instantiate_def_cont(linkl, form, index, gensym_count, return_val, target, env, cont, _vals):
+def instantiate_def_cont(forms, form, index, return_val, target, env, cont, _vals):
 
     values = _vals.get_all_values()
     len_values = len(values)
@@ -172,15 +172,16 @@ def instantiate_def_cont(linkl, form, index, gensym_count, return_val, target, e
 
         env.toplevel_env().toplevel_set(name, value)
 
-    return return_value(w_void, env, instantiate_val_cont(linkl, index + 1, gensym_count, return_val, target, env, cont))
+    return return_value(w_void, env, instantiate_val_cont(forms, index + 1, return_val, target, env, cont))
 
 @loop_label
-def instantiate_loop(linkl, index, gensym_count, return_val, target, env, cont):
-    form = linkl.forms[index]
+def instantiate_loop(forms, index, return_val, target, env, cont):
+    form = forms[index]
+
     if isinstance(form, DefineValues):
-        return form.rhs, env, instantiate_def_cont(linkl, form, index, gensym_count, return_val, target, env, cont)
+        return form.rhs, env, instantiate_def_cont(forms, form, index, return_val, target, env, cont)
     else:
-        return form, env, instantiate_val_cont(linkl, index + 1, gensym_count, return_val, target, env, cont)
+        return form, env, instantiate_val_cont(forms, index + 1, return_val, target, env, cont)
 
 class W_Linklet(W_Object):
     errorname = "linklet"
@@ -246,39 +247,13 @@ class W_Linklet(W_Object):
             else:
                 return return_value(target, env, cont)
 
-        return instantiate_loop(self, 0, 0, return_val, target, env, cont)
+        return instantiate_loop(self.forms, 0, return_val, target, env, cont)
 
     @staticmethod # json_file_name -> W_Linklet
-    def load_linklet(json_file_name, set_version=False, generate_zo=False):
+    def load_linklet(json_file_name, set_version=False):
         from pycket.expand import readfile_rpython, getkey, JsonLoader
         from pycket.util import console_log
         from pycket.env import w_version
-        import os
-
-        if False and set_version and os.path.exists("expander.zo") and not generate_zo:
-            console_log("Loading the expander linklet from expander.zo")
-            # We're loading the expander, so try fasl->sexp
-            from pycket.racket_entry import get_primitive
-            from pycket.prims.input_output import open_input_file
-
-            expander_sexp, version = None, None
-            with PerfRegion("fasl-to-sexp-expander"):
-                fasl_to_s_exp = get_primitive("fasl->s-exp")
-                in_file = open_input_file.w_prim.call_interpret([W_Path("expander.zo")])
-                #try:
-                console_log("Reading expander fasl ...", 2)
-                expander_zo_sexp = fasl_to_s_exp.call_interpret([in_file, w_true])
-                version = expander_zo_sexp.car()
-                expander_sexp = expander_zo_sexp.cdr()
-                # except (SchemeException, OSError):
-                #     console_log("Couldn't read from expander.zo")
-
-            with PerfRegion("deserialize-expander-sexp"):
-                console_log("Deserializing ...", 2)
-                expander_linkl = deserialize_loop(expander_sexp)
-                w_version.set_version(version.tostring())
-                console_log("Setting the version to %s" % version.tostring())
-                return expander_linkl, None
 
         """ Expands and loads a linklet from a JSON file"""
         with PerfRegion("json-load"):
@@ -341,15 +316,13 @@ class W_Linklet(W_Object):
             for body_form in getkey(linklet_dict, "body", type='a'):
                 form_2 = loader.to_ast(body_form)
                 form_1 = Context.normalize_term(form_2)
-                # if form_1.tostring() != form_2.tostring():
-                #     import pdb;pdb.set_trace()
                 form = assign_convert(form_1)
                 all_forms.append(form)
             # for each exported defined id, we need to add a
             # variable-set! for the exported var with the defined id
             for exp_sym, exp_obj in exports.iteritems():
                 rator = ModuleVar(var_set_sym, "#%kernel", var_set_sym, None)
-                exp_var = LinkletStaticVar(exp_obj.int_id)
+                exp_var = LinkletVar(exp_obj.int_id)
                 top_var = ToplevelVar(exp_sym)
                 mode = Quote(values.w_false) # FIXME: possible optimization
                 rands = [exp_var, top_var, mode]
@@ -363,23 +336,6 @@ class W_Linklet(W_Object):
         if config_obj is not None:
             for k, v in config_obj.iteritems():
                 config[k] = v.value_string()
-
-        if set_version and generate_zo: # not os.path.exists("expander.zo"):
-            if os.path.exists("expander.zo"):
-                os.remove("expander.zo")
-            from pycket.racket_entry import get_primitive
-            from pycket.prims.input_output import open_output_file
-            s_exp_to_fasl = get_primitive("s-exp->fasl")
-            console_log("Producing s-expr of the expander linklet...")
-            expander_sexp = ast_to_sexp(linkl)
-            version = W_Symbol.make(w_version.get_version())
-            expander_zo_sexp = W_Cons.make(version, expander_sexp)
-            try:
-                console_log("Serializing the expander linklet into expander.zo")
-                out_file = open_output_file.w_prim.call_interpret([W_Path("expander.zo")])
-                s_exp_to_fasl.call_interpret([expander_zo_sexp, out_file, values.w_false])
-            except (SchemeException, OSError):
-                console_log("Couldn't write the expander.zo")
 
         return linkl, config
 
@@ -619,23 +575,37 @@ def var_ref_from_unsafe_huh(varref):
     """
     return varref.is_unsafe()
 
-@continuation
-def read_linklet_cont(env, cont, _vals):
-    from pycket.util import finish_perf_region
-    bundle_map = check_one_val(_vals)
-    finish_perf_region("fasl->s-exp")
-    if not isinstance(bundle_map, W_HashTable):
-        raise SchemeException("got something that is not a table: %s"%bundle_map.tostring())
-    with PerfRegion("s-exp->ast"):
-        return return_value(deserialize_loop(bundle_map), env, cont)
+# @continuation
+# def read_linklet_cont(env, cont, _vals):
+#     from pycket.util import console_log
+#     from pycket.util import finish_perf_region
+#     bundle_map = check_one_val(_vals)
+#     finish_perf_region("fasl->s-exp")
+#     if not isinstance(bundle_map, W_HashTable):
+#         raise SchemeException("got something that is not a table: %s"%bundle_map.tostring())
+#     console_log("BUNDLE SEXP FASL-READ from ZO: %s" % deserialize_loop(bundle_map).tostring(), 7)
+#     with PerfRegion("s-exp->ast"):
+#         return return_value(deserialize_loop(bundle_map), env, cont)
+
+# Keeping the use of racket/fasl for future comparisons
 
 @expose("read-linklet-bundle-hash", [values.W_InputPort], simple=False)
 def read_linklet_bundle_hash(in_port, env, cont):
-    from pycket.util import console_log
     from pycket.racket_entry import get_primitive
+    from pycket.fasl import Fasl
+    from pycket.util import console_log
+
+    current_load_relative_dir_path = get_primitive("current-load-relative-directory").get_cell_value(cont)
+
     fasl_to_s_exp = get_primitive("fasl->s-exp")
     with PerfRegionCPS("fasl->s-exp"):
-        return fasl_to_s_exp.call([in_port, values.w_true], env, read_linklet_cont(env, cont))
+        bundle_map = Fasl(current_load_relative_dir_path).to_sexp_from_w_port(in_port)
+        #return fasl_to_s_exp.call([in_port, values.w_true], env, read_linklet_cont(env, cont))
+    if not isinstance(bundle_map, W_HashTable):
+        raise SchemeException("got something that is not a table: %s" % bundle_map.tostring())
+    console_log("BUNDLE SEXP FASL-READ from ZO: %s" % deserialize_loop(bundle_map).tostring(), 7)
+    with PerfRegion("s-exp->ast"):
+        return return_value(deserialize_loop(bundle_map), env, cont)
 
 @expose("write-linklet-bundle-hash", [W_EqImmutableHashTable, values.W_OutputPort], simple=False)
 def write_linklet_bundle_hash(ht, out_port, env, cont):

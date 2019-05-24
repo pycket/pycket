@@ -29,6 +29,7 @@ from rpython.rlib.rsre    import rsre_re as re
 # import for side effects
 from pycket.prims import control
 from pycket.prims import continuation_marks
+from pycket.prims import char
 from pycket.prims import box
 from pycket.prims import equal as eq_prims
 from pycket.prims import foreign

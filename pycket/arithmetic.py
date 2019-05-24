@@ -508,10 +508,13 @@ class __extend__(values.W_Fixnum):
         assert isinstance(other, values.W_Fixnum)
         # XXX nonsense
         try:
+            if other.value < 0:
+                return values.W_Rational.fromfloat(math.pow(self.value, other.value))
             res = rarithmetic.ovfcheck_float_to_int(math.pow(self.value, other.value))
+            return values.W_Fixnum(res)
         except OverflowError:
             return self.arith_pow(values.W_Bignum(rbigint.fromint(other.value)))
-        return values.W_Fixnum(res)
+
 
     def arith_shr_same(self, other):
         assert isinstance(other, values.W_Fixnum)

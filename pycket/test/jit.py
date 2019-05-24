@@ -237,7 +237,6 @@ class TestLLtype(LLJitMixin):
         env = ToplevelEnv()
         env.globalconfig.load(ast)
         def interp_w():
-            parse_ast('{"quote":{"number":{"integer":"0"}}}')
             val = interpret_module(ast, env)
             return val
 

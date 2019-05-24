@@ -81,8 +81,10 @@ def is_ast_cont_with_surrounding_lambda(k):
           i.WCMValCont]
     # the ones having the method "get_next_executed_ast"
     for c in cs:
-        if isinstance(k, c) and k.get_ast().surrounding_lambda:
-            return True
+        if isinstance(k, c):
+            a = k.get_ast()
+            if isinstance(a, i.AST) and a.surrounding_lambda:
+                return True
     return False
 
 @expose("continuation-mark-set->context", [values.W_ContinuationMarkSet])

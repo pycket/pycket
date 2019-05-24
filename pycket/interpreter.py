@@ -331,7 +331,7 @@ def check_one_val(vals):
     return vals
 
 class LetrecCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
@@ -369,6 +369,7 @@ class LetrecCont(Cont):
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
+    _attrs_ = ["counting_ast", "_get_size_list"]
     _immutable_fields_ = ["counting_ast"]
 
     return_safe = True
@@ -473,7 +474,7 @@ class LetCont(Cont):
         return env
 
 class CellCont(Cont):
-    _immutable_fields_ = ['ast']
+    _attrs_ = _immutable_fields_ = ['ast']
 
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -497,7 +498,7 @@ class CellCont(Cont):
         return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
 class BeginCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     return_safe = True
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -520,7 +521,7 @@ class BeginCont(Cont):
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class Begin0BodyCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     return_safe = True
 
     def __init__(self, ast, env, prev):
@@ -549,7 +550,7 @@ class Begin0BodyCont(Cont):
 
 # FIXME: it would be nice to not need two continuation types here
 class Begin0Cont(Cont):
-    _immutable_fields_ = ["ast"]
+    _attrs_ = _immutable_fields_ = ["ast"]
     return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -570,7 +571,7 @@ class Begin0Cont(Cont):
         return ast.body[0], self.env, Begin0BodyCont.make(vals_w, ast, 0, self.env, self.prev)
 
 class WCMKeyCont(Cont):
-    _immutable_fields_ = ["ast"]
+    _attrs_ = _immutable_fields_ = ["ast"]
     return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -590,7 +591,7 @@ class WCMKeyCont(Cont):
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
 
 class WCMValCont(Cont):
-    _immutable_fields_ = ["ast", "key"]
+    _attrs_ = _immutable_fields_ = ["ast", "key"]
     return_safe = True
     def __init__(self, ast, key, env, prev):
         Cont.__init__(self, env, prev)
@@ -1068,11 +1069,10 @@ class App(AST):
             except SchemeException:
                 pass
             else:
-                if isinstance(w_prim, values.W_Prim):
-                    if w_prim.simple1 and len(rands) == 1:
-                        return SimplePrimApp1(rator, rands, env_structure, w_prim)
-                    if w_prim.simple2 and len(rands) == 2:
-                        return SimplePrimApp2(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimSimple1) and len(rands) == 1:
+                    return SimplePrimApp1(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimSimple2) and len(rands) == 2:
+                    return SimplePrimApp2(rator, rands, env_structure, w_prim)
         return App(rator, rands, env_structure)
 
     def direct_children(self):
@@ -1534,23 +1534,6 @@ class LinkletVar(Var):
 
     def _lookup(self, env):
         return env.toplevel_env().toplevel_lookup(self.sym)
-
-class LinkletStaticVar(LinkletVar):
-    _immutable_fields_ = ["sym", "w_value?"]
-
-    def __init__(self, sym):
-        LinkletVar.__init__(self, sym)
-        self.w_value = None
-
-    def _set(self, w_val, env):
-        env.toplevel_env().toplevel_set(self.sym, w_val)
-        self.w_value = w_val
-
-    def _lookup(self, env):
-        if self.w_value:
-            return self.w_value
-        self.w_value = env.toplevel_env().toplevel_lookup(self.sym)
-        return self.w_value
 
 class LexicalVar(Var):
     visitable = True
@@ -2085,7 +2068,7 @@ class Lambda(SequencedBodyAST):
         frees = self.frees.to_sexp()
         assert len(self.body) == 1
         body = self.body[0].to_sexp() #to_list([b.to_sexp() for b in self.body])
-        sourceinfo = self.sourceinfo.to_sexp()
+        sourceinfo = values.w_null #self.sourceinfo.to_sexp()
         enclosing_env_structure = self.enclosing_env_structure.to_sexp() if self.enclosing_env_structure else none
         env_structure = self.env_structure.to_sexp()
 
