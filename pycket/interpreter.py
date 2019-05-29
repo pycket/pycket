@@ -1119,8 +1119,9 @@ class App(AST):
         w_callable, args_w = self.get_callable_and_args(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
-    def _interpret_stack_app(self, w_callable, args_w):
-        return w_callable.call_with_extra_info_and_stack(args_w, self)
+    def _interpret_stack(self, env):
+        w_callable, args_w = self.get_callable_and_args(env)
+        return w_callable.call_with_extra_info_and_stack(args_w, env, self)
 
     def normalize(self, context):
         context = Context.AppRator(self.rands, context)
@@ -1160,12 +1161,17 @@ class MaybeSimplePrimApp(App):
         return Context.normalize_names(self.rands, context)
 
     def interpret(self, env, cont):
-        w_callable, args_w = self.get_callable_and_args(env)
-        return self.w_prim.simple_func(args_w, env, cont, self)
+        w_callable, w_args = self.get_callable_and_args(env)
+        return self.w_prim.non_simple_func(w_args, env, cont, self)
         #return w_callable.call_with_extra_info(args_w, env, cont, self)
 
-    def _interpret_stack_app(self, w_callable, args_w):
-        return self.w_prim.simple_func(args_w)
+    def _interpret_stack(self, env):
+        from pycket.AST import ConvertStack
+        w_callable, w_args = self.get_callable_and_args(env)
+        if self.w_prim.simple_pred(w_args):
+            return self.w_prim.simple_prim(w_args)
+        else:
+            raise ConvertStack(self, env)
 
 class SimplePrimApp(App):
     _immutable_fields_ = ['w_prim']
@@ -1185,8 +1191,8 @@ class SimplePrimApp(App):
         w_args = [r.interpret_simple(env) for r in self.rands]
         return self.run(w_args)
 
-    def _interpret_stack_app(self, w_callable, w_args):
-        return self.run(w_args)
+    def _interpret_stack(self, env):
+        return self.interpret_simple(env)
 
     def run(self, w_args):
         result = self.w_prim.simple_func(w_args)
@@ -1209,8 +1215,8 @@ class SimplePrimApp1(App):
         w_arg = self.rands[0].interpret_simple(env)
         return self.run(w_arg)
 
-    def _interpret_stack_app(self, w_callable, w_args):
-        return self.run(w_args[0])
+    def _interpret_stack(self, env):
+        return self.interpret_simple(env)
 
     def run(self, w_arg):
         result = self.w_prim.simple1(w_arg)
@@ -1233,11 +1239,8 @@ class SimplePrimApp2(App):
         w_arg1 = self.rands[1].interpret_simple(env)
         return self.run(w_arg0, w_arg1)
 
-    def _interpret_stack_app(self, w_callable, w_args):
-        return self.run(w_args[0], w_args[1])
-
-    def interpret_stack_app(self, w_callable, w_args):
-        return self.run(w_args[0], w_args[1])
+    def _interpret_stack(self, env):
+        return self.interpret_simple(env)
 
     def run(self, w_arg1, w_arg2):
         result = self.w_prim.simple2(w_arg1, w_arg2)

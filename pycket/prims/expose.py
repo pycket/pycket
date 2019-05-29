@@ -274,7 +274,7 @@ def make_remove_extra_info(func):
     remove_extra_info.__name__ += func.__name__
     return remove_extra_info
 
-def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, only_old=False, new_simple=False, simple_pred=None, simple_func=None):
+def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, only_old=False, new_simple=False, simple_pred=None, simple_prim=None):
     """
     n:          names that the function should be exposed under
     argstypes:  if None, the list of args is passed directly to the function
@@ -338,11 +338,11 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
             cls.__name__ += name
         elif new_simple:
             class cls(values.W_PrimMaybeSimple):
-                def simple_func(self, args, env=None, cont=None, extra=None):
-                    assert simple_pred and simple_func
-                    if simple_pred(args):
-                        return simple_func(args)
-                    assert env and cont and extra
+                def simple_pred(self, args):
+                    return simple_pred(args)
+                def simple_prim(self, args):
+                    return simple_prim(args)
+                def non_simple_func(self, args, env, cont, extra):
                     return func_result_handling(args, env, cont, extra)
             cls.__name__ += name
 

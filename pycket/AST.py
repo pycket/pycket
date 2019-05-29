@@ -186,17 +186,8 @@ class AST(object):
         from pycket.base import W_StackTrampoline
         while 1:
             stackfull_driver.jit_merge_point(ast=self, env=env)
-            if isinstance(self, App):
-                w_callable, args_w = self.get_callable_and_args(env)
-                if type(w_callable) is W_Prim or isinstance(w_callable, W_Parameter) or \
-                   isinstance(w_callable, W_RootStruct) or isinstance(w_callable, W_StructConstructor) or \
-                   isinstance(w_callable, W_StructAccessor) or isinstance(w_callable, W_StructFieldMutator) or \
-                   isinstance(w_callable, W_StructMutator) or isinstance(w_callable, W_StructPropertyAccessor):
-                    raise ConvertStack(self, env)
 
-                w_val = self._interpret_stack_app(w_callable, args_w)
-            else:
-                w_val = self._interpret_stack(env)
+            w_val = self._interpret_stack(env)
 
             if isinstance(w_val, W_StackTrampoline):
                 self = w_val.ast

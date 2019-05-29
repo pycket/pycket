@@ -1682,7 +1682,7 @@ class W_Closure(W_Procedure):
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         return lam.make_begin_cont(env, cont)
 
-    def call_with_extra_info_and_stack(self, args, calling_app):
+    def call_with_extra_info_and_stack(self, args, env, calling_app):
         from pycket.values_parameter import top_level_config
         from pycket.prims.control import default_uncaught_exception_handler
         from pycket.env import ConsEnv
@@ -1772,7 +1772,7 @@ class W_Closure1AsEnv(ConsEnv):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-    def call_with_extra_info_and_stack(self, args, calling_app):
+    def call_with_extra_info_and_stack(self, args, env, calling_app):
         from values_parameter import top_level_config
         from pycket.prims.control import default_uncaught_exception_handler
         from pycket.env import ConsEnv

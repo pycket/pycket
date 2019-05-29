@@ -85,7 +85,7 @@ def vector_ref_simple(args): # args has to be a list (b/c of expose)
     if not (0 <= i.value < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
     return v.vector_ref_stack(i.value)
-@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False, extra_info=True, new_simple=True, simple_pred=vector_ref_simple_predicate, simple_func=vector_ref_simple)
+@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False, extra_info=True, new_simple=True, simple_pred=vector_ref_simple_predicate, simple_prim=vector_ref_simple)
 def vector_ref(v, i, env, cont, calling_app):
     return vector_ref_impl(v, i, env, cont, calling_app)
 
@@ -167,7 +167,7 @@ def vector2immutablevector_simple(args):
     assert len(args) == 1
     v = args[0]
     return v
-@expose("vector->immutable-vector", [values_vector.W_MVector], simple=False, new_simple=True, simple_pred=vector2immutablevector_pred, simple_func=vector2immutablevector_simple)
+@expose("vector->immutable-vector", [values_vector.W_MVector], simple=False, new_simple=True, simple_pred=vector2immutablevector_pred, simple_prim=vector2immutablevector_simple)
 def vector2immutablevector(v, env, cont):
     from pycket.interpreter import return_value
     if v.immutable():
