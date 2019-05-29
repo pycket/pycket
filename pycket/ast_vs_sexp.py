@@ -4,6 +4,7 @@ from pycket.prims.correlated import W_Correlated
 from pycket.error import SchemeException
 from pycket.hash import simple, equal, base
 from pycket.assign_convert import assign_convert
+from pycket.env_structure_pass import compute_env_structures
 from pycket.util import PerfRegion
 
 mksym = values.W_Symbol.make
@@ -267,6 +268,7 @@ letrec_sym = mksym("letrec-values")
 set_bang_sym = mksym("set!")
 quote_sym = mksym("quote")
 if_sym = mksym("if")
+cell_sym = mksym("cell-ref")
 
 var_ref_sym = mksym("variable-ref")
 var_ref_no_check_sym = mksym("variable-ref/no-check")
@@ -324,7 +326,10 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
                 rator = interp.ModuleVar(c, "#%kernel", c, None)
             return interp.App.make(rator, rands)
         ###
-        if c is begin_sym:
+        if c is cell_sym:
+            assert isinstance(form.cdr().car(), values.W_Symbol)
+            return interp.CellRef(form.cdr().car())
+        elif c is begin_sym:
             begin_exprs, ln = to_rpython_list(form.cdr())
             return interp.Begin.make([sexp_to_ast(f, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for f in begin_exprs])
         elif c is begin0_sym:
@@ -630,8 +635,12 @@ def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
         if not from_zo: # no need to normalize if it's alread normalized
             with PerfRegion("compile-normalize"):
                 b_form = interp.Context.normalize_term(b_form)
-        with PerfRegion("compile-assign-convert"):
-            b_form = assign_convert(b_form)
+            with PerfRegion("compile-assign-convert"):
+                b_form = assign_convert(b_form)
+        else:
+            with PerfRegion("deserialize-env-structures"):
+                b_form = compute_env_structures(b_form)
+                #b_form = assign_convert(b_form)
         body_forms[current_index+added] = b_form
         current_index += 1
         if isinstance(b_form, interp.DefineValues):

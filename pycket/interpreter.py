@@ -1053,12 +1053,21 @@ class WithContinuationMark(AST):
         port.write(")")
 
 class App(AST):
-    _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
+    _immutable_fields_ = ["rator*", "rands[*]", "env_structure"]
     visitable = True
 
     def __init__ (self, rator, rands, env_structure=None):
         self.rator = rator
         self.rands = rands
+        self.env_structure = env_structure
+
+    def set_rator(self, new_rator):
+        self.rator = new_rator
+
+    def set_rands(self, new_rands):
+        self.rands = new_rands
+
+    def set_env_structure(self, env_structure):
         self.env_structure = env_structure
 
     @staticmethod
@@ -1219,6 +1228,9 @@ class SequencedBodyAST(AST):
         self.counting_asts = [
             CombinedAstAndIndex(self, i)
                 for i in range(counts_needed)]
+
+    def set_body(self, new_body):
+        self.body = new_body
 
     def init_body_pruning(self, env_structure, remove_num_envs):
         self._sequenced_env_structure = env_structure
@@ -1409,7 +1421,7 @@ class BeginForSyntax(AST):
         port.write(")")
 
 class Var(AST):
-    _immutable_fields_ = ["sym", "env_structure"]
+    _immutable_fields_ = ["sym", "env_structure*"]
     simple = True
     ispure = True
 
@@ -1423,6 +1435,9 @@ class Var(AST):
         if val is None:
             raise SchemeException("%s: undefined" % self.sym.tostring())
         return val
+
+    def set_env_structure(self, env_structure):
+        self.env_structure = env_structure
 
     def direct_children(self):
         return []
@@ -1460,6 +1475,11 @@ class CellRef(Var):
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         write_loop(self.sym, port, env)
+
+    def to_sexp(self):
+        cell_sym = values.W_Symbol.make("cell-ref")
+        return values.to_list([cell_sym, self.sym])
+        #return self.sym
 
 class GensymCounter(object):
     _attrs_ = ['_val']
@@ -1894,6 +1914,12 @@ class Lambda(SequencedBodyAST):
     def can_enter(self):
         return self.body[0].should_enter
 
+    def set_env_structure(self, env_structure):
+        self.env_structure = env_structure
+
+    def set_enclosing_env_structure(self, enclosing_env_structure):
+        self.enclosing_env_structure = enclosing_env_structure
+
     # returns n for fixed arity, -(n+1) for arity-at-least n
     # my kingdom for Either
     def get_arity(self):
@@ -2102,7 +2128,7 @@ class CombinedAstAndAst(AST):
         return ast1, ast2
 
 class Letrec(SequencedBodyAST):
-    _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
+    _immutable_fields_ = ["args*", "rhss[*]", "counts[*]", "total_counts[*]"]
     visitable = True
     def __init__(self, args, counts, rhss, body):
         assert len(counts) > 0 # otherwise just use a begin
@@ -2117,6 +2143,12 @@ class Letrec(SequencedBodyAST):
         self.total_counts = total_counts
         self.rhss = rhss
         self.args = args
+
+    def set_args(self, new_args):
+        self.args = new_args
+
+    def set_rhss(self, new_rhss):
+        self.rhss = new_rhss
 
     @jit.unroll_safe
     def interpret(self, env, cont):
@@ -2296,7 +2328,7 @@ def make_letrec(varss, rhss, body):
     return Letrec(symlist, counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
+    _immutable_fields_ = ["rhss[*]", "args*", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
     visitable = True
 
     import_from_mixin(BindingFormMixin)
@@ -2312,6 +2344,15 @@ class Let(SequencedBodyAST):
         if remove_num_envs is None:
             remove_num_envs = [0] * (len(rhss) + 1)
         self.remove_num_envs = remove_num_envs
+
+    def set_args(self, new_args):
+        self.args = new_args
+
+    def set_remove_num_envs(self, new_remove_num_envs):
+        self.remove_num_envs = new_remove_num_envs
+
+    def set_rhss(self, new_rhss):
+        self.rhss = new_rhss
 
     @jit.unroll_safe
     def _prune_env(self, env, i):
@@ -2440,13 +2481,16 @@ class Let(SequencedBodyAST):
 
 
 class DefineValues(AST):
-    _immutable_fields_ = ["names", "rhs", "display_names"]
+    _immutable_fields_ = ["names", "rhs*", "display_names"]
     visitable = True
 
     def __init__(self, ns, r, display_names):
         self.names = ns
         self.rhs = r
         self.display_names = display_names
+
+    def set_rhs(self, new_rhs):
+        self.rhs = new_rhs
 
     def defined_vars(self, defs):
         for n in self.names:
