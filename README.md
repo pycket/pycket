@@ -92,7 +92,8 @@ Then all the `NEW` Pycket needs is a `PLTHOME` environment variable to point to 
 
 Then `NEW` Pycket needs to know the locations of various directories. In particular, it needs:
 
- * `PLTEXECFILE` to point to the location of the `racket` binary  * `PLTCOLLECTS` to point to the `collects` directory for the main collections
+ * `PLTEXECFILE` to point to the location of the `racket` binary
+ * `PLTCOLLECTS` to point to the `collects` directory for the main collections
  * `PLTCONFIGDIR` to point to Racket's `etc` directory that contains `config.rktd`
  * (optional) `PLTADDONDIR` to point to a directory for user-specific Racket configuration, packages, and extensions. It defaults to `.racket` in USERHOME.
  * (optional) `PLTUSERHOME` to point to the `home` directory of the  user. It's optional since Pycket will also look at other environment  variables to figure out the home directory (e.g. `$HOME`).
@@ -102,6 +103,7 @@ You can also use the command line options to provide these paths, e.g. `-X`, `-G
     $ ./pycket-c-linklets -h
 
 Also, the `Makefile` reacts to some variables:
+
  * `PYPYPATH` for when your `pypy` checkout is not in this directory. Defaults to `pypy`.
  * `PYTEST` for when you don’t want to use `pypy`’s version of pytest. Defaults to `$(PYPYPATH)/pytest.py`.
  * `RPYTHON` for when you want to use something other than the default `rpython` script, but you probably would not want that. Defaults to `$(PYPYPATH)/rpython/bin/rpython --batch`.
