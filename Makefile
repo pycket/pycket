@@ -14,7 +14,7 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 		translate-no-strategies translate-no-type-size-specialization \
 		translate-jit-linklets
 
-PYFILES := $(shell find . -name '*.py' -type f)
+PYFILES := $(shell find . -name '*.py' -type f -maxdepth 1) $(shell find pycket  -name '*.py' -type f)
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets
 .PHONY: test coverage test-expander test-one test-one-expander test-mark test-mark-expander test-random
