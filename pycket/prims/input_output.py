@@ -686,12 +686,12 @@ def file_exists(w_str):
 
 @expose("file-or-directory-modify-seconds", [values.W_Object, default(values.W_Object, None), default(values.W_Object, None)], simple=False)
 def file_or_dir_mod_seconds(w_path, secs_n, fail, env, cont):
-    from pycket.prims.general import detect_platform, w_unix_sym
+    from pycket.prims.general import detect_platform, w_windows_sym
     from pycket.interpreter import return_value
 
     platform = detect_platform()
-    if platform is not w_unix_sym:
-        raise Exception("Not yet implemented")
+    if platform is w_windows_sym:
+        raise SchemeException("Not yet implemented")
 
     path_str = extract_path(w_path)
 
