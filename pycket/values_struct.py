@@ -416,7 +416,7 @@ class W_StructType(values.W_Object):
         pass
 
     def tostring(self):
-        return "#<struct-type:%s>" % self.name.utf8value
+        return "#<struct-type:%s>" % self.name.variable_name()
 
 class W_PrefabKey(values.W_Object):
     _attrs_ = _immutable_fields_ = ["w_name", "init_field_count", "auto_field_count",
@@ -901,7 +901,7 @@ class W_Struct(W_RootStruct):
     def write_values(self, port, w_type, env):
         from pycket.prims.input_output import write_loop
         assert isinstance(w_type, W_StructType)
-        w_super = w_type.super
+        w_super = w_type.w_super
         has_super = isinstance(w_super, W_StructType)
         if has_super:
             self.write_values(port, w_super, env)
@@ -1230,7 +1230,7 @@ class W_StructAccessor(W_StructTypeProcedure):
             raise SchemeException("%s got %s" % (self.tostring(), struct.tostring()))
         offset = st.get_offset(self.struct_type())
         if offset == -1:
-            raise SchemeException("%s: expected a %s but got a %s" % (self.tostring(), self.struct_type_name().tostring(), st.name.tostring()))
+            raise SchemeException("%s: expected a %s but got a %s" % (self.tostring(), self.struct_type_name(), st.name.variable_name()))
         return struct.ref_with_extra_info(field + offset, app, env, cont)
 
     @make_call_method([values.W_Object, values.W_Fixnum], simple=False,
