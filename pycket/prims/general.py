@@ -167,30 +167,29 @@ def hash_eqv(obj):
     eqv_immutable = isinstance(inner, W_EqvImmutableHashTable)
     return values.W_Bool.make(eqv_mutable or eqv_immutable)
 
-def struct_port_huh(s):
-    i, o = struct_port_prop_huh(s)
-    return (i is not None) or (o is not None)
+def struct_port_huh(w_struct):
+    w_in, w_out = struct_port_prop_huh(w_struct)
+    return (w_in is not None) or (w_out is not None)
 
-def struct_port_prop_huh(s):
-    st = s.struct_type()
-    in_p = None
-    out_p = None
-    for prop in st.props:
-        p, v = prop
-        if p is values_struct.w_prop_input_port:
-            in_p = v
-        elif p is values_struct.w_prop_output_port:
-            out_p = v
+def struct_port_prop_huh(w_struct):
+    w_type = w_struct.struct_type()
+    in_property = out_property = None
+    for property in w_type.properties:
+        w_property, w_value = property
+        if w_property is values_struct.w_prop_input_port:
+            in_property = w_value
+        elif w_property is values_struct.w_prop_output_port:
+            out_property = w_value
 
-    return in_p, out_p
+    return in_property, out_property
 
-def struct_input_port_huh(s):
-    i, o = struct_port_prop_huh(s)
-    return i is not None
+def struct_input_port_huh(w_struct):
+   w_in, w_out = struct_port_prop_huh(w_struct)
+   return w_in is not None
 
-def struct_output_port_huh(s):
-    i, o = struct_port_prop_huh(s)
-    return o is not None
+def struct_output_port_huh(w_struct):
+    w_in, w_out = struct_port_prop_huh(w_struct)
+    return w_out is not None
 
 @expose("input-port?", [values.W_Object], simple=True)
 def input_port_huh(a):
@@ -336,7 +335,14 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont, cal
 
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
 def sys_lib_subpath(mode):
-    return values.W_Path("x86_64-linux") # FIXME
+    # Pycket is 64bit only a.t.m.
+    if w_system_sym == w_windows_sym:
+        return values.W_Path(r"win32\\x86_64")
+    elif w_system_sym == w_macosx_sym:
+        return values.W_Path("x86_64-macosx")
+    else:
+        # FIXME: pretend all unicies are linux for now
+        return values.W_Path("x86_64-linux")
 
 @expose("primitive-closure?", [values.W_Object])
 def prim_clos(v):
@@ -345,23 +351,27 @@ def prim_clos(v):
 ################################################################
 # built-in struct types
 
-def define_struct(name, super=values.w_null, fields=[]):
+def define_struct(name, w_super=values.w_null, fields=[]):
     immutables = range(len(fields))
     symname = values.W_Symbol.make(name)
-    struct_type, struct_constr, struct_pred, struct_acc, struct_mut = \
-        values_struct.W_StructType.make_simple(
-                symname, super, len(fields), 0, values.w_false, values.w_null,
-                values.w_false, values.w_false, immutables).make_struct_tuple()
-    expose_val("struct:" + name, struct_type)
-    expose_val(name, struct_constr)
+
+    w_struct_type = values_struct.W_StructType.make_simple(
+        w_name=symname,
+        w_super_type=w_super,
+        init_field_count=len(fields),
+        auto_field_count=0,
+        immutables=immutables)
+    expose_val("struct:" + name, w_struct_type)
+    expose_val(name, w_struct_type.constructor)
     # this is almost always also provided
-    expose_val("make-" + name, struct_constr)
-    expose_val(name + "?", struct_pred)
+    expose_val("make-" + name, w_struct_type.constructor)
+    expose_val(name + "?", w_struct_type.predicate)
+    struct_acc = w_struct_type.accessor
     for field, field_name in enumerate(fields):
         w_name =  values.W_Symbol.make(field_name)
         acc = values_struct.W_StructFieldAccessor(struct_acc, field, w_name)
         expose_val(name + "-" + field_name, acc)
-    return struct_type
+    return w_struct_type
 
 exn = \
     define_struct("exn", values.w_null, ["message", "continuation-marks"])
@@ -480,8 +490,9 @@ def set_bang_transformer(v):
     if isinstance(v, values.W_AssignmentTransformer):
         return values.w_true
     elif isinstance(v, values_struct.W_RootStruct):
-        w_prop = v.struct_type().read_prop(values_struct.w_prop_set_bang_transformer)
-        return values.W_Bool.make(w_prop is not None)
+        w_property = v.struct_type().read_property(
+            values_struct.w_prop_set_bang_transformer)
+        return values.W_Bool.make(w_property is not None)
     else:
         return values.w_false
 
@@ -674,7 +685,7 @@ def do_is_procedure_arity(n):
         [procedure, values.W_Integer, default(values.W_Object, values.w_false)])
 def procedure_arity_includes(proc, k, kw_ok):
     if kw_ok is values.w_false and isinstance(proc, values_struct.W_RootStruct):
-        w_prop_val = proc.struct_type().read_prop(values_struct.w_prop_incomplete_arity)
+        w_prop_val = proc.struct_type().read_property(values_struct.w_prop_incomplete_arity)
         if w_prop_val is not None:
             return values.w_false
     if isinstance(k, values.W_Integer):

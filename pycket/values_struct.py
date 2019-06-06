@@ -13,38 +13,39 @@ from pycket.util import strip_immutable_field_name
 from pycket.values_parameter import W_Parameter
 
 from rpython.rlib import jit
-from rpython.rlib.objectmodel import import_from_mixin
+from rpython.rlib.objectmodel import import_from_mixin, not_rpython
 from rpython.rlib.unroll import unrolling_iterable
 
-PREFAB = values.W_Symbol.make("prefab")
+w_prefab_symbol = values.W_Symbol.make("prefab")
 
 class W_StructInspector(values.W_Object):
     errorname = "struct-inspector"
-    _immutable_fields_ = ["super"]
-    _attrs_ = ["super"]
+    _immutable_fields_ = ["w_super"]
+    _attrs_ = ["w_super"]
 
     @staticmethod
-    def make(inspector, issibling=False):
-        assert isinstance(inspector, W_StructInspector)
-        super = inspector
+    def make(w_inspector, issibling = False):
+        assert isinstance(w_inspector, W_StructInspector)
+        w_super = w_inspector
         if issibling:
-            super = inspector.super if inspector is not None else None
-        return W_StructInspector(super)
+            w_super = w_inspector.w_super if w_inspector is not None else None
+        return W_StructInspector(w_super)
 
-    def __init__(self, super):
-        self.super = super
+    def __init__(self, w_super):
+        self.w_super = w_super
 
     @jit.elidable
     def has_control(self, struct_type):
-        inspector = struct_type.inspector
-        if not isinstance(inspector, W_StructInspector):
+        w_inspector = struct_type.w_inspector
+        if not isinstance(w_inspector, W_StructInspector):
             return True
-        inspector = inspector.super
-        while isinstance(inspector, W_StructInspector):
-            if inspector is self:
-                return True
-            inspector = inspector.super
-        return False
+        else:
+            w_inspector = w_inspector.w_super
+            while isinstance(w_inspector, W_StructInspector):
+                if w_inspector is self:
+                    return True
+                w_inspector = w_inspector.w_super
+            return False
 
 current_inspector = W_StructInspector(None)
 current_inspector_param = W_Parameter(current_inspector)
@@ -52,10 +53,10 @@ current_inspector_param = W_Parameter(current_inspector)
 class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
     _immutable_fields_ = [
-            "name", "constructor_name", "super",
-            "init_field_cnt", "auto_field_cnt", "total_field_cnt",
-            "total_auto_field_cnt", "total_init_field_cnt",
-            "auto_v", "props", "inspector", "immutables[*]",
+            "name", "constructor_name", "w_super",
+            "init_field_count", "auto_field_count", "total_field_count",
+            "total_auto_field_count", "total_init_field_count",
+            "w_auto_value", "props", "inspector", "immutables[*]",
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
             "constructor_arity", "procedure_source", "isprefab", "isopaque"]
@@ -64,193 +65,53 @@ class W_StructType(values.W_Object):
 
     unbound_prefab_types = {}
 
-    @staticmethod
-    def make(name, super_type, init_field_cnt, auto_field_cnt,
-             auto_v=values.w_false, props=values.w_null,
-             inspector=values.w_false, proc_spec=values.w_false,
-             immutables=[], guard=values.w_false,
-             constr_name=values.w_false, env=None, cont=None):
-        """
-        This method returns five instances:
-            W_StructType
-            W_StructConstructor
-            W_StructPredicate
-            W_StructAccessor
-            W_StructMutator
-        """
-        w_struct_type = W_StructType.make_simple(name, super_type,
-            init_field_cnt, auto_field_cnt, auto_v, props, inspector,
-            proc_spec, immutables, guard, constr_name)
-        return w_struct_type.initialize_props(props, proc_spec, env, cont)
-
-    @staticmethod
-    def make_simple(name, super_type, init_field_cnt, auto_field_cnt,
-            auto_v=values.w_false, props=values.w_null,
-            inspector=values.w_false, proc_spec=values.w_false,
-            immutables=[], guard=values.w_false,
-            constr_name=values.w_false):
-        """
-        This method returns an instance of W_StructType only.
-        It does not support properties.
-        """
-        ret_w_struct_type = W_StructType(name, super_type, init_field_cnt, auto_field_cnt,
-            auto_v, inspector, proc_spec, immutables, guard, constr_name)
-
-        if inspector is PREFAB:
-            prefab_key = W_PrefabKey.from_raw_params(name, init_field_cnt,\
-                auto_field_cnt, auto_v, immutables, super_type)
-            if prefab_key in W_StructType.unbound_prefab_types:
-                return W_StructType.unbound_prefab_types[prefab_key]
-            W_StructType.unbound_prefab_types[prefab_key] = ret_w_struct_type
-
-        return ret_w_struct_type
-
-    @staticmethod
-    @jit.elidable
-    def make_prefab(prefab_key):
-        if prefab_key in W_StructType.unbound_prefab_types:
-            w_struct_type = W_StructType.unbound_prefab_types[prefab_key]
-        else:
-            name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key =\
-                prefab_key.make_key_tuple()
-            super_type = W_StructType.make_prefab(super_key) if super_key else\
-                values.w_false
-            immutables = [i for i in range(init_field_cnt) if i not in mutables]
-            w_struct_type = W_StructType.make_simple(name,
-                super_type, init_field_cnt, auto_field_cnt, auto_v, values.w_null,
-                PREFAB, values.w_false, immutables)
-            W_StructType.unbound_prefab_types[prefab_key] = w_struct_type
-        return w_struct_type
-
-    @continuation
-    def save_prop_value(self, props, idx, is_checked, env, cont, _vals):
-        from pycket.interpreter import check_one_val
-        prop = props[idx][0]
-        prop_val = check_one_val(_vals)
-        props[idx] = (prop, prop_val, None)
-        return self.attach_prop(props, idx, is_checked, env, cont)
-
-    @label
-    def attach_prop(self, props, idx, is_checked, env, cont):
-        from pycket.interpreter import return_multi_vals
-        if idx < len(props):
-            (prop, prop_val, sub_prop) = props[idx]
-            if sub_prop is not None:
-                for p in props:
-                    if p[0] is sub_prop:
-                        return prop_val.call([p[1]], env,
-                            self.save_prop_value(props, idx, False, env, cont))
-            assert isinstance(prop, W_StructProperty)
-            if not is_checked and prop.guard.iscallable():
-                return prop.guard.call([prop_val, values.to_list(self.struct_type_info(cont))],
-                    env, self.save_prop_value(props, idx, True, env, cont))
-            if prop.isinstance(w_prop_procedure):
-                self.prop_procedure = prop_val
-            self.props.append((prop, prop_val))
-            return self.attach_prop(props, idx + 1, False, env, cont)
-        # at this point all properties are saved, next step is to copy
-        # propertyes from super types
-        struct_type = self.super
-        while isinstance(struct_type, W_StructType):
-            self.props = self.props + struct_type.props
-            if not self.prop_procedure and struct_type.prop_procedure:
-                self.prop_procedure = struct_type.prop_procedure
-                self.procedure_source = struct_type.procedure_source
-            struct_type = struct_type.super
-        struct_tuple = self.make_struct_tuple()
-        return return_multi_vals(values.Values.make(struct_tuple), env, cont)
-
     @jit.unroll_safe
-    def initialize_prop(self, props, p, sub_prop=None):
-        prop = p.car()
-        prop_val = p.cdr()
-        if sub_prop is None:
-            if prop.isinstance(w_prop_procedure):
-                if self.prop_procedure is not None and\
-                    self.prop_procedure is not prop_val:
-                    raise SchemeException(
-                        "make-struct-type: duplicate property binding\nproperty: %s" %
-                            prop.tostring())
-                self.prop_procedure = prop_val
-                self.procedure_source = self
-            elif prop.isinstance(w_prop_checked_procedure):
-                if self.total_field_cnt < 2:
-                    raise SchemeException("need at least two fields in the structure type")
-        props.append((prop, prop_val, sub_prop))
-        assert isinstance(prop, W_StructProperty)
-        for super_p in prop.supers:
-            self.initialize_prop(props, super_p, prop)
+    def __init__(self, w_name, w_super_type, init_field_count, auto_field_count,
+                 w_auto_value, w_inspector, w_proc_spec, immutables, w_guard,
+                 w_constructor_name):
+        self.name = w_name
+        self.constructor_name = w_constructor_name
+        self.w_super = w_super_type
+        self.init_field_count = init_field_count
+        self.total_init_field_count = init_field_count
+        self.auto_field_count = auto_field_count
+        self.total_auto_field_count = auto_field_count
+        self.total_field_count = init_field_count + auto_field_count
 
-    @jit.unroll_safe
-    def initialize_props(self, props, proc_spec, env, cont):
-        """
-        Properties initialization contains few steps:
-            1. call initialize_prop for each property from the input list,
-               it extracts all super values and stores them into props array
-               with a flat structure
-            2. recursively call attach_prop for each property from props and
-               prepare the value:
-               * if the current property has a subproperty, the value is the result
-                 of calling value procedure with a sub value as an argument
-               * if the current property has a guard, the value is the result of
-                 calling guard with a value and struct type info as arguments
-               * in other case, just keep the current value
-        """
-        proplist = values.from_list(props)
-        props = []
-        for p in proplist:
-            self.initialize_prop(props, p)
-        if proc_spec is not values.w_false:
-            self.initialize_prop(props, values.wrap(w_prop_procedure, proc_spec))
-        return self.attach_prop(props, 0, False, env, cont)
+        if isinstance(w_super_type, W_StructType):
+            self.total_field_count += w_super_type.total_field_count
+            self.total_init_field_count += w_super_type.total_init_field_count
+            self.total_auto_field_count += w_super_type.total_auto_field_count
 
-    @jit.unroll_safe
-    def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
-                 auto_v, inspector, proc_spec, immutables, guard, constr_name):
-        assert isinstance(name, values.W_Symbol)
-        assert (constr_name is values.w_false or
-                isinstance(constr_name, values.W_Symbol))
-
-        self.name = name
-        self.constructor_name = constr_name
-        self.super = super_type
-        self.init_field_cnt = init_field_cnt
-        self.total_init_field_cnt = init_field_cnt
-        self.auto_field_cnt = auto_field_cnt
-        self.total_auto_field_cnt = auto_field_cnt
-        self.total_field_cnt = init_field_cnt + auto_field_cnt
-
-        if isinstance(super_type, W_StructType):
-            self.total_field_cnt += super_type.total_field_cnt
-            self.total_init_field_cnt += super_type.total_init_field_cnt
-            self.total_auto_field_cnt += super_type.total_auto_field_cnt
-
-        self.auto_v = auto_v
-        self.props = []
+        self.w_auto_value = w_auto_value
+        self.properties = []
         self.prop_procedure = None
         self.procedure_source = None
-        self.inspector = inspector
+        self.w_inspector = w_inspector
 
-        if isinstance(proc_spec, values.W_Fixnum):
-            immutables = [proc_spec.value] + immutables
+        if isinstance(w_proc_spec, values.W_Fixnum):
+            immutables = [w_proc_spec.value] + immutables
 
         self.immutables = immutables
-        self.guard = guard
+        self.w_guard = w_guard
 
-        self.auto_values = [self.auto_v] * self.auto_field_cnt
-        self.isprefab = inspector is PREFAB
+        self.w_auto_values = [self.w_auto_value] * self.auto_field_count
+
+        self.setup_prefab()
+        self._calculate_offsets()
+        self._generate_methods()
+
+    def setup_prefab(self):
+        self.isprefab = self.w_inspector is w_prefab_symbol
         if self.isprefab:
             self.isopaque = False
         else:
-            self.isopaque = self.inspector is not values.w_false
-
-        self._calculate_offsets()
-        self._generate_methods()
+            self.isopaque = self.w_inspector is not values.w_false
 
     @jit.unroll_safe
     def _generate_methods(self):
         """ Generate constructor, predicate, mutator, and accessor """
-        count = self.total_init_field_cnt
+        count = self.total_init_field_count
         self.constructor_arity = Arity([count], -1)
 
         self.constructor = W_StructConstructor(self)
@@ -262,17 +123,185 @@ class W_StructType(values.W_Object):
     def _calculate_offsets(self):
         offsets = []
         immutable_fields = [] # absolut indices
-        struct_type = self
-        while isinstance(struct_type, W_StructType):
-            offset = (struct_type.total_field_cnt -
-                      struct_type.init_field_cnt -
-                      struct_type.auto_field_cnt)
-            offsets.append((struct_type, offset))
-            for immutable_field in struct_type.immutables:
+        w_struct_type = self
+        while isinstance(w_struct_type, W_StructType):
+            offset = (w_struct_type.total_field_count -
+                      w_struct_type.init_field_count - 
+                      w_struct_type.auto_field_count)
+            offsets.append((w_struct_type, offset))
+            for immutable_field in w_struct_type.immutables:
                 immutable_fields.append(immutable_field + offset)
-            struct_type = struct_type.super
+            w_struct_type = w_struct_type.w_super
         self.offsets = offsets[:]
         self.immutable_fields = immutable_fields[:]
+
+
+    @staticmethod
+    def make(w_name, w_super_type, init_field_count, auto_field_count,
+             w_auto_value=values.w_false, w_properties=values.w_null,
+             w_inspector=values.w_false, w_proc_spec=values.w_false, 
+             immutables=[], w_guard=values.w_false,
+             w_constructor_name=values.w_false, env=None, cont=None):
+        """
+        This method returns five instances:
+            W_StructType
+            W_StructConstructor
+            W_StructPredicate
+            W_StructAccessor
+            W_StructMutator
+        """
+        w_struct_type = W_StructType.make_simple(
+            w_name=w_name,
+            w_super_type=w_super_type, 
+            init_field_count=init_field_count,
+            auto_field_count=auto_field_count,
+            w_auto_value=w_auto_value,
+            w_inspector=w_inspector,
+            w_proc_spec=w_proc_spec,
+            immutables=immutables,
+            w_guard=w_guard,
+            w_constructor_name=w_constructor_name)
+        return w_struct_type.initialize_properties(w_properties, w_proc_spec, env, cont)
+
+
+    @staticmethod
+    @jit.elidable
+    def make_prefab(prefab_key):
+        if prefab_key in W_StructType.unbound_prefab_types:
+            return W_StructType.unbound_prefab_types[prefab_key]
+
+        if prefab_key.super_key:
+            w_super_type = W_StructType.make_prefab(prefab_key.super_key)
+        else:
+            w_super_type = values.w_false
+
+        immutables = [i for i in range(prefab_key.init_field_count) \
+                      if i not in prefab_key.mutables]
+        w_struct_type = W_StructType(
+            w_name=prefab_key.w_name,
+            w_super_type=w_super_type,
+            init_field_count=prefab_key.init_field_count,
+            auto_field_count=prefab_key.auto_field_count,
+            w_auto_value=prefab_key.w_auto_value,
+            w_inspector=w_prefab_symbol,
+            w_proc_spec=values.w_false,
+            immutables=immutables,
+            w_guard=values.w_false, 
+            w_constructor_name=values.w_false)
+        W_StructType.unbound_prefab_types[prefab_key] = w_struct_type
+
+        return w_struct_type
+
+    @staticmethod
+    def make_simple(w_name, w_super_type, init_field_count,
+                    auto_field_count, w_auto_value=values.w_false,
+                    w_inspector=values.w_false,
+                    w_proc_spec=values.w_false, immutables=[],
+                    w_guard=values.w_false, w_constructor_name=values.w_false):
+        """
+        This method returns an instance of W_StructType only.
+        It does not support properties.
+        """
+        w_struct_type = W_StructType(
+            w_name=w_name,
+            w_super_type=w_super_type, 
+            init_field_count=init_field_count,
+            auto_field_count=auto_field_count,
+            w_auto_value=w_auto_value,
+            w_inspector=w_inspector,
+            w_proc_spec=w_proc_spec,
+            immutables=immutables,
+            w_guard=w_guard,
+            w_constructor_name=w_constructor_name)
+        if w_inspector is w_prefab_symbol:
+            prefab_key = W_PrefabKey.from_raw_params(w_name, init_field_count,
+                    auto_field_count, w_auto_value, immutables, w_super_type)
+            if prefab_key in W_StructType.unbound_prefab_types:
+                return W_StructType.unbound_prefab_types[prefab_key]
+            W_StructType.unbound_prefab_types[prefab_key] = w_struct_type
+        return w_struct_type
+
+    @continuation
+    def save_property_value(self, properties, idx, is_checked, env, cont, _vals):
+        from pycket.interpreter import check_one_val
+        property = properties[idx][0]
+        property_val = check_one_val(_vals)
+        properties[idx] = (property, property_val, None)
+        return self.attach_property(properties, idx, is_checked, env, cont)
+
+    @label
+    def attach_property(self, properties, idx, is_checked, env, cont):
+        from pycket.interpreter import return_multi_vals
+        if idx < len(properties):
+            (property, property_val, sub_property) = properties[idx]
+            if sub_property is not None:
+                for p in properties:
+                    if p[0] is sub_property:
+                        return property_val.call([p[1]], env,
+                            self.save_property_value(properties, idx, False, env, cont))
+            assert isinstance(property, W_StructProperty)
+            if not is_checked and property.w_guard.iscallable():
+                return property.w_guard.call([property_val, values.to_list(self.struct_type_info(cont))],
+                    env, self.save_property_value(properties, idx, True, env, cont))
+            if property.isinstance(w_prop_procedure):
+                self.prop_procedure = property_val
+            self.properties.append((property, property_val))
+            return self.attach_property(properties, idx + 1, False, env, cont)
+        # at this point all properties are saved, next step is to copy
+        # propertyes from super types
+        w_struct_type = self.w_super
+        while isinstance(w_struct_type, W_StructType):
+            self.properties = self.properties + w_struct_type.properties
+            if not self.prop_procedure and w_struct_type.prop_procedure:
+                self.prop_procedure = w_struct_type.prop_procedure
+                self.procedure_source = w_struct_type.procedure_source
+            w_struct_type = w_struct_type.w_super
+        struct_tuple = [self, self.constructor, self.predicate, self.accessor, self.mutator]
+        return return_multi_vals(values.Values.make(struct_tuple), env, cont)
+
+    @jit.unroll_safe
+    def initialize_property(self, properties, p, sub_property=None):
+        property = p.car()
+        property_val = p.cdr()
+        if sub_property is None:
+            if property.isinstance(w_prop_procedure):
+                if self.prop_procedure is not None and\
+                    self.prop_procedure is not property_val:
+                    raise SchemeException(
+                        "make-struct-type: duplicate property binding\nproperty: %s" %
+                            property.tostring())
+                self.prop_procedure = property_val
+                self.procedure_source = self
+            elif property.isinstance(w_prop_checked_procedure):
+                if self.total_field_count < 2:
+                    raise SchemeException("need at least two fields in the structure type")
+        properties.append((property, property_val, sub_property))
+        assert isinstance(property, W_StructProperty)
+        for super_p in property.supers:
+            self.initialize_property(properties, super_p, property)
+
+    @jit.unroll_safe
+    def initialize_properties(self, properties, proc_spec, env, cont):
+        """
+        Properties initialization contains few steps:
+            1. call initialize_property for each property from the input list,
+               it extracts all super values and stores them into properties array
+               with a flat structure
+            2. recursively call attach_property for each property from properties and
+               prepare the value:
+               * if the current property has a subproperty, the value is the result
+                 of calling value procedure with a sub value as an argument
+               * if the current property has a guard, the value is the result of
+                 calling guard with a value and struct type info as arguments
+               * in other case, just keep the current value
+        """
+        proplist = values.from_list(properties)
+        properties = []
+        for p in proplist:
+            self.initialize_property(properties, p)
+        if proc_spec is not values.w_false:
+            self.initialize_property(properties, values.wrap(w_prop_procedure, proc_spec))
+        return self.attach_property(properties, 0, False, env, cont)
 
     @jit.elidable
     def get_offset(self, type):
@@ -284,14 +313,14 @@ class W_StructType(values.W_Object):
                 ## might be the same prefab struct, so
                 ## check if their fields are the same
                 if (t.name is type.name and
-                    t.init_field_cnt is type.init_field_cnt and
-                    t.total_init_field_cnt is type.total_init_field_cnt and
-                    t.auto_field_cnt is type.auto_field_cnt and
-                    t.total_auto_field_cnt is type.total_auto_field_cnt and
-                    t.total_field_cnt is type.total_field_cnt and
-                    t.auto_v is type.auto_v and
+                    t.init_field_count is type.init_field_count and
+                    t.total_init_field_count is type.total_init_field_count and
+                    t.auto_field_count is type.auto_field_count and
+                    t.total_auto_field_count is type.total_auto_field_count and
+                    t.total_field_count is type.total_field_count and
+                    t.w_auto_value is type.w_auto_value and
                     t.immutables == type.immutables and
-                    t.auto_values == type.auto_values and
+                    t.w_auto_values == type.w_auto_values and
                     t.isopaque is type.isopaque and
                     t.immutable_fields == type.immutable_fields and
                     t.constructor_arity.get_arity_list() == type.constructor_arity.get_arity_list()
@@ -316,39 +345,39 @@ class W_StructType(values.W_Object):
 
     def all_fields_immutable(self):
         self = jit.promote(self)
-        return self.total_field_cnt == len(self.immutable_fields)
+        return self.total_field_count == len(self.immutable_fields)
 
     def struct_type_info(self, cont):
-        name = self.name
-        init_field_cnt = values.wrap(self.init_field_cnt)
-        auto_field_cnt = values.wrap(self.auto_field_cnt)
-        immutable_k_list = values.wrap_list(self.immutables)
+        w_name = self.name
+        w_init_field_count = values.wrap(self.init_field_count)
+        w_auto_field_count = values.wrap(self.auto_field_count)
+        w_immutable_k_list = values.wrap_list(self.immutables)
         current_inspector = current_inspector_param.get(cont)
-        super = values.w_false
-        typ = self.super
-        while isinstance(typ, W_StructType):
-            if current_inspector.has_control(typ):
-                super = typ
-            typ = typ.super
-        skipped = values.W_Bool.make(super is values.w_false and
-            isinstance(self.super, W_StructType))
-        return [name, init_field_cnt, auto_field_cnt, self.accessor,
-                self.mutator, immutable_k_list, super, skipped]
+        w_super = values.w_false
+        w_struct_type = self.w_super
+        while isinstance(w_struct_type, W_StructType):
+            if current_inspector.has_control(w_struct_type):
+                w_super = w_struct_type
+            w_struct_type = w_struct_type.w_super
+        w_skipped = values.W_Bool.make(w_super is values.w_false and
+            isinstance(self.w_super, W_StructType))
+        return [w_name, w_init_field_count, w_auto_field_count, self.accessor,
+                self.mutator, w_immutable_k_list, w_super, w_skipped]
 
     def make_struct_tuple(self):
         return [self, self.constructor, self.predicate, self.accessor, self.mutator]
 
     @jit.elidable_promote('all')
-    def read_prop_precise(self, prop):
-        for p, val in self.props:
-            if p is prop:
+    def read_property_precise(self, property):
+        for p, val in self.properties:
+            if p is property:
                 return val
         return None
 
     @jit.elidable_promote('all')
-    def read_prop(self, prop):
-        for p, val in self.props:
-            if p.isinstance(prop):
+    def read_property(self, property):
+        for p, val in self.properties:
+            if p.isinstance(property):
                 return val
         return None
 
@@ -356,8 +385,8 @@ class W_StructType(values.W_Object):
     def all_opaque(self):
         if not self.isopaque:
             return False
-        elif isinstance(self.super, W_StructType):
-            return self.super.all_opaque()
+        elif isinstance(self.w_super, W_StructType):
+            return self.w_super.all_opaque()
         return True
 
     @jit.elidable
@@ -369,17 +398,17 @@ class W_StructType(values.W_Object):
         return True
 
     def get_inspector(self):
-        return self.inspector
+        return self.w_inspector
 
     def get_super(self):
-        return self.super
+        return self.w_super
 
     @jit.elidable
     def has_subtype(self, type):
         while isinstance(type, W_StructType):
             if type is self:
                 return True
-            type = type.super
+            type = type.w_super
         return False
 
 
@@ -390,106 +419,146 @@ class W_StructType(values.W_Object):
         return "#<struct-type:%s>" % self.name.utf8value
 
 class W_PrefabKey(values.W_Object):
-    _attrs_ = _immutable_fields_ = ["name", "init_field_cnt", "auto_field_cnt",
-                                    "auto_v", "mutables", "super_key"]
+    _attrs_ = _immutable_fields_ = ["w_name", "init_field_count", "auto_field_count",
+                                    "w_auto_value", "mutables", "super_key"]
     all_keys = []
 
     @staticmethod
     @jit.elidable
-    def make(name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key):
-        assert isinstance(name, values.W_Symbol)
+    def make(w_name, init_field_count, auto_field_count, w_auto_value, mutables, super_key):
+        assert isinstance(w_name, values.W_Symbol)
         for key in W_PrefabKey.all_keys:
-            if key.equal_tuple((name, init_field_cnt, auto_field_cnt, auto_v,
-                mutables, super_key)):
+            if key.equal_tuple((w_name, init_field_count, auto_field_count,
+                                w_auto_value, mutables, super_key)):
                 return key
-        key = W_PrefabKey(name, init_field_cnt, auto_field_cnt, auto_v,
-                          mutables, super_key)
+        key = W_PrefabKey(w_name, init_field_count, auto_field_count,
+                          w_auto_value, mutables, super_key)
         W_PrefabKey.all_keys.append(key)
         return key
 
     @staticmethod
     def from_struct_type(struct_type):
         assert isinstance(struct_type, W_StructType)
-        name = struct_type.name
-        init_field_cnt = struct_type.init_field_cnt
-        auto_field_cnt = struct_type.auto_field_cnt
-        auto_v = struct_type.auto_v
+        w_name = struct_type.name
+        init_field_count = struct_type.init_field_count
+        auto_field_count = struct_type.auto_field_count
+        w_auto_value = struct_type.w_auto_value
+        super_key = None
         mutables = []
         prev_idx = 1
         for i in struct_type.immutables:
             for j in range(prev_idx, i):
                 mutables.append(j)
             prev_idx = i + 1
-        super_key = None
-        if struct_type.super is not values.w_false:
-            super_key = W_PrefabKey.from_struct_type(struct_type.super)
-        return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,
-                                mutables, super_key)
+        if struct_type.w_super is not values.w_false:
+            super_key = W_PrefabKey.from_struct_type(struct_type.w_super)
+        return W_PrefabKey.make(w_name, init_field_count, auto_field_count,
+                                w_auto_value, mutables, super_key)
 
     @staticmethod
-    def from_raw_params(w_name, init_field_cnt, auto_field_cnt, auto_v, immutables, super_type):
-        assert isinstance(w_name, values.W_Symbol)
+    def from_raw_params(w_name, init_field_count, auto_field_count,
+                        w_auto_value, immutables, super_type):
         mutables = []
+        super_key = None
         prev_idx = 1
         for i in immutables:
             for j in range(prev_idx, i):
                 mutables.append(j)
             prev_idx = i + 1
-        super_key = None
+
         if super_type is not values.w_false:
             super_key = W_PrefabKey.from_struct_type(super_type)
-        return W_PrefabKey.make(w_name, init_field_cnt, auto_field_cnt, auto_v,
-                                mutables, super_key)
+        return W_PrefabKey.make(w_name, init_field_count, auto_field_count,
+                                w_auto_value, mutables, super_key)
+
+    @staticmethod
+    @jit.unroll_safe
+    def parse_key(w_key, total_count, is_super):
+        init_count = -1
+        auto_count = 0
+        w_auto_value = values.w_false
+        super_key = None
+        mutables = []
+        w_name = None
+
+        name_seen = init_seen = auto_seen = mutable_seen = False
+
+        if isinstance(w_key, values.W_Symbol):
+            w_name = w_key
+            init_count = total_count
+            w_key = values.w_null
+            name_seen = True
+
+        while w_key is not values.w_null:
+            w_val, w_rest = w_key.to_tuple()
+            if isinstance(w_val, values.W_Symbol):
+                if name_seen:
+                    # super key
+                    if init_seen:
+                        super_total = total_count - init_count
+                    else:
+                        super_total = total_count
+                    super_key = W_PrefabKey.from_raw_key(
+                        w_key, super_total, True)
+                    # there's nothing after a properly parsed super key
+                    w_rest = values.w_null
+                else:
+                    # prefab name
+                    assert not (init_seen or auto_seen or mutable_seen)
+                    w_name = w_val
+                    name_seen = True
+            elif isinstance(w_val, values.W_Fixnum):
+                # init field count
+                assert name_seen  and not init_seen
+                init_count = w_val.value
+                init_seen = True
+            elif isinstance(w_val, values.W_List):
+                # auto fields
+                assert name_seen and not auto_seen
+                if is_super: assert init_seen
+                w_auto_count, w_val = w_val.to_tuple()
+                w_auto_value, w_val = w_val.to_tuple()
+                assert isinstance(w_auto_count, values.W_Fixnum)
+                auto_count =  w_auto_count.value
+                auto_seen = True
+            elif isinstance(w_val, values_vector.W_Vector):
+                # mutable fields
+                assert name_seen and not mutable_seen
+                if is_super: assert init_seen
+                for i in range(w_val.len):
+                    mutable = w_val.ref(i)
+                    assert isinstance(mutable, values.W_Fixnum)
+                    mutables.append(mutable.value)
+                mutable_seen = True
+            w_key = w_rest
+        assert name_seen
+        if is_super: assert init_seen
+        return (w_name, init_count, auto_count,
+                w_auto_value, super_key, mutables)
 
     @staticmethod
     @jit.elidable
-    def from_raw_key(w_key, total_field_cnt=0):
-        init_field_cnt = -1
-        auto_field_cnt = 0
-        auto_v = values.w_false
-        super_key = None
-        mutables = []
-        if isinstance(w_key, values.W_Symbol):
-            w_name = w_key
-            init_field_cnt = total_field_cnt
-        else:
-            key = values.from_list(w_key)
-            w_name = key[0]
-            assert isinstance(w_name, values.W_Symbol)
-            idx = 1
-            w_init_field_cnt = key[idx]
-            if isinstance(w_init_field_cnt, values.W_Fixnum):
-                init_field_cnt = w_init_field_cnt.value
-                idx += 1
-            if len(key) > idx:
-                w_auto = key[idx]
-                if isinstance(w_auto, values.W_Cons):
-                    auto = values.from_list(w_auto)
-                    w_auto_field_cnt = auto[0]
-                    assert isinstance(w_auto_field_cnt, values.W_Fixnum)
-                    auto_field_cnt = w_auto_field_cnt.value
-                    auto_v = auto[1]
-                    idx += 1
-            if len(key) > idx:
-                v = key[idx]
-                if isinstance(v, values_vector.W_Vector):
-                    for i in range(v.len):
-                        mutable = v.ref(i)
-                        assert isinstance(mutable, values.W_Fixnum)
-                        mutables.append(mutable.value)
-                    idx += 1
-            if len(key) > idx:
-                w_super_key = values.to_list(key[idx:])
-                super_key = W_PrefabKey.from_raw_key(w_super_key)
-        if init_field_cnt == -1:
-            init_field_cnt = total_field_cnt
+    def from_raw_key(w_key, total_count=0, is_super=False):
+
+        w_name, \
+        init_count, \
+        auto_count, \
+        w_auto_value, \
+        super_key, \
+        mutables = W_PrefabKey.parse_key(w_key, total_count, is_super)
+
+        if init_count == -1:
+            init_count = total_count - auto_count
             s_key = super_key
             while s_key:
-                super_name, super_init_field_cnt, super_auto_field_cnt,\
-                    super_auto_v, super_mutables, s_key = s_key.make_key_tuple()
-                init_field_cnt -= super_init_field_cnt
-        return W_PrefabKey.make(w_name, init_field_cnt, auto_field_cnt, auto_v,
-                                mutables, super_key)
+                init_count -= (s_key.init_field_count + s_key.auto_field_count)
+                # TODO: originally this on shapes, but master has just that one:
+                # init_count -= s_key.init_field_count
+                s_key = s_key.super_key
+
+        return W_PrefabKey.make(w_name, init_count, auto_count,
+                                w_auto_value, mutables, super_key)
+
 
     @staticmethod
     def is_prefab_key(v):
@@ -515,12 +584,12 @@ class W_PrefabKey(values.W_Object):
         else:
             return values.w_false
 
-    def __init__(self, name, init_field_cnt, auto_field_cnt, auto_v, mutables,
-            super_key):
-        self.name = name
-        self.init_field_cnt = init_field_cnt
-        self.auto_field_cnt = auto_field_cnt
-        self.auto_v = auto_v
+    def __init__(self, w_name, init_field_count, auto_field_count,
+                 w_auto_value, mutables, super_key):
+        self.w_name = w_name
+        self.init_field_count = init_field_count
+        self.auto_field_count = auto_field_count
+        self.w_auto_value = w_auto_value
         self.mutables = mutables
         self.super_key = super_key
 
@@ -534,11 +603,11 @@ class W_PrefabKey(values.W_Object):
 
     def key(self):
         key = []
-        key.append(self.name)
-        key.append(values.wrap(self.init_field_cnt))
-        if self.auto_field_cnt > 0:
-            lst = values.wrap(self.auto_v, values.w_null)
-            lst = values.wrap(self.auto_field_cnt, lst)
+        key.append(self.w_name)
+        key.append(values.wrap(self.init_field_count))
+        if self.auto_field_count > 0:
+            lst = values.wrap(self.w_auto_value, values.w_null)
+            lst = values.wrap(self.auto_field_count, lst)
             key.append(lst)
         if self.mutables:
             vector = values_vector.wrap_vector(self.mutables)
@@ -553,8 +622,8 @@ class W_PrefabKey(values.W_Object):
         return values.to_list(short_key) if len(short_key) > 1 else key[0]
 
     def make_key_tuple(self):
-        return self.name, self.init_field_cnt, self.auto_field_cnt,\
-            self.auto_v, self.mutables, self.super_key
+        return self.w_name, self.init_field_count, self.auto_field_count,\
+            self.w_auto_value, self.mutables, self.super_key
 
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
@@ -583,9 +652,9 @@ class W_RootStruct(values.W_Object):
         args_len = len(args)
         arity = proc.get_arity(promote=True)
         if not arity.arity_includes(args_len):
-            w_prop_val = self.struct_type().read_prop(w_prop_arity_string)
-            if w_prop_val:
-                return w_prop_val.call_with_extra_info([self], env,
+            w_property_val = self.struct_type().read_property(w_prop_arity_string)
+            if w_property_val:
+                return w_property_val.call_with_extra_info([self], env,
                     self.arity_error_cont(env, cont), app)
         return proc.call_with_extra_info(args, env, cont, app)
 
@@ -650,7 +719,7 @@ class W_RootStruct(values.W_Object):
     
     def hash_equal(self, info=None):
         struct_type = self.struct_type()
-        prop_equal_hash = struct_type.read_prop(w_prop_equal_hash)
+        prop_equal_hash = struct_type.read_property(w_prop_equal_hash)
 
         if not struct_type.is_transparent():
             # if not transparent, eqv?
@@ -678,7 +747,7 @@ class W_RootStruct(values.W_Object):
                 return total_hash_val
             else:
                 from pycket.prims.hash import equal_hash_code
-                w_hash_proc = self.get_hash_proc(prop_equal_hash)
+                w_hash_proc = prop_equal_hash.cdr().car()
                 w_hash_proc_recur = equal_hash_code.w_prim
                 h = w_hash_proc.call_interpret([self, w_hash_proc_recur])
                 assert isinstance(h, values.W_Fixnum)
@@ -750,13 +819,14 @@ class W_Struct(W_RootStruct):
     # since impersonators can override struct properties.
     def get_prop(self, property, env, cont):
         from pycket.interpreter import return_value
-        val = self.struct_type().read_prop_precise(property)
+        val = self.struct_type().read_property_precise(property)
         if val is not None:
             return return_value(val, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s" %
             (property.name, property.name, self.tostring()))
 
     def get_arity(self, promote=False):
+        # XXX: --> struct type?
         if self.iscallable():
             typ = self.struct_type()
             proc = typ.prop_procedure
@@ -776,18 +846,18 @@ class W_Struct(W_RootStruct):
         vals = values.Values._make2(self.struct_type(), values.w_false)
         return return_multi_vals(vals, env, cont)
 
-    # TODO: currently unused
-    def tostring_proc(self, env, cont):
-        w_val = self.struct_type().read_prop(w_prop_custom_write)
-        if w_val is not None:
-            assert isinstance(w_val, values_vector.W_Vector)
-            w_write_proc = w_val.ref(0)
-            port = values.W_StringOutputPort()
-            # TODO: #t for write mode, #f for display mode,
-            # or 0 or 1 indicating the current quoting depth for print mode
-            mode = values.w_false
-            return w_write_proc.call([self, port, mode], env, cont)
-        return self.tostring()
+    # # TODO: currently unused
+    # def tostring_proc(self, env, cont):
+    #     w_val = self.struct_type().read_property(w_prop_custom_write)
+    #     if w_val is not None:
+    #         assert isinstance(w_val, values_vector.W_Vector)
+    #         w_write_proc = w_val.ref(0)
+    #         port = values.W_StringOutputPort()
+    #         # TODO: #t for write mode, #f for display mode,
+    #         # or 0 or 1 indicating the current quoting depth for print mode
+    #         mode = values.w_false
+    #         return w_write_proc.call([self, port, mode], env, cont)
+    #     return self.tostring()
 
     def tostring_prefab(self):
         prefab_key = W_PrefabKey.from_struct_type(self.struct_type())
@@ -809,14 +879,14 @@ class W_Struct(W_RootStruct):
     def tostring_values(self, fields, w_type, is_super=False):
         " fill fields with tostring() version of field if applicable "
         assert isinstance(w_type, W_StructType)
-        w_super = w_type.super
+        w_super = w_type.w_super
         has_super = isinstance(w_super, W_StructType)
         if has_super:
             self.tostring_values(fields=fields,w_type=w_super,is_super=True)
         offset = self.struct_type().get_offset(w_type)
-        count = w_type.total_field_cnt
+        count = w_type.total_field_count
         if has_super:
-            count -= w_super.total_field_cnt
+            count -= w_super.total_field_count
         assert len(fields) >= count + offset
         if w_type.isopaque and offset < len(fields):
             fields[offset] = "..."
@@ -836,9 +906,9 @@ class W_Struct(W_RootStruct):
         if has_super:
             self.write_values(port, w_super, env)
         offset = self.struct_type().get_offset(w_type)
-        count = w_type.total_field_cnt
+        count = w_type.total_field_count
         if has_super:
-            count -= w_super.total_field_cnt
+            count -= w_super.total_field_count
         for i in range(offset, offset + count):
             write_loop(self._ref(i), port, env)
             port.write(" ")
@@ -851,9 +921,8 @@ class W_Struct(W_RootStruct):
         elif w_type.all_opaque():
             port.write("#<%s>" % typename)
         else:
-            w_val = w_type.read_prop(w_prop_custom_write)
+            w_val = w_type.read_property(w_prop_custom_write)
             if w_val is not None:
-                pycketconfig = env.toplevel_env()._pycketconfig
                 assert isinstance(w_val, values_vector.W_Vector)
                 w_write_proc = w_val.ref(0)
                 # #t for write mode, #f for display mode,
@@ -879,10 +948,18 @@ class W_Struct(W_RootStruct):
             #return ret_str
             return "#<%s>" % typename
         else:
-            fields = [None] * w_type.total_field_cnt
+            fields = [None] * w_type.total_field_count
             self.tostring_values(fields=fields, w_type=w_type, is_super=False)
-            custom_huh = w_type.read_prop(w_prop_custom_write)
+            custom_huh = w_type.read_property(w_prop_custom_write)
             return "(%s %s)" % (typename, self._string_from_list(fields))
+
+    # Test only.
+    @not_rpython
+    def __eq__(self, other):
+        if isinstance(other, W_Struct):
+            if self.get_number_of_children() == other.get_number_of_children():
+                return self.get_children() == other.get_children()
+        return False
 
 """
 This method generates a new structure class with inline stored immutable #f
@@ -1006,11 +1083,8 @@ def splice_array(array, index, insertion):
 @jit.unroll_safe
 def construct_struct_final(struct_type, field_values, env, cont):
     from pycket.interpreter import return_value
-    assert len(field_values) == struct_type.total_field_cnt
-    if CONST_FALSE_SIZE:
-        constant_false = []
-    else:
-        constant_false = None
+    assert len(field_values) == struct_type.total_field_count
+    constant_false = [] if CONST_FALSE_SIZE else None
     for i, value in enumerate(field_values):
         if not struct_type.is_immutable_field_index(i):
             value = values.W_Cell(value)
@@ -1024,14 +1098,13 @@ def construct_struct_final(struct_type, field_values, env, cont):
     return return_value(result, env, cont)
 
 def construct_struct_loop(init_type, struct_type, field_values, env, cont):
-    from pycket.interpreter import return_multi_vals
     struct_type = jit.promote(struct_type)
     if not isinstance(struct_type, W_StructType):
         return construct_struct_final(init_type, field_values, env, cont)
 
-    auto_field_start = struct_type.total_init_field_cnt
-    guard = struct_type.guard
-    if guard is values.w_false:
+    auto_field_start = struct_type.total_init_field_count
+    w_guard = struct_type.w_guard
+    if w_guard is values.w_false:
         return construct_struct_loop_body(init_type, struct_type, field_values,
                                           auto_field_start, env, cont)
 
@@ -1040,16 +1113,16 @@ def construct_struct_loop(init_type, struct_type, field_values, env, cont):
     args = field_values[:auto_field_start] + [typename]
     cont = receive_guard_values_cont(init_type, struct_type, field_values,
                                      auto_field_start, env, cont)
-    return guard.call(args, env, cont)
+    return w_guard.call(args, env, cont)
 
 def construct_struct_loop_body(init_type, struct_type, field_values,
                                auto_field_start, env, cont):
     # Figure out where in the array the auto values start for this struct type.
     # Recall, the struct is built from the bottom up in the inheritance heirarchy.
-    auto_values  = struct_type.auto_values
-    field_values = splice_array(field_values, auto_field_start, auto_values)
-    super_type   = struct_type.super
-    return construct_struct_loop(init_type, super_type, field_values, env, cont)
+    w_auto_values  = struct_type.w_auto_values
+    field_values = splice_array(field_values, auto_field_start, w_auto_values)
+    w_super_type = struct_type.w_super
+    return construct_struct_loop(init_type, w_super_type, field_values, env, cont)
 
 @continuation
 def receive_guard_values_cont(init_type, struct_type, field_values,
@@ -1060,16 +1133,27 @@ def receive_guard_values_cont(init_type, struct_type, field_values,
     return construct_struct_loop_body(init_type, struct_type, field_values,
                                       auto_field_start, env, cont)
 
-class W_StructConstructor(values.W_Procedure):
-    _attrs_ = _immutable_fields_ = ["type"]
+# 
+
+class W_StructTypeProcedure(values.W_Procedure):
+    "Base for all Structure type related procedures"
+    _attrs_ = _immutable_fields_ = ["_struct_type"]
     import_from_mixin(SingleResultMixin)
 
-    def __init__(self, type):
-        self.type = type
+    def __init__(self, struct_type):
+        self._struct_type = struct_type
+    def struct_type_name(self):
+        return self._struct_type.name.variable_name()
+    def struct_type(self):
+        return self._struct_type
+    def struct_type_promote(self):
+        return jit.promote(self.struct_type())
+
+class W_StructConstructor(W_StructTypeProcedure):
 
     @make_call_method(simple=False)
     def call_with_extra_info(self, args, env, cont, app):
-        type  = jit.promote(self.type)
+        type  = self.struct_type_promote()
         arity = type.constructor_arity
         if not arity.arity_includes(len(args)):
             raise SchemeException("%s: wrong number of arguments; expected %s but got %s" % (self.tostring(),arity.tostring(), len(args)))
@@ -1078,18 +1162,14 @@ class W_StructConstructor(values.W_Procedure):
     def get_arity(self, promote=False):
         if promote:
             self = jit.promote(self)
-        return self.type.constructor_arity
+        return self.struct_type().constructor_arity
 
     def tostring(self):
-        return "#<procedure:%s>" % self.type.name.variable_name()
+        return "#<procedure:%s>" % self.struct_type_name()
 
-class W_StructPredicate(values.W_Procedure):
+
+class W_StructPredicate(W_StructTypeProcedure):
     errorname = "struct-predicate"
-    _attrs_ = _immutable_fields_ = ["type"]
-    import_from_mixin(SingleResultMixin)
-
-    def __init__(self, type):
-        self.type = type
 
     @make_call_method([values.W_Object])
     @jit.unroll_safe
@@ -1099,16 +1179,16 @@ class W_StructPredicate(values.W_Procedure):
         if isinstance(struct, W_RootStruct):
             struct_type = struct.struct_type()
             while isinstance(struct_type, W_StructType):
-                if struct_type is self.type:
+                if struct_type is self.struct_type():
                     return values.w_true
-                struct_type = struct_type.super
+                struct_type = struct_type.w_super
         return values.w_false
 
     def get_arity(self, promote=False):
         return Arity.ONE
 
     def tostring(self):
-        return "#<procedure:%s?>" % self.type.name.variable_name()
+        return "#<procedure:%s?>" % self.struct_type_name()
 
 class W_StructFieldAccessor(values.W_Procedure):
     errorname = "struct-field-accessor"
@@ -1122,7 +1202,7 @@ class W_StructFieldAccessor(values.W_Procedure):
         self.field_name = field_name
 
     def get_absolute_index(self, type):
-        return type.get_offset(self.accessor.type) + self.field
+        return type.get_offset(self.accessor.struct_type()) + self.field
 
     def get_arity(self, promote=False):
         return Arity.ONE
@@ -1137,12 +1217,8 @@ class W_StructFieldAccessor(values.W_Procedure):
         name = self.accessor.type.name.variable_name()
         return "#<procedure:%s-%s>" % (name, self.field_name.variable_name())
 
-class W_StructAccessor(values.W_Procedure):
+class W_StructAccessor(W_StructTypeProcedure):
     errorname = "struct-accessor"
-    _attrs_ = _immutable_fields_ = ["type"]
-    import_from_mixin(SingleResultMixin)
-    def __init__(self, type):
-        self.type = type
 
     def get_arity(self, promote=False):
         return Arity.TWO
@@ -1152,9 +1228,9 @@ class W_StructAccessor(values.W_Procedure):
         st = jit.promote(struct.struct_type())
         if st is None:
             raise SchemeException("%s got %s" % (self.tostring(), struct.tostring()))
-        offset = st.get_offset(self.type)
+        offset = st.get_offset(self.struct_type())
         if offset == -1:
-            raise SchemeException("%s: expected a %s but got a %s" % (self.tostring(), self.type.name.tostring(), st.name.tostring()))
+            raise SchemeException("%s: expected a %s but got a %s" % (self.tostring(), self.struct_type_name().tostring(), st.name.tostring()))
         return struct.ref_with_extra_info(field + offset, app, env, cont)
 
     @make_call_method([values.W_Object, values.W_Fixnum], simple=False,
@@ -1163,7 +1239,7 @@ class W_StructAccessor(values.W_Procedure):
         return self.access(struct, field.value, env, cont, app)
 
     def tostring(self):
-        return "#<procedure:%s-ref>" % self.type.name.utf8value
+        return "#<procedure:%s-ref>" % self.struct_type_name().utf8value
 
 class W_StructFieldMutator(values.W_Procedure):
     errorname = "struct-field-mutator"
@@ -1179,7 +1255,7 @@ class W_StructFieldMutator(values.W_Procedure):
         return Arity.TWO
 
     def get_absolute_index(self, type):
-        return type.get_offset(self.mutator.type) + self.field
+        return type.get_offset(self.mutator.struct_type()) + self.field
 
     @make_call_method([values.W_Object, values.W_Object], simple=False,
                       name="<struct-field-mutator-method>")
@@ -1187,14 +1263,10 @@ class W_StructFieldMutator(values.W_Procedure):
         return self.mutator.mutate(struct, self.field, val, env, cont, app)
 
     def tostring(self):
-        return "#<procedure:%s-%s!>" % (self.mutator.type.name, self.field_name.variable_name())
+        return "#<procedure:%s-%s!>" % (self.mutator.struct_type_name(), self.field_name.variable_name())
 
-class W_StructMutator(values.W_Procedure):
+class W_StructMutator(W_StructTypeProcedure):
     errorname = "struct-mutator"
-    _attrs_ = _immutable_fields_ = ["type"]
-    import_from_mixin(SingleResultMixin)
-    def __init__(self, type):
-        self.type = type
 
     def get_arity(self, promote=False):
         return Arity.THREE
@@ -1204,7 +1276,7 @@ class W_StructMutator(values.W_Procedure):
         st = jit.promote(struct.struct_type())
         if st is None:
             raise SchemeException("%s got %s" % (self.tostring(), struct.tostring()))
-        offset = st.get_offset(self.type)
+        offset = st.get_offset(self.struct_type())
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
         return struct.set_with_extra_info(field + offset, val, app, env, cont)
@@ -1215,23 +1287,23 @@ class W_StructMutator(values.W_Procedure):
         return self.mutate(struct, field.value, val, env, cont, app)
 
     def tostring(self):
-        return "#<procedure:%s-set!>" % self.type.name
+        return "#<procedure:%s-set!>" % self.struct_type_name()
 
 class W_StructProperty(values.W_Object):
     errorname = "struct-type-property"
-    _attrs_ = _immutable_fields_ = ["name", "guard", "supers", "can_imp"]
-    def __init__(self, name, guard, supers=values.w_null, can_imp=False):
-        self.name = name.utf8value
-        self.guard = guard
+    _attrs_ = _immutable_fields_ = ["name", "w_guard", "supers", "can_imp"]
+    def __init__(self, w_name, w_guard, supers=values.w_null, can_imp=False):
+        self.name = w_name.utf8value
+        self.w_guard = w_guard
         self.supers = values.from_list(supers)
         self.can_imp = can_imp
 
     @jit.elidable
-    def isinstance(self, prop):
-        if self is prop:
+    def isinstance(self, property):
+        if self is property:
             return True
         for super in self.supers:
-            if super.car().isinstance(prop):
+            if super.car().isinstance(property):
                 return True
         return False
 
@@ -1275,7 +1347,7 @@ class W_StructPropertyPredicate(values.W_Procedure):
     def call(self, arg):
         if not isinstance(arg, W_RootStruct):
             return values.w_false
-        w_val = arg.struct_type().read_prop_precise(self.property)
+        w_val = arg.struct_type().read_property_precise(self.property)
         if w_val is not None:
             return values.w_true
         return values.w_false
@@ -1294,7 +1366,7 @@ class W_StructPropertyAccessor(values.W_Procedure):
     def call_with_extra_info(self, arg, fail, env, cont, app):
         from pycket.interpreter import return_value
         if isinstance(arg, W_StructType):
-            w_val = arg.read_prop_precise(self.property)
+            w_val = arg.read_property_precise(self.property)
             if w_val is not None:
                 return return_value(w_val, env, cont)
         elif arg.struct_type() is not None:

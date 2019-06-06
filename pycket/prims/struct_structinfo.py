@@ -12,31 +12,31 @@ expose_val("current-inspector", values_struct.current_inspector_param)
 expose_val("current-code-inspector", values_struct.current_inspector_param)
 
 @expose("make-inspector", [default(values_struct.W_StructInspector, None)], simple=False)
-def do_make_instpector(inspector, env, cont):
+def do_make_instpector(w_inspector, env, cont):
     from pycket.interpreter import return_value
-    if inspector is None:
-        inspector = values_struct.current_inspector_param.get(cont)
-    new_inspector = values_struct.W_StructInspector.make(inspector)
+    if w_inspector is None:
+        w_inspector = values_struct.current_inspector_param.get(cont)
+    new_inspector = values_struct.W_StructInspector.make(w_inspector)
     return return_value(new_inspector, env, cont)
 
 @expose("make-sibling-inspector", [default(values_struct.W_StructInspector, None)], simple=False)
-def do_make_sibling_instpector(inspector, env, cont):
+def do_make_sibling_instpector(w_inspector, env, cont):
     from pycket.interpreter import return_value
-    if inspector is None:
-        inspector = values_struct.current_inspector_param.get(cont)
-    new_inspector = values_struct.W_StructInspector.make(inspector, issibling=True)
+    if w_inspector is None:
+        w_inspector = values_struct.current_inspector_param.get(cont)
+    new_inspector = values_struct.W_StructInspector.make(w_inspector, issibling=True)
     return return_value(new_inspector, env, cont)
 
 @expose("inspector-superior?", [values_struct.W_StructInspector, values_struct.W_StructInspector])
-def inspector_superior_huh(inspector, maybe_subinspector):
-    if inspector is maybe_subinspector:
+def inspector_superior_huh(w_inspector, maybe_subinspector):
+    if w_inspector is maybe_subinspector:
         return values.w_false
 
-    s = maybe_subinspector.super
+    s = maybe_subinspector.w_super
     while(s is not None):
-        if inspector is s:
+        if w_inspector is s:
             return values.w_true
-        s = s.super
+        s = s.w_super
 
     return values.w_false
 
@@ -93,19 +93,23 @@ def do_struct_type_make_predicate(struct_type, env, cont):
          default(values.W_List, values.w_null),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_false)], simple=False)
-def do_make_struct_type(name, super_type, w_init_field_cnt, w_auto_field_cnt,
-        auto_v, props, inspector, proc_spec, w_immutables, guard, constr_name, env, cont):
-    if inspector is None:
-        inspector = values_struct.current_inspector_param.get(cont)
+def do_make_struct_type(w_name, w_super_type, w_init_field_count,
+                        w_auto_field_count, w_auto_value, w_properties, w_inspector,
+                        w_proc_spec, w_immutables, w_guard, w_constructor_name,
+                        env, cont):
+    if w_inspector is None:
+        w_inspector = values_struct.current_inspector_param.get(cont)
 
-    if constr_name is not values.w_false and not isinstance(constr_name, values.W_Symbol):
+    if (w_constructor_name is not values.w_false and 
+        not isinstance(w_constructor_name, values.W_Symbol)):
         raise SchemeException("make-struct-type: constructor name mustbe be symbol? or #f")
 
-    if not isinstance(super_type, values_struct.W_StructType) and super_type is not values.w_false:
-        raise SchemeException("make-struct-type: expected a struct-type? or #f for the super type , but got %s : %s" % (super_type, super_type.tostring()))
+    if not (isinstance(w_super_type, values_struct.W_StructType) or
+            w_super_type is values.w_false):
+        raise SchemeException("make-struct-type: expected a struct-type? or #f for the super type , but got %s : %s" % (w_super_type, w_super_type.tostring()))
 
-    init_field_cnt = w_init_field_cnt.value
-    auto_field_cnt = w_auto_field_cnt.value
+    init_field_count = w_init_field_count.value
+    auto_field_count = w_auto_field_count.value
 
     immutables = []
     for i in values.from_list_iter(w_immutables):
@@ -113,9 +117,13 @@ def do_make_struct_type(name, super_type, w_init_field_cnt, w_auto_field_cnt,
             raise SchemeException("make-struct-type: expected list of positive integers for immutable fields")
         immutables.append(i.value)
 
-    return values_struct.W_StructType.make(name, super_type, init_field_cnt,
-        auto_field_cnt, auto_v, props, inspector, proc_spec, immutables,
-        guard, constr_name, env, cont)
+    return values_struct.W_StructType.make(w_name=w_name,
+        w_super_type=w_super_type, init_field_count=init_field_count,
+        auto_field_count=auto_field_count, w_auto_value=w_auto_value,
+        w_properties=w_properties, w_inspector=w_inspector,
+        w_proc_spec=w_proc_spec, immutables=immutables,
+        w_guard=w_guard, w_constructor_name=w_constructor_name,
+        env=env, cont=cont)
 
 @expose("struct-accessor-procedure?", [values.W_Object])
 def do_is_struct_accessor_procedure(v):
@@ -194,7 +202,7 @@ def mk_stp(sym, guard, supers, _can_imp):
 def unsafe_struct_ref(v, k):
     v = imp.get_base_object(v)
     assert isinstance(v, values_struct.W_Struct)
-    assert 0 <= k.value <= v.struct_type().total_field_cnt
+    assert 0 <= k.value <= v.struct_type().total_field_count
     return v._ref(k.value)
 
 @expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum),
@@ -202,16 +210,16 @@ def unsafe_struct_ref(v, k):
 def unsafe_struct_set(v, k, val):
     v = imp.get_base_object(v)
     assert isinstance(v, values_struct.W_Struct)
-    assert 0 <= k.value < v.struct_type().total_field_cnt
+    assert 0 <= k.value < v.struct_type().total_field_count
     return v._set(k.value, val)
 
 @expose("unsafe-struct*-ref", [values_struct.W_Struct, unsafe(values.W_Fixnum)])
 def unsafe_struct_star_ref(v, k):
-    assert 0 <= k.value < v.struct_type().total_field_cnt
+    assert 0 <= k.value < v.struct_type().total_field_count
     return v._ref(k.value)
 
 @expose("unsafe-struct*-set!", [values_struct.W_Struct, unsafe(values.W_Fixnum),
     values.W_Object])
 def unsafe_struct_star_set(v, k, val):
-    assert 0 <= k.value <= v.struct_type().total_field_cnt
+    assert 0 <= k.value <= v.struct_type().total_field_count
     return v._set(k.value, val)
