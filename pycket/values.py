@@ -359,6 +359,10 @@ class W_Cons(W_List):
     def cdr(self):
         raise NotImplementedError("abstract base class")
 
+    def to_tuple(self):
+        "convenience accessor"
+        return (self.car(), self.cdr())
+
     def tostring(self):
         cur = self
         acc = []

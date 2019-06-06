@@ -203,9 +203,9 @@ def equal_func_impl(a, b, info, env, cont, n):
     if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
         a_type = a.struct_type()
         b_type = b.struct_type()
-        w_prop = a_type.read_prop(values_struct.w_prop_equal_hash)
+        w_prop = a_type.read_property(values_struct.w_prop_equal_hash)
         if w_prop:
-            w_prop = b_type.read_prop(values_struct.w_prop_equal_hash)
+            w_prop = b_type.read_property(values_struct.w_prop_equal_hash)
             if w_prop:
                 w_equal_proc, w_hash_proc, w_hash2_proc = equal_hash_args(w_prop)
                 # FIXME: it should work with cycles properly and be an equal?-recur

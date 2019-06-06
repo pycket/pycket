@@ -1173,7 +1173,7 @@ def write(o, p, env, cont):
     from pycket.values_struct import w_prop_custom_write, W_Struct
 
     if isinstance(o, W_Struct):
-        w_custom_writer = o.struct_type().read_prop(w_prop_custom_write)
+        w_custom_writer = o.struct_type().read_property(w_prop_custom_write)
         if w_custom_writer is not None and w_custom_writer.iscallable():
             if not p:
                 p = current_out_param.get(cont)
