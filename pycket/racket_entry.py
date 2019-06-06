@@ -15,10 +15,11 @@ def locate_linklet(file_name):
 
     env_vars = os.environ.keys()
     if "PYTHONPATH" not in env_vars:
-        raise SchemeException("For PyPy to work with Pycket, PYTHONPATH variable should be set in the environment.. See README")
-
-    python_path = os.environ["PYTHONPATH"]
-    py_paths = python_path.split(':')
+        console_log("For PyPy to work with Pycket, PYTHONPATH variable should be set in the environment.. See README", debug=True)
+        py_paths = [""] # Try "here", wherever that is, and hope it's CWD
+    else:
+        python_path = os.environ["PYTHONPATH"]
+        py_paths = python_path.split(os.path.pathsep)
 
     file_path = ""
     for p in py_paths:
@@ -27,7 +28,7 @@ def locate_linklet(file_name):
             file_path = f_path
             break
         # Also try the UP (since PYTHONPATH may only point to the PyPy)
-        up_file = os.path.join(p, "../" + file_name)
+        up_file = os.path.join(p, os.path.join("..", file_name))
         if os.path.exists(up_file):
             file_path = up_file
             break

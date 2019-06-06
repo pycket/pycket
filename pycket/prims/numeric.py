@@ -95,8 +95,8 @@ def inexact_real(n):
 def single_flonum(n):
     return values.w_false
 
-@expose("single-flonum-available?", [values.W_Object])
-def single_flonum_available(n):
+@expose("single-flonum-available?", [])
+def single_flonum_available():
     return values.w_false
 
 
