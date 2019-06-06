@@ -57,7 +57,7 @@ class W_StructType(values.W_Object):
             "init_field_count", "auto_field_count", "total_field_count",
             "total_auto_field_count", "total_init_field_count",
             "w_auto_value", "properties", "w_inspector", "immutables[*]",
-            "immutable_fields[*]", "w_guard", "w_auto_values[*]", "offsets[*]",
+            "immutable_fields[*]", "w_guard", "auto_values_w[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
             "constructor_arity", "procedure_source", "isprefab", "isopaque"]
 
@@ -95,7 +95,7 @@ class W_StructType(values.W_Object):
         self.immutables = immutables
         self.w_guard = w_guard
 
-        self.w_auto_values = [self.w_auto_value] * self.auto_field_count
+        self.auto_values_w = [self.w_auto_value] * self.auto_field_count
 
         self.setup_prefab()
         self._calculate_offsets()
@@ -320,7 +320,7 @@ class W_StructType(values.W_Object):
                     t.total_field_count is type.total_field_count and
                     t.w_auto_value is type.w_auto_value and
                     t.immutables == type.immutables and
-                    t.w_auto_values == type.w_auto_values and
+                    t.auto_values_w == type.auto_values_w and
                     t.isopaque is type.isopaque and
                     t.immutable_fields == type.immutable_fields and
                     t.constructor_arity.get_arity_list() == type.constructor_arity.get_arity_list()
@@ -1119,8 +1119,8 @@ def construct_struct_loop_body(init_type, struct_type, field_values,
                                auto_field_start, env, cont):
     # Figure out where in the array the auto values start for this struct type.
     # Recall, the struct is built from the bottom up in the inheritance heirarchy.
-    w_auto_values  = struct_type.w_auto_values
-    field_values = splice_array(field_values, auto_field_start, w_auto_values)
+    auto_values_w  = struct_type.auto_values_w
+    field_values = splice_array(field_values, auto_field_start, auto_values_w)
     w_super_type = struct_type.w_super
     return construct_struct_loop(init_type, w_super_type, field_values, env, cont)
 
