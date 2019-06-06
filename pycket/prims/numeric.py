@@ -95,6 +95,11 @@ def inexact_real(n):
 def single_flonum(n):
     return values.w_false
 
+@expose("single-flonum-available?", [values.W_Object])
+def single_flonum_available(n):
+    return values.w_false
+
+
 @expose("double-flonum?", [values.W_Object])
 def double_flonum(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
