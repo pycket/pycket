@@ -56,8 +56,8 @@ class W_StructType(values.W_Object):
             "name", "constructor_name", "w_super",
             "init_field_count", "auto_field_count", "total_field_count",
             "total_auto_field_count", "total_init_field_count",
-            "w_auto_value", "properties", "inspector", "immutables[*]",
-            "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
+            "w_auto_value", "properties", "w_inspector", "immutables[*]",
+            "immutable_fields[*]", "w_guard", "w_auto_values[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
             "constructor_arity", "procedure_source", "isprefab", "isopaque"]
 
