@@ -695,7 +695,7 @@
    #:once-each
    [("--complete-expansion") "expand and collect all dependent modules in a single json" (set! complete-expansion? #t)]
    [("--omit-srcloc") "don't include src location info (default)" (set! srcloc? #f)]
-   [("--keep-srcloc") "don't include src location info" (set! srcloc? #t)]
+   [("--keep-srcloc") "include src location info" (set! srcloc? #t)]
    [("--omit-config") "don't include config info" (set! config? #f)]
    [("--stdin") "read input from standard in" (set! in (current-input-port))]
    [("--no-stdlib") "don't include stdlib.sch" (set! stdlib? #f)]
