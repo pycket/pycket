@@ -765,9 +765,6 @@ class W_RootStruct(values.W_Object):
                    gettername="_get_storage_at",
                    settername="__unsafe_set_storage_at__")
 class W_Struct(W_RootStruct):
-    """
-
-    """
     errorname = "struct"
     _attrs_ = _immutable_fields_ = ["_shape"]
 

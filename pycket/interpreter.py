@@ -2494,8 +2494,7 @@ def get_printable_location_two_state(green_ast, came_from, env_shapes):
         result += 'Green_Ast is None'
     else:
         result += green_ast.tostring()
-        surrounding = green_ast.surrounding_lambda
-        if surrounding is not None and green_ast is surrounding.body[0]:
+        if green_ast.should_enter:
             result += ' from ' + came_from.tostring()
     result += env_shapes.merge_point_string()
     return result
