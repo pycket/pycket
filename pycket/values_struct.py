@@ -953,14 +953,6 @@ class W_Struct(W_RootStruct):
             custom_huh = w_type.read_property(w_prop_custom_write)
             return "(%s %s)" % (typename, self._string_from_list(fields))
 
-    # Test only.
-    @not_rpython
-    def __eq__(self, other):
-        if isinstance(other, W_Struct):
-            if self.get_number_of_children() == other.get_number_of_children():
-                return self.get_children() == other.get_children()
-        return False
-
 """
 This method generates a new structure class with inline stored immutable #f
 values on positions from constant_false array. If a new structure instance get
