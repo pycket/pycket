@@ -307,6 +307,8 @@ def var_eq(a, b):
 def var_hash(a):
     if isinstance(a, LexicalVar):
         return compute_hash(a.sym)
+    elif isinstance(a, LinkletVar):
+        return compute_hash(a.sym)
     elif isinstance(a, ModuleVar):
         return compute_hash(a.srcsym)
     assert False
@@ -329,7 +331,7 @@ def check_one_val(vals):
     return vals
 
 class LetrecCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
@@ -367,6 +369,7 @@ class LetrecCont(Cont):
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
+    _attrs_ = ["counting_ast", "_get_size_list"]
     _immutable_fields_ = ["counting_ast"]
 
     return_safe = True
@@ -471,7 +474,7 @@ class LetCont(Cont):
         return env
 
 class CellCont(Cont):
-    _immutable_fields_ = ['ast']
+    _attrs_ = _immutable_fields_ = ['ast']
 
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -495,7 +498,7 @@ class CellCont(Cont):
         return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
 class BeginCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     return_safe = True
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -518,7 +521,7 @@ class BeginCont(Cont):
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class Begin0BodyCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = _immutable_fields_ = ["counting_ast"]
     return_safe = True
 
     def __init__(self, ast, env, prev):
@@ -547,7 +550,7 @@ class Begin0BodyCont(Cont):
 
 # FIXME: it would be nice to not need two continuation types here
 class Begin0Cont(Cont):
-    _immutable_fields_ = ["ast"]
+    _attrs_ = _immutable_fields_ = ["ast"]
     return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -568,7 +571,7 @@ class Begin0Cont(Cont):
         return ast.body[0], self.env, Begin0BodyCont.make(vals_w, ast, 0, self.env, self.prev)
 
 class WCMKeyCont(Cont):
-    _immutable_fields_ = ["ast"]
+    _attrs_ = _immutable_fields_ = ["ast"]
     return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -588,7 +591,7 @@ class WCMKeyCont(Cont):
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
 
 class WCMValCont(Cont):
-    _immutable_fields_ = ["ast", "key"]
+    _attrs_ = _immutable_fields_ = ["ast", "key"]
     return_safe = True
     def __init__(self, ast, key, env, prev):
         Cont.__init__(self, env, prev)
@@ -961,10 +964,13 @@ class VariableReference(AST):
         else:
             return False
 
-
     def interpret_simple(self, env):
-        current_inst = env.toplevel_env().current_linklet_instance
-        return values.W_VariableReference(self, current_inst)
+        instance_var_sym = values.W_Symbol.make("instance-variable-reference")
+        try:
+            instance = env.toplevel_env().toplevel_lookup(instance_var_sym)
+        except SchemeException:
+            instance = None
+        return values.W_VariableReference(self, instance)
 
     def direct_children(self):
         return []
@@ -1063,11 +1069,10 @@ class App(AST):
             except SchemeException:
                 pass
             else:
-                if isinstance(w_prim, values.W_Prim):
-                    if w_prim.simple1 and len(rands) == 1:
-                        return SimplePrimApp1(rator, rands, env_structure, w_prim)
-                    if w_prim.simple2 and len(rands) == 2:
-                        return SimplePrimApp2(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimSimple1) and len(rands) == 1:
+                    return SimplePrimApp1(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimSimple2) and len(rands) == 2:
+                    return SimplePrimApp2(rator, rands, env_structure, w_prim)
         return App(rator, rands, env_structure)
 
     def direct_children(self):
@@ -1486,49 +1491,17 @@ class Gensym(object):
         count = counter.next_value()
         return values.W_Symbol(hint + str(count))
 
-class LinkletStaticVar(Var):
-    visitable = True
-    _immutable_fields_ = ["w_value?", "sym"]
-
-    def __init__(self, sym, w_value=None):
-        Var.__init__(self, sym)
-        self.w_value = w_value
-
-    def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
-        return "LinkletStaticVar(%s:%s)" % (self.sym.tostring(), val_str)
-
-    def write(self, port, env):
-        from pycket.prims.input_output import write_loop
-        write_loop(self.sym, port, env)
-
-    def _free_vars(self, cache):
-        return SymbolSet.EMPTY()
-
-    def _set(self, w_val, env):
-        if not self.w_value:
-            self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
-        self.w_value.set_val(w_val)
-
-    def _lookup(self, env):
-        if self.w_value:
-            return self.w_value.get_val()
-        self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
-        return self.w_value.get_val()
-
+# Same with ToplevelVar(is_free=False)
+# It's better to have LinkletVars only refer to W_LinkletVar
 class LinkletVar(Var):
     visitable = True
-    _immutable_fields_ = ["w_value?", "sym", "constance", "valuating_instance?"]
+    _immutable_fields_ = ["sym"]
 
-    def __init__(self, sym, w_value=None, constance=values.w_false):
+    def __init__(self, sym):
         self.sym = sym
-        self.w_value = w_value
-        self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
-        self.valuating_instance = None
 
     def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
-        return "LinkletVar(%s:%s)" % (self.sym.tostring(), val_str)
+        return "(LinkletVar %s)" % (self.sym.tostring())
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -1538,90 +1511,10 @@ class LinkletVar(Var):
         return SymbolSet.EMPTY()
 
     def _set(self, w_val, env):
-        raise NotImplementedError("abstract base class")
+        env.toplevel_env().toplevel_set(self.sym, w_val)
 
     def _lookup(self, env):
-        raise NotImplementedError("base class")
-
-class LinkletDefinedVar(LinkletVar):
-
-    def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
-        return "LinkletDefinedVar(%s:%s)" % (self.sym.tostring(), val_str)
-
-    def _set(self, w_val, env):
-        if not self.w_value or not self.valuating_instance or self.valuating_instance is not env.toplevel_env().current_linklet_instance:
-            self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
-            self.valuating_instance = env.toplevel_env().current_linklet_instance
-
-        self.w_value.set_val(w_val)
-
-    def _lookup(self, env):
-        # defined within the linklet, the value should be in the
-        # toplevel env
-        if self.w_value and self.valuating_instance:
-            if env.toplevel_env().current_linklet_instance is self.valuating_instance:
-                return self.w_value.get_val()
-
-        self.w_value = env.toplevel_env().toplevel_lookup_get_cell(self.sym)
-        self.valuating_instance = env.toplevel_env().current_linklet_instance
-        return self.w_value.get_val()
-
-class LinkletImportedVar(LinkletVar):
-    _immutable_fields_ = ["sym", "constance", "import_index", "import_rename"]
-    def __init__(self, sym, import_index, import_rename=None, w_value=None, constance=values.w_false):
-        LinkletVar.__init__(self, sym, w_value, constance)
-        self.import_index = import_index
-        self.import_rename = import_rename
-
-    def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
-        return "LinkletImportedVar(%s:%s:%s:%s)" % (self.sym.tostring(), val_str, self.import_index, self.import_rename)
-
-    def _lookup(self, env):
-        ## imported
-        if self.w_value:
-            assert self.valuating_instance
-            imp_inst = env.toplevel_env().import_instances[self.import_index]
-            if imp_inst is self.valuating_instance:
-                return self.w_value
-
-        ## actual lookup for imported
-        imp_inst = env.toplevel_env().import_instances[self.import_index]
-        lookup_sym = self.import_rename if self.import_rename else self.sym
-        w_val = imp_inst.lookup_var_value(lookup_sym) # value, not cell
-        self.w_value = w_val
-        self.valuating_instance = imp_inst
-        return w_val
-
-class LinkletExpUninitVar(LinkletVar):
-
-    def tostring(self):
-        val_str = self.w_value.tostring() if self.w_value else "NO-VAL"
-        return "LinkletExpUninitVar(%s:%s)" % (self.sym.tostring(), val_str)
-
-    def _set(self, w_val, env):
-        assert not self.w_value
-        val_inst = env.toplevel_env().current_linklet_instance
-        w_cell = val_inst.lookup_var_cell(self.sym)
-        self.w_value = w_cell
-        self.valuating_instance = val_inst
-        w_cell.set_val(w_val)
-
-    def _lookup(self, env):
-        # exported, but not defined
-        # (gonna use the target's value)
-        val_inst = env.toplevel_env().current_linklet_instance
-        if self.w_value and self.valuating_instance:
-            if val_inst is self.valuating_instance:
-                return self.w_value.get_val() # if isinstance(self.w_value, values.W_Cell) else self.w_value
-
-        # the linklet is being instantiated over a
-        # different target than before
-        w_maybe_cell = val_inst.lookup_var_cell(self.sym)
-        self.w_value = w_maybe_cell
-        self.valuating_instance = val_inst
-        return w_maybe_cell.get_val() # if isinstance(w_maybe_cell, values.W_Cell) else w_maybe_cell
+        return env.toplevel_env().toplevel_lookup(self.sym)
 
 class LexicalVar(Var):
     visitable = True
@@ -1707,6 +1600,14 @@ class ModuleVar(Var):
 
 class ToplevelVar(Var):
     visitable = True
+    def __init__(self, sym, env_structure=None, is_free=True):
+        Var.__init__(self, sym, env_structure)
+        self.is_free = is_free
+
+    def _free_vars(self, cache):
+        if self.is_free:
+            return SymbolSet.singleton(self.sym)
+        return SymbolSet.EMPTY()
 
     def _lookup(self, env):
         return env.toplevel_env().toplevel_lookup(self.sym)
@@ -1739,6 +1640,8 @@ class SetBang(AST):
             x[LexicalVar(self.var.sym)] = None
         # even though we don't change these to cell refs, we still
         # have to convert the definitions
+        elif isinstance(var, LinkletVar):
+            x[var] = None
         elif isinstance(var, ModuleVar):
             x[var] = None
         # do nothing for top-level vars, they're all mutated

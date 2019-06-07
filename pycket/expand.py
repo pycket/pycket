@@ -615,7 +615,7 @@ class JsonLoader(object):
                 var = None
                 if "source-linklet" in target:
                     srcname = mksym(target["source-linklet"].value_string())
-                    var = LinkletStaticVar(srcname)
+                    var = LinkletVar(srcname)
                 elif "source-name" in target:
                     srcname = mksym(target["source-name"].value_string())
                     if "source-module" in target:
@@ -722,7 +722,7 @@ class JsonLoader(object):
                 return QuoteSyntax(to_value(obj["quote-syntax"]))
             if "source-linklet" in obj:
                 srcsym = mksym(obj["source-linklet"].value_string())
-                return LinkletStaticVar(srcsym)
+                return LinkletVar(srcsym)
             if "source-name" in obj:
                 srcname = obj["source-name"].value_string()
                 modname = obj["module"].value_string() if "module" in obj else None

@@ -180,8 +180,8 @@ class TestCommandline(object):
             ['arg0', empty_json, '--jit', 'trace_limit=13000']) == 0
 
     def test_eval(self, capfd):
-        printval = 42
-        assert entry_point(['arg0', '-e', '(display "%s")' % printval]) == 0
+        printval = "42"
+        assert entry_point(['arg0', '-e', '(display %s)' % printval]) == 0
         out, err = capfd.readouterr()
         assert out == "%s" % printval
 

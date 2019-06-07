@@ -314,6 +314,9 @@ class RegexpBase(object):
     def can_be_affix(self):
         return False
 
+    def getwidth(self):
+        raise RegexpError("getwidth : not implemented for %s" % self)
+
 
 class Character(RegexpBase):
     def __init__(self, value, case_insensitive=False, positive=True, zerowidth=False):
@@ -364,6 +367,9 @@ class Any(RegexpBase):
 
     def fix_groups(self):
         pass
+
+    def getwidth(self):
+        return 1, 1
 
     def optimize(self, info, in_set=False):
         return self
@@ -483,6 +489,10 @@ class Sequence(RegexpBase):
             else:
                 items.append(item)
         return make_sequence(items)
+
+    def getwidth(self):
+        l = len(self.items)
+        return l, l
 
     def compile(self, ctx):
         for item in self.items:

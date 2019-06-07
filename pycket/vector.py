@@ -60,6 +60,9 @@ class StrategyVectorMixin(object):
     def set(self, i, v):
         self.get_strategy().set(self, i, v)
 
+    def length(self):
+        return self.get_strategy()._length(self)
+
     def immutable(self):
         return self.get_strategy().immutable()
 
@@ -89,7 +92,6 @@ class StrategyVectorMixin(object):
         return self.get_strategy().unrolling_heuristic(self)
 
 class W_Vector(W_MVector):
-    _immutable_fields_ = ["len"]
     _attrs_ = ["strategy", "storage", "len"]
     errorname = "vector"
 
@@ -99,6 +101,15 @@ class W_Vector(W_MVector):
         self.strategy = strategy
         self.storage = storage
         self.len = len
+
+    def get_len(self):
+        return self.len
+
+    def set_len(self, new_len):
+        self.len = new_len
+
+    def add1_len(self):
+        self.len += 1
 
     def get_strategy(self):
         return self.strategy
@@ -124,9 +135,6 @@ class W_Vector(W_MVector):
             strategy = strategy.immutable_variant()
         storage = strategy.create_storage_for_element(elem, times)
         return W_Vector(strategy, storage, times)
-
-    def length(self):
-        return self.len
 
     def tostring(self):
         l = self.strategy.ref_all(self)
@@ -159,7 +167,6 @@ class W_Vector(W_MVector):
         return True
 
 class W_FlVector(W_VectorSuper):
-    _immutable_fields_ = ["len"]
     _attrs_ = ["storage", "len"]
     errorname = "flvector"
 
@@ -175,6 +182,15 @@ class W_FlVector(W_VectorSuper):
     def set_strategy(self, strategy):
         assert 0, "unreachable"
 
+    def get_len(self):
+        return self.len
+
+    def set_len(self, new_len):
+        self.len = new_len
+
+    def add1_len(self):
+        self.len += 1
+
     @staticmethod
     def fromelements(elems):
         strategy = FlonumVectorStrategy.singleton
@@ -189,9 +205,6 @@ class W_FlVector(W_VectorSuper):
         strategy = FlonumVectorStrategy.singleton
         storage = strategy.create_storage_for_element(elem, times)
         return W_FlVector(storage, times)
-
-    def length(self):
-        return self.len
 
     def tostring(self):
         l = self.get_strategy().ref_all(self)
@@ -254,8 +267,8 @@ class VectorStrategy(object):
     def _set(self, w_vector, i, w_val):
         raise NotImplementedError("abstract base class")
 
-    # def length(self, w_vector):
-    #     raise NotImplementedError("abstract base class")
+    def _length(self, w_vector):
+        return w_vector.get_len()
 
     def ref_all(self, w_vector):
         raise NotImplementedError("abstract base class")
@@ -383,6 +396,7 @@ class ConstantVectorStrategy(VectorStrategy):
                 newstrategy = ObjectVectorStrategy.singleton
         elif hinttype is W_Flonum and valtype is W_Fixnum and can_encode_int32(val.value):
             newstrategy = FlonumTaggedVectorStrategy.singleton
+            w_vector.set_len(0)
         else:
             newstrategy = ObjectVectorStrategy.singleton
         storage = newstrategy.create_storage_for_element(val, len)
@@ -496,6 +510,7 @@ class FlonumVectorStrategy(VectorStrategy):
         if type(hint) is W_Fixnum and can_encode_int32(hint.value):
             new_strategy = FlonumTaggedVectorStrategy.singleton
             w_vector.set_strategy(new_strategy)
+            w_vector.set_len(0)
         else:
             VectorStrategy.dehomogenize(self, w_vector, hint)
 
@@ -503,11 +518,35 @@ class FlonumImmutableVectorStrategy(FlonumVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
 
 class FlonumTaggedVectorStrategy(FlonumVectorStrategy):
-
     def is_correct_type(self, w_vector, w_obj):
         if isinstance(w_obj, W_Fixnum) and can_encode_int32(w_obj.value):
             return True
         return isinstance(w_obj, W_Flonum)
+
+    def _length(self, w_vector):
+        return len(self._storage(w_vector))
+
+    # Avoiding tag checks for vectors containings all flonums by
+    # switching the strategy to FixnumVectorStrategy when we're sure
+    # that the vector is full with all flonums
+    def _set(self, w_vector, i, w_val):
+        assert i >= 0
+        self._storage(w_vector)[i] = self.unwrap(w_val)
+        # we're using the .len as the
+        # current index to write the next tagged flonum
+        c_len = w_vector.get_len()
+        # Note that this assumes vector-set! indices to be in order,
+        # e.g. if the vector is filled in random or reverse order,
+        # than the strategy will stay as Tagged
+        if i == c_len:
+            w_vector.add1_len()
+            # if the next flonum index is equal to the storage length
+            if (c_len + 1) == self._length(w_vector):
+                # then we know that it's all flonums
+                if w_vector.immutable():
+                    w_vector.set_strategy(FlonumImmutableVectorStrategy.singleton)
+                else:
+                    w_vector.set_strategy(FlonumVectorStrategy.singleton)
 
     def wrap(self, val):
         assert isinstance(val, float)
@@ -554,4 +593,3 @@ def wrap_vector(elems, immutable=False):
     else:
         storage  = strategy.erase(elems[:])
     return W_Vector(strategy, storage, len(elems))
-

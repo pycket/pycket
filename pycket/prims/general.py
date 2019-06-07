@@ -29,6 +29,7 @@ from rpython.rlib.rsre    import rsre_re as re
 # import for side effects
 from pycket.prims import control
 from pycket.prims import continuation_marks
+from pycket.prims import char
 from pycket.prims import box
 from pycket.prims import equal as eq_prims
 from pycket.prims import foreign
@@ -122,6 +123,7 @@ for args in [
         ("port?", values.W_Port),
         ("security-guard?", values.W_SecurityGuard),
         # FIXME
+        ("will-executor?", values.W_WillExecutor),
         ("bytes-converter?", values.W_Impossible),
         ("fsemaphore?", values.W_Impossible),
         ("thread-group?", values.W_Impossible),
@@ -165,30 +167,29 @@ def hash_eqv(obj):
     eqv_immutable = isinstance(inner, W_EqvImmutableHashTable)
     return values.W_Bool.make(eqv_mutable or eqv_immutable)
 
-def struct_port_huh(s):
-    i, o = struct_port_prop_huh(s)
-    return (i is not None) or (o is not None)
+def struct_port_huh(w_struct):
+    w_in, w_out = struct_port_prop_huh(w_struct)
+    return (w_in is not None) or (w_out is not None)
 
-def struct_port_prop_huh(s):
-    st = s.struct_type()
-    in_p = None
-    out_p = None
-    for prop in st.props:
-        p, v = prop
-        if p is values_struct.w_prop_input_port:
-            in_p = v
-        elif p is values_struct.w_prop_output_port:
-            out_p = v
+def struct_port_prop_huh(w_struct):
+    w_type = w_struct.struct_type()
+    in_property = out_property = None
+    for property in w_type.properties:
+        w_property, w_value = property
+        if w_property is values_struct.w_prop_input_port:
+            in_property = w_value
+        elif w_property is values_struct.w_prop_output_port:
+            out_property = w_value
 
-    return in_p, out_p
+    return in_property, out_property
 
-def struct_input_port_huh(s):
-    i, o = struct_port_prop_huh(s)
-    return i is not None
+def struct_input_port_huh(w_struct):
+   w_in, w_out = struct_port_prop_huh(w_struct)
+   return w_in is not None
 
-def struct_output_port_huh(s):
-    i, o = struct_port_prop_huh(s)
-    return o is not None
+def struct_output_port_huh(w_struct):
+    w_in, w_out = struct_port_prop_huh(w_struct)
+    return w_out is not None
 
 @expose("input-port?", [values.W_Object], simple=True)
 def input_port_huh(a):
@@ -334,7 +335,14 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont, cal
 
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
 def sys_lib_subpath(mode):
-    return values.W_Path("x86_64-linux") # FIXME
+    # Pycket is 64bit only a.t.m.
+    if w_system_sym == w_windows_sym:
+        return values.W_Path(r"win32\\x86_64")
+    elif w_system_sym == w_macosx_sym:
+        return values.W_Path("x86_64-macosx")
+    else:
+        # FIXME: pretend all unicies are linux for now
+        return values.W_Path("x86_64-linux")
 
 @expose("primitive-closure?", [values.W_Object])
 def prim_clos(v):
@@ -458,7 +466,6 @@ for args in [ ("subprocess?",),
               ("thread?",),
               ("thread-running?",),
               ("thread-dead?",),
-              ("will-executor?",),
               ("semaphore-try-wait?",),
               ("link-exists?",),
               ("chaperone-channel",),
@@ -699,8 +706,8 @@ def procedure_result_arity(proc, env, cont):
         return return_multi_vals(values.w_false, env, cont)
     return arity_to_value(arity, env, cont)
 
-@expose("procedure-reduce-arity", [procedure, values.W_Object])
-def procedure_reduce_arity(proc, arity):
+@expose("procedure-reduce-arity", [procedure, values.W_Object, default(values.W_Object, None)])
+def procedure_reduce_arity(proc, arity, e):
     # FIXME : this code is all wrong
     #assert isinstance(arity, Arity)
     #proc.set_arity(arity)
@@ -1613,6 +1620,10 @@ expose_val("current-security-guard", values_parameter.W_Parameter(initial_securi
 def make_security_guard(parent, file, network, link):
     return values.W_SecurityGuard()
 
+@expose("unsafe-make-security-guard-at-root")
+def unsafe_make_sec_guard(args):
+    return values.W_SecurityGuard()
+
 @make_procedure("current-directory-guard", [values.W_Object], simple=False)
 def current_directory_guard(path, env, cont):
     from pycket.interpreter import return_value
@@ -2076,3 +2087,32 @@ def lang_country():
 @expose("unsafe-add-post-custodian-shutdown", [values.W_Object])
 def add_post(p):
     return values.w_void
+
+
+@expose("make-will-executor", [])
+def make_will_exec():
+    return values.W_WillExecutor()
+
+@expose("will-register", [values.W_WillExecutor, values.W_Object, values.W_Object])
+def will_register(w, v, p):
+    return values.w_void
+
+@expose("will-execute", [values.W_WillExecutor])
+def will_exec(w):
+    return values.w_void
+
+@expose("will-try-execute", [values.W_WillExecutor, default(values.W_Object, values.w_false)])
+def will_exec(w, v):
+    return v
+
+@expose("thread", [values.W_Object])
+def thread(p):
+    return values.W_Thread()
+
+@expose("thread/suspend-to-kill", [values.W_Object])
+def thread_susp(p):
+    return values.W_Thread()
+
+@expose("make-channel", [])
+def make_channel():
+    return values.W_Channel()

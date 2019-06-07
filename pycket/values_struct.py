@@ -13,7 +13,7 @@ from pycket.util import strip_immutable_field_name
 from pycket.values_parameter import W_Parameter
 
 from rpython.rlib import jit
-from rpython.rlib.objectmodel import import_from_mixin
+from rpython.rlib.objectmodel import import_from_mixin, not_rpython
 from rpython.rlib.unroll import unrolling_iterable
 
 w_prefab_symbol = values.W_Symbol.make("prefab")
@@ -52,12 +52,13 @@ current_inspector_param = W_Parameter(current_inspector)
 
 class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
-    _immutable_fields_ = ["_tag", 
+    _immutable_fields_ = [
+            "_tag",
             "name", "constructor_name", "w_super",
             "init_field_count", "auto_field_count", "total_field_count",
             "total_auto_field_count", "total_init_field_count",
-            "w_auto_value", "props", "inspector", "immutables[*]",
-            "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
+            "w_auto_value", "properties", "w_inspector", "immutables[*]",
+            "immutable_fields[*]", "w_guard", "auto_values_w[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
             "constructor_arity", "procedure_source", "isprefab", "isopaque"]
 
@@ -95,7 +96,7 @@ class W_StructType(values.W_Object):
         self.immutables = immutables
         self.w_guard = w_guard
 
-        self.w_auto_values = [self.w_auto_value] * self.auto_field_count
+        self.auto_values_w = [self.w_auto_value] * self.auto_field_count
 
         self.setup_tag()
         self.setup_prefab()
@@ -167,7 +168,6 @@ class W_StructType(values.W_Object):
             w_guard=w_guard,
             w_constructor_name=w_constructor_name)
         return w_struct_type.initialize_properties(w_properties, w_proc_spec, env, cont)
-
 
     @staticmethod
     @jit.elidable
@@ -325,7 +325,7 @@ class W_StructType(values.W_Object):
                     t.total_field_count is type.total_field_count and
                     t.w_auto_value is type.w_auto_value and
                     t.immutables == type.immutables and
-                    t.w_auto_values == type.w_auto_values and
+                    t.auto_values_w == type.auto_values_w and
                     t.isopaque is type.isopaque and
                     t.immutable_fields == type.immutable_fields and
                     t.constructor_arity.get_arity_list() == type.constructor_arity.get_arity_list()
@@ -421,7 +421,7 @@ class W_StructType(values.W_Object):
         pass
 
     def tostring(self):
-        return "#<struct-type:%s>" % self.name.utf8value
+        return "#<struct-type:%s>" % self.name.variable_name()
 
 class W_PrefabKey(values.W_Object):
     _attrs_ = _immutable_fields_ = ["w_name", "init_field_count", "auto_field_count",
@@ -949,7 +949,7 @@ class W_Struct(W_RootStruct):
     def write_values(self, port, w_type, env):
         from pycket.prims.input_output import write_loop
         assert isinstance(w_type, W_StructType)
-        w_super = w_type.super
+        w_super = w_type.w_super
         has_super = isinstance(w_super, W_StructType)
         if has_super:
             self.write_values(port, w_super, env)
@@ -971,13 +971,12 @@ class W_Struct(W_RootStruct):
         else:
             w_val = w_type.read_property(w_prop_custom_write)
             if w_val is not None:
-                pycketconfig = env.toplevel_env()._pycketconfig
                 assert isinstance(w_val, values_vector.W_Vector)
                 w_write_proc = w_val.ref(0)
                 # #t for write mode, #f for display mode,
                 # or 0 or 1 indicating the current quoting depth for print mode
                 mode = values.w_true
-                w_write_proc.call_interpret([self, port, mode], pycketconfig)
+                w_write_proc.call_interpret([self, port, mode])
             else:
                 port.write("(%s " % typename)
                 self.write_values(port, w_type, env)
@@ -1077,8 +1076,8 @@ def construct_struct_loop_body(init_type, struct_type, field_values,
                                auto_field_start, env, cont):
     # Figure out where in the array the auto values start for this struct type.
     # Recall, the struct is built from the bottom up in the inheritance heirarchy.
-    w_auto_values  = struct_type.w_auto_values
-    field_values = splice_array(field_values, auto_field_start, w_auto_values)
+    auto_values_w  = struct_type.auto_values_w
+    field_values = splice_array(field_values, auto_field_start, auto_values_w)
     w_super_type = struct_type.w_super
     return construct_struct_loop(init_type, w_super_type, field_values, env, cont)
 
@@ -1172,7 +1171,7 @@ class W_StructFieldAccessor(values.W_Procedure):
         return self.accessor.access(struct, self.field, env, cont, app)
 
     def tostring(self):
-        name = self.accessor.type.name.variable_name()
+        name = self.accessor.struct_type_name()
         return "#<procedure:%s-%s>" % (name, self.field_name.variable_name())
 
 class W_StructAccessor(W_StructTypeProcedure):
@@ -1187,9 +1186,9 @@ class W_StructAccessor(W_StructTypeProcedure):
         st = jit.promote(struct.struct_type())
         if st is None:
             raise SchemeException("%s got %s" % (self.tostring(), struct.tostring()))
-        offset = st.get_offset(struct_type)
+        offset = st.get_offset(self.struct_type())
         if offset == -1:
-            raise SchemeException("cannot access field of the struct: %s" % st.name.tostring())
+            raise SchemeException("%s: expected a %s but got a %s" % (self.tostring(), self.struct_type_name(), st.name.variable_name()))
         return struct.ref_with_extra_info(field + offset, app, env, cont)
 
     @make_call_method([values.W_Object, values.W_Fixnum], simple=False,

@@ -95,11 +95,16 @@ def inexact_real(n):
 def single_flonum(n):
     return values.w_false
 
+@expose("single-flonum-available?", [])
+def single_flonum_available():
+    return values.w_false
+
+
 @expose("double-flonum?", [values.W_Object])
 def double_flonum(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
 
-@expose("real->double-flonum", [values.W_Number])
+@expose(["real->double-flonum", "real->single-flonum"], [values.W_Number])
 def real_to_double_flonum(num):
     if is_real(num):
         return num.arith_exact_inexact()
@@ -378,7 +383,7 @@ def bitwise_bit_field(w_n, w_start, w_end):
         raise SchemeException("bitwise-bit-field: third argument must be non-negative")
     diff = w_end.arith_sub(w_start)
     assert isinstance(diff, values.W_Fixnum)
-    v0 = arith_shift(values.W_Fixnum.ONE, diff) 
+    v0 = arith_shift(values.W_Fixnum.ONE, diff)
     assert isinstance(v0, values.W_Fixnum)
     mw_start = values.W_Fixnum.ZERO.arith_sub(w_start)
     assert isinstance(mw_start, values.W_Fixnum)
@@ -386,7 +391,7 @@ def bitwise_bit_field(w_n, w_start, w_end):
     assert isinstance(rhs, values.W_Fixnum)
     v = v0.arith_sub1().arith_and(rhs)
     return v
-    
+
 @expose("bitwise-bit-set?", [values.W_Integer, values.W_Integer])
 def bitwise_bit_setp(w_n, w_m):
     if w_m.arith_negativep() is values.w_true:
@@ -559,12 +564,13 @@ def pycket_longlong2float(llval):
         floatval = d_array[0]
         return floatval
 
-
-@expose("floating-point-bytes->real",
-        [values.W_Bytes, default(values.W_Object, values.w_false)])
-def float_bytes_to_real(bstr, signed):
-    # XXX Currently does not make use of the signed parameter
+@expose("floating-point-bytes->real", [values.W_Bytes, default(values.W_Object, values.w_false)])
+def float_bytes_to_real_(bstr, signed):
     bytes = bstr.as_bytes_list()
+    return float_bytes_to_real(bytes, signed)
+
+def float_bytes_to_real(bytes, signed):
+    # XXX Currently does not make use of the signed parameter
     if len(bytes) not in (4, 8):
         raise SchemeException(
                 "floating-point-bytes->real: byte string must have length 2, 4, or 8")
@@ -598,8 +604,10 @@ def float_bytes_to_real(bstr, signed):
          default(values.W_Fixnum, None)])
 def integer_bytes_to_integer(bstr, signed, big_endian, w_start, w_end):
     bytes = bstr.as_bytes_list()
+    return _integer_bytes_to_integer(bytes, signed, big_endian, w_start.value, w_end)
 
-    start = w_start.value
+def _integer_bytes_to_integer(bytes, signed, big_endian, start=0, w_end=None):
+
     if w_end is None:
         end = len(bytes)
     else:
@@ -773,7 +781,7 @@ def unsafe_flmax(a, b):
 def unsafe_flabs(a):
     return values.W_Flonum(abs(a.value))
 
-@expose("extflonum-availale?", [])
+@expose("extflonum-available?", [])
 def extflonum_available():
     return values.w_false
 

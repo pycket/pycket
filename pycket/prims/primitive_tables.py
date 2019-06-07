@@ -71,6 +71,7 @@ network_str = ["tcp-abandon-port", "tcp-accept", "tcp-accept-evt", "tcp-accept-r
                "udp-multicast-leave-group!", "udp-multicast-loopback?", "udp-multicast-set-interface!", "udp-multicast-set-loopback!",
                "udp-multicast-set-ttl!", "udp-multicast-ttl", "udp-open-socket", "udp-receive!",
                "udp-receive!*", "udp-receive!-evt", "udp-receive!/enable-break", "udp-receive-ready-evt",
+               "udp-set-receive-buffer-size!",
                "udp-send", "udp-send*", "udp-send-evt", "udp-send-ready-evt",
                "udp-send-to", "udp-send-to*", "udp-send-to-evt", "udp-send-to/enable-break",
                "udp-send/enable-break"]
@@ -95,7 +96,7 @@ foreign_str = ["_bool", "_bytes", "_double", "_double*",
                "prop:cpointer", "ptr-add", "ptr-add!", "ptr-equal?",
                "ptr-offset", "ptr-ref", "ptr-set!", "saved-errno",
                "set-cpointer-tag!", "set-ptr-offset!", "vector->cpointer",
-               "ffi-callback-maker", "ffi-call-maker"]
+               "ffi-callback-maker", "ffi-call-maker", "make-late-will-executor"]
 
 linklet_str = ["linklet?", "compile-linklet", "recompile-linklet", "eval-linklet", "read-compiled-linklet", "instantiate-linklet",
                "linklet-import-variables", "linklet-export-variables", "instance?", "make-instance", "instance-name", "instance-data",
@@ -158,7 +159,7 @@ unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-thread-at-root", "unsafe-make-custodian-at-root", "unsafe-custodian-register",
               "unsafe-custodian-unregister", "unsafe-register-process-global", "unsafe-make-security-guard-at-root",
               "unsafe-abort-current-continuation/no-wind", "unsafe-call-with-composable-continuation/no-wind",
-              "unsafe-poller",
+              "unsafe-poller", "unsafe-poll-fd",
               "unsafe-poll-ctx-fd-wakeup", "unsafe-poll-ctx-eventmask-wakeup", "unsafe-poll-ctx-milliseconds-wakeup",
               "unsafe-signal-received", "unsafe-set-sleep-in-thread!",
               "unsafe-file-descriptor->port", "unsafe-socket->port",
@@ -380,7 +381,7 @@ kernel_str = ["*", "+", "-",
               "read-case-sensitive", "read-char", "read-char-or-special",
               "read-line", "read-on-demand-source", "read-string",
               "read-string!", "real?", "real-part",
-              "real->double-flonum", "real->floating-point-bytes", "real->single-flonum",
+              "real->double-flonum", "real->floating-point-bytes", "real->single-flonum", "single-flonum-available?",
               "regexp", "regexp-match", "regexp-match/end",
               "regexp-match-positions", "regexp-match-positions/end", "regexp-match-peek",
               "regexp-match-peek-immediate", "regexp-match-peek-positions", "regexp-match-peek-positions/end",
@@ -518,6 +519,9 @@ pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug",
                     "pycket:activate-keyword", "pycket:deactivate-keyword",
                     "pycket:eq?", "pycket:report-undefined-prims"]
 
+schemify_hooks = ["variable-ref", "variable-ref/no-check",
+                  "variable-set!/check-undefined", "variable-set!"]
+
 place = make_primitive_table(place_str)
 paramz = make_primitive_table(paramz_str)
 internal = make_primitive_table(internal_str)
@@ -530,7 +534,7 @@ linklet = make_primitive_table(linklet_str)
 unsafe = make_primitive_table(unsafe_str)
 # FIXME : make it a #%pycket-extra, instead of piggybacking on the #%kernel
 kernel = make_primitive_table(kernel_str)
-pycket = make_primitive_table(pycket_extra_str)
+pycket = make_primitive_table(pycket_extra_str + schemify_hooks)
 
 
 
@@ -556,6 +560,7 @@ all_prims = linklet_str + \
             flfxnum_str + \
             extfl_str + \
             pycket_extra_str + \
+            schemify_hooks + \
             network_str
 
 if DEBUG:

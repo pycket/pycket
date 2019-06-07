@@ -110,3 +110,9 @@ class W_CPointer(values.W_Object):
     def __init__(self):
         pass
 
+
+
+class W_FFILib(values.W_Object):
+    errorname = "ffi-lib"
+    def __init__(self):
+        pass

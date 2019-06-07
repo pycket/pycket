@@ -24,7 +24,7 @@ from pycket              import values_string
 from pycket.error        import SchemeException, FSException, ContractException, ArityException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
 
-from sys import platform
+from sys import platform, maxint
 
 import os
 
@@ -133,13 +133,23 @@ def read_number_or_id(f, init):
         except:
             return values.W_Symbol.make(got)
 
+@expose("read-string", [values.W_Fixnum, default(values.W_InputPort, None)], simple=False)
+def read_string_(amt, w_port, env, cont):
+    from pycket.interpreter import return_value
+    if w_port is None:
+        w_port = current_in_param.get(cont)
+    return return_value(read_string(w_port, amount=amt.value), env, cont)
+
 # FIXME: replace with a string builder
 # FIXME: unicode
-def read_string(f):
+# FIXME: If no characters are available before an end-of-file, then eof is returned.
+def read_string(f, amount=maxint):
     buf = StringBuilder(64)
     isascii = True
-    while True:
+    count = 0
+    while count < amount:
         c = f.read(1)[0]
+        count += 1
         if c == '"':
             string = buf.build()
             if isascii:
@@ -158,6 +168,10 @@ def read_string(f):
         else:
             isascii &= ord(c) < 128
         buf.append(c)
+    string = buf.build()
+    if isascii:
+        return values_string.W_String.fromascii(string)
+    return values_string.W_String.fromstr_utf8(string)
 
 def is_hash_token(s):
     # already read the #, so the cursor is at position 1 (s.seek(1))
@@ -672,12 +686,12 @@ def file_exists(w_str):
 
 @expose("file-or-directory-modify-seconds", [values.W_Object, default(values.W_Object, None), default(values.W_Object, None)], simple=False)
 def file_or_dir_mod_seconds(w_path, secs_n, fail, env, cont):
-    from pycket.prims.general import detect_platform, w_unix_sym
+    from pycket.prims.general import detect_platform, w_windows_sym
     from pycket.interpreter import return_value
 
     platform = detect_platform()
-    if platform is not w_unix_sym:
-        raise Exception("Not yet implemented")
+    if platform is w_windows_sym:
+        raise SchemeException("Not yet implemented")
 
     path_str = extract_path(w_path)
 
@@ -815,7 +829,7 @@ def split_path(w_path, env, cont):
     result = values.Values.make([base, name, must_be_dir])
     return return_multi_vals(result, env, cont)
 
-@expose("build-path")
+
 def build_path(args):
     # XXX Does not check that we are joining absolute paths
     # Sorry again Windows
@@ -841,6 +855,8 @@ def build_path(args):
         return ROOT
 
     return values.W_Path(path)
+
+expose("build-path")(build_path)
 
 @expose("simplify-path", [values.W_Object, default(values.W_Bool, values.w_false)])
 def simplify_path(path, use_filesystem):
@@ -924,7 +940,7 @@ def expand_user_path(p):
     if isinstance(p, values.W_Path):
         path_str = p.path
     elif isinstance(p, values_string.W_String):
-        path_str = p.tostring()
+        path_str = p.as_escaped_utf8()
     else:
         raise ContractException("expand_user_path expects a string or a path")
 
@@ -1157,7 +1173,7 @@ def write(o, p, env, cont):
     from pycket.values_struct import w_prop_custom_write, W_Struct
 
     if isinstance(o, W_Struct):
-        w_custom_writer = o.struct_type().read_prop(w_prop_custom_write)
+        w_custom_writer = o.struct_type().read_property(w_prop_custom_write)
         if w_custom_writer is not None and w_custom_writer.iscallable():
             if not p:
                 p = current_out_param.get(cont)
@@ -1213,32 +1229,32 @@ def write_linklet(v, port, env):
     console_log(v.tostring(), 2)
     port.write("(linklet")
     port.write(" ")
-    write_loop(v.get_name(), port, env)
+    write_loop(v.name, port, env)
     port.write(" ")
     port.write("(")
-    importss = v.get_importss()
-    for imp_dict in importss:
+    importss = v.importss
+    for imp_group in importss:
         port.write("(")
-        for ext_name, int_name in imp_dict.iteritems():
+        for imp_obj in imp_group:
             port.write("(")
-            write_loop(ext_name, port, env)
+            write_loop(imp_obj.ext_id, port, env)
             port.write(" . ")
-            write_loop(int_name, port, env)
+            write_loop(imp_obj.int_id, port, env)
             port.write(")")
         port.write(")")
     port.write(")")
     port.write(" ")
     port.write("(")
-    exports = v.get_exports()
-    for int_name, ext_name in exports.iteritems():
+    exports = v.exports
+    for exp_sym, exp_obj in exports.iteritems():
         port.write("(")
-        write_loop(int_name, port, env)
+        write_loop(exp_sym, port, env)
         port.write(" ")
-        write_loop(ext_name, port, env)
+        write_loop(exp_obj.ext_id, port, env)
         port.write(")")
     port.write(")")
 
-    forms = v.get_forms()
+    forms = v.forms
     for form in forms:
         port.write(" ")
         form.write(port, env)
@@ -1470,7 +1486,12 @@ def format(form, vals, name):
                 #FIXME: use error-print-width
                 if j >= len(vals):
                     raise ContractException(name + ": not enough arguments for format string")
-                result.append(vals[j].tostring())
+                if isinstance(vals[j], values_string.W_String):
+                    result.append(vals[j].as_escaped_utf8())
+                elif isinstance(vals[j], values.W_Character):
+                    result.append(vals[j].get_value_utf8())
+                else:
+                    result.append(vals[j].tostring())
                 j += 1
         elif (s == 'a' or # turns into switch
             s == 'A' or
@@ -1491,7 +1512,12 @@ def format(form, vals, name):
             s == '.'):
             if j >= len(vals):
                 raise ContractException(name + ": not enough arguments for format string")
-            result.append(vals[j].tostring())
+            if isinstance(vals[j], values_string.W_String):
+                result.append(vals[j].as_escaped_utf8())
+            elif isinstance(vals[j], values.W_Character):
+                result.append(vals[j].get_value_utf8())
+            else:
+                result.append(vals[j].tostring())
             j += 1
         elif s == 'n' or s == '%':
             result.append("\n") # newline
@@ -1635,6 +1661,11 @@ def port_print_handler(out, proc):
 @expose("port-count-lines!", [values.W_Port])
 def port_count_lines_bang(p):
     return values.w_void
+
+# FIXME: implementation
+@expose("port-counts-lines?", [values.W_Port])
+def port_count_lines_huh(p):
+    return values.w_true
 
 def is_path_string(path):
     return isinstance(path, values.W_Path) or isinstance(path, values_string.W_String)
@@ -1878,8 +1909,8 @@ def wrap_write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
 def do_has_custom_write(v):
     return values.w_false
 
-@expose("bytes->path-element", [values.W_Bytes, default(values.W_Symbol, None)])
-def bytes_to_path_element(bytes, path_type):
+
+def bytes_to_path_element(bytes, path_type=None):
     from pycket.prims.general import w_unix_sym, w_windows_sym
     if path_type is None:
         path_type = w_windows_sym if platform in ('win32', 'cygwin') else w_unix_sym
@@ -1889,6 +1920,8 @@ def bytes_to_path_element(bytes, path_type):
     if os.sep in str:
         raise SchemeException("bytes->path-element: cannot be converted to a path element %s" % str)
     return values.W_Path(str)
+
+expose("bytes->path-element", [values.W_Bytes, default(values.W_Symbol, None)])(bytes_to_path_element)
 
 def shutdown(env):
     # called before the interpreter exits

@@ -159,6 +159,12 @@ class W_Parameter(W_BaseParameter):
     def get(self, cont):
         return self.get_cell(cont).get()
 
+    def get_cell_value(self, cont):
+        # same with the get right above.
+        # To be called internally without confusing rpython
+        # (other classes have different get methods as well)
+        return self.get_cell(cont).get()
+
     def get_cell(self, cont):
         cell = find_param_cell(cont, self)
         assert isinstance(cell, values.W_ThreadCell)

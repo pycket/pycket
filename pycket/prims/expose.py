@@ -4,7 +4,6 @@ from pycket.error import SchemeException
 from pycket.arity import Arity
 
 prim_env = {}
-prim_src = {} # str : (or 'linklet' 'rpython')
 
 SAFE = 0
 UNSAFE = 1
@@ -297,8 +296,6 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
             if not extra_info:
                 func_result_handling = make_remove_extra_info(func_result_handling)
             p = values.W_Prim("never called", func_result_handling)
-            assert isinstance(n, str)
-            prim_env[values.W_Symbol.make(n)] = p
             func_arg_unwrap.w_prim = p
             return func_arg_unwrap
 
@@ -324,15 +321,25 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
         if not extra_info:
             func_result_handling = make_remove_extra_info(func_result_handling)
         result_arity = Arity.ONE if simple else None
-        p = values.W_Prim(name, func_result_handling,
+        cls = values.W_Prim
+        if call1 is not None:
+            class cls(values.W_PrimSimple1):
+                def simple1(self, arg1):
+                    return call1(arg1)
+            cls.__name__ += name
+        elif call2 is not None:
+            class cls(values.W_PrimSimple2):
+                def simple2(self, arg1, arg2):
+                    return call2(arg1, arg2)
+            cls.__name__ += name
+        p = cls(name, func_result_handling,
                           arity=_arity, result_arity=result_arity,
-                          simple1=call1, simple2=call2, is_nyi=nyi)
+                          is_nyi=nyi)
         for nam in names:
             sym = values.W_Symbol.make(nam)
             if sym in prim_env and prim_env[sym].is_implemented():
                 raise SchemeException("name %s already defined" % nam)
             prim_env[sym] = p
-            prim_src[sym.variable_name()] = 'rpython'
         func_arg_unwrap.w_prim = p
         return func_arg_unwrap
     return wrapper
@@ -370,16 +377,15 @@ def make_callable_label(argstypes=None, arity=None, name="<label>"):
 
 def expose_val(name, w_v, only_old=False):
     from pycket import values
-    from pycket.env import w_global_config
+    from pycket.env import w_global_config as glob
 
-    if only_old and w_global_config.are_we_in_linklet_mode() or w_global_config.is_expander_loaded():
+    if only_old and (glob.are_we_in_linklet_mode() and glob.is_expander_loaded()):
         return 
 
     sym = values.W_Symbol.make(name)
     if sym in prim_env and prim_env[sym].is_implemented():
         raise Error("name %s already defined" % name)
     prim_env[sym] = w_v
-    prim_src[sym.variable_name()] = 'rpython'
 
 def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):
     from pycket import values

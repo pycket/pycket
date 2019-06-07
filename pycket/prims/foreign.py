@@ -4,13 +4,14 @@
 import sys
 
 from pycket              import values
-from pycket.error        import SchemeException
+from pycket.error        import SchemeException, FSException, ContractException, ArityException
 from pycket.foreign      import (
     W_CType,
     W_PrimitiveCType,
     W_DerivedCType,
     W_CStructType,
-    W_CPointer)
+    W_CPointer,
+    W_FFILib)
 from pycket.prims.expose import default, expose, expose_val, procedure
 
 from rpython.rlib                import jit, unroll
@@ -29,15 +30,25 @@ PRIMITIVE_CTYPES = [
     ("uint16"        , 2           , 2 ) ,
     ("uint32"        , 4           , 4 ) ,
     ("uint64"        , 8           , 8 ) ,
+    ("float"         , 4           , 4 ) ,
+    ("double"        , 8           , 8 ) ,
+    ("double*"       , 8           , 8 ) ,
+    ("longdouble"    , 8           , 8 ) , # FIXME ?
     ("void"          , 0           , 1 ) ,
+    ("fixint"        , POINTER_SIZE, POINTER_SIZE),
+    ("ufixint"       , POINTER_SIZE, POINTER_SIZE),
+    ("fixnum"        , POINTER_SIZE, POINTER_SIZE),
+    ("ufixnum"       , POINTER_SIZE, POINTER_SIZE),
     ("bytes"         , POINTER_SIZE, POINTER_SIZE) ,
     ("path"          , POINTER_SIZE, POINTER_SIZE) ,
     ("pointer"       , POINTER_SIZE, POINTER_SIZE) ,
     ("fpointer"      , POINTER_SIZE, POINTER_SIZE) ,
     ("string/utf-16" , POINTER_SIZE, POINTER_SIZE) ,
+    ("string/ucs-4"  , POINTER_SIZE, POINTER_SIZE) ,
     ("gcpointer"     , POINTER_SIZE, POINTER_SIZE) ,
     ("or-null"       , POINTER_SIZE, POINTER_SIZE) ,
     ("gcable"        , POINTER_SIZE, POINTER_SIZE) ,
+    ("symbol"        , POINTER_SIZE, POINTER_SIZE) ,
     ("scheme"        , POINTER_SIZE, POINTER_SIZE  , "racket") ,
     ]
 
@@ -145,12 +156,16 @@ def ctype_alignof(ctype):
 
 @expose("ffi-lib?", [values.W_Object])
 def ffi_lib(o):
-    # Naturally, since we don't have ffi values
-    return values.w_false
+    return values.W_Bool.make(isinstance(o, W_FFILib))
 
-@expose("ffi-lib")
-def ffi_lib(args):
-    return values.w_false
+@expose("ffi-lib", [values.W_Object, default(values.W_Object, values.w_false), default(values.W_Object, values.w_false)])
+def ffi_lib(name, fail_as_false, as_global):
+    if name is values.w_false:
+        return W_FFILib()
+    if fail_as_false is values.w_false:
+        raise FSException("ffi-lib not supported on Pycket")
+    else:
+        return values.w_false
 
 @expose("malloc")
 def malloc(args):
@@ -158,7 +173,7 @@ def malloc(args):
 
 @expose("ptr-ref", [W_CPointer, W_CType, default(values.W_Fixnum, values.W_Fixnum.ZERO)])
 def ptr_ref(cptr, ctype, offset):
-    return values.w_void
+    return values.w_false
 
 @expose("ptr-set!")
 def ptr_set(args):
@@ -168,9 +183,9 @@ def ptr_set(args):
 def cp_gcable(args):
     return values.w_false
 
-@expose("ffi-obj")
-def ffi_obj(args):
-    return W_CPointer()
+@expose("ffi-obj", [values.W_Bytes, values.W_Object])
+def ffi_obj(name, lib):
+    raise FSException("unable to get symbol %s from %s"%(name.tostring(), lib.tostring()))
 
 @expose("ctype-basetype", [values.W_Object])
 def ctype_basetype(ctype):
@@ -190,3 +205,6 @@ def ctype_scheme_to_c(ctype):
 def ctype_c_to_scheme(ctype):
     return ctype.c_to_scheme()
 
+@expose("make-late-will-executor", [])
+def make_will_exec():
+    return values.W_WillExecutor()

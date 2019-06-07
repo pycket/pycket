@@ -117,6 +117,7 @@ READ_FALSE_PARAMS = """
 read-square-bracket-with-tag
 read-curly-brace-with-tag
 read-cdot
+read-single-flonum
 """
 
 for name in READ_TRUE_PARAMS.split():

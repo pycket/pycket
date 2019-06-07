@@ -102,6 +102,12 @@ class W_String(W_Object):
     def as_unicharlist(self):
         return self.get_strategy().as_unicharlist(self)
 
+    def as_escaped_utf8(self):
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        r = self.as_str_utf8()
+        assert r is not None
+        return string_escape_encode(r, '')
+
     # string operations
     def length(self):
         return self.get_strategy().length(self)
@@ -146,7 +152,7 @@ class W_String(W_Object):
         from pypy.objspace.std.bytesobject import string_escape_encode
         r = self.as_str_utf8()
         assert r is not None
-        return r
+        return string_escape_encode(r, '"')
 
     def setitem(self, index, unichar):
         raise SchemeException("can't mutate string")

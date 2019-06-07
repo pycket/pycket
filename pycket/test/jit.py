@@ -232,6 +232,20 @@ class TestLLtype(LLJitMixin):
                (if (>= i 1000) n (lp (+ n (vector-ref v i)) (+ 1 i)))))
         """)
 
+    def run_file(self, fname, run_untranslated=True):
+        ast = parse_file(fname)
+        env = ToplevelEnv()
+        env.globalconfig.load(ast)
+        def interp_w():
+            val = interpret_module(ast, env)
+            return val
+
+        if run_untranslated:
+            interp_w()
+
+        ast = parse_file(fname)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
 
     def test_puzzle(self):
         self.run_file("puzzle.rkt")
@@ -403,7 +417,7 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
 
-    def test_cons_map(self):
+    def _cons_map(self):
         from pycket.expand import expand_string
         from pycket.json import loads
 
@@ -425,6 +439,16 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [],
                          listcomp=True, listops=True, backendopt=True)
+
+    def test_scons_map(self):
+        import pycket.values
+        pycket.values._enable_cons_specialization = True
+        self._cons_map()
+
+    def test_ucons_map(self):
+        import pycket.values
+        pycket.values._enable_cons_specialization = False
+        self._cons_map()
 
     def test_countdown_vector_allocation(self):
         ast = to_ast(expand("""

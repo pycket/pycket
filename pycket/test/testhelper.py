@@ -10,7 +10,6 @@ from pycket.expand import expand, JsonLoader, expand_string, ModTable, parse_mod
 from pycket.pycket_json import loads
 from pycket.env import ToplevelEnv, w_global_config
 from pycket.interpreter import *
-from pycket import values
 from pycket.error import SchemeException
 from pycket.cont import continuation
 from pycket.values import *
@@ -19,7 +18,6 @@ from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel
 from pycket.prims.linklet import *
 from pycket.test.utils import *
 from pycket.config import get_testing_config
-from pycket.prims.general import make_stub_predicates_no_linklet
 
 #
 # basic runners
@@ -45,10 +43,10 @@ try:
         w_global_config.set_config_val('expander_loaded', 1)
         # get the expander
         print("Loading and initializing the expander")
-        initiate_boot_sequence(None, [], False)
+        initiate_boot_sequence([], False)
         # load the '#%kernel
         print("(namespace-require '#%%kernel)")
-        namespace_require_kernel(None)
+        namespace_require_kernel()
 except:
     pass
 
@@ -68,7 +66,7 @@ def run_string(expr_str, v=None, just_return=False, equal_huh=False, expect_to_f
     # FIXME : removing \n is not ideal, as the test itself may have one
     expr_str = expr_str.replace('\n', '') # remove the newlines added by the multi line doctest
     expr_str = "(begin %s)" % expr_str
-    result = read_eval_print_string(expr_str, None, return_val=True)
+    result = read_eval_print_string(expr_str, return_val=True)
 
     if expect_to_fail and isinstance(result, W_Void):
         raise SchemeException("test raised exception")
@@ -157,30 +155,38 @@ def get_var_val(inst, id_str):
     # for getting uninterned symbols
     for k,v in inst.vars.iteritems():
         if id_str == k.tostring():
-            return k, v.get_value_direct()
+            if isinstance(v, values.W_Cell):
+                return k, v.get_val()
+            else:
+                return k, v
     raise Exception("Can't find the variable : %s in instance : %s" % (id_str, inst.tostring()))
 
 def variables(inst):
     return get_instance_variable_names(inst) # W_Cons
 
 def defines(inst, name_str):
-    return inst.has_var(W_Symbol.make(name_str))
+    return W_Symbol.make(name_str) in inst.vars
 
 def get_val(inst, name_str):
     return inst.lookup_var_value(values.W_Symbol.make(name_str))
 
 def check_val(inst, var_str, val):
-    return get_val(inst, var_str).value == val
+    return inst.vars[W_Symbol.make(var_str)].val.value == val
 
 def inst(linkl, imports=[], target=None):
     if not target:
         target = w_false
 
-    return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+    return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false])
 
-def make_instance(linkl_str, imports=[], l_name="test_linklet_sexp"):
-    instance = inst(make_linklet(linkl_str, l_name), imports)
-    return instance
+# CAUTION: call it with variables carrying only numbers
+def make_instance(vars):
+    w_name = values.W_Symbol.make("test_linklet_instance")
+    w_vars = {}
+    for k,v in vars.iteritems():
+        w_vars[values.W_Symbol.make(k)] = W_LinkletVar(values.W_Fixnum(v), k, w_name, w_false)
+
+    return W_LinkletInstance(w_name, w_vars)
 
 def make_linklet(linkl_str, l_name="test_linklet_sexp"):
     #"(linklet () (x) (define-values (x) 4))"
@@ -194,10 +200,11 @@ def make_linklet(linkl_str, l_name="test_linklet_sexp"):
 
 def empty_target(l_name="test_empty_instance"):
     # creates an empty target
-    return make_instance("(linklet () ())", l_name=l_name)
+    #return make_instance("(linklet () ())", l_name=l_name)
+    return make_instance({})
 
 def eval(linkl, target, imports=[], just_return=False):
-    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false])
     return result, target
 
 
@@ -232,7 +239,6 @@ def expand_from_bytecode(m, srcloc):
 
 def run_mod(m, stdlib=False, srcloc=True):
     assert not stdlib
-
     if not pytest.config.byte_option:
         ast = parse_module(expand_string(m, srcloc=srcloc))
     else:
@@ -326,12 +332,15 @@ def parse_file(fname, *replacements, **kwargs):
         s = s.replace(replace, with_)
     s = s.decode("utf-8")
 
-    if not pytest.config.byte_option:
-        s = expand_string(s)
-        ast = parse_module(s)
-    else:
-        s = expand_from_bytecode(s, True)
-        ast = parse_module(s, bytecode_expand=True)
+    s = expand_string(s)
+    ast = parse_module(s)
+
+    # if not pytest.config.byte_option:
+    #     s = expand_string(s)
+    #     ast = parse_module(s)
+    # else:
+    #     s = expand_from_bytecode(s, True)
+    #     ast = parse_module(s, bytecode_expand=True)
 
     return ast
 

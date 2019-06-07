@@ -358,9 +358,11 @@ class W_Cons(W_List):
 
     def cdr(self):
         raise NotImplementedError("abstract base class")
+
     def to_tuple(self):
         "convenience accessor"
         return (self.car(), self.cdr())
+
     def tostring(self):
         cur = self
         acc = []
@@ -889,8 +891,11 @@ class W_Character(W_Object):
         self.value = val
 
     def tostring(self):
-        return "#\\%s" % runicode.unicode_encode_utf_8(
-                self.value, len(self.value), "strict")
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        return "#\%s" % string_escape_encode(self.value.encode('utf-8'), '')
+
+    def get_value_utf8(self):
+        return self.value.encode('utf-8')
 
     def immutable(self):
         return True
@@ -1387,17 +1392,15 @@ class W_ThunkProcCMK(W_Procedure):
 class W_Prim(W_Procedure):
     from pycket.arity import Arity
 
-    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "simple1", "simple2", "is_nyi"]
+    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "is_nyi"]
 
-    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, simple1=None, simple2=None, is_nyi=False):
+    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, is_nyi=False):
         from pycket.arity import Arity
         self.name = W_Symbol.make(name)
         self.code = code
         assert isinstance(arity, Arity)
         self.arity = arity
         self.result_arity = result_arity
-        self.simple1 = simple1
-        self.simple2 = simple2
         self.is_nyi = is_nyi
 
     def is_implemented(self):
@@ -1423,6 +1426,21 @@ class W_Prim(W_Procedure):
 
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
+
+class W_PrimSimple1(W_Prim):
+    from pycket.arity import Arity
+
+    def simple1(self, arg1):
+        """ overridden by the generated subclasses in expose.py"""
+        raise NotImplementedError("abstract base class")
+
+class W_PrimSimple2(W_Prim):
+    from pycket.arity import Arity
+
+    def simple2(self, arg1, arg2):
+        """ overridden by the generated subclasses in expose.py"""
+        raise NotImplementedError("abstract base class")
+
 
 @always_inline
 def to_list(l, start=0):
@@ -2191,5 +2209,10 @@ class W_Channel(W_Object):
 # for things we don't implement yet
 class W_Impossible(W_Object):
     errorname = "impossible"
+    def __init__(self):
+        pass
+
+class W_WillExecutor(W_Object):
+    errorname = "will-executor"
     def __init__(self):
         pass
