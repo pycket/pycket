@@ -763,7 +763,7 @@ class W_RootStruct(values.W_Object):
                    listgettername="_get_storage",
                    listsizename="_get_storage_width",
                    gettername="_get_storage_at",
-                   settername="__unused_set_storage_at__")
+                   settername="__unsafe_set_storage_at__")
 class W_Struct(W_RootStruct):
     """
 

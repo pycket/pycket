@@ -1835,11 +1835,11 @@ class ReaderGraphBuilder(object):
             return v
 
         size = v._get_size_list()
-        p = values_struct.W_Struct.make_n(size, type)
+        p = values_struct.W_Struct.make_basic_n(size, type._tag.default_shape)
         self.state[v] = p
         for i in range(size):
             val = self.reader_graph_loop(v._ref(i))
-            p._set_list(i, val)
+            p.__unsafe_set_storage_at__(i, val)
 
         return p
 
