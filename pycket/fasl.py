@@ -211,6 +211,7 @@ class Fasl(object):
         from pycket.values_regex import W_Regexp, W_PRegexp, W_ByteRegexp, W_BytePRegexp
         from pycket.vector import W_Vector
         from pycket.values_struct import W_Struct
+        from pycket.prims.general import srcloc
         from pycket.hash import simple as hash_simple
         from pycket.hash.equal import W_EqualHashTable
         from pycket.prims.numeric import float_bytes_to_real
@@ -381,7 +382,7 @@ class Fasl(object):
             column, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
             position, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
             span, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
-            return v.to_list([v.W_Symbol.make("srcloc"), source, line, column, position, span]), pos
+            return W_Struct.make([source, line, column, position, span], srcloc), pos
         else:
             if typ >= FASL_SMALL_INTEGER_START:
                 return v.W_Fixnum((typ-FASL_SMALL_INTEGER_START)+FASL_LOWEST_SMALL_INTEGER), pos
