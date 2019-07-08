@@ -1974,6 +1974,14 @@ if not w_global_config.is_expander_loaded():
 def unsafe_start_atomic():
     return values.w_void
 
+@expose("unsafe-start-breakable-atomic", [])
+def unsafe_start_atomic():
+    return values.w_void
+
+@expose("unsafe-end-breakable-atomic", [])
+def unsafe_start_atomic():
+    return values.w_void
+
 @expose("unsafe-end-atomic", [])
 def unsafe_start_atomic():
     return values.w_void
