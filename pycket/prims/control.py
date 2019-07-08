@@ -388,6 +388,14 @@ def initial_exit_handler(v, env, cont):
 exit_handler_param = values_parameter.W_Parameter(initial_exit_handler)
 expose_val("exit-handler", exit_handler_param)
 
+@make_procedure("error-value-string-handler", [values.W_Object, values.W_Fixnum])
+def error_value_string_handler(v, repr_length):
+    # FIXME: truncate it with the given representation length
+    return values_string.W_String.make(v.tostring())
+
+error_val_string_handler_param = values_parameter.W_Parameter(error_value_string_handler)
+expose_val("error-value->string-handler", error_val_string_handler_param)
+
 @continuation
 def exit_cont(env, cont, _vals):
     from pycket.interpreter import return_value
