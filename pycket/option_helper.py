@@ -110,7 +110,9 @@ dev_opts = ["--dev",
             "--load-as-linklets",
             "--eval-linklet",
             "--run-as-linklet",
-            "--just-init"]
+            "--just-init",
+            "--racket-fasl",
+            "--rpython-fasl"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts + dev_opts
 
@@ -133,7 +135,9 @@ config = {
     'use-compiled' : True,
     'compile-machine-independent' : False,
     'load-regexp' : False,
-    'make-zos' : False
+    'make-zos' : False,
+    'racket-fasl' : False,
+    'rpython-fasl' : False
 }
 
 def add_name(names, name, val, replace=False):
@@ -386,6 +390,24 @@ def parse_args(argv):
         elif argv[i] == "--dev":
             config['dev-mode'] = True
             #retval = RETURN_OK
+
+        elif argv[i] == "--racket-fasl":
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            config['racket-fasl'] = True
+            i += 1
+            add_name(names, 'fasl-file', argv[i])
+
+        elif argv[i] == "--rpython-fasl":
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            config['rpython-fasl'] = True
+            i += 1
+            add_name(names, 'fasl-file', argv[i])
 
         elif argv[i] == "--eval-linklet":
             if to <= i + 1 or argv[i+1] in all_opts:
