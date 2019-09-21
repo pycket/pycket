@@ -464,17 +464,20 @@ def racket_entry(names, config, command_line_arguments):
     run_as_linklet   = startup_options['run_as_linklet'][0]
     load_linklets    = startup_options['load_linklets']
     load_as_linklets = startup_options['load_as_linklets']
+    fasl_file        = startup_options['fasl-file'][0]
 
-    is_repl          = flags['is_repl']
-    no_lib           = flags['no_lib']
+    is_repl          = flags['repl']
+    no_lib           = flags['no-lib']
     just_kernel      = flags['just_kernel']
-    just_init        = flags['just_init']
-    use_compiled     = flags['use_compiled']
-    debug            = flags['debug']
+    just_init        = flags['just-init']
+    use_compiled     = flags['use-compiled']
+    debug            = flags['verbose']
     version          = flags['version']
-    c_a              = flags['compile_any']
-    do_load_regexp   = flags['do_load_regexp']
-    dev_mode         = flags['dev_mode']
+    c_a              = flags['compile-machine-independent']
+    do_load_regexp   = flags['load-regexp']
+    dev_mode         = flags['dev-mode']
+    racket_fasl      = flags['racket-fasl']
+    rpython_fasl     = flags['rpython-fasl']
 
     if load_as_linklets:
         for rkt in load_as_linklets:
@@ -737,20 +740,8 @@ dev-mode           : %s
         'eval_sexp'        : eval_sexp,
         'run_as_linklet'   : run_as_linklet,
         'load_linklets'    : load_linklets,
-        'load_as_linklets' : load_as_linklets
+        'load_as_linklets' : load_as_linklets,
+        'fasl-file'        : fasl_file
     }
 
-    flags = {
-        'is_repl'          : is_repl,
-        'no_lib'           : no_lib,
-        'just_kernel'      : just_kernel,
-        'just_init'        : just_init,
-        'use_compiled'     : use_compiled,
-        'debug'            : debug,
-        'version'          : version,
-        'compile_any'      : compile_any,
-        'do_load_regexp'   : do_load_regexp,
-        'dev_mode'         : dev_mode
-    }
-
-    return loads, startup_options, flags
+    return loads, startup_options, config
