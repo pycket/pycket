@@ -758,7 +758,8 @@ class W_RootStruct(values.W_Object):
                 assert isinstance(h, values.W_Fixnum)
                 return h.value
 
-@inline_small_list(immutable=True, unbox_num=False,
+@inline_small_list(sizemax=31,
+                   immutable=True, unbox_num=False,
                    attrname="_storage", factoryname="make_basic",
                    listgettername="_get_storage",
                    listsizename="_get_storage_width",

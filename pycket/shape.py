@@ -152,8 +152,8 @@ class ShapeConfig(object):
 
     def __init__(self,
                  substitution_threshold=17,
-                 max_storage_width=7,
-                 max_shape_depth=7):
+                 max_storage_width=14,
+                 max_shape_depth=17):
         self.substitution_threshold = substitution_threshold
         self.max_storage_width = max_storage_width
         self.max_shape_depth = max_shape_depth
