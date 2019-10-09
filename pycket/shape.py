@@ -232,11 +232,11 @@ class CompoundShape(Shape):
                 return CompoundShape(self._tag, structure)
             storage_index -= child.storage_width()
 
-    @jit.unroll_safe
     def record_shape(self, child, i):
-        shape = child.shape()
-        if shape is in_storage_shape:
+        from pycket.values_struct import W_Struct
+        if not isinstance(child, W_Struct):
             return
+        shape = child.shape()
         key = (i, shape)
         count = self._hist[key] if key in self._hist else 0
         width = child._get_storage_width()
@@ -282,6 +282,7 @@ class CompoundShape(Shape):
         u"""
         fusion ≔ Shape × [W_Object] → Shape' × [W_Object]'
         """
+        from pycket.values_struct import W_Struct
 
         current_storage = storage
         index = 0
@@ -305,6 +306,7 @@ class CompoundShape(Shape):
             new_shape = shape.get_transformation(index, subshape)
             if new_shape is not shape:
                 # XXX [child] sometimes?
+                assert isinstance(shape, W_Struct)
                 child_storage = child._get_storage()
                 new_storage = _splice(current_storage, storage_len, index,
                                       child_storage, subshape.storage_width())

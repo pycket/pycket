@@ -30,6 +30,7 @@ def make_entry_point(pycketconfig=None):
     from pycket.old_pycket_option_helper import parse_args as old_pycket_parse_args, ensure_json_ast
     from pycket.values_string import W_String
     from pycket.racket_entry import load_inst_linklet, racket_entry
+    from pycket.shape import CompoundShape
 
     def entry_point(argv):
         if not objectmodel.we_are_translated():
@@ -91,6 +92,13 @@ def make_entry_point(pycketconfig=None):
             from pycket.prims.logging import w_main_logger
             w_main_logger.set_syslog_level(names['syslog_level'][0])
 
+        if 'substitution_threshold' in config:
+            CompoundShape._config.substitution_threshold = config['substitution_threshold']
+        if 'max_storage_width' in config:
+            CompoundShape._config.max_storage_width = config['max_storage_width']
+        if 'max_shape_depth' in config:
+            CompoundShape._config.max_shape_depth = config['max_shape_depth']
+
         current_cmd_args = [W_String.fromstr_utf8(arg) for arg in args]
 
         if 'json-linklets' in names:
@@ -141,6 +149,14 @@ def make_entry_point(pycketconfig=None):
             ast = reader.expand_to_ast(module_name)
         else:
             ast = reader.load_json_ast_rpython(module_name, json_ast)
+
+        if 'substitution_threshold' in config:
+            CompoundShape._config.substitution_threshold = config['substitution_threshold']
+        if 'max_storage_width' in config:
+            CompoundShape._config.max_storage_width = config['max_storage_width']
+        if 'max_shape_depth' in config:
+            CompoundShape._config.max_shape_depth = config['max_shape_depth']
+
 
         env = ToplevelEnv(pycketconfig)
         env.globalconfig.load(ast)

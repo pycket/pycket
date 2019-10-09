@@ -149,6 +149,33 @@ def parse_args(argv):
         elif argv[i] == '--save-callgraph':
             config['save-callgraph'] = True
 
+        elif argv[i] == "--shapes-s":
+            if len(argv) == i + 1:
+                print "missing argument after --shapes-s"
+                ret = 5
+                break
+            i += 1
+            s_t = int(argv[i])
+            if s_t <= 1:
+                print "substitution threshold must be greater than 1"
+                ret = 5
+                break
+            config['substitution_threshold'] = s_t
+        elif argv[i] == "--shapes-w":
+            if len(argv) == i + 1:
+                print "missing argument after --shapes-w"
+                ret = 5
+                break
+            i += 1
+            config['max_storage_width'] = int(argv[i])
+        elif argv[i] == "--shapes-d":
+            if len(argv) == i + 1:
+                print "missing argument after --shapes-d"
+                ret = 5
+                break
+            i += 1
+            config['max_shape_depth'] = int(argv[i])
+
         else:
             if 'file' in names:
                 break
