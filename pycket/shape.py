@@ -306,7 +306,7 @@ class CompoundShape(Shape):
             new_shape = shape.get_transformation(index, subshape)
             if new_shape is not shape:
                 # XXX [child] sometimes?
-                assert isinstance(shape, W_Struct)
+                assert isinstance(child, W_Struct)
                 child_storage = child._get_storage()
                 new_storage = _splice(current_storage, storage_len, index,
                                       child_storage, subshape.storage_width())
