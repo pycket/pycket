@@ -150,10 +150,11 @@ def mk_cmk(s):
 
 @expose("call-with-immediate-continuation-mark",
         [values.W_Object, procedure, default(values.W_Object, values.w_false)],
-        simple=False)
-def cwicm(key, proc, default, env, cont):
+        simple=False,
+        extra_info=True)
+def cwicm(key, proc, default, env, cont, extra_call_info):
     lup, _ = cont.find_cm(key)
     val = default if lup is None else lup
     if isinstance(key, values.W_ContinuationMarkKey):
         return key.get_cmk(val, env, call_cont(proc, env, cont))
-    return proc.call([val], env, cont)
+    return proc.call_with_extra_info([val], env, cont, extra_call_info)

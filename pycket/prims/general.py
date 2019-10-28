@@ -526,8 +526,8 @@ def sem_post_cont(sem, env, cont, vals):
     from pycket.interpreter import return_multi_vals
     return return_multi_vals(vals, env, cont)
 
-@expose("call-with-semaphore", simple=False)
-def call_with_sem(args, env, cont):
+@expose("call-with-semaphore", simple=False, extra_info=True)
+def call_with_sem(args, env, cont, extra_call_info):
     if len(args) < 2:
         raise SchemeException("error call-with-semaphore")
     sem = args[0]
@@ -544,7 +544,7 @@ def call_with_sem(args, env, cont):
     assert isinstance(sem, values.W_Semaphore)
     assert f.iscallable()
     sem.wait()
-    return f.call(new_args, env, sem_post_cont(sem, env, cont))
+    return f.call_with_extra_info(new_args, env, sem_post_cont(sem, env, cont), extra_call_info)
 
 c_thread = values.W_Thread()
 
