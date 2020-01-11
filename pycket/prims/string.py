@@ -14,11 +14,15 @@ from rpython.rlib import jit
 def symbol_to_string(v):
     return symbol_to_string_impl(v)
 
-def symbol_to_string_impl(v):
+@expose("symbol->immutable-string", [values.W_Symbol])
+def symbol_to_string(v):
+    return symbol_to_string_impl(v, immutable=True)
+
+def symbol_to_string_impl(v, immutable=False):
     asciivalue = v.asciivalue()
     if asciivalue is not None:
-        return W_String.fromascii(asciivalue)
-    return W_String.fromunicode(v.unicodevalue())
+        return W_String.fromascii(asciivalue, immutable)
+    return W_String.fromunicode(v.unicodevalue(), immutable)
 
 @expose("string->symbol", [W_String])
 def string_to_symbol(v):
@@ -145,7 +149,7 @@ def string_to_keyword(str):
     repr = str.as_str_utf8()
     return values.W_Keyword.make(repr)
 
-@expose("keyword->string", [values.W_Keyword])
+@expose(["keyword->string", "keyword->immutable-string"], [values.W_Keyword])
 def string_to_keyword(keyword):
     return W_String.make(keyword.value)
 
@@ -330,7 +334,7 @@ def string_append_fastpath(args):
         result = W_String.fromunicode(joined)
     return result
 
-@expose("string-append")
+@expose(["string-append", "string-append-immutable"])
 @jit.unroll_safe
 def string_append(args):
     if jit.isconstant(len(args)):
