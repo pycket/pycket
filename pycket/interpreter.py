@@ -4,8 +4,9 @@
 from pycket                   import config
 from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
-from pycket.AST               import AST
+from pycket.AST               import AST, ConvertStack
 from pycket.arity             import Arity
+from pycket.base              import W_StackTrampoline
 from pycket.cont              import Cont, NilCont, label, continuation
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.error             import SchemeException
@@ -402,7 +403,6 @@ class LetCont(Cont):
         jit.promote(len_self)
         new_length = len_self + len_vals
         ast, rhsindex = self.counting_ast.unpack(Let)
-        assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len_vals:
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
@@ -1073,6 +1073,8 @@ class App(AST):
                     return SimplePrimApp1(rator, rands, env_structure, w_prim)
                 if isinstance(w_prim, values.W_PrimSimple2) and len(rands) == 2:
                     return SimplePrimApp2(rator, rands, env_structure, w_prim)
+                if isinstance(w_prim, values.W_PrimSimple):
+                    return SimplePrimApp(rator, rands, env_structure, w_prim)
         return App(rator, rands, env_structure)
 
     def direct_children(self):
@@ -1081,27 +1083,42 @@ class App(AST):
     # Let conversion ensures that all the participants in an application
     # are simple.
     @jit.unroll_safe
-    def interpret(self, env, cont):
+    def _eval_callable_and_args(self, env):
         rator = self.rator
         if (not env.pycketconfig().callgraph and
                 isinstance(rator, ModuleVar) and
                 rator.is_primitive()):
             self.set_should_enter() # to jit downrecursion
-        try:
-            w_callable = rator.interpret_simple(env)
-            args_w = [None] * len(self.rands)
-            for i, rand in enumerate(self.rands):
-                args_w[i] = rand.interpret_simple(env)
-            if isinstance(w_callable, values.W_PromotableClosure):
-                # fast path
-                jit.promote(w_callable)
-                w_callable = w_callable.closure
-        except SchemeException, exn:
-            return convert_runtime_exception(exn, env, cont)
-        except OSError, exn:
-            return convert_os_error(exn, env, cont)
+        w_callable = rator.interpret_simple(env)
+        args_w = [None] * len(self.rands)
+        for i, rand in enumerate(self.rands):
+            args_w[i] = rand.interpret_simple(env)
+        if isinstance(w_callable, values.W_PromotableClosure):
+            # fast path
+            jit.promote(w_callable)
+            w_callable = w_callable.closure
 
+        return w_callable, args_w
+
+    def get_callable_and_args(self, env):
+        try:
+            w_callable, args_w = self._eval_callable_and_args(env)
+        except SchemeException, exn:
+            #return convert_runtime_exception(exn, env, cont)
+            from pycket.AST import ConvertStack
+            raise ConvertStack(self, env)
+        except OSError, exn:
+            #return convert_os_error(exn, env, cont)
+            from pycket.AST import ConvertStack
+            raise ConvertStack(self, env)
+        return w_callable, args_w
+
+    def interpret(self, env, cont):
+        w_callable, args_w = self.get_callable_and_args(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
+
+    def _interpret_stack_app(self, w_callable, args_w):
+        return w_callable.call_with_extra_info_and_stack(args_w, self)
 
     def normalize(self, context):
         context = Context.AppRator(self.rands, context)
@@ -1127,77 +1144,83 @@ class App(AST):
             r.write(port, env)
         port.write(")")
 
+class SimplePrimApp(App):
+    _immutable_fields_ = ['w_prim']
+    simple = True
+    visitable = False
+
+    def __init__(self, rator, rands, env_structure, w_prim):
+        App.__init__(self, rator, rands, env_structure)
+        self.w_prim = w_prim
+
+    def normalize(self, context):
+        context = Context.AppRand(self.rator, context)
+        return Context.normalize_names(self.rands, context)
+
+    @jit.unroll_safe
+    def interpret_simple(self, env):
+        w_args = [r.interpret_simple(env) for r in self.rands]
+        return self.run(w_args)
+
+    def _interpret_stack_app(self, w_callable, w_args):
+        return self.run(w_args)
+
+    def run(self, w_args):
+        result = self.w_prim.simple_func(w_args)
+        if result is None:
+            result = values.w_void
+        return result
+
+
 class SimplePrimApp1(App):
-    _immutable_fields_ = ['w_prim', 'rand1']
+    _immutable_fields_ = ['w_prim']
     simple = True
     visitable = False
 
     def __init__(self, rator, rands, env_structure, w_prim):
         App.__init__(self, rator, rands, env_structure)
         assert len(rands) == 1
-        self.rand1, = rands
         self.w_prim = w_prim
 
-    def normalize(self, context):
-        context = Context.AppRand(self.rator, context)
-        return Context.normalize_names(self.rands, context)
+    def interpret_simple(self, env):
+        w_arg = self.rands[0].interpret_simple(env)
+        return self.run(w_arg)
 
-    def run(self, env):
-        result = self.w_prim.simple1(self.rand1.interpret_simple(env))
+    def _interpret_stack_app(self, w_callable, w_args):
+        return self.run(w_args[0])
+
+    def run(self, w_arg):
+        result = self.w_prim.simple1(w_arg)
         if result is None:
             result = values.w_void
         return result
 
-    def interpret_simple(self, env):
-        return check_one_val(self.run(env))
-
-    def interpret(self, env, cont):
-        if not env.pycketconfig().callgraph:
-            self.set_should_enter() # to jit downrecursion
-        try:
-            result = self.run(env)
-        except SchemeException, exn:
-            return convert_runtime_exception(exn, env, cont)
-        except OSError, exn:
-                return convert_os_error(exn, env, cont)
-        return return_multi_vals_direct(result, env, cont)
-
 class SimplePrimApp2(App):
-    _immutable_fields_ = ['w_prim', 'rand1', 'rand2']
+    _immutable_fields_ = ['w_prim']
     simple = True
     visitable = False
 
     def __init__(self, rator, rands, env_structure, w_prim):
         App.__init__(self, rator, rands, env_structure)
         assert len(rands) == 2
-        self.rand1, self.rand2 = rands
         self.w_prim = w_prim
 
-    def normalize(self, context):
-        context = Context.AppRand(self.rator, context)
-        return Context.normalize_names(self.rands, context)
+    def interpret_simple(self, env):
+        w_arg0 = self.rands[0].interpret_simple(env)
+        w_arg1 = self.rands[1].interpret_simple(env)
+        return self.run(w_arg0, w_arg1)
 
-    def run(self, env):
-        arg1 = self.rand1.interpret_simple(env)
-        arg2 = self.rand2.interpret_simple(env)
-        result = self.w_prim.simple2(arg1, arg2)
+    def _interpret_stack_app(self, w_callable, w_args):
+        return self.run(w_args[0], w_args[1])
+
+    def interpret_stack_app(self, w_callable, w_args):
+        return self.run(w_args[0], w_args[1])
+
+    def run(self, w_arg1, w_arg2):
+        result = self.w_prim.simple2(w_arg1, w_arg2)
         if result is None:
             result = values.w_void
         return result
-
-    def interpret_simple(self, env):
-        return check_one_val(self.run(env))
-
-    def interpret(self, env, cont):
-        if not env.pycketconfig().callgraph:
-            self.set_should_enter() # to jit downrecursion
-        try:
-            result = self.run(env)
-        except SchemeException, exn:
-            return convert_runtime_exception(exn, env, cont)
-        except OSError, exn:
-            return convert_os_error(exn, env, cont)
-        return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):
     _immutable_fields_ = ["body[*]", "counting_asts[*]",
@@ -1267,6 +1290,35 @@ class SequencedBodyAST(AST):
             new_env = self._prune_sequenced_envs(env, i + 1)
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], new_env, prev)
+
+    @jit.unroll_safe
+    def _interpret_stack_body(self, env):
+        from pycket.AST import ConvertStack
+        from pycket.interpreter import App
+        from pycket.values import W_Prim
+        from pycket.values_parameter import W_Parameter
+
+        i = -1
+        for i in range(len(self.body) - 1):
+            body = self.body[i]
+            try:
+                env = self._prune_sequenced_envs(env, i)
+                res = body.interpret_stack(env)
+            except ConvertStack, cv:
+                from values import parameterization_key, exn_handler_key
+                from values_parameter import top_level_config
+                from pycket.prims.control import default_uncaught_exception_handler
+
+                cont = NilCont()
+                cont.update_cm(parameterization_key, top_level_config)
+                cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+
+                env = self._prune_sequenced_envs(env, i + 1)
+                cont = BeginCont(self.counting_asts[i + 1], env, cont)
+                cv.chain(cont)
+                raise
+        env = self._prune_sequenced_envs(env, i + 1)
+        return W_StackTrampoline(self.body[-1], env)
 
 class Begin0(SequencedBodyAST):
     _immutable_fields_ = ["first"]
@@ -1359,7 +1411,12 @@ class Begin(SequencedBodyAST):
 
     @objectmodel.always_inline
     def interpret(self, env, cont):
-        return self.make_begin_cont(env, cont)
+        return self.switch_to_interpret_stack(env, cont)
+        #return self.make_begin_cont(env, cont)
+
+    @jit.unroll_safe
+    def _interpret_stack(self, env):
+        return self._interpret_stack_body(env)
 
     def normalize(self, context):
         body = [Context.normalize_term(b) for b in self.body]
@@ -1693,6 +1750,13 @@ class If(AST):
             return self.els, env, cont
         else:
             return self.thn, env, cont
+
+    def _interpret_stack(self, env):
+        w_val = self.tst.interpret_simple(env)
+        if w_val is values.w_false:
+            return W_StackTrampoline(self.els, env)
+        else:
+            return W_StackTrampoline(self.thn, env)
 
     def direct_children(self):
         return [self.tst, self.thn, self.els]
@@ -2331,9 +2395,56 @@ class Let(SequencedBodyAST):
 
     @objectmodel.always_inline
     def interpret(self, env, cont):
-        env = self._prune_env(env, 0)
-        return self.rhss[0], env, LetCont.make(
-                None, self, 0, env, cont)
+        return self.switch_to_interpret_stack(env, cont)
+        #env = self._prune_env(env, 0)
+        #return self.rhss[0], env, LetCont.make(
+        #        None, self, 0, env, cont)
+
+    @jit.unroll_safe
+    def _interpret_stack(self, env):
+        from values import parameterization_key, exn_handler_key, W_Cell
+        from values_parameter import top_level_config
+        from pycket.prims.control import default_uncaught_exception_handler
+        from pycket.AST import ConvertStack
+        from pycket.interpreter import App
+        from pycket.values import W_Prim
+        from pycket.values_parameter import W_Parameter
+
+        cont = NilCont()
+        cont.update_cm(parameterization_key, top_level_config)
+        cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+
+        args_len = len(self.args.elems)
+        vals_w = [None] * args_len
+        index = 0
+        i = -100
+        for i, rhs in enumerate(self.rhss):
+            env = self._prune_env(env, i)
+            try:
+                values = rhs.interpret_stack(env)
+            except ConvertStack, cv:
+                # Since we don't know if we're gonna switch back to
+                # the CEK we wrap our values as we go on on the stack. (see the self.wrap_value.. line below)
+                # However the LetCont also wrap the values while
+                # "_construct_env"ing when "plug_reduce"ing.
+                # So we need to unwrap the values before switching.
+
+                unwrapped_vals = [v.get_val() if isinstance(v, W_Cell) else v for v in vals_w[:index]]
+                cont = LetCont.make(unwrapped_vals, self, i, env, cont)
+                cv.chain(cont)
+                raise
+            for j in range(values.num_values()):
+                vals_w[index] = self.wrap_value(values.get_value(j), index)
+                index += 1
+        assert i != -100
+        env = self._prune_env(env, i + 1)
+        if args_len == 1:
+            env = ConsEnv.make1(vals_w[0], env)
+        elif args_len == 2:
+            env = ConsEnv.make2(vals_w[0], vals_w[1], env)
+        elif args_len > 2:
+            env = ConsEnv.make(vals_w, env)
+        return SequencedBodyAST._interpret_stack_body(self, env)
 
     def direct_children(self):
         return self.rhss + self.body

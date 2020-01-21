@@ -624,6 +624,7 @@ def test_callgraph_reconstruction_through_primitives():
 
     assert env.callgraph.calls == {g: {f: None}, f: {h: None}}
 
+@pytest.mark.skip(reason="should_enter information depends on continuation chain")
 def test_should_enter_downrecursion():
     from pycket.expand import expand_string, parse_module
     from pycket        import config

@@ -112,6 +112,10 @@ class TestLLtype(LLJitMixin):
         ;; These are the same loop, but the second one is 10x slower
         (loop f3 0 0 N)
         (loop f4 0 0 N)
+        (loop f3 0 0 N)
+        (loop f4 0 0 N)
+        (loop f3 0 0 N)
+        (loop f4 0 0 N)
         """)
 
     def test_countdown_x(self):
@@ -135,14 +139,24 @@ class TestLLtype(LLJitMixin):
     def test_countdown_loop(self):
         self.run_string("""
         #lang pycket
-        (let countdown ([n 1000]) (if (< n 0) 1 (countdown (- n 1))))
+        (require '#%unsafe)
+        (let countdown ([n 1000]) (if (unsafe-fx< n 0) 1 (countdown (unsafe-fx- n 1))))
         """)
 
     def test_countdown_many_lets(self):
         self.run_string("""
         #lang pycket
+        (require '#%unsafe)
         (define (id x) x)
-        (let countdown ([n 1000]) (if (< n 0) 1 (id (id (id (id (countdown (- n 1))))))))
+        (let countdown ([n 1000]) (if (unsafe-fx< n 0) 1 (id (id (id (id (countdown (- n 1))))))))
+        """)
+
+    def test_countdown_many_lets_tail_recursive(self):
+        self.run_string("""
+        #lang pycket
+        (require '#%unsafe)
+        (define (id x) x)
+        (let countdown ([n 1000]) (if (unsafe-fx< n 0) 1  (countdown (id (id (id (id (unsafe-fx- n 1))))))))
         """)
 
     def test_bistable_loop(self):
@@ -178,7 +192,7 @@ class TestLLtype(LLJitMixin):
 
         assert interp_w() == 1
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_side_exit(self):
         ast = to_ast(expand("""
@@ -201,7 +215,7 @@ class TestLLtype(LLJitMixin):
 
         assert interp_w() == 27
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
 
     # needs to be fixed to use modules
@@ -219,7 +233,7 @@ class TestLLtype(LLJitMixin):
         interp_w() # check that it runs
 
         # ast = parse_module(expand_string(str))
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_imp_vec(self):
 
@@ -244,7 +258,7 @@ class TestLLtype(LLJitMixin):
             interp_w()
 
         ast = parse_file(fname)
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
 
     def test_puzzle(self):
@@ -293,7 +307,7 @@ class TestLLtype(LLJitMixin):
             val = interpret([ast])
             return val
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_minik(self):
         fname = "minikanren.sch"
@@ -302,7 +316,7 @@ class TestLLtype(LLJitMixin):
             val = interpret_one(ast)
             return val
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_microk(self):
         fname = "microkanren.sch"
@@ -311,7 +325,7 @@ class TestLLtype(LLJitMixin):
             val = interpret_one(ast)
             return val
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_earley(self):
         fname = "earley.sch"
@@ -320,7 +334,7 @@ class TestLLtype(LLJitMixin):
             val = interpret_one(ast)
             return val
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_triangle(self):
         self.run_file("triangle.rkt", run_untranslated=False)
@@ -369,7 +383,7 @@ class TestLLtype(LLJitMixin):
 
         assert interp_w() == 1
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_ycombinator(self):
 
@@ -414,7 +428,7 @@ class TestLLtype(LLJitMixin):
 
         assert interp_w() == sum(i ** 2 for i in range(1000))
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
 
     def _cons_map(self):
@@ -438,7 +452,7 @@ class TestLLtype(LLJitMixin):
         assert interp_w() == 500500
 
         self.meta_interp(interp_w, [],
-                         listcomp=True, listops=True, backendopt=True)
+                         listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_scons_map(self):
         import pycket.values
@@ -463,7 +477,7 @@ class TestLLtype(LLJitMixin):
 
         assert interp_w() == 1
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_binarytree(self):
         self.run_file("binarytree.rkt")

@@ -159,6 +159,17 @@ class NilCont(BaseCont):
         from pycket.interpreter import Done
         raise Done(vals)
 
+class ReturnCont(BaseCont):
+    _attr_ = []
+
+    return_safe = True
+    def _clone(self):
+        return ReturnCont()
+
+    def plug_reduce(self, vals, env):
+        from pycket.interpreter import Done
+        raise Done(vals)
+
 def get_forward_mark(prev):
     # Cannot forward through continuation prompts or barriers, as they can delimit
     # the search for continuation marks.
