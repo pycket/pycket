@@ -18,9 +18,10 @@ def register_post_run_callback(callback):
 
 @register_post_run_callback
 def save_callgraph(config, env):
+    from pycket.env import w_global_config
     if config.get('save-callgraph', False):
         with open('callgraph.dot', 'w') as outfile:
-            env.callgraph.write_dot_file(outfile)
+            w_global_config.callgraph.write_dot_file(outfile)
 
 def make_entry_point(pycketconfig=None):
     from pycket.expand import JsonLoader, ModuleMap, PermException

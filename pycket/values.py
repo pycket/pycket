@@ -1629,6 +1629,7 @@ class W_Closure(W_Procedure):
         raise SchemeException("No matching arity in case-lambda")
 
     def call_with_extra_info(self, args, env, cont, calling_app):
+        from pycket.env import w_global_config
         env_structure = None
         if calling_app is not None:
             env_structure = calling_app.env_structure
@@ -1636,7 +1637,7 @@ class W_Closure(W_Procedure):
         jit.promote(env_structure)
         (actuals, frees, lam) = self._find_lam(args)
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
-            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
+            w_global_config.callgraph.register_call(lam, calling_app, cont, env)
         # specialize on the fact that often we end up executing in the
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
@@ -1685,6 +1686,7 @@ class W_Closure1AsEnv(ConsEnv):
         return caselam.get_arity()
 
     def call_with_extra_info(self, args, env, cont, calling_app):
+        from pycket.env import w_global_config
         env_structure = None
         if calling_app is not None:
             env_structure = calling_app.env_structure
@@ -1692,7 +1694,7 @@ class W_Closure1AsEnv(ConsEnv):
         jit.promote(env_structure)
         lam = self.caselam.lams[0]
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
-            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
+            w_global_config.callgraph.register_call(lam, calling_app, cont, env)
         actuals = lam.match_args(args)
         if actuals is None:
             lam.raise_nice_error(args)
