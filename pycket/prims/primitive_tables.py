@@ -524,6 +524,9 @@ pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug",
 schemify_hooks = ["variable-ref", "variable-ref/no-check",
                   "variable-set!/check-undefined", "variable-set!"]
 
+# The reason for make_primitive_table is for turning these into list
+# of symbols (to avoid making new objects everytime we look things up)
+
 place = make_primitive_table(place_str)
 paramz = make_primitive_table(paramz_str)
 internal = make_primitive_table(internal_str)
@@ -538,8 +541,6 @@ unsafe = make_primitive_table(unsafe_str)
 kernel = make_primitive_table(kernel_str)
 pycket = make_primitive_table(pycket_extra_str + schemify_hooks)
 
-
-
 select_prim_table = {W_Symbol.make("#%linklet"): linklet,
                      W_Symbol.make("#%kernel"): kernel,
                      W_Symbol.make("#%paramz"): paramz,
@@ -551,6 +552,9 @@ select_prim_table = {W_Symbol.make("#%linklet"): linklet,
                      W_Symbol.make("#%extfl"): extfl,
                      W_Symbol.make("#%pycket"): pycket,
                      W_Symbol.make("#%network"): network}
+
+# Lists of actual functions indexed by the names above
+prim_table_cache = {}
 
 all_prims = linklet_str + \
             kernel_str + \

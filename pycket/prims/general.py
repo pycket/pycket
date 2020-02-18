@@ -834,7 +834,7 @@ def current_gc_time():
     else:
         memory = 0
     return memory
-     
+
 @expose("time-apply", [procedure, values.W_List], simple=False, extra_info=True)
 def time_apply(a, args, env, cont, extra_call_info):
     initial = time.time()
@@ -1999,16 +1999,20 @@ def primitive_table(v):
     if v not in select_prim_table:
         return values.w_false
 
-    id_table = select_prim_table[v]
+    if v in prim_table_cache:
+        return prim_table_cache[v]
 
     expose_env = {}
-    for k,v in prim_env.iteritems():
-        if k in id_table:
-            expose_env[k] = v
+    for prim_name_sym in select_prim_table[v]:
+        if prim_name_sym in prim_env:
+            expose_env[prim_name_sym] = prim_env[prim_name_sym]
 
-    return make_simple_immutable_table(W_EqImmutableHashTable,
-                                       expose_env.keys(),
-                                       expose_env.values())
+    table = make_simple_immutable_table(W_EqImmutableHashTable,
+                                        expose_env.keys(),
+                                        expose_env.values())
+
+    prim_table_cache[v] = table
+    return table
 
 @expose("unquoted-printing-string", [values_string.W_String])
 def up_string(s):
