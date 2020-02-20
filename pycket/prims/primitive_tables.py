@@ -1,5 +1,5 @@
 from pycket.values import W_Symbol
-from pycket.prims.expose import define_nyi, prim_env
+from pycket.prims.expose import define_nyi, prim_env, expose
 
 DEBUG = False
 
@@ -106,7 +106,8 @@ linklet_str = ["linklet?", "compile-linklet", "recompile-linklet", "eval-linklet
                "linklet-bundle->hash", "variable-reference?", "variable-reference->instance", "variable-reference-constant?",
                "primitive-table", "variable-reference-from-unsafe?",
                "compiled-position->primitive", "linklet-virtual-machine-bytes",
-               "read-linklet-bundle-hash", "write-linklet-bundle-hash", "instance-describe-variable!"]
+               "read-linklet-bundle-hash", "write-linklet-bundle-hash", "instance-describe-variable!",
+               "primitive-lookup"]
 
 unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-list-ref", "unsafe-cons-list", "unsafe-fx+",

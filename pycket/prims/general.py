@@ -2128,3 +2128,7 @@ def thread_susp(p):
 @expose("make-channel", [])
 def make_channel():
     return values.W_Channel()
+
+@expose("primitive-lookup", [values.W_Symbol], simple=True)
+def primitive_lookup(sym):
+    return values.w_false
