@@ -11,7 +11,7 @@ expander-json: expander-sexp
 	racket linklet-sexp-to-json.rkt --output ../expander.rktl.linklet expander.rktl
 
 expander-sexp:
-	$(MAKE) -C $(EXPANDER_DIR) expander-src-generate
+	$(MAKE) -C $(EXPANDER_DIR) expander-src
 	cp $(EXPANDER_DIR)/compiled/expander.rktl .
 
 fasl: fasl-sexp
