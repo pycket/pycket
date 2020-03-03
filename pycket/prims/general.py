@@ -2131,4 +2131,4 @@ def make_channel():
 
 @expose("primitive-lookup", [values.W_Symbol], simple=True)
 def primitive_lookup(sym):
-    return values.w_false
+    return prim_env.get(sym, values.w_false)
