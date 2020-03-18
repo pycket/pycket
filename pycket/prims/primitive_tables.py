@@ -514,7 +514,7 @@ kernel_str = ["*", "+", "-",
               "syntax-property-symbol-keys",
               "current-compile-target-machine",
               "compile-target-machine?",
-              "sha1-bytes", "sha224-bytes", "sha256-bytes"]
+              "sha1-bytes", "sha224-bytes", "sha256-bytes", "meta-hint-change"]
 
 pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug",
                     "pycket:get-verbosity", "pycket:set-verbosity",

@@ -256,6 +256,20 @@ class __extend__(Context):
 
     @staticmethod
     @context
+    def NoAppRator(args, context, ast):
+        context = Context.NoAppRand(ast, context)
+        return Context.normalize_names(args, context)
+
+    @staticmethod
+    @context
+    def NoAppRand(rator, context, ast):
+        assert isinstance(ast, Context.AstList)
+        rands  = ast.nodes
+        result = NoApp(rator, rands[0], rands)
+        return context.plug(result)
+
+    @staticmethod
+    @context
     def Append(expr, context, ast):
         assert isinstance(ast, Context.AstList)
         ast = Context.AstList([expr] + ast.nodes)
@@ -1126,6 +1140,35 @@ class App(AST):
             port.write(" ")
             r.write(port, env)
         port.write(")")
+
+class NoApp(App):
+    _immutable_fields_ = ['meta_hint_rand']
+    visitable = True
+
+    def __init__(self, rator, meta_hint_rand, rands, env_structure=None):
+        App.__init__(self, rator, rands, env_structure)
+        self.rator = rator
+        self.rands = rands
+        self.env_structure = env_structure
+        self.meta_hint_rand = meta_hint_rand
+
+    def get_meta_hint(self):
+        return self.meta_hint_rand
+
+    def normalize(self, context):
+        context = Context.NoAppRator(self.rands, context)
+        return Context.normalize_name(self.rator, context, hint="NoAppRator")
+
+    @jit.unroll_safe
+    def interpret(self, env, cont):
+        args_w = [None] * (len(self.rands)-1)
+        for i, rand in enumerate(self.rands):
+            if i == 0: # the first rand is the meta-hint
+                continue
+            args_w[i-1] = rand.interpret_simple(env)
+        av = values.Values.make(args_w)
+        #import pdb;pdb.set_trace()
+        return return_multi_vals(av, env, cont)
 
 class SimplePrimApp1(App):
     _immutable_fields_ = ['w_prim', 'rand1']
@@ -2488,26 +2531,28 @@ class DefineValues(AST):
         self.rhs.write(port, env)
         port.write(")")
 
-def get_printable_location_two_state(green_ast, came_from):
+def get_printable_location_two_state(green_ast, came_from, meta_hint):
     if green_ast is None:
         return 'Green_Ast is None'
     surrounding = green_ast.surrounding_lambda
     if green_ast.should_enter:
-        return green_ast.tostring() + ' from ' + came_from.tostring()
+        return green_ast.tostring() + ' from ' + came_from.tostring() + ' meta ' + meta_hint.tostring()
     return green_ast.tostring()
 
 driver_two_state = jit.JitDriver(reds=["env", "cont"],
-                                 greens=["ast", "came_from"],
+                                 greens=["ast", "came_from", "meta_hint"],
                                  get_printable_location=get_printable_location_two_state,
                                  should_unroll_one_iteration=lambda *args : True,
                                  is_recursive=True)
 
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
+    meta_hint = Quote(values.w_false)
     config = env.pycketconfig()
     while True:
-        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, meta_hint=meta_hint, env=env, cont=cont)
         came_from = ast if isinstance(ast, App) else came_from
+        meta_hint = ast.get_meta_hint() if isinstance(ast, NoApp) else meta_hint
         t = type(ast)
         # Manual conditionals to force specialization in translation
         # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
@@ -2521,7 +2566,7 @@ def inner_interpret_two_state(ast, env, cont):
         else:
             ast, env, cont = ast.interpret(env, cont)
         if ast.should_enter:
-            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, meta_hint=meta_hint, env=env, cont=cont)
 
 def get_printable_location_one_state(green_ast ):
     if green_ast is None:

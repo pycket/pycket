@@ -1,6 +1,7 @@
 
 from pycket.interpreter import (
     App,
+    NoApp,
     Begin,
     Begin0,
     BeginForSyntax,
@@ -72,6 +73,13 @@ class ASTVisitor(object):
         rator = ast.rator.visit(self, *args)
         rands = [a.visit(self, *args) for a in ast.rands]
         return App.make(rator, rands, ast.env_structure)
+
+    @specialize.argtype(0)
+    def visit_no_app(self, ast, *args):
+        assert isinstance(ast, NoApp)
+        rator = ast.rator.visit(self, *args)
+        rands = [a.visit(self, *args) for a in ast.rands]
+        return NoApp(rator, ast.get_meta_hint(), rands, ast.env_structure)
 
     @specialize.argtype(0)
     def visit_begin0(self, ast, *args):
@@ -247,4 +255,3 @@ class CopyVisitor(ASTVisitor):
 def copy_ast(ast):
     visitor = CopyVisitor()
     return ast.visit(visitor)
-

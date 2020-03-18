@@ -282,6 +282,8 @@ var_set_mod_var = interp.ModuleVar(var_set_sym, "#%kernel", var_set_sym, None)
 
 known_mod_vars = {} # cache for kernel primitive ModuleVars
 
+meta_hint_change_sym = values.W_Symbol.make("1/meta-hint-change")
+
 def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref=[], name=""):
 
     #util.console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
@@ -457,6 +459,9 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
 
             rands_ls, rands_len = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for r in rands_ls]
+
+            if c is meta_hint_change_sym and rands_len >= 1:
+                return interp.NoApp(form_rator, rands[0], rands)
 
             return interp.App.make(form_rator, rands)
     else:

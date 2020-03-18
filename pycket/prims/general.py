@@ -2132,3 +2132,10 @@ def make_channel():
 @expose("primitive-lookup", [values.W_Symbol], simple=True)
 def primitive_lookup(sym):
     return prim_env.get(sym, values.w_false)
+
+@expose("meta-hint-change", [values.W_Object])
+def meta_hint_change(obj):
+    # Should Never Be Called
+    # Either meta-hint-change app is not registered as a NoApp AST
+    # Or NoApp interpret is not an identity function
+    raise SchemeException("meta-hint-change -- who is calling this?")
