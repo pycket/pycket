@@ -1,6 +1,8 @@
 
 from pycket.interpreter import (
     App,
+    NoApp,
+    PartialApp,
     Begin,
     Begin0,
     BeginForSyntax,
@@ -73,6 +75,20 @@ class ASTVisitor(object):
         rands = [a.visit(self, *args) for a in ast.rands]
         return App.make(rator, rands, ast.env_structure)
 
+    @specialize.argtype(0)
+    def visit_no_app(self, ast, *args):
+        assert isinstance(ast, NoApp)
+        rator = ast.rator.visit(self, *args)
+        rands = [a.visit(self, *args) for a in ast.rands]
+        return NoApp(rator, ast.get_meta_hint(), rands, ast.env_structure)
+
+    @specialize.argtype(0)
+    def visit_partial_app(self, ast, *args):
+        assert isinstance(ast, PartialApp)
+        rator = ast.rator.visit(self, *args)
+        rands = [a.visit(self, *args) for a in ast.rands]
+        return PartialApp(ast.get_var_name(), ast.get_var_val(), ast.get_safe_ops(), ast.get_unsafe_ops(), rator, rands, ast.env_structure)
+    
     @specialize.argtype(0)
     def visit_begin0(self, ast, *args):
         assert isinstance(ast, Begin0)

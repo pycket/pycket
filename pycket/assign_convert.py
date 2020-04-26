@@ -3,6 +3,8 @@ from pycket.ast_visitor import ASTVisitor
 from pycket.env         import SymList
 from pycket.interpreter import (
     App,
+    NoApp,
+    PartialApp,
     Begin,
     Begin0,
     BeginForSyntax,
@@ -91,6 +93,19 @@ class AssignConvertVisitor(ASTVisitor):
         rator = ast.rator.visit(self, vars, env_structure)
         rands = [r.visit(self, vars, env_structure) for r in ast.rands]
         return App.make(rator, rands, env_structure)
+
+    def visit_no_app(self, ast, vars, env_structure):
+        #import pdb;pdb.set_trace()
+        assert isinstance(ast, NoApp)
+        rator = ast.rator.visit(self, vars, env_structure)
+        rands = [r.visit(self, vars, env_structure) for r in ast.rands]
+        return NoApp(rator, ast.get_meta_hint(), rands, env_structure)
+
+    def visit_partial_app(self, ast, vars, env_structure):
+        assert isinstance(ast, PartialApp)
+        rator = ast.rator.visit(self, vars, env_structure)
+        rands = [r.visit(self, vars, env_structure) for r in ast.rands]
+        return PartialApp(ast.get_var_name(), ast.get_var_val(), ast.get_safe_ops(), ast.get_unsafe_ops(), rator, rands, ast.env_structure)
 
     def visit_lambda(self, ast, vars, env_structure):
         assert isinstance(ast, Lambda)

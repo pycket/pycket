@@ -221,6 +221,8 @@ class W_Linklet(W_Object):
         for group_index, import_group in enumerate(self.importss):
             for imp in import_group:
                 w_imp_var = import_instances_ls[group_index].get_var(imp.ext_id)
+                # if "reverse" in imp.id.tostring():
+                #     import pdb;pdb.set_trace()
                 env.toplevel_env().toplevel_set(imp.id, w_imp_var)
 
         return_val = True

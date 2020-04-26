@@ -240,6 +240,7 @@ def is_val_type(form, extra=[]):
     val_types = [values.W_Number,
                  values.W_Void,
                  values.W_Bool,
+                 values.W_Null,
                  values_string.W_String,
                  values.W_ImmutableBytes,
                  values.W_Character] + extra
@@ -282,6 +283,9 @@ var_set_mod_var = interp.ModuleVar(var_set_sym, "#%kernel", var_set_sym, None)
 
 known_mod_vars = {} # cache for kernel primitive ModuleVars
 
+meta_hint_change_sym = values.W_Symbol.make("1/meta-hint-change")
+partial_eval_sym = values.W_Symbol.make("1/pycket:pe")
+
 def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref=[], name=""):
 
     #util.console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
@@ -289,6 +293,8 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         return sexp_to_ast(form.get_obj(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
     elif is_val_type(form):
         return interp.Quote(form)
+    elif isinstance(form, values.W_PartialValue):
+        return sexp_to_ast(form.get_obj(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
     elif isinstance(form, values.W_Symbol):
         if form in cell_ref:
             return interp.CellRef(form)
@@ -453,10 +459,18 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             els = sexp_to_ast(els_w, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
             return interp.If.make(tst, thn, els)
         else:
-            form_rator = sexp_to_ast(c, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref)
-
             rands_ls, rands_len = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for r in rands_ls]
+            if c is partial_eval_sym and rands_len >= 3: # FIXME: refactor this
+                safe_ops_sexp = form.cdr().cdr().cdr().car()
+                unsafe_ops_sexp = form.cdr().cdr().cdr().cdr().car()
+                #assert isinstance(rands[2], interp.App) and isinstance(rands[3], interp.Quote)
+                safe_op_ls, safe_op_len = to_rpython_list(safe_ops_sexp)
+                unsafe_op_ls, unsafe_op_len = to_rpython_list(unsafe_ops_sexp)
+
+                return interp.PartialApp(rands[0], rands[1], [x.tostring() for x in safe_op_ls], [x.tostring() for x in unsafe_op_ls], rands[4], rands[5:])
+
+            form_rator = sexp_to_ast(c, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref)
 
             return interp.App.make(form_rator, rands)
     else:
@@ -625,7 +639,7 @@ def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
     all_toplevels = get_toplevel_defined_ids(body_forms_ls)
     variable_set_lines = 0
     for d in all_toplevels:
-        if d in exports:
+        if d in exports and d not in mutated:
             variable_set_lines += 1
     # for each exported defined id, we need to add a variable-set! for
     # the exported var with the defined id
@@ -642,18 +656,52 @@ def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
                 b_form = interp.Context.normalize_term(b_form)
         with PerfRegion("compile-assign-convert"):
             b_form = assign_convert(b_form)
-        body_forms[current_index+added] = b_form
-        current_index += 1
+        # body_forms[current_index+added] = b_form
+        # current_index += 1
         if isinstance(b_form, interp.DefineValues):
-            for n in b_form.names:
+            if len(b_form.names) > 1:
+                body_forms[current_index] = b_form
+                current_index += 1
+                for n in b_form.names:
+                    if n in exports:
+                        exp_var = interp.LinkletVar(exports[n].int_id)
+                        top_var = interp.ToplevelVar(n, is_free=False)
+                        mode = interp.Quote(values.w_false) # FIXME: possible optimization
+                        rands = [exp_var, top_var, mode]
+                        body_forms[current_index] = interp.App.make(var_set_mod_var,rands)
+                        current_index += 1
+            elif len(b_form.names) == 1:
+                n = b_form.names[0]
                 if n in exports:
-                    rator = interp.ModuleVar(var_set_sym, "#%kernel", var_set_sym, None)
-                    exp_var = interp.LinkletVar(exports[n].int_id)
-                    top_var = interp.ToplevelVar(n, is_free=False)
-                    mode = interp.Quote(values.w_false) # FIXME: possible optimization
-                    rands = [exp_var, top_var, mode]
-                    body_forms[current_index+added] = interp.App.make(rator,rands)
-                    added += 1
+                    if n not in mutated: # toplevel defined, exported, non-mutated
+                        body_forms[current_index] = b_form
+                        current_index += 1
+                        rator = var_set_mod_var
+                        exp_var = interp.LinkletVar(exports[n].int_id)
+                        top_var = interp.ToplevelVar(n, is_free=False)
+                        mode = interp.Quote(values.w_false) # FIXME: possible optimization
+                        rands = [exp_var, top_var, mode]
+                        body_forms[current_index] = interp.App.make(rator,rands)
+                        current_index += 1
+                    else:
+                        # current_index += 1 # skip/delete the define-values form
+                        # go straight into variable-set! the gensymed variable
+                        # since we're sure that the define-value'd var is never gonna be used
+                        # (because it's set!ed, the linklet variable is gonna be used)
+                        rator = var_set_mod_var
+                        exp_var = interp.LinkletVar(exports[n].int_id)
+                        mode = interp.Quote(values.w_false)
+                        rands = [exp_var, b_form.rhs, mode]
+                        body_forms[current_index] = interp.App.make(rator, rands)
+                        current_index += 1
+                else: # n not in exports
+                    body_forms[current_index] = b_form
+                    current_index += 1
+            else:
+                raise SchemeException("whaa?")
+        else:
+            body_forms[current_index] = b_form
+            current_index += 1
 
     return body_forms
 

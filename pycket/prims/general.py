@@ -2064,7 +2064,7 @@ def report_undefined_prims():
 
 addr_sym = values.W_Symbol.make("mem-address")
 
-@expose("pycket:print", [values.W_Object, default(values.W_Symbol, addr_sym)])
+@expose("pycket:print", [values.W_Object, default(values.W_Symbol, values.W_Symbol.make("g"))])
 def pycket_print(o, sym):
     from pycket.util import console_log
     if sym is addr_sym:
@@ -2132,3 +2132,17 @@ def make_channel():
 @expose("primitive-lookup", [values.W_Symbol], simple=True)
 def primitive_lookup(sym):
     return prim_env.get(sym, values.w_false)
+
+@expose("meta-hint-change", [values.W_Object])
+def meta_hint_change(obj):
+    # Should Never Be Called
+    # Either meta-hint-change app is not registered as a NoApp AST
+    # Or NoApp interpret is not an identity function
+    raise SchemeException("meta-hint-change -- who is calling this?")
+
+@expose("pycket:pe", [values.W_Object, values.W_Object, values.W_Object, values.W_Object, values.W_Object])
+def pycket_partial_eval(stat_var_name, stat_var_val, actual_app_rator, actual_app_rand_dummy1, actual_app_rand_dummy2):
+    # Should Never Be Called
+    # Either meta-hint-change app is not registered as a NoApp AST
+    # Or NoApp interpret is not an identity function
+    raise SchemeException("pycket:pe -- who is calling this?")

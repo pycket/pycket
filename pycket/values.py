@@ -263,6 +263,18 @@ class W_ContinuationMarkKey(W_Object):
     def tostring(self):
         return "#<continuation-mark-name>"
 
+class W_PartialValue(W_Object):
+    errorname = "partial-value"
+    _attrs_ = _immutable_fields_ = ['obj']
+    def __init__(self, obj):
+        self.obj = obj
+
+    def get_obj(self):
+        return self.obj
+
+    def tostring(self):
+        return self.obj.tostring()
+
 class W_VariableReference(W_Object):
     errorname = "variable-reference"
     _attrs_ = _immutable_fields_ = ['varref', 'linklet_instance']
@@ -1351,6 +1363,8 @@ class W_Procedure(W_Object):
         return self.call_with_extra_info(args, env, cont, None)
     def call_with_extra_info(self, args, env, cont, app):
         return self.call(args, env, cont)
+    def get_sexp_repr(self):
+        return w_null
     def tostring(self):
         return "#<procedure>"
 
@@ -1392,7 +1406,7 @@ class W_ThunkProcCMK(W_Procedure):
 class W_Prim(W_Procedure):
     from pycket.arity import Arity
 
-    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "is_nyi"]
+    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "is_nyi", "native_func"]
 
     def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, is_nyi=False):
         from pycket.arity import Arity
@@ -1417,6 +1431,47 @@ class W_Prim(W_Procedure):
     def get_result_arity(self):
         return self.result_arity
 
+    # rand_names -> [W_Symbol]
+    # args -> [W_Object] values
+    def call_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
+        from pycket.interpreter import return_value_direct
+        safe = False
+        if self.name.tostring() in safe_ops_ls_str:
+            safe = True
+
+        w_result = None
+        if emit_ast and (not safe): # we know one of the arguments is the static variable
+            # we can either inline the value of the static variable
+            return return_value_direct(W_PartialValue(to_list([self.name] + args)), env, cont)
+            # or we can emit a variable for it (the value is gonna be in the environment when this gets evaluated)
+            #
+            # args_ls = [None]*len(args)
+            # i = 0
+            # for r_sym in rand_names: # can be optimized by passing the index of the static var
+            #     if s_var_name_str in r_sym.tostring():
+            #         args_ls[i] = r_sym
+            #     else:
+            #         args_ls[i] = args[i]
+            # self.name
+
+        # elif emit_ast and safe:
+        #     w_args = [None]*len(args)
+        #     for i,a in enumerate(args):
+        #         if isinstance(a, W_PartialValue):
+        #             w_args[i] = a.get_obj()
+        #         else:
+        #             w_args[i] = a
+        #     w_result = self.native_func(w_args)
+        # else:
+        #     w_result = self.native_func(args)
+
+        # emitting_ast = emit_ast and (not safe)
+        # if isinstance(w_result, W_WrappedConsProper) and emitting_ast:
+        #     w_result = W_Cons.make(W_Symbol.make("list"), w_result)
+        # return w_result, emitting_ast
+
+        return self.code(args, env, cont, calling_app)
+
     def call_with_extra_info(self, args, env, cont, extra_call_info):
         # from pycket.util import active_log
         ## logging here is useful for debugging, but it's very expensive to keep it uncommented
@@ -1426,6 +1481,13 @@ class W_Prim(W_Procedure):
 
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
+
+class W_PrimPartial(W_Prim):
+    from pycket.arity import Arity
+
+    def call_prim_partial(self, s_var_name_str, safe_ops_ls_str, env):
+        """ overridden by the generated subclasses in expose.py"""
+        raise NotImplementedError("abstract base class")
 
 class W_PrimSimple1(W_Prim):
     from pycket.arity import Arity
@@ -1592,6 +1654,9 @@ class W_Closure(W_Procedure):
     def enable_jitting(self):
         self.caselam.enable_jitting()
 
+    def get_sexp_repr(self):
+        return self.caselam.sexp_as_closure()
+
     def tostring(self):
         return self.caselam.tostring_as_closure()
 
@@ -1627,6 +1692,42 @@ class W_Closure(W_Procedure):
             single_lambda = self.caselam.lams[0]
             single_lambda.raise_nice_error(args)
         raise SchemeException("No matching arity in case-lambda")
+
+    def call_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
+        from pycket.env import ConsEnv
+        (actuals, closure_env, lam) = self._find_lam(args)
+
+        # args_len = len(args)
+        # env = closure_env
+        # if args_len == 1:
+        #     env = ConsEnv.make1(actuals[0], closure_env)
+        # elif args_len == 2:
+        #     env = ConsEnv.make2(actuals[0], actuals[1], closure_env)
+        # elif args_len > 2:
+        #     env = ConsEnv.make(actuals, closure_env)
+
+        # w_body_result, is_partial = lam.interpret_partial_body(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+
+        # w_result = None
+        # if is_partial:
+        #     # emit the application with the reconstructed lambda
+        #     lam_sym = W_Symbol.make("lambda")
+        #     formals_sym = to_list(lam.formals)
+        #     re_lam = to_list([lam_sym, formals_sym, w_body_result])
+        #     w_app_ast = to_list([re_lam]+actuals)
+        #     w_result = W_PartialValue(w_app_ast)
+        # else:
+        #     w_result = w_body_result
+
+        # return w_result, is_partial
+        #return w_body_result, is_partial
+        env_structure = None
+        if calling_app is not None:
+            env_structure = calling_app.env_structure
+
+        prev = lam.env_structure.prev.find_env_in_chain_speculate(closure_env, env_structure, env)
+        return lam.make_begin_cont(ConsEnv.make(actuals, prev), cont)
+
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.env import w_global_config
@@ -1676,6 +1777,9 @@ class W_Closure1AsEnv(ConsEnv):
     def immutable(self):
         return True
 
+    def get_sexp_repr(self):
+        return self.caselam.sexp_as_closure()
+
     def tostring(self):
         return self.caselam.tostring_as_closure()
 
@@ -1684,6 +1788,42 @@ class W_Closure1AsEnv(ConsEnv):
         if promote:
             caselam = jit.promote(caselam)
         return caselam.get_arity()
+
+    def call_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
+        from pycket.env import ConsEnv
+        env_structure = None
+        if calling_app is not None:
+            env_structure = calling_app.env_structure
+        
+        lam = self.caselam.lams[0]
+        actuals = lam.match_args(args)
+
+        # args_len = len(args)
+        # env = self
+        # if args_len == 1:
+        #     env = ConsEnv.make1(actuals[0], env)
+        # elif args_len == 2:
+        #     env = ConsEnv.make2(actuals[0], actuals[1], env)
+        # elif args_len > 2:
+        #     env = ConsEnv.make(actuals, env)
+
+        # w_body_result, is_partial = lam.interpret_partial_body(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+
+        # w_result = None
+        # if is_partial:
+        #     # emit the application with the reconstructed lambda
+        #     lam_sym = W_Symbol.make("lambda")
+        #     formals_sym = to_list(lam.formals)
+        #     re_lam = to_list([lam_sym, formals_sym, w_body_result])
+        #     w_app_ast = to_list([re_lam]+actuals)
+        #     w_result = W_PartialValue(w_app_ast)
+        # else:
+        #     w_result = w_body_result
+
+        ## return w_body_result, is_partial
+
+        prev = lam.env_structure.prev.find_env_in_chain_speculate(self, env_structure, env)
+        return lam.make_begin_cont(ConsEnv.make(actuals, prev), cont)
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.env import w_global_config
@@ -1750,6 +1890,9 @@ class W_PromotableClosure(W_Procedure):
         envs = [toplevel_env] * len(caselam.lams)
         self.closure = W_Closure._make(envs, caselam, toplevel_env)
         self.arity   = caselam._arity
+
+    def get_sexp_repr(self):
+        return self.closure.get_sexp_repr()
 
     def enable_jitting(self):
         self.closure.enable_jitting()
@@ -2202,7 +2345,7 @@ class W_SecurityGuard(W_Object):
 
     def __init__(self):
         pass
-    
+
 class W_Channel(W_Object):
     errorname = "channel"
     def __init__(self):
