@@ -521,7 +521,13 @@ class IfPartialCont(Cont):
             self.thn_val = thn_els_val
             return self.els, self.env, self
         if_sym = values.W_Symbol.make("if")
-        w_val = values.W_PartialValue(values.to_list([if_sym, self.w_tst_val, self.thn_val, thn_els_val]))
+        if self.thn_val is values.w_true and thn_els_val is values.w_false:
+            value = self.w_tst_val
+        elif self.thn_val is values.w_false and thn_els_val is values.w_true:
+            value = values.to_list([values.W_Symbol.make("not"), self.w_tst_val])
+        else:
+            value = values.to_list([if_sym, self.w_tst_val, self.thn_val, thn_els_val])
+        w_val = values.W_PartialValue(value)
         return return_value_direct(w_val, self.env, self.prev)
 
 class CellCont(Cont):
