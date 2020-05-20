@@ -1442,6 +1442,8 @@ class W_Prim(W_Procedure):
         w_result = None
         if emit_ast and (not safe): # we know one of the arguments is the static variable
             # we can either inline the value of the static variable
+            if "values" in self.name.tostring() and len(args) == 1:
+                return return_value_direct(W_PartialValue(args[0]), env, cont)
             return return_value_direct(W_PartialValue(to_list([self.name] + args)), env, cont)
             # or we can emit a variable for it (the value is gonna be in the environment when this gets evaluated)
             #
