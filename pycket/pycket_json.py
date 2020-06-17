@@ -219,7 +219,8 @@ class FakeSpace(object):
 
 fakespace = FakeSpace()
 
-from pypy.module._pypyjson.interp_decoder import JSONDecoder
+#from pypy.module._pypyjson.interp_decoder import JSONDecoder
+from pycket.interp_decoder import JSONDecoder
 
 class OwnJSONDecoder(JSONDecoder):
     def __init__(self, s):
