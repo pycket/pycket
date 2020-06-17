@@ -844,6 +844,40 @@ def time_apply(a, args, env, cont, extra_call_info):
                                    env, time_apply_cont(initial, initial_user, initial_gc, env, cont),
                                    extra_call_info)
 
+
+@continuation
+def pycket_time_apply_cont(initial, initial_user, initial_gc, env, cont, vals):
+    from pycket.interpreter import return_multi_vals
+    from pycket.util import console_log
+
+    #ms_residual_cpu, ms_residual_gc, ms_residual_real = w_global_config.get_time_residual()
+    #console_log("-- RESIDUAL : CPU : %s - REAL : %s - GC : %s" % (ms_residual_cpu, ms_residual_real, ms_residual_gc), debug=True)
+
+    final = time.time()
+    final_gc = current_gc_time()
+    final_user = time.clock()
+    ms = int((final - initial) * 1000)
+    ms_gc = int((final_gc - initial_gc))
+    ms_user = int((final_user - initial_user) * 1000)
+
+    console_log("-- OVERALL : cpu time : %s - real time : %s - gc time : %s" % (ms, ms_user, ms_gc), debug=True)
+    ms_PE_cpu, ms_PE_gc, ms_PE_real = w_global_config.get_time_pe_overhead()
+    console_log("-- PE OVERHEAD : CPU : %s - REAL : %s - GC : %s" % (ms_PE_cpu, ms_PE_real, ms_PE_gc), debug=True)
+    w_global_config.reset_times()
+
+    return return_multi_vals(vals, env, cont)
+
+@expose("pycket:time-apply", [procedure], simple=False, extra_info=True)
+def pycket_time(a, env, cont, extra_call_info):
+    initial = time.time()
+    initial_user = time.clock()
+    initial_gc = current_gc_time()
+
+    return a.call_with_extra_info([], env,
+                                  pycket_time_apply_cont(initial, initial_user, initial_gc, env, cont),
+                                  extra_call_info)
+
+
 @expose("apply", simple=False, extra_info=True)
 def apply(args, env, cont, extra_call_info):
     if len(args) < 2:

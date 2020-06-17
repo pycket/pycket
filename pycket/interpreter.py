@@ -432,6 +432,7 @@ class LetCont(Cont):
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len_vals:
+            #import pdb;pdb.set_trace()
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
@@ -515,7 +516,7 @@ class IfPartialCont(Cont):
     def _clone(self):
         return IfPartialCont(self.w_tst_val, self.thn, self.els, self.env, self.prev)
 
-    def plug_reduce(self, vals, env):        
+    def plug_reduce(self, vals, env):
         thn_els_val = check_one_val(vals)
         if self.thn_val is None:
             self.thn_val = thn_els_val
@@ -557,7 +558,7 @@ class CellCont(Cont):
 class BeginPartialCont(Cont):
     _immutable_fields_ = ["counting_ast"]
     _attrs_ = ["counting_ast", "is_partial"]
-    
+
     return_safe = True
     def __init__(self, counting_ast, env, prev, is_partial=False):
         Cont.__init__(self, env, prev)
@@ -580,11 +581,11 @@ class BeginPartialCont(Cont):
             for v in w_vals:
                 if isinstance(v, values.W_PartialValue):
                     self.is_partial = True
-                
+
         ast, i = self.counting_ast.unpack(SequencedBodyAST)
         return ast.make_begin_partial_cont(self.env, self.prev, self.is_partial, i)
 
-    
+
 class BeginCont(Cont):
     _attrs_ = _immutable_fields_ = ["counting_ast"]
     return_safe = True
@@ -1280,6 +1281,37 @@ class App(AST):
             r.write(port, env)
         port.write(")")
 
+class PartialCont(Cont):
+    _immutable_fields_ = _attrs_ = ['t_res', 't_res_gc', 't_res_user']
+
+    def __init__(self, t_res, t_res_gc, t_res_user, env, prev):
+        Cont.__init__(self, env, prev)
+        self.t_res = t_res
+        self.t_res_gc = t_res_gc
+        self.t_res_user = t_res_user
+
+    def _clone(self):
+        return PartialCont(self.t_res, self.t_res_gc, self.t_res_user,
+                           self.env, self.prev)
+
+    def plug_reduce(self, vals, env):
+        from pycket.prims.general import current_gc_time
+        from pycket.util import console_log
+        import time
+        from pycket.env import w_global_config
+
+        final = time.time()
+        final_gc = current_gc_time()
+        final_user = time.clock()
+        ms = int((final - self.t_res) * 1000)
+        ms_gc = int((final_gc - self.t_res_gc) * 1000)
+        ms_user = int((final_user - self.t_res_user) * 1000)
+        vals_w = vals.get_all_values()
+        w_global_config.add_residual(ms, ms_gc, ms_user)
+        #console_log("Residual Took: CPU : %s - REAL : %s - GC : %s" % (ms.tostring(), ms_gc.tostring(), ms_user.tostring()), debug=True)
+        return return_multi_vals(vals, self.env, self.prev)
+
+
 class PartialApp(App):
     _immutable_fields_ = ['s_var_name', 's_var_val', 'safe_ops_ls_str[*]', 'unsafe_ops_ls_str[*]']
     visitable = True
@@ -1308,9 +1340,14 @@ class PartialApp(App):
                                           self.rator, self.rands, context)
         return Context.normalize_name(self.rator, context, hint="PartialAppRator")
 
+    @jit.dont_look_inside
     def interpret(self, env, cont):
         from pycket.ast_vs_sexp import sexp_to_ast
         from pycket.assign_convert import assign_convert
+        import time
+        from pycket.prims.general import current_gc_time
+        from pycket.util import console_log
+        from pycket.env import w_global_config
 
         ast = App.make(self.rator, self.rands, self.env_structure)
         cont_p = NilCont()
@@ -1319,6 +1356,9 @@ class PartialApp(App):
         emit_ast = False
         #import pdb;pdb.set_trace()
         new_w_callable_ast = None
+        time_init_p = time.time()
+        time_init_p_gc = current_gc_time()
+        time_init_p_user = time.clock()
         try:
             while True:
                 ast, env_p, cont_p = ast.interpret_partial(s_var_name_str, self.safe_ops_ls_str, self.unsafe_ops_ls_str, env_p, cont_p)
@@ -1326,14 +1366,14 @@ class PartialApp(App):
             new_w_callable_ast = e.values
 
         assert new_w_callable_ast is not None
-                
+
         # ASSUMPTION: static_var_val is simple
         # w_static_var_val = self.s_var_val.interpret_simple(env)
         # # partially evaluate rator and emit a *new* w_callable (AST)
         # w_callable = self.rator.interpret_simple(env)
         # args_w = [None] * len(self.rands)
         # emit_ast = False
-        
+
         # for i, rand in enumerate(self.rands):
         #     args_w[i] = rand.interpret_simple(env)
         #     if s_var_name_str in rand.tostring() or isinstance(args_w[i], values.W_PartialValue):
@@ -1354,9 +1394,26 @@ class PartialApp(App):
         b_form = sexp_to_ast(new_w_callable_ast, [], {}, {}, [], {})
         b_form_1 = Context.normalize_term(b_form)
         b_form_2 = assign_convert(b_form_1)
+
         #import pdb;pdb.set_trace()
 
-        return b_form_2, env, cont
+        time_after_p = time.time()
+        time_after_p_gc = current_gc_time()
+        time_after_p_user = time.clock()
+
+        #import pdb;pdb.set_trace()
+        p_diff = int((time_after_p - time_init_p) * 1000)
+        p_diff_gc = int((time_after_p_gc - time_init_p_gc))
+        p_diff_user = int((time_after_p_user - time_init_p_user) * 1000)
+
+        w_global_config.add_pe_overhead(p_diff, p_diff_gc, p_diff_user)
+        #console_log("PE OVERHEAD : CPU : %s - REAL : %s - GC : %s" % (p_diff, p_diff_user, p_diff_gc), debug=True)
+        #import pdb;pdb.set_trace()
+
+        # return b_form_2, env.toplevel_env(), PartialCont(time_after_p,
+        #                                                  time_after_p_gc,
+        #                                                  time_after_p_user, env, cont)
+        return b_form_2, env.toplevel_env(), cont
 
 class NoApp(App):
     _immutable_fields_ = ['meta_hint_rand']
@@ -1415,6 +1472,8 @@ class SimplePrimApp1(App):
     #     return self.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
     def interpret_simple_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+        # if "variable-ref/no-check" in self.tostring():
+        #     import pdb;pdb.set_trace()
         safe = False # if safe, we can compute even if we have a W_PartialValue
         if self.rator.tostring() in safe_ops_ls_str:
             safe = True
@@ -1618,7 +1677,7 @@ class SequencedBodyAST(AST):
             new_env = self._prune_sequenced_envs(env, i + 1)
             return self.body[i], env, BeginPartialCont(
                     self.counting_asts[i + 1], new_env, prev, is_partial)
-    
+
     @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
@@ -1798,9 +1857,13 @@ class Var(AST):
     def interpret_simple_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
         partial = False
         w_val = self.interpret_simple(env)
+        #import pdb;pdb.set_trace()
+        #w_val = self.sym
         if s_var_name_str in self.sym.variable_name() or isinstance(w_val, values.W_PartialValue):
             partial = True
+
         return w_val, partial
+        #return self.sym, partial
 
     def direct_children(self):
         return []
@@ -2091,7 +2154,7 @@ class If(AST):
             return self.els, env, cont
         else:
             return self.thn, env, cont
-        
+
     def interpret_partial_old(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
         w_val, is_partial = self.tst.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
         if is_partial:
@@ -2762,8 +2825,8 @@ class Let(SequencedBodyAST):
     def interpret_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
         env = self._prune_env(env, 0)
         return self.rhss[0], env, LetCont.make(
-                None, self, 0, env, cont)        
-    
+                None, self, 0, env, cont)
+
     def interpret_partial_old(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
         args_len = len(self.args.elems)
         w_new_rhss = [None] * args_len
@@ -2821,7 +2884,7 @@ class Let(SequencedBodyAST):
 
         # #print("LET : %s\n" % self.tostring())
         # return w_result, emit_ast_rhs or _is_partial_body
-        
+
         if _is_partial_body and (not isinstance(w_body_result, values.W_PartialValue)):
             #import pdb;pdb.set_trace()
             raise SchemeException("let interpret_partial, is_partial_body is true but w_body_result is not W_PartialValue")
