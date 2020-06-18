@@ -217,6 +217,9 @@ class GlobalConfig(object):
         assert isinstance(ast, Module)
         self.config = ast.config.copy()
 
+    def reset_callgraph(self):
+        self.callgraph = CallGraph()
+
 w_global_config = GlobalConfig()
 
 class Env(W_Object):
