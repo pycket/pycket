@@ -219,7 +219,16 @@ def unsafe_struct_star_ref(v, k):
     return v._ref(k.value)
 
 @expose("unsafe-struct*-set!", [values_struct.W_Struct, unsafe(values.W_Fixnum),
-    values.W_Object])
+                                values.W_Object])
 def unsafe_struct_star_set(v, k, val):
     assert 0 <= k.value <= v.struct_type().total_field_count
     return v._set(k.value, val)
+
+@expose("unsafe-struct*-cas!", [values_struct.W_Struct, unsafe(values.W_Fixnum),
+                                values.W_Object, values.W_Object])
+def unsafe_struct_star_cas(v, k, old_val, new_val):
+    assert 0 <= k.value <= v.struct_type().total_field_count
+    if v._ref(k.value) is old_val:
+        v._set(k.value, new_val)
+        return values.w_true
+    return values.w_false

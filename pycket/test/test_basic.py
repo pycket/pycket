@@ -565,6 +565,7 @@ def test_callgraph_reconstruction():
     from pycket.expand    import expand_string, parse_module
     from pycket           import config
     from pycket.callgraph import LOOP_PARTICIPANT, LOOP_HEADER
+    from pycket.env       import w_global_config as conf
     str = """
         #lang pycket
         (define (f x) (g (+ x 1)))
@@ -573,7 +574,7 @@ def test_callgraph_reconstruction():
         (f 5)
         (f -1)
         """
-
+    conf.reset_callgraph()
     ast = parse_module(expand_string(str))
     env = ToplevelEnv(config.get_testing_config(**{"pycket.callgraph":True}))
     m = interpret_module(ast, env)
@@ -581,7 +582,7 @@ def test_callgraph_reconstruction():
     g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
     h = m.defs[W_Symbol.make("h")].closure.caselam.lams[0]
 
-    assert env.callgraph.calls == {f: {g: None}, g: {h: None, g: None}}
+    assert conf.callgraph.calls == {f: {g: None}, g: {h: None, g: None}}
     assert g.body[0].should_enter
 
     str = """
@@ -592,6 +593,8 @@ def test_callgraph_reconstruction():
         (g 0)
         """
 
+    conf.reset_callgraph()
+
     ast = parse_module(expand_string(str))
     env = ToplevelEnv(config.get_testing_config(**{"pycket.callgraph":True}))
     m = interpret_module(ast, env)
@@ -599,14 +602,16 @@ def test_callgraph_reconstruction():
     g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
     h = m.defs[W_Symbol.make("h")].closure.caselam.lams[0]
 
-    assert env.callgraph.calls == {f: {g: None}, g: {h: None, f: None}}
-    assert (env.callgraph.recursive == {f: LOOP_HEADER, g: LOOP_PARTICIPANT} or
-            env.callgraph.recursive == {f: LOOP_PARTICIPANT, g: LOOP_HEADER})
+    assert conf.callgraph.calls == {f: {g: None}, g: {h: None, f: None}}
+    assert (conf.callgraph.recursive == {f: LOOP_HEADER, g: LOOP_PARTICIPANT} or
+            conf.callgraph.recursive == {f: LOOP_PARTICIPANT, g: LOOP_HEADER})
     assert g.body[0].should_enter or f.body[0].should_enter
+    conf.reset_callgraph()
 
 def test_callgraph_reconstruction_through_primitives():
     from pycket.expand import expand_string, parse_module
     from pycket        import config
+    from pycket.env    import w_global_config as conf
     str = """
         #lang pycket
         (define (f k) (k (apply h '(5))))
@@ -622,11 +627,13 @@ def test_callgraph_reconstruction_through_primitives():
     g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
     h = m.defs[W_Symbol.make("h")].closure.caselam.lams[0]
 
-    assert env.callgraph.calls == {g: {f: None}, f: {h: None}}
+    assert conf.callgraph.calls == {g: {f: None}, f: {h: None}}
+    conf.reset_callgraph()
 
 def test_should_enter_downrecursion():
     from pycket.expand import expand_string, parse_module
     from pycket        import config
+    from pycket.env    import w_global_config as conf
     str = """
         #lang pycket
 
@@ -646,14 +653,14 @@ def test_should_enter_downrecursion():
                (lambda (x) (f (fn-1 x))))]))
         (n->f 10)
     """
-
+    conf.reset_callgraph()
     ast = parse_module(expand_string(str))
     env = ToplevelEnv(config.get_testing_config(**{"pycket.callgraph":True}))
     m = interpret_module(ast, env)
     append = m.defs[W_Symbol.make("append")].closure.caselam.lams[0]
     f = m.defs[W_Symbol.make("n->f")].closure.caselam.lams[0]
 
-    assert env.callgraph.calls == {append: {append: None}, f: {f: None}}
+    assert conf.callgraph.calls == {append: {append: None}, f: {f: None}}
 
     assert append.body[0].should_enter
     # This is long to account for let conversion
@@ -661,6 +668,7 @@ def test_should_enter_downrecursion():
 
     assert f.body[0].should_enter
     assert f.body[0].els.body[0].body[0].should_enter
+    conf.reset_callgraph()
 
 @pytest.mark.skipif(pytest.config.new_pycket, reason="require")
 def test_reader_graph(doctest):

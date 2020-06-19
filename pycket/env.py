@@ -251,6 +251,9 @@ class GlobalConfig(object):
     def get_time_residual(self):
         return self.residual_time
 
+    def reset_callgraph(self):
+        self.callgraph = CallGraph()
+
 w_global_config = GlobalConfig()
 
 class Env(W_Object):
