@@ -1695,7 +1695,7 @@ class W_Closure(W_Procedure):
             single_lambda.raise_nice_error(args)
         raise SchemeException("No matching arity in case-lambda")
 
-    def call_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
+    def call_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
         from pycket.env import ConsEnv
         (actuals, closure_env, lam) = self._find_lam(args)
 
@@ -1708,7 +1708,7 @@ class W_Closure(W_Procedure):
         # elif args_len > 2:
         #     env = ConsEnv.make(actuals, closure_env)
 
-        # w_body_result, is_partial = lam.interpret_partial_body(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+        # w_body_result, is_partial = lam.interpret_partial_body(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
         # w_result = None
         # if is_partial:
@@ -1791,7 +1791,7 @@ class W_Closure1AsEnv(ConsEnv):
             caselam = jit.promote(caselam)
         return caselam.get_arity()
 
-    def call_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
+    def call_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
         from pycket.env import ConsEnv
         env_structure = None
         if calling_app is not None:
@@ -1809,7 +1809,7 @@ class W_Closure1AsEnv(ConsEnv):
         # elif args_len > 2:
         #     env = ConsEnv.make(actuals, env)
 
-        # w_body_result, is_partial = lam.interpret_partial_body(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+        # w_body_result, is_partial = lam.interpret_partial_body(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
         # w_result = None
         # if is_partial:

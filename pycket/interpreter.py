@@ -256,16 +256,16 @@ class __extend__(Context):
 
     @staticmethod
     @context
-    def PartialAppRator(s_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context, ast):
-        context = Context.PartialAppRand(s_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context)
+    def PartialAppRator(dyn_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context, ast):
+        context = Context.PartialAppRand(dyn_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context)
         return Context.normalize_names(args, context)
 
     @staticmethod
     @context
-    def PartialAppRand(s_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context, ast):
+    def PartialAppRand(dyn_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context, ast):
         #assert isinstance(ast, Context.AstList)
         #rands  = ast.nodes
-        result = PartialApp(s_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args)
+        result = PartialApp(dyn_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args)
         return context.plug(result)
 
     @staticmethod
@@ -805,7 +805,7 @@ class Module(AST):
             a require statement.  """
         return values.w_void
 
-    def interpret_simple_partial(self, w_s_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
         return self.interpret_simple(env), False
 
     def interpret_mod(self, env):
@@ -908,7 +908,7 @@ class Require(AST):
         module.interpret_mod(top)
         return values.w_void
 
-    def interpret_simple_partial(self, w_s_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
         return self.interpret_simple(env), False
 
     def collect_module_info(self, info):
@@ -991,7 +991,7 @@ class Quote(AST):
     def interpret_simple(self, env):
         return self.w_val
 
-    def interpret_simple_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
         return self.interpret_simple(env), False
 
     def direct_children(self):
@@ -1023,7 +1023,7 @@ class QuoteSyntax(AST):
     def __init__ (self, w_val):
         self.w_val = w_val
 
-    def interpret_simple_partial(self, w_s_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
         w_correlated = self.interpret_simple(env)
         if isinstance(self.w_val, values.W_PartialValue):
             return values.W_PartialValue(w_correlated), True
@@ -1069,7 +1069,7 @@ class VariableReference(AST):
         else:
             return False
 
-    def interpret_simple_partial(self, w_s_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
         #import pdb;pdb.set_trace()
         return self.interpret_simple(env), False
 
@@ -1212,7 +1212,7 @@ class App(AST):
 
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
-    def interpret_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
+    def interpret_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
         rator = self.rator
         # if (not env.pycketconfig().callgraph and
         #         isinstance(rator, ModuleVar) and
@@ -1227,13 +1227,13 @@ class App(AST):
                 dont_call = True
                 break
 
-        w_callable, emit_ast = rator.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+        w_callable, emit_ast = rator.interpret_simple_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
         args_w = [None] * len(self.rands)
 
         for i, rand in enumerate(self.rands):
-            if not emit_ast and (s_var_name_str in rand.tostring()): # gotta find a better way of doing this
+            if not emit_ast and (dyn_var_name_str in rand.tostring()): # gotta find a better way of doing this
                 emit_ast = True
-            args_w[i], is_partial = rand.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+            args_w[i], is_partial = rand.interpret_simple_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
             emit_ast = emit_ast or is_partial
 
         # if "variable-ref/no-check" in rator.tostring():
@@ -1255,7 +1255,7 @@ class App(AST):
 
         rand_names = [r.to_sexp() for r in self.rands]
 
-        return w_callable.call_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, args_w, emit_ast, rand_names, env, cont, self)
+        return w_callable.call_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, args_w, emit_ast, rand_names, env, cont, self)
 
     def normalize(self, context):
         context = Context.AppRator(self.rands, context)
@@ -1313,21 +1313,21 @@ class PartialCont(Cont):
 
 
 class PartialApp(App):
-    _immutable_fields_ = ['s_var_name', 's_var_val', 'safe_ops_ls_str[*]', 'unsafe_ops_ls_str[*]']
+    _immutable_fields_ = ['dyn_var_name', 's_var_val', 'safe_ops_ls_str[*]', 'unsafe_ops_ls_str[*]']
     visitable = True
 
-    def __init__(self, static_var_name, static_var_val, safe_ops, unsafe_ops, rator, rands, env_structure=None):
+    def __init__(self, dynamic_var_name, static_var_val, safe_ops, unsafe_ops, rator, rands, env_structure=None):
         App.__init__(self, rator, rands, env_structure)
         self.rator = rator
         self.rands = rands
-        self.s_var_name = static_var_name
+        self.dyn_var_name = dynamic_var_name
         self.s_var_val = static_var_val
         self.safe_ops_ls_str = safe_ops
         self.unsafe_ops_ls_str = unsafe_ops
         self.env_structure = env_structure
 
     def get_var_name(self):
-        return self.s_var_name
+        return self.dyn_var_name
     def get_var_val(self):
         return self.s_var_val
     def get_safe_ops(self):
@@ -1336,7 +1336,7 @@ class PartialApp(App):
         return self.unsafe_ops_ls_str
 
     def normalize(self, context):
-        context = Context.PartialAppRator(self.s_var_name, self.s_var_val, self.safe_ops_ls_str,  self.unsafe_ops_ls_str,
+        context = Context.PartialAppRator(self.dyn_var_name, self.s_var_val, self.safe_ops_ls_str,  self.unsafe_ops_ls_str,
                                           self.rator, self.rands, context)
         return Context.normalize_name(self.rator, context, hint="PartialAppRator")
 
@@ -1352,7 +1352,7 @@ class PartialApp(App):
         ast = App.make(self.rator, self.rands, self.env_structure)
         cont_p = NilCont()
         env_p = env
-        s_var_name_str = self.s_var_name.interpret_simple(env).tostring() + "_"
+        dyn_var_name_str = self.dyn_var_name.interpret_simple(env).tostring() + "_"
         emit_ast = False
         #import pdb;pdb.set_trace()
         new_w_callable_ast = None
@@ -1361,7 +1361,7 @@ class PartialApp(App):
         time_init_p_user = time.clock()
         try:
             while True:
-                ast, env_p, cont_p = ast.interpret_partial(s_var_name_str, self.safe_ops_ls_str, self.unsafe_ops_ls_str, env_p, cont_p)
+                ast, env_p, cont_p = ast.interpret_partial(dyn_var_name_str, self.safe_ops_ls_str, self.unsafe_ops_ls_str, env_p, cont_p)
         except Done, e:
             new_w_callable_ast = e.values
 
@@ -1395,7 +1395,7 @@ class PartialApp(App):
         b_form_1 = Context.normalize_term(b_form)
         b_form_2 = assign_convert(b_form_1)
 
-        #import pdb;pdb.set_trace()
+        import pdb;pdb.set_trace()
 
         time_after_p = time.time()
         time_after_p_gc = current_gc_time()
@@ -1468,10 +1468,10 @@ class SimplePrimApp1(App):
     def interpret_simple(self, env):
         return check_one_val(self.run(env))
 
-    # def interpret_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
-    #     return self.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    # def interpret_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
+    #     return self.interpret_simple_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
-    def interpret_simple_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
         # if "variable-ref/no-check" in self.tostring():
         #     import pdb;pdb.set_trace()
         safe = False # if safe, we can compute even if we have a W_PartialValue
@@ -1479,9 +1479,9 @@ class SimplePrimApp1(App):
             safe = True
 
         partial = False
-        w_arg1, is_partial1 = self.rand1.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+        w_arg1, is_partial1 = self.rand1.interpret_simple_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
-        partial = is_partial1 or (s_var_name_str in self.rand1.tostring()) or isinstance(w_arg1, values.W_PartialValue)
+        partial = is_partial1 or (dyn_var_name_str in self.rand1.tostring()) or isinstance(w_arg1, values.W_PartialValue)
 
         w_result = None
         if partial and (not safe):
@@ -1537,20 +1537,20 @@ class SimplePrimApp2(App):
     def interpret_simple(self, env):
         return check_one_val(self.run(env))
 
-    # def interpret_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
-    #     val, is_partial = self.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    # def interpret_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
+    #     val, is_partial = self.interpret_simple_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
-    def interpret_simple_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
         safe = False # if safe, we can compute even if we have a W_PartialValue
         if self.rator.tostring() in safe_ops_ls_str:
             safe = True
 
         partial = False
-        w_arg1, is_partial1 = self.rand1.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-        w_arg2, is_partial2 = self.rand2.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+        w_arg1, is_partial1 = self.rand1.interpret_simple_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+        w_arg2, is_partial2 = self.rand2.interpret_simple_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
         partial = is_partial1 or is_partial2 or \
-                  (s_var_name_str in self.rand1.tostring()) or (s_var_name_str in self.rand2.tostring()) or \
+                  (dyn_var_name_str in self.rand1.tostring()) or (dyn_var_name_str in self.rand2.tostring()) or \
                   isinstance(w_arg1, values.W_PartialValue) or isinstance(w_arg2, values.W_PartialValue)
 
         w_result = None
@@ -1639,7 +1639,7 @@ class SequencedBodyAST(AST):
             env_structure = env_structure.prev
         return env
 
-    def interpret_partial_body(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
+    def interpret_partial_body(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
         # if self.tostring() == """(begin (if (variable-reference-from-unsafe? #<#%variable-reference>) (void) (if (list? l_1) (void) (raise-argument-error \'reverse "list?" l_1))) (let ([loop_2 (lambda (a_3 l_4) (if (null? l_4) a_3 (loop_2 (cons (car l_4) a_3) (cdr l_4))))]) (loop_2 null l_1)))""":
         #     import pdb;pdb.set_trace()
         emit_ast = False
@@ -1648,7 +1648,7 @@ class SequencedBodyAST(AST):
         b_expr_result = values.w_void
         for i, body_expr in enumerate(self.body):
             env = self._prune_sequenced_envs(env, i)
-            b_expr_result, is_partial = body_expr.interpret_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont)
+            b_expr_result, is_partial = body_expr.interpret_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont)
             w_vals[i] = b_expr_result
             emit_ast = emit_ast or is_partial
         if emit_ast:
@@ -1784,8 +1784,8 @@ class Begin(SequencedBodyAST):
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
-    def interpret_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
-        #return self.interpret_partial_body(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont)
+    def interpret_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
+        #return self.interpret_partial_body(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont)
         return self.make_begin_partial_cont(env, cont, False)
 
     def normalize(self, context):
@@ -1821,7 +1821,7 @@ class BeginForSyntax(AST):
     def interpret_simple(self, env):
         return values.w_void
 
-    def interpret_simple_partial(self, w_s_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
         return self.interpret_simple(env), False
 
     def _tostring(self):
@@ -1854,12 +1854,12 @@ class Var(AST):
             raise SchemeException("%s: undefined" % self.sym.tostring())
         return val
 
-    def interpret_simple_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
         partial = False
         w_val = self.interpret_simple(env)
         #import pdb;pdb.set_trace()
         #w_val = self.sym
-        if s_var_name_str in self.sym.variable_name() or isinstance(w_val, values.W_PartialValue):
+        if dyn_var_name_str in self.sym.variable_name() or isinstance(w_val, values.W_PartialValue):
             partial = True
 
         return w_val, partial
@@ -2074,8 +2074,8 @@ class SetBang(AST):
         self.var._set(w_val, env)
         return values.w_void
 
-    def interpret_simple_partial(self, w_s_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
-        w_rhs_val, is_partial = self.rhs.interpret_simple_partial(w_s_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
+        w_rhs_val, is_partial = self.rhs.interpret_simple_partial(w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env)
         if is_partial:
             set_sym = values.W_Symbol.make("set!")
             return values.W_PartialValue(values.to_list([set_sym, self.var.to_sexp(), w_rhs_val])), True
@@ -2145,8 +2145,8 @@ class If(AST):
             return self.thn, env, cont
 
     @objectmodel.always_inline
-    def interpret_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
-        w_tst_val, is_partial = self.tst.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    def interpret_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
+        w_tst_val, is_partial = self.tst.interpret_simple_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
         if is_partial:
             return self.thn, env, IfPartialCont(w_tst_val, w_tst_val, self.els, env, cont)
@@ -2155,18 +2155,18 @@ class If(AST):
         else:
             return self.thn, env, cont
 
-    def interpret_partial_old(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
-        w_val, is_partial = self.tst.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    def interpret_partial_old(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+        w_val, is_partial = self.tst.interpret_simple_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
         if is_partial:
-            new_thn_ast, is_partial_thn = self.thn.interpret_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-            new_els_ast, is_partial_els = self.els.interpret_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+            new_thn_ast, is_partial_thn = self.thn.interpret_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+            new_els_ast, is_partial_els = self.els.interpret_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
             if_sym = values.W_Symbol.make("if")
             return values.W_PartialValue(values.to_list([if_sym, w_val, new_thn_ast, new_els_ast])), True
 
         if w_val is values.w_false:
-            return self.els.interpret_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+            return self.els.interpret_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
         else:
-            return self.thn.interpret_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+            return self.thn.interpret_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
     def direct_children(self):
         return [self.tst, self.thn, self.els]
@@ -2242,7 +2242,7 @@ class CaseLambda(AST):
     def make_recursive_copy(self, sym):
         return CaseLambda(self.lams, sym, self._arity)
 
-    def interpret_simple_partial(self, w_s_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
         w_val = self.interpret_simple(env)
         return w_val, False
 
@@ -2388,7 +2388,7 @@ class Lambda(SequencedBodyAST):
     def interpret_simple(self, env):
         assert False # unreachable
 
-    def interpret_simple_partial(self, w_s_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
         #assert False # unreachable
         return values.w_void, False
 
@@ -2822,12 +2822,12 @@ class Let(SequencedBodyAST):
         return self.rhss[0], env, LetCont.make(
                 None, self, 0, env, cont)
 
-    def interpret_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
+    def interpret_partial(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
         env = self._prune_env(env, 0)
         return self.rhss[0], env, LetCont.make(
                 None, self, 0, env, cont)
 
-    def interpret_partial_old(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    def interpret_partial_old(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
         args_len = len(self.args.elems)
         w_new_rhss = [None] * args_len
         index = 0
@@ -2835,7 +2835,7 @@ class Let(SequencedBodyAST):
         emit_ast_rhs = False
         for i, rhs in enumerate(self.rhss):
             env = self._prune_env(env, i)
-            new_rhs_ast, is_partial = rhs.interpret_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+            new_rhs_ast, is_partial = rhs.interpret_partial(dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
             emit_ast_rhs = emit_ast_rhs or is_partial
             w_new_rhss[i] = new_rhs_ast
 
@@ -2848,7 +2848,7 @@ class Let(SequencedBodyAST):
         elif args_len > 2:
             env = ConsEnv.make(w_new_rhss, env)
 
-        w_body_result, _is_partial_body = SequencedBodyAST.interpret_partial_body(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+        w_body_result, _is_partial_body = SequencedBodyAST.interpret_partial_body(self, dyn_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
         # if we're able to get a regular value from the body, then we don't have to do partial
         # even if we have partial in one of the rhss
