@@ -256,16 +256,16 @@ class __extend__(Context):
 
     @staticmethod
     @context
-    def PartialAppRator(dyn_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context, ast):
-        context = Context.PartialAppRand(dyn_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context)
+    def PartialAppRator(dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context, ast):
+        context = Context.PartialAppRand(dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context)
         return Context.normalize_names(args, context)
 
     @staticmethod
     @context
-    def PartialAppRand(dyn_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context, ast):
+    def PartialAppRand(dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context, ast):
         #assert isinstance(ast, Context.AstList)
         #rands  = ast.nodes
-        result = PartialApp(dyn_var_name, s_var_val, safe_ops_ls_str, unsafe_ops_ls_str, rator, args)
+        result = PartialApp(dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, rator, args)
         return context.plug(result)
 
     @staticmethod
@@ -1313,31 +1313,27 @@ class PartialCont(Cont):
 
 
 class PartialApp(App):
-    _immutable_fields_ = ['dyn_var_name', 's_var_val', 'safe_ops_ls_str[*]', 'unsafe_ops_ls_str[*]']
+    _immutable_fields_ = ['dyn_var_name', 'safe_ops_ls_str[*]', 'unsafe_ops_ls_str[*]']
     visitable = True
 
-    def __init__(self, dynamic_var_name, static_var_val, safe_ops, unsafe_ops, rator, rands, env_structure=None):
+    def __init__(self, dynamic_var_name, safe_ops, unsafe_ops, rator, rands, env_structure=None):
         App.__init__(self, rator, rands, env_structure)
         self.rator = rator
         self.rands = rands
         self.dyn_var_name = dynamic_var_name
-        self.s_var_val = static_var_val
         self.safe_ops_ls_str = safe_ops
         self.unsafe_ops_ls_str = unsafe_ops
         self.env_structure = env_structure
 
     def get_var_name(self):
         return self.dyn_var_name
-    def get_var_val(self):
-        return self.s_var_val
     def get_safe_ops(self):
         return self.safe_ops_ls_str
     def get_unsafe_ops(self):
         return self.unsafe_ops_ls_str
 
     def normalize(self, context):
-        context = Context.PartialAppRator(self.dyn_var_name, self.s_var_val, self.safe_ops_ls_str,  self.unsafe_ops_ls_str,
-                                          self.rator, self.rands, context)
+        context = Context.PartialAppRator(self.dyn_var_name, self.safe_ops_ls_str,  self.unsafe_ops_ls_str, self.rator, self.rands, context)
         return Context.normalize_name(self.rator, context, hint="PartialAppRator")
 
     @jit.dont_look_inside

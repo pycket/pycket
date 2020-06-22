@@ -105,7 +105,7 @@ class AssignConvertVisitor(ASTVisitor):
         assert isinstance(ast, PartialApp)
         rator = ast.rator.visit(self, vars, env_structure)
         rands = [r.visit(self, vars, env_structure) for r in ast.rands]
-        return PartialApp(ast.get_var_name(), ast.get_var_val(), ast.get_safe_ops(), ast.get_unsafe_ops(), rator, rands, ast.env_structure)
+        return PartialApp(ast.get_var_name(), ast.get_safe_ops(), ast.get_unsafe_ops(), rator, rands, ast.env_structure)
 
     def visit_lambda(self, ast, vars, env_structure):
         assert isinstance(ast, Lambda)
