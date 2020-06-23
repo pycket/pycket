@@ -1433,7 +1433,7 @@ class W_Prim(W_Procedure):
 
     # rand_names -> [W_Symbol]
     # args -> [W_Object] values
-    def call_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
+    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
         from pycket.interpreter import return_value_direct
         safe = False
         if self.name.tostring() in safe_ops_ls_str:
@@ -1450,7 +1450,7 @@ class W_Prim(W_Procedure):
             # args_ls = [None]*len(args)
             # i = 0
             # for r_sym in rand_names: # can be optimized by passing the index of the static var
-            #     if s_var_name_str in r_sym.tostring():
+            #     if dyn_var_names_ls_str in r_sym.tostring():
             #         args_ls[i] = r_sym
             #     else:
             #         args_ls[i] = args[i]
@@ -1487,7 +1487,7 @@ class W_Prim(W_Procedure):
 class W_PrimPartial(W_Prim):
     from pycket.arity import Arity
 
-    def call_prim_partial(self, s_var_name_str, safe_ops_ls_str, env):
+    def call_prim_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, env):
         """ overridden by the generated subclasses in expose.py"""
         raise NotImplementedError("abstract base class")
 
