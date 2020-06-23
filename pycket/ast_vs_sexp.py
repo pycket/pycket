@@ -462,13 +462,18 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             rands_ls, rands_len = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for r in rands_ls]
             if c is partial_eval_sym and rands_len >= 3: # FIXME: refactor this
+                dynamic_variable_names = form.cdr().car().cdr().car()
+                dynamic_variable_names_ls, l = to_rpython_list(dynamic_variable_names)
                 safe_ops_sexp = form.cdr().cdr().car()
                 unsafe_ops_sexp = form.cdr().cdr().cdr().car()
                 #assert isinstance(rands[2], interp.App) and isinstance(rands[3], interp.Quote)
                 safe_op_ls, safe_op_len = to_rpython_list(safe_ops_sexp)
                 unsafe_op_ls, unsafe_op_len = to_rpython_list(unsafe_ops_sexp)
 
-                return interp.PartialApp(rands[0], [x.tostring() for x in safe_op_ls], [x.tostring() for x in unsafe_op_ls], rands[3], rands[4:])
+                return interp.PartialApp([x.tostring() for x in dynamic_variable_names_ls],
+                                         [x.tostring() for x in safe_op_ls],
+                                         [x.tostring() for x in unsafe_op_ls],
+                                         rands[3], rands[4:])
 
             form_rator = sexp_to_ast(c, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref)
 
