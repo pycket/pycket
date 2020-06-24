@@ -1431,46 +1431,19 @@ class W_Prim(W_Procedure):
     def get_result_arity(self):
         return self.result_arity
 
-    # rand_names -> [W_Symbol]
     # args -> [W_Object] values
-    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
+    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
         from pycket.interpreter import return_value_direct
         safe = False
         if self.name.tostring() in safe_ops_ls_str:
             safe = True
 
         w_result = None
-        if emit_ast and (not safe): # we know one of the arguments is the static variable
-            # we can either inline the value of the static variable
+        if emit_ast and (not safe): # we are producing code
             if "values" in self.name.tostring() and len(args) == 1:
-                return return_value_direct(W_PartialValue(args[0]), env, cont)
-            return return_value_direct(W_PartialValue(to_list([self.name] + args)), env, cont)
-            # or we can emit a variable for it (the value is gonna be in the environment when this gets evaluated)
-            #
-            # args_ls = [None]*len(args)
-            # i = 0
-            # for r_sym in rand_names: # can be optimized by passing the index of the static var
-            #     if dyn_var_names_ls_str in r_sym.tostring():
-            #         args_ls[i] = r_sym
-            #     else:
-            #         args_ls[i] = args[i]
-            # self.name
+                return return_value_direct(W_PartialValue(dynamic_names[0]), env, cont)
 
-        # elif emit_ast and safe:
-        #     w_args = [None]*len(args)
-        #     for i,a in enumerate(args):
-        #         if isinstance(a, W_PartialValue):
-        #             w_args[i] = a.get_obj()
-        #         else:
-        #             w_args[i] = a
-        #     w_result = self.native_func(w_args)
-        # else:
-        #     w_result = self.native_func(args)
-
-        # emitting_ast = emit_ast and (not safe)
-        # if isinstance(w_result, W_WrappedConsProper) and emitting_ast:
-        #     w_result = W_Cons.make(W_Symbol.make("list"), w_result)
-        # return w_result, emitting_ast
+            return return_value_direct(W_PartialValue(to_list([self.name] + dynamic_names)), env, cont)
 
         return self.code(args, env, cont, calling_app)
 
@@ -1695,41 +1668,15 @@ class W_Closure(W_Procedure):
             single_lambda.raise_nice_error(args)
         raise SchemeException("No matching arity in case-lambda")
 
-    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
+    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
         from pycket.env import ConsEnv
         (actuals, closure_env, lam) = self._find_lam(args)
-
-        # args_len = len(args)
-        # env = closure_env
-        # if args_len == 1:
-        #     env = ConsEnv.make1(actuals[0], closure_env)
-        # elif args_len == 2:
-        #     env = ConsEnv.make2(actuals[0], actuals[1], closure_env)
-        # elif args_len > 2:
-        #     env = ConsEnv.make(actuals, closure_env)
-
-        # w_body_result, is_partial = lam.interpret_partial_body(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-
-        # w_result = None
-        # if is_partial:
-        #     # emit the application with the reconstructed lambda
-        #     lam_sym = W_Symbol.make("lambda")
-        #     formals_sym = to_list(lam.formals)
-        #     re_lam = to_list([lam_sym, formals_sym, w_body_result])
-        #     w_app_ast = to_list([re_lam]+actuals)
-        #     w_result = W_PartialValue(w_app_ast)
-        # else:
-        #     w_result = w_body_result
-
-        # return w_result, is_partial
-        #return w_body_result, is_partial
         env_structure = None
         if calling_app is not None:
             env_structure = calling_app.env_structure
 
         prev = lam.env_structure.prev.find_env_in_chain_speculate(closure_env, env_structure, env)
         return lam.make_begin_cont(ConsEnv.make(actuals, prev), cont)
-
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.env import w_global_config
@@ -1791,38 +1738,14 @@ class W_Closure1AsEnv(ConsEnv):
             caselam = jit.promote(caselam)
         return caselam.get_arity()
 
-    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, rand_names, env, cont, calling_app):
+    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
         from pycket.env import ConsEnv
         env_structure = None
         if calling_app is not None:
             env_structure = calling_app.env_structure
-        
+
         lam = self.caselam.lams[0]
         actuals = lam.match_args(args)
-
-        # args_len = len(args)
-        # env = self
-        # if args_len == 1:
-        #     env = ConsEnv.make1(actuals[0], env)
-        # elif args_len == 2:
-        #     env = ConsEnv.make2(actuals[0], actuals[1], env)
-        # elif args_len > 2:
-        #     env = ConsEnv.make(actuals, env)
-
-        # w_body_result, is_partial = lam.interpret_partial_body(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-
-        # w_result = None
-        # if is_partial:
-        #     # emit the application with the reconstructed lambda
-        #     lam_sym = W_Symbol.make("lambda")
-        #     formals_sym = to_list(lam.formals)
-        #     re_lam = to_list([lam_sym, formals_sym, w_body_result])
-        #     w_app_ast = to_list([re_lam]+actuals)
-        #     w_result = W_PartialValue(w_app_ast)
-        # else:
-        #     w_result = w_body_result
-
-        ## return w_body_result, is_partial
 
         prev = lam.env_structure.prev.find_env_in_chain_speculate(self, env_structure, env)
         return lam.make_begin_cont(ConsEnv.make(actuals, prev), cont)

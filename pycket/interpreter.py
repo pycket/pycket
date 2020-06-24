@@ -1070,7 +1070,6 @@ class VariableReference(AST):
             return False
 
     def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
-        #import pdb;pdb.set_trace()
         return self.interpret_simple(env), False
 
     def interpret_simple(self, env):
@@ -1212,6 +1211,15 @@ class App(AST):
 
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
+    def is_dynamic(self, rand, dyn_var_names_ls_str):
+        if not isinstance(rand, Var):
+            return values.w_false
+        rand_str = rand.tostring()
+        for dyn_var in dyn_var_names_ls_str:
+            if dyn_var in rand_str:
+                return values.W_Symbol.make(dyn_var)
+        return values.w_false
+
     def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
         rator = self.rator
         # if (not env.pycketconfig().callgraph and
@@ -1219,33 +1227,38 @@ class App(AST):
         #         rator.is_primitive()):
         #     self.set_should_enter() # to jit downrecursion
 
+        rator_str = rator.tostring()
+        safe = rator_str in safe_ops_ls_str
+
         dont_call = False
         rator_str = rator.tostring()
         for unsafe_op in unsafe_ops_ls_str:
             if unsafe_op in rator_str:
-                #import pdb;pdb.set_trace()
                 dont_call = True
                 break
 
         w_callable, emit_ast = rator.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
         args_w = [None] * len(self.rands)
+        dynamic_name_vals = [None]*len(self.rands)
 
         for i, rand in enumerate(self.rands):
-            if not emit_ast and any([x in rand.tostring() for x in dyn_var_names_ls_str]): # gotta find a better way of doing this
-                emit_ast = True
-            # why interpret the rand if it's a dynamic variable?
             args_w[i], is_partial = rand.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
             emit_ast = emit_ast or is_partial
 
-        # if "variable-ref/no-check" in rator.tostring():
-        #     import pdb;pdb.set_trace()
+            if isinstance(args_w[i], values.W_PartialValue):
+                dynamic_name_vals[i] = args_w[i]
+                emit_ast = True
+            else:
+                dyn_name = self.is_dynamic(rand, dyn_var_names_ls_str)
+                if isinstance(dyn_name, values.W_Symbol):
+                    dynamic_name_vals[i] = dyn_name
+                    emit_ast = True
+
+            if not dynamic_name_vals[i]: # TODO refactor this
+                dynamic_name_vals[i] = args_w[i]
 
         if dont_call:
-            #rator_sym = values.W_Symbol.make(rator_str)
-            #w_rator = rator.to_sexp()
-            #w_rator_old = w_callable.closure.caselam.lams[0].to_sexp()
             w_rator = w_callable.get_sexp_repr()
-            #import pdb;pdb.set_trace()
             w_app_ast = values.W_PartialValue(values.to_list([w_rator]+args_w))
             return return_value_direct(w_app_ast, env, cont)
 
@@ -1254,9 +1267,7 @@ class App(AST):
             jit.promote(w_callable)
             w_callable = w_callable.closure
 
-        rand_names = [r.to_sexp() for r in self.rands]
-
-        return w_callable.call_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args_w, emit_ast, rand_names, env, cont, self)
+        return w_callable.call_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args_w, emit_ast, dynamic_name_vals, env, cont, self)
 
     def normalize(self, context):
         context = Context.AppRator(self.rands, context)
@@ -1339,7 +1350,7 @@ class PartialApp(App):
 
     @jit.dont_look_inside
     def interpret(self, env, cont):
-        from pycket.ast_vs_sexp import sexp_to_ast
+        from pycket.ast_vs_sexp import sexp_to_ast, lam_sym
         from pycket.assign_convert import assign_convert
         import time
         from pycket.prims.general import current_gc_time
@@ -1349,64 +1360,38 @@ class PartialApp(App):
         ast = App.make(self.rator, self.rands, self.env_structure)
         cont_p = NilCont()
         env_p = env
-        dyn_var_names_ls_str = self.dyn_var_names_ls_str #.interpret_simple(env).tostring() + "_"
         emit_ast = False
         new_w_callable_ast = None
         time_init_p = time.time()
         time_init_p_gc = current_gc_time()
         time_init_p_user = time.clock()
-        import pdb;pdb.set_trace()
+
         try:
             while True:
-                ast, env_p, cont_p = ast.interpret_partial(dyn_var_names_ls_str, self.safe_ops_ls_str, self.unsafe_ops_ls_str, env_p, cont_p)
+                ast, env_p, cont_p = ast.interpret_partial(self.dyn_var_names_ls_str, self.safe_ops_ls_str, self.unsafe_ops_ls_str, env_p, cont_p)
         except Done, e:
             new_w_callable_ast = e.values
 
         assert new_w_callable_ast is not None
 
-        # ASSUMPTION: static_var_val is simple
-        # w_static_var_val = self.s_var_val.interpret_simple(env)
-        # # partially evaluate rator and emit a *new* w_callable (AST)
-        # w_callable = self.rator.interpret_simple(env)
-        # args_w = [None] * len(self.rands)
-        # emit_ast = False
+        residual_lam = values.to_list([lam_sym,
+                                       values.to_list([values.W_Symbol.make(x) for x in self.dyn_var_names_ls_str]),
+                                       new_w_callable_ast])
 
-        # for i, rand in enumerate(self.rands):
-        #     args_w[i] = rand.interpret_simple(env)
-        #     if s_var_name_str in rand.tostring() or isinstance(args_w[i], values.W_PartialValue):
-        #         # gotta find a better way of doing this
-        #         emit_ast = True
-
-
-        # if isinstance(w_callable, values.W_PromotableClosure):
-        #     # fast path
-        #     jit.promote(w_callable)
-        #     w_callable = w_callable.closure
-
-        # rand_names = [r.to_sexp() for r in self.rands]
-
-        #import pdb;pdb.set_trace()
-        #new_w_callable_ast, is_partial = w_callable.call_partial(s_var_name_str, self.safe_ops_ls_str, self.unsafe_ops_ls_str, args_w, emit_ast, rand_names, env, self)
-        #                                 lex_env, exports, all_toplevels, importss, mutateds
-        b_form = sexp_to_ast(new_w_callable_ast, [], {}, {}, [], {})
+        b_form = sexp_to_ast(residual_lam, [], {}, {}, [], {})
         b_form_1 = Context.normalize_term(b_form)
         b_form_2 = assign_convert(b_form_1)
-
-        print(b_form_2.tostring())
-        import pdb;pdb.set_trace()
 
         time_after_p = time.time()
         time_after_p_gc = current_gc_time()
         time_after_p_user = time.clock()
 
-        #import pdb;pdb.set_trace()
         p_diff = int((time_after_p - time_init_p) * 1000)
         p_diff_gc = int((time_after_p_gc - time_init_p_gc))
         p_diff_user = int((time_after_p_user - time_init_p_user) * 1000)
 
         w_global_config.add_pe_overhead(p_diff, p_diff_gc, p_diff_user)
         #console_log("PE OVERHEAD : CPU : %s - REAL : %s - GC : %s" % (p_diff, p_diff_user, p_diff_gc), debug=True)
-        #import pdb;pdb.set_trace()
 
         # return b_form_2, env.toplevel_env(), PartialCont(time_after_p,
         #                                                  time_after_p_gc,
@@ -1470,17 +1455,20 @@ class SimplePrimApp1(App):
     #     return self.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
     def interpret_simple_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
-        # if "variable-ref/no-check" in self.tostring():
-        #     import pdb;pdb.set_trace()
         safe = False # if safe, we can compute even if we have a W_PartialValue
         if self.rator.tostring() in safe_ops_ls_str:
             safe = True
 
-        partial = False
         w_arg1, is_partial1 = self.rand1.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+        partial = is_partial1
 
-        #import pdb;pdb.set_trace()
-        partial = is_partial1 or (any([x in self.rand1.tostring() for x in dyn_var_names_ls_str])) or isinstance(w_arg1, values.W_PartialValue)
+        # TODO: refactor this
+        rand1_str = self.rand1.tostring()
+        for x in dyn_var_names_ls_str:
+            if x in rand1_str:
+                partial = True
+
+        partial = partial or isinstance(w_arg1, values.W_PartialValue)
 
         w_result = None
         if partial and (not safe):
@@ -1548,10 +1536,16 @@ class SimplePrimApp2(App):
         w_arg1, is_partial1 = self.rand1.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
         w_arg2, is_partial2 = self.rand2.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
-        partial = is_partial1 or is_partial2 or \
-                  (any([x in self.rand1.tostring() for x in dyn_var_names_ls_str])) or \
-                  (any([x in self.rand2.tostring() for x in dyn_var_names_ls_str])) or \
-                  isinstance(w_arg1, values.W_PartialValue) or isinstance(w_arg2, values.W_PartialValue)
+        partial = is_partial1 or is_partial2
+
+        rand1_str = self.rand1.tostring()
+        rand2_str = self.rand2.tostring()
+
+        for x in dyn_var_names_ls_str:
+            if x in rand1_str or x in rand2_str:
+                partial = True
+
+        partial = partial or isinstance(w_arg1, values.W_PartialValue) or isinstance(w_arg2, values.W_PartialValue)
 
         w_result = None
         if partial and (not safe):
@@ -1640,8 +1634,6 @@ class SequencedBodyAST(AST):
         return env
 
     def interpret_partial_body(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env, cont):
-        # if self.tostring() == """(begin (if (variable-reference-from-unsafe? #<#%variable-reference>) (void) (if (list? l_1) (void) (raise-argument-error \'reverse "list?" l_1))) (let ([loop_2 (lambda (a_3 l_4) (if (null? l_4) a_3 (loop_2 (cons (car l_4) a_3) (cdr l_4))))]) (loop_2 null l_1)))""":
-        #     import pdb;pdb.set_trace()
         emit_ast = False
         w_vals = [None]*len(self.body)
         i = 0
@@ -1857,13 +1849,13 @@ class Var(AST):
     def interpret_simple_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
         partial = False
         w_val = self.interpret_simple(env)
-        #import pdb;pdb.set_trace()
-        #w_val = self.sym
-        if any([x in self.sym.variable_name() for x in dyn_var_names_ls_str]) or isinstance(w_val, values.W_PartialValue):
-            partial = True
 
-        return w_val, partial
-        #return self.sym, partial
+        sym_str = self.sym.variable_name()
+        for x in dyn_var_names_ls_str:
+            if x in sym_str:
+                partial = True
+
+        return w_val, partial or isinstance(w_val, values.W_PartialValue)
 
     def direct_children(self):
         return []
