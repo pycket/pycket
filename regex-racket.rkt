@@ -8,22 +8,19 @@
 (define pycket:pe (vm-primitive 'pycket:pe))
 (define pycket:time-apply (vm-primitive 'pycket:time-apply))
 
-(define l (make-string 300 #\a))
-(define r (make-string 300 #\p))
+(define l (make-string 10 #\d))
+(define r (make-string 10 #\p))
 (define str-big (string-append l "defg" r))
 
 (define reg "defg")
 
 (define iter 500000)
 
+(define residual-func
+  (pycket:pe '(input-str s-pos) (string-length) (reverse)
+             match-pat reg 0 str-big 0 '()))
+
 (for ([j (in-range 10)])
-  ;(pycket:time-apply
   (time
-   ;(lambda ()
    (for ([i (in-range iter)])
-     (reg-match reg str-big)
-     #;(let ([k (reg-match reg str-big)])
-       (if k (printf "result : ~a\n" k) k))
-     #;(pycket:pe 'str str-big (string-length) (reverse) reg-match reg str-big))))
-
-
+     (reg-match reg str-big residual-func))))

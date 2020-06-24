@@ -14,25 +14,25 @@ $ 	Matches the end of a string 	a$ 	ba, baaa, qwerta ...
 (require ffi/unsafe/vm)
 (define pycket:pe (vm-primitive 'pycket:pe))
 
-(define (match-huh pattern p-pos str s-pos huh-pos m)
+(define (match-huh pattern p-pos input-str s-pos huh-pos m)
   (or
-   (and (< s-pos (string-length str))
-        (char=? (string-ref pattern p-pos) (string-ref str s-pos))
-        (match-pat pattern (add1 huh-pos) str (add1 s-pos)
-                   (cons (string-ref str s-pos) m)))
-   (match-pat pattern (add1 huh-pos) str s-pos m)))
+   (and (< s-pos (string-length input-str))
+        (char=? (string-ref pattern p-pos) (string-ref input-str s-pos))
+        (match-pat pattern (add1 huh-pos) input-str (add1 s-pos)
+                   (cons (string-ref input-str s-pos) m)))
+   (match-pat pattern (add1 huh-pos) input-str s-pos m)))
 
-(define (match-star pattern p-pos str s-pos star-pos m)
+(define (match-star pattern p-pos input-str s-pos star-pos m)
   (or
-   (and (< s-pos (string-length str))
-        (char=? (string-ref pattern p-pos) (string-ref str s-pos))
-        (match-pat pattern p-pos str (add1 s-pos)
-                   (cons (string-ref str s-pos) m)))
-   (match-pat pattern (add1 star-pos) str s-pos m)))
+   (and (< s-pos (string-length input-str))
+        (char=? (string-ref pattern p-pos) (string-ref input-str s-pos))
+        (match-pat pattern p-pos input-str (add1 s-pos)
+                   (cons (string-ref input-str s-pos) m)))
+   (match-pat pattern (add1 star-pos) input-str s-pos m)))
 
-(define (match-pat pattern p-pos str s-pos m)
+(define (match-pat pattern p-pos input-str s-pos m)
   (let ([pat-len (string-length pattern)]
-        [str-len (string-length str)])  
+        [str-len (string-length input-str)])
     (cond
       ; done with the pattern
       [(>= p-pos pat-len) m]
@@ -42,55 +42,43 @@ $ 	Matches the end of a string 	a$ 	ba, baaa, qwerta ...
       ; ?
       [(and (< (+ p-pos 1) pat-len)
             (char=? (string-ref pattern (+ p-pos 1)) #\?))
-       (match-huh pattern p-pos str s-pos (+ p-pos 1) m)]
+       (match-huh pattern p-pos input-str s-pos (+ p-pos 1) m)]
       ; *
       [(and (< (+ p-pos 1) pat-len)
             (char=? (string-ref pattern (+ p-pos 1)) #\*))
-       (match-star pattern p-pos str s-pos (+ p-pos 1) m)]
+       (match-star pattern p-pos input-str s-pos (+ p-pos 1) m)]
       ; wildcard (.)
       [(char=? (string-ref pattern p-pos) #\.)
        (and (< s-pos str-len)
-            (match-pat pattern (add1 p-pos) str (add1 s-pos)
-                       (cons (string-ref str s-pos) m)))]
+            (match-pat pattern (add1 p-pos) input-str (add1 s-pos)
+                       (cons (string-ref input-str s-pos) m)))]
       ; literal
       [else
-       (let ([ss (string-ref str s-pos)])
+       (let ([ss (string-ref input-str s-pos)])
          (and (char=? (string-ref pattern p-pos) ss)
-              (match-pat pattern (add1 p-pos) str (add1 s-pos) (cons ss m))))])))
+              (match-pat pattern (add1 p-pos) input-str (add1 s-pos) (cons ss m))))])))
 
-(define (reg-match pattern str)
-  (let ([m (reg-match-wrapped pattern str)])
+(define (reg-match pattern input-str residual-func)
+  (let ([m (reg-match-wrapped pattern input-str residual-func)])
     (and m (list (list->string (reverse m))))))
 
-(define (foror i n pattern str)
-  (if (>= i n) #f
-      (let ([a (match-pat pattern 0 str i '())
-               #;(and (char=? #\d (string-ref str i))
-                      (char=? #\e (string-ref str (add1 i)))
-                      (char=? #\f (string-ref str (add1 (add1 i))))
-                      (char=? #\g (string-ref str (add1 (add1 (add1 i)))))
-                      (cons (string-ref str (add1 (add1 (add1 i))))
-                            (cons (string-ref str (add1 (add1 i)))
-                                  (cons (string-ref str (add1 i))
-                                        (cons (string-ref str i) '())))))])
-        (if a a
-            (foror (add1 i) n pattern str)))))
-
-(define (reg-match-wrapped pattern str)
+(define (reg-match-wrapped pattern input-str residual-func)
   (cond
     [(char=? (string-ref pattern 0) #\^) '()]
-    #;[(string=? str "") (match-pat pattern 0 str 0 '())] ; edge case
+    #;[(string=? input-str "") (match-pat pattern 0 input-str 0 '())] ; edge case
     [else
-     (foror 0 (string-length str) pattern str)
-     #;(match-pat pattern 3 str 1 (list #\c #\a #\n #\e #\r))
-     #;(for/or ([i (in-range (string-length str))])
-       (match-pat pattern 0 str i '())
-       #;(and (char=? #\d (string-ref str i))
-            (char=? #\e (string-ref str (add1 i)))
-            (char=? #\f (string-ref str (add1 (add1 i))))
-            (char=? #\g (string-ref str (add1 (add1 (add1 i)))))
-            (cons (string-ref str (add1 (add1 (add1 i))))
-                  (cons (string-ref str (add1 (add1 i)))
-                        (cons (string-ref str (add1 i))
-                              (cons (string-ref str i) '())))))
+     (for/or ([i (in-range (string-length input-str))])
+       #;(residual-func input-str i)
+       (match-pat pattern 0 input-str i '())
+
+       #;(lambda (input-str s-pos)
+         (if (char=? #\d (string-ref input-str s-pos))
+             (if (char=? #\e (string-ref input-str (add1 s-pos)))
+                 (if (char=? #\f (string-ref input-str (add1 (add1 s-pos))))
+                     (if (char=? #\g (string-ref input-str (add1 (add1 (add1 s-pos)))))
+                         (cons (string-ref input-str (add1 (add1 (add1 s-pos))))
+                               (cons (string-ref input-str (add1 (add1 s-pos)))
+                                     (cons (string-ref input-str (add1 s-pos))
+                                           (cons (string-ref input-str s-pos)
+                                                 ())))) #f) #f) #f) #f))
        )]))
