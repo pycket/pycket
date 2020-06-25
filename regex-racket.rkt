@@ -8,8 +8,8 @@
 (define pycket:pe (vm-primitive 'pycket:pe))
 (define pycket:time-apply (vm-primitive 'pycket:time-apply))
 
-(define l (make-string 10 #\d))
-(define r (make-string 10 #\p))
+(define l (make-string 110 #\d))
+(define r (make-string 110 #\p))
 (define str-big (string-append l "defg" r))
 
 (define reg "defg")

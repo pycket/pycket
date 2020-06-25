@@ -69,6 +69,10 @@ $ 	Matches the end of a string 	a$ 	ba, baaa, qwerta ...
     [else
      (for/or ([i (in-range (string-length input-str))])
        #;(residual-func input-str i)
+       #;(let ((k (residual-func input-str i)))
+         (printf "trying position -- i : ~a -- k : ~a\n" i k)
+         k)
+
        (match-pat pattern 0 input-str i '())
 
        #;(lambda (input-str s-pos)

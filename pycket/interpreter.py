@@ -1462,18 +1462,18 @@ class SimplePrimApp1(App):
         w_arg1, is_partial1 = self.rand1.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
         partial = is_partial1
 
-        # TODO: refactor this
-        rand1_str = self.rand1.tostring()
-        for x in dyn_var_names_ls_str:
-            if x in rand1_str:
-                partial = True
+        arg_dyn_name = self.is_dynamic(self.rand1, dyn_var_names_ls_str)
+        if isinstance(arg_dyn_name, values.W_Symbol) and not isinstance(w_arg1, values.W_PartialValue):
+            partial = True
+        else:
+            arg_dyn_name = w_arg1
 
         partial = partial or isinstance(w_arg1, values.W_PartialValue)
 
         w_result = None
         if partial and (not safe):
             rator_name = values.W_Symbol.make(self.rator.tostring())
-            w_result = values.W_PartialValue(values.to_list([rator_name, w_arg1]))
+            w_result = values.W_PartialValue(values.to_list([rator_name, arg_dyn_name]))
         elif partial and safe:
             if isinstance(w_arg1, values.W_PartialValue):
                 w_arg1 = w_arg1.get_obj()
@@ -1534,23 +1534,26 @@ class SimplePrimApp2(App):
 
         partial = False
         w_arg1, is_partial1 = self.rand1.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+        dyn_name1 = self.is_dynamic(self.rand1, dyn_var_names_ls_str)
+        if isinstance(dyn_name1, values.W_Symbol) and not isinstance(w_arg1, values.W_PartialValue):
+            partial = True
+        else:
+            dyn_name1 = w_arg1
+
         w_arg2, is_partial2 = self.rand2.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+        dyn_name2 = self.is_dynamic(self.rand2, dyn_var_names_ls_str)
+        if isinstance(dyn_name2, values.W_Symbol) and not isinstance(w_arg2, values.W_PartialValue):
+            partial = True
+        else:
+            dyn_name2 = w_arg2
 
-        partial = is_partial1 or is_partial2
-
-        rand1_str = self.rand1.tostring()
-        rand2_str = self.rand2.tostring()
-
-        for x in dyn_var_names_ls_str:
-            if x in rand1_str or x in rand2_str:
-                partial = True
-
+        partial = partial or is_partial1 or is_partial2
         partial = partial or isinstance(w_arg1, values.W_PartialValue) or isinstance(w_arg2, values.W_PartialValue)
 
         w_result = None
         if partial and (not safe):
             rator_name = values.W_Symbol.make(self.rator.tostring())
-            w_result = values.W_PartialValue(values.to_list([rator_name, w_arg1, w_arg2]))
+            w_result = values.W_PartialValue(values.to_list([rator_name, dyn_name1, dyn_name2]))
         elif partial and safe:
             if isinstance(w_arg1, values.W_PartialValue):
                 w_arg1 = w_arg1.get_obj()
