@@ -2180,3 +2180,10 @@ def pycket_partial_eval(stat_var_name, stat_var_val, actual_app_rator, actual_ap
     # Either meta-hint-change app is not registered as a NoApp AST
     # Or NoApp interpret is not an identity function
     raise SchemeException("pycket:pe -- who is calling this?")
+
+@expose("pycket:pe-stop", [values.W_Object])
+def pycket_partial_stop_eval(stop_app_rand):
+    # Should Never Be Called
+    # Either meta-hint-change app is not registered as a NoApp AST
+    # Or NoApp interpret is not an identity function
+    raise SchemeException("pycket:pe -- who is calling this?")

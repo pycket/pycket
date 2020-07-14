@@ -243,6 +243,7 @@ def is_val_type(form, extra=[]):
                  values.W_Null,
                  values_string.W_String,
                  values.W_ImmutableBytes,
+                 values.W_PromotableClosure,
                  values.W_Character] + extra
     for t in val_types:
         if isinstance(form, t):
@@ -285,6 +286,7 @@ known_mod_vars = {} # cache for kernel primitive ModuleVars
 
 meta_hint_change_sym = values.W_Symbol.make("1/meta-hint-change")
 partial_eval_sym = values.W_Symbol.make("1/pycket:pe")
+pe_stop_sym = values.W_Symbol.make("1/pycket:pe-stop")
 
 def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref=[], name=""):
 
@@ -461,6 +463,10 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         else:
             rands_ls, rands_len = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for r in rands_ls]
+
+            if c is pe_stop_sym and rands_len >= 1: # has to be 1
+                return interp.PartialStopApp(rands[0], rands[1:])
+
             if c is partial_eval_sym and rands_len >= 3: # FIXME: refactor this
                 dynamic_variable_names = form.cdr().car().cdr().car()
                 dynamic_variable_names_ls, l = to_rpython_list(dynamic_variable_names)

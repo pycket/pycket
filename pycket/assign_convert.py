@@ -4,6 +4,7 @@ from pycket.env         import SymList
 from pycket.interpreter import (
     App,
     NoApp,
+    PartialStopApp,
     PartialApp,
     Begin,
     Begin0,
@@ -100,6 +101,12 @@ class AssignConvertVisitor(ASTVisitor):
         rator = ast.rator.visit(self, vars, env_structure)
         rands = [r.visit(self, vars, env_structure) for r in ast.rands]
         return NoApp(rator, ast.get_meta_hint(), rands, env_structure)
+
+    def visit_partial_stop_app(self, ast, vars, env_structure):
+        assert isinstance(ast, PartialStopApp)
+        rator = ast.rator.visit(self, vars, env_structure)
+        rands = [r.visit(self, vars, env_structure) for r in ast.rands]
+        return PartialStopApp(rator, rands, ast.env_structure)
 
     def visit_partial_app(self, ast, vars, env_structure):
         assert isinstance(ast, PartialApp)
@@ -335,4 +342,3 @@ def assign_convert(ast, visitor=None):
     if visitor is None:
         visitor = AssignConvertVisitor()
     return ast.visit(visitor, variable_set(), None)
-
