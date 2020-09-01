@@ -1356,7 +1356,7 @@ class App(AST):
 
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
-    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, pe_stop, env, cont):
         from pycket.ast_vs_sexp import normalized_dyn_var_check
         rator = self.rator
         rator_str = rator.tostring()
@@ -1370,7 +1370,7 @@ class App(AST):
 
         for unsafe_op in unsafe_ops_ls_str:
             if unsafe_op in rator_str:
-                dont_call = True
+                pe_stop = True
                 break
 
         w_callable, emit_ast = rator.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
@@ -1395,7 +1395,7 @@ class App(AST):
             w_app_ast = values.W_PartialValue(values.to_list([self.rator.to_sexp()] + dynamic_name_vals))
             return return_value_direct(w_app_ast, env, cont)
 
-        if dont_call:
+        if pe_stop:
             #kodunu_cikart(w_callable)
             if not isinstance(rator, ToplevelVar):
                 import pdb;pdb.set_trace()
@@ -1508,7 +1508,7 @@ class PartialStopApp(App):
         return ast.interpret(env, cont)
         # raise SchemeException("pycket:pe-stop used outside of a pycket:pe")
 
-    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, pe_stop, env, cont):
         ast = App.make(self.rator, self.rands, self.env_structure)
         return ast.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, True, env, cont)
 
@@ -1553,13 +1553,13 @@ class PartialApp(App):
         time_init_p = time.time()
         time_init_p_gc = current_gc_time()
         time_init_p_user = time.clock()
-        dont_call = False
+        pe_stop = False
 
         import pdb;pdb.set_trace()
         try:
             while True:
                 print(ast.tostring())
-                ast, env_p, cont_p = ast.interpret_partial(self.dyn_var_names_ls_str, self.safe_ops_ls_str, self.unsafe_ops_ls_str, dont_call, env_p, cont_p)
+                ast, env_p, cont_p = ast.interpret_partial(self.dyn_var_names_ls_str, self.safe_ops_ls_str, self.unsafe_ops_ls_str, pe_stop, env_p, cont_p)
         except Done, e:
             new_w_callable_ast = e.values
 
@@ -1719,7 +1719,7 @@ class SimplePrimApp2(App):
     def interpret_simple(self, env):
         return check_one_val(self.run(env))
 
-    # def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+    # def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, pe_stop, env, cont):
     #     val, is_partial = self.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
     def interpret_simple_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
@@ -1832,14 +1832,14 @@ class SequencedBodyAST(AST):
             env_structure = env_structure.prev
         return env
 
-    def interpret_partial_body(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+    def interpret_partial_body(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, pe_stop, env, cont):
         emit_ast = False
         w_vals = [None]*len(self.body)
         i = 0
         b_expr_result = values.w_void
         for i, body_expr in enumerate(self.body):
             env = self._prune_sequenced_envs(env, i)
-            b_expr_result, is_partial = body_expr.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont)
+            b_expr_result, is_partial = body_expr.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, pe_stop, env, cont)
             w_vals[i] = b_expr_result
             emit_ast = emit_ast or is_partial
         if emit_ast:
@@ -1962,7 +1962,7 @@ class Begin(SequencedBodyAST):
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
-    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, pe_stop, env, cont):
         return self.make_begin_cont(env, cont, False)
 
     def normalize(self, context):
@@ -2330,7 +2330,7 @@ class If(AST):
             return self.thn, env, cont
 
     @objectmodel.always_inline
-    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, pe_stop, env, cont):
         w_tst_val, is_partial = self.tst.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
         if is_partial:
@@ -2430,7 +2430,7 @@ class CaseLambda(AST):
     def make_recursive_copy(self, sym):
         return CaseLambda(self.lams, sym, self._arity)
 
-    # def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+    # def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, pe_stop, env, cont):
     #     import pdb;pdb.set_trace()
     #     if self.recursive_sym and "loop" in self.recursive_sym.variable_name() and len(self.lams) == 1:
     #         return self.lams[0]
@@ -3025,7 +3025,7 @@ class Let(SequencedBodyAST):
         return self.rhss[0], env, LetCont.make(
                 None, self, 0, env, cont)
 
-    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, pe_stop, env, cont):
         #import pdb;pdb.set_trace()
         # for a in self.args.elems:
         #     if "loop" in a.tostring():

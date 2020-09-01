@@ -29,7 +29,7 @@ class AST(object):
     def defined_vars(self, defs):
         pass
 
-    def interpret_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+    def interpret_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, pe_stop, env, cont):
         from pycket.interpreter import return_value_direct
         assert self.simple
         val, is_partial = self.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
