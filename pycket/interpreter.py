@@ -1396,9 +1396,14 @@ class App(AST):
             return return_value_direct(w_app_ast, env, cont)
 
         if dont_call:
-            import pdb;pdb.set_trace()
             #kodunu_cikart(w_callable)
-            w_app_ast = values.W_PartialValue(values.to_list([w_callable] + dynamic_name_vals))
+            if not isinstance(rator, ToplevelVar):
+                import pdb;pdb.set_trace()
+            # put the var into the toplevels
+            from pycket.env import w_global_config
+            rator_sym = rator.to_sexp()
+            w_global_config.pe_add_toplevel_var_name(rator_sym)
+            w_app_ast = values.W_PartialValue(values.to_list([rator_sym] + dynamic_name_vals))
             return return_value_direct(w_app_ast, env, cont)
 
         if isinstance(w_callable, values.W_PromotableClosure):
@@ -1564,7 +1569,9 @@ class PartialApp(App):
                                        values.to_list([values.W_Symbol.make(x) for x in self.dyn_var_names_ls_str]),
                                        new_w_callable_ast])
 
-        b_form = sexp_to_ast(residual_lam, [], {}, {values.W_Symbol.make("match-pat"):None}, [], {})
+
+        from pycket.env import w_global_config
+        b_form = sexp_to_ast(residual_lam, [], {}, w_global_config.pe_get_toplevel_var_names(), [], {})
         b_form_1 = Context.normalize_term(b_form)
         b_form_2 = assign_convert(b_form_1)
 

@@ -105,7 +105,7 @@ class ModuleEnv(object):
 
 class GlobalConfig(object):
 
-    attrs_ = ['config', 'callgraph', 'error_exit', 'verbose_keywords', 'environment_vars', 'pycketconfig', 'pe_overhead', 'residual_time']
+    attrs_ = ['config', 'callgraph', 'error_exit', 'verbose_keywords', 'environment_vars', 'pycketconfig', 'pe_overhead', 'residual_time', 'pe_toplevel_var_names']
 
     def __init__(self):
         self.config = {'verbose':MIN_INT,
@@ -123,6 +123,13 @@ class GlobalConfig(object):
         # overhead and residual program performance
         self.pe_overhead = (0,0,0)
         self.residual_time = (0,0,0)
+        self.pe_toplevel_var_names = {} # {W_Symbol:None}
+
+    def pe_add_toplevel_var_name(self, w_var_sym):
+        self.pe_toplevel_var_names[w_var_sym] = None
+
+    def pe_get_toplevel_var_names(self):
+        return self.pe_toplevel_var_names
 
     # debug_active can be used to set a logical
     # point where a set_trace or a print
