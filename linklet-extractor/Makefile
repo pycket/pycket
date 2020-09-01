@@ -24,10 +24,15 @@ fasl-sexp:
 	raco make -v $(EXPANDER_DIR)/bootstrap-run.rkt
 	racket -t $(EXPANDER_DIR)/bootstrap-run.rkt -- -c compiled/cache-src ++knot read - -s -x -t fasl.rkt -o fasl.rktl
 
-regexp:
+regexp: regexp-sexp
+	racket linklet-sexp-to-fasl.rkt --output ../regexp.fasl regexp.rktl
+
+regexp-json: regexp-sexp
+	racket linklet-sexp-to-json.rkt --output ../regexp.rktl.linklet regexp.rktl
+
+regexp-sexp:
 	$(MAKE) -C $(REGEXP_DIR) regexp-src-generate
 	cp $(REGEXP_DIR)/compiled/regexp.rktl .
-	racket linklet-sexp-to-json.rkt --output ../regexp.rktl.linklet regexp.rktl
 
 expander-bytecode:
 	$(MAKE) -C $(EXPANDER_DIR) bytecode
