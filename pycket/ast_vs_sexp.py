@@ -489,10 +489,10 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
                 dynamic_variable_names = form.cdr().car().cdr().car()
                 dynamic_variable_names_ls, l = to_rpython_list(dynamic_variable_names)
                 safe_ops_sexp = form.cdr().cdr().car().cdr().car()
-                unsafe_ops_sexp = form.cdr().cdr().cdr().car().cdr().car()
+                unsafe_ops_inline_sexp = form.cdr().cdr().cdr().car().cdr().car()
                 #assert isinstance(rands[2], interp.App) and isinstance(rands[3], interp.Quote)
                 safe_op_ls, safe_op_len = to_rpython_list(safe_ops_sexp)
-                unsafe_op_ls, unsafe_op_len = to_rpython_list(unsafe_ops_sexp)
+                unsafe_op_ls, unsafe_op_len = to_rpython_list(unsafe_ops_inline_sexp)
 
                 return interp.PartialApp([x.tostring() for x in dynamic_variable_names_ls],
                                          [x.tostring() for x in safe_op_ls],
