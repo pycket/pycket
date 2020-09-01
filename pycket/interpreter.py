@@ -263,7 +263,9 @@ class __extend__(Context):
     @staticmethod
     @context
     def PartialStopAppRand(rator, args, context, ast):
-        result = PartialStopApp(rator, args)
+        assert isinstance(ast, Context.AstList)
+        rands = ast.nodes
+        result = PartialStopApp(rator, rands)
         return context.plug(result)
 
     @staticmethod
@@ -275,7 +277,9 @@ class __extend__(Context):
     @staticmethod
     @context
     def PartialAppRand(dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, rator, args, context, ast):
-        result = PartialApp(dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, rator, args)
+        assert isinstance(ast, Context.AstList)
+        rands = ast.nodes
+        result = PartialApp(dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, rator, rands)
         return context.plug(result)
 
     @staticmethod
@@ -403,7 +407,6 @@ class LetrecCont(Cont):
                     LetrecCont(ast.counting_asts[i + 1],
                                self.env, self.prev))
 
-
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
@@ -467,6 +470,121 @@ class LetCont(Cont):
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(vals_w, ast, rhsindex + 1,
                                  self.env, self.prev))
+
+    @jit.unroll_safe
+    def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
+        assert isinstance(ast, Let)
+        # this is a complete mess. however, it really helps warmup a lot
+        if new_length == 0:
+            return ConsEnv.make0(prev)
+        if new_length == 1:
+            if len_self == 1:
+                elem = self._get_list(0)
+            else:
+                assert len_self == 0 and len_vals == 1
+                elem = vals.get_value(0)
+            elem = ast.wrap_value(elem, 0)
+            return ConsEnv.make1(elem, prev)
+        if new_length == 2:
+            if len_self == 0:
+                assert len_vals == 2
+                elem1 = vals.get_value(0)
+                elem2 = vals.get_value(1)
+            elif len_self == 1:
+                assert len_vals == 1
+                elem1 = self._get_list(0)
+                elem2 = vals.get_value(0)
+            else:
+                assert len_self == 2 and len_vals == 0
+                elem1 = self._get_list(0)
+                elem2 = self._get_list(1)
+            elem1 = ast.wrap_value(elem1, 0)
+            elem2 = ast.wrap_value(elem2, 1)
+            return ConsEnv.make2(elem1, elem2, prev)
+        env = ConsEnv.make_n(new_length, prev)
+        i = 0
+        for j in range(len_self):
+            val = self._get_list(j)
+            val = ast.wrap_value(val, i)
+            env._set_list(i, val)
+            i += 1
+        for j in range(len_vals):
+            val = vals.get_value(j)
+            val = ast.wrap_value(val, i)
+            env._set_list(i, val)
+            i += 1
+        return env
+
+@inline_small_list(immutable=True, attrname="vals_w",
+                   unbox_num=True, factoryname="_make")
+class LetPartialCont(Cont):
+    _attrs_ = ["counting_ast", "_get_size_list"]
+    _immutable_fields_ = ["counting_ast"]
+
+    return_safe = True
+
+    def __init__(self, counting_ast, env, prev):
+        Cont.__init__(self, env, prev)
+        self.counting_ast  = counting_ast
+
+    def get_ast(self):
+        return self.counting_ast.ast
+
+    def get_next_executed_ast(self):
+        ast, rhsindex = self.counting_ast.unpack(Let)
+        if rhsindex == (len(ast.rhss) - 1):
+            return ast.body[0]
+        return ast.rhss[rhsindex + 1]
+
+    @staticmethod
+    @jit.unroll_safe
+    def make(vals_w, ast, rhsindex, env, prev):
+        counting_ast = ast.counting_asts[rhsindex]
+        env = ast._prune_env(env, rhsindex + 1)
+        return LetPartialCont._make(vals_w, counting_ast, env, prev)
+
+    @jit.unroll_safe
+    def plug_reduce(self, vals, _env):
+
+        #import pdb;pdb.set_trace()
+
+        len_vals = vals.num_values()
+        jit.promote(len_vals)
+        len_self = self._get_size_list()
+        jit.promote(len_self)
+        new_length = len_self + len_vals
+        ast, rhsindex = self.counting_ast.unpack(Let)
+        assert isinstance(ast, Let)
+        if ast.counts[rhsindex] != len_vals:
+            #import pdb;pdb.set_trace()
+            raise SchemeException("wrong number of values")
+        if rhsindex == (len(ast.rhss) - 1):
+            prev = self.env
+            if ast.env_speculation_works:
+                # speculate moar!
+                if _env is self.env:
+                    prev = _env
+                elif not jit.we_are_jitted():
+                    ast.env_speculation_works = False
+            env = self._construct_env(ast, len_self, vals, len_vals, new_length, prev)
+            if len_vals == 1 and isinstance(vals, values.W_PartialValue) and isinstance(ast.rhss[0], CaseLambda):
+                rec_sym = ast.rhss[0].recursive_sym
+                cc = LetLoopCodeCont(rec_sym, vals, env, self.prev)
+                return ast.make_begin_cont(env, cc)
+            return ast.make_begin_cont(env, self.prev)
+        else:
+            # XXX remove copy
+            vals_w = [None] * new_length
+            i = 0
+            for j in range(len_self):
+                vals_w[i] = self._get_list(j)
+                i += 1
+            for j in range(len_vals):
+                vals_w[i] = vals.get_value(j)
+                i += 1
+            return (ast.rhss[rhsindex + 1], self.env,
+                    LetPartialCont.make(vals_w, ast, rhsindex + 1,
+                                        self.env, self.prev))
 
     @jit.unroll_safe
     def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
@@ -1238,24 +1356,18 @@ class App(AST):
 
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
-    def is_dynamic(self, rand, dyn_var_names_ls_str):
-        if not isinstance(rand, Var):
-            return values.w_false
-        rand_str = rand.tostring()
-        for dyn_var in dyn_var_names_ls_str:
-            if dyn_var in rand_str:
-                return values.W_Symbol.make(dyn_var)
-        return values.w_false
-
     def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+        from pycket.ast_vs_sexp import normalized_dyn_var_check
         rator = self.rator
-        # if (not env.pycketconfig().callgraph and
-        #         isinstance(rator, ModuleVar) and
-        #         rator.is_primitive()):
-        #     self.set_should_enter() # to jit downrecursion
-
         rator_str = rator.tostring()
-        safe = rator_str in safe_ops_ls_str
+
+        safe = False # rator_str in safe_ops_ls_str
+        for safe_op in safe_ops_ls_str:
+            if safe_op in rator_str:
+                if normalized_dyn_var_check(rator_str, safe_op):
+                    safe = True
+                    break
+
         for unsafe_op in unsafe_ops_ls_str:
             if unsafe_op in rator_str:
                 dont_call = True
@@ -1269,20 +1381,24 @@ class App(AST):
             args_w[i], is_partial = rand.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
             emit_ast = emit_ast or is_partial
 
-            if isinstance(args_w[i], values.W_PartialValue):
-                dynamic_name_vals[i] = args_w[i]
-                emit_ast = True
-            else:
-                dyn_name = self.is_dynamic(rand, dyn_var_names_ls_str)
+            dynamic_name_vals[i] = args_w[i]
+
+            if is_partial: # args_w[i] should be a W_PartialValue
+                from pycket.ast_vs_sexp import is_dynamic
+
+                dyn_name = is_dynamic(rand, dyn_var_names_ls_str)
                 if isinstance(dyn_name, values.W_Symbol):
                     dynamic_name_vals[i] = dyn_name
-                    emit_ast = True
 
-            if not dynamic_name_vals[i]: # TODO refactor this
-                dynamic_name_vals[i] = args_w[i]
+        # smaller code gen
+        if isinstance(w_callable, values.W_PartialValue):
+            w_app_ast = values.W_PartialValue(values.to_list([self.rator.to_sexp()] + dynamic_name_vals))
+            return return_value_direct(w_app_ast, env, cont)
 
         if dont_call:
-            w_app_ast = values.to_list([w_callable] + dynamic_name_vals)
+            import pdb;pdb.set_trace()
+            #kodunu_cikart(w_callable)
+            w_app_ast = values.W_PartialValue(values.to_list([w_callable] + dynamic_name_vals))
             return return_value_direct(w_app_ast, env, cont)
 
         if isinstance(w_callable, values.W_PromotableClosure):
@@ -1315,6 +1431,28 @@ class App(AST):
             port.write(" ")
             r.write(port, env)
         port.write(")")
+
+class LetLoopCodeCont(Cont):
+    _immutable_fields_ = _attrs_ = ['w_loop_sym', 'rhs_code']
+
+    def __init__(self, loop_id, rhs_code, env, prev):
+        Cont.__init__(self, env, prev)
+        self.w_loop_sym = loop_id
+        self.rhs_code = rhs_code
+
+    def _clone(self):
+        return LetLoopCodeCont(self.w_loop_sym, self.rhs_code, self.env, self.prev)
+
+    def plug_reduce(self, body_code, env):
+        let_sym = values.W_Symbol.make("letrec-values")
+        # assume only one loop rhs for now
+        bindings_sexp = values.to_list([self.w_loop_sym])
+        rhs = values.W_Cons.make(bindings_sexp, values.W_Cons.make(self.rhs_code, values.w_null))
+
+        all_rhs_bindings = values.to_list([rhs])
+        let_code = values.to_list([let_sym, all_rhs_bindings, body_code])
+        import pdb;pdb.set_trace()
+        return return_value_direct(values.W_PartialValue(let_code), self.env, self.prev)
 
 class PartialCont(Cont):
     _immutable_fields_ = _attrs_ = ['t_res', 't_res_gc', 't_res_user']
@@ -1363,7 +1501,6 @@ class PartialStopApp(App):
     def interpret(self, env, cont):
         ast = App.make(self.rator, self.rands, self.env_structure)
         return ast.interpret(env, cont)
-        # import pdb;pdb.set_tr
         # raise SchemeException("pycket:pe-stop used outside of a pycket:pe")
 
     def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
@@ -1412,8 +1549,11 @@ class PartialApp(App):
         time_init_p_gc = current_gc_time()
         time_init_p_user = time.clock()
         dont_call = False
+
+        import pdb;pdb.set_trace()
         try:
             while True:
+                print(ast.tostring())
                 ast, env_p, cont_p = ast.interpret_partial(self.dyn_var_names_ls_str, self.safe_ops_ls_str, self.unsafe_ops_ls_str, dont_call, env_p, cont_p)
         except Done, e:
             new_w_callable_ast = e.values
@@ -1427,6 +1567,8 @@ class PartialApp(App):
         b_form = sexp_to_ast(residual_lam, [], {}, {values.W_Symbol.make("match-pat"):None}, [], {})
         b_form_1 = Context.normalize_term(b_form)
         b_form_2 = assign_convert(b_form_1)
+
+        import pdb;pdb.set_trace()
 
         time_after_p = time.time()
         time_after_p_gc = current_gc_time()
@@ -1470,7 +1612,6 @@ class NoApp(App):
                 continue
             args_w[i-1] = rand.interpret_simple(env)
         av = values.Values.make(args_w)
-        #import pdb;pdb.set_trace()
         return return_multi_vals(av, env, cont)
 
 class SimplePrimApp1(App):
@@ -1501,6 +1642,7 @@ class SimplePrimApp1(App):
     #     return self.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
     def interpret_simple_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+        from pycket.ast_vs_sexp import is_dynamic
         safe = False # if safe, we can compute even if we have a W_PartialValue
         if self.rator.tostring() in safe_ops_ls_str:
             safe = True
@@ -1508,7 +1650,7 @@ class SimplePrimApp1(App):
         w_arg1, is_partial1 = self.rand1.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
         partial = is_partial1
 
-        arg_dyn_name = self.is_dynamic(self.rand1, dyn_var_names_ls_str)
+        arg_dyn_name = is_dynamic(self.rand1, dyn_var_names_ls_str)
         if isinstance(arg_dyn_name, values.W_Symbol) and not isinstance(w_arg1, values.W_PartialValue):
             partial = True
         else:
@@ -1574,27 +1716,28 @@ class SimplePrimApp2(App):
     #     val, is_partial = self.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
     def interpret_simple_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+        from pycket.ast_vs_sexp import is_dynamic
         safe = False # if safe, we can compute even if we have a W_PartialValue
         if self.rator.tostring() in safe_ops_ls_str:
             safe = True
 
         partial = False
         w_arg1, is_partial1 = self.rand1.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-        dyn_name1 = self.is_dynamic(self.rand1, dyn_var_names_ls_str)
-        if isinstance(dyn_name1, values.W_Symbol) and not isinstance(w_arg1, values.W_PartialValue):
+        dyn_name1 = is_dynamic(self.rand1, dyn_var_names_ls_str)
+        if isinstance(dyn_name1, values.W_Symbol) or isinstance(w_arg1, values.W_PartialValue):
             partial = True
         else:
             dyn_name1 = w_arg1
 
         w_arg2, is_partial2 = self.rand2.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-        dyn_name2 = self.is_dynamic(self.rand2, dyn_var_names_ls_str)
-        if isinstance(dyn_name2, values.W_Symbol) and not isinstance(w_arg2, values.W_PartialValue):
+        dyn_name2 = is_dynamic(self.rand2, dyn_var_names_ls_str)
+        if isinstance(dyn_name2, values.W_Symbol) or isinstance(w_arg2, values.W_PartialValue):
             partial = True
         else:
             dyn_name2 = w_arg2
 
         partial = partial or is_partial1 or is_partial2
-        partial = partial or isinstance(w_arg1, values.W_PartialValue) or isinstance(w_arg2, values.W_PartialValue)
+        #partial = partial or isinstance(w_arg1, values.W_PartialValue) or isinstance(w_arg2, values.W_PartialValue)
 
         w_result = None
         if partial and (not safe):
@@ -1707,19 +1850,6 @@ class SequencedBodyAST(AST):
         return w_result, emit_ast
 
     @objectmodel.always_inline
-    def make_begin_partial_cont(self, env, prev, is_partial, i=0):
-        jit.promote(self)
-        jit.promote(i)
-        if not i:
-            env = self._prune_sequenced_envs(env, 0)
-        if i == len(self.body) - 1:
-            return self.body[i], env, prev
-        else:
-            new_env = self._prune_sequenced_envs(env, i + 1)
-            return self.body[i], env, BeginPartialCont(
-                    self.counting_asts[i + 1], new_env, prev, is_partial)
-
-    @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
         jit.promote(i)
@@ -1826,7 +1956,7 @@ class Begin(SequencedBodyAST):
         return self.make_begin_cont(env, cont)
 
     def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
-        return self.make_begin_partial_cont(env, cont, False)
+        return self.make_begin_cont(env, cont, False)
 
     def normalize(self, context):
         body = [Context.normalize_term(b) for b in self.body]
@@ -1895,13 +2025,21 @@ class Var(AST):
         return val
 
     def interpret_simple_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+        from pycket.ast_vs_sexp import normalized_dyn_var_check
         partial = False
         w_val = self.interpret_simple(env)
 
         sym_str = self.sym.variable_name()
-        for x in dyn_var_names_ls_str:
-            if x in sym_str:
-                partial = True
+        for dyn_var in dyn_var_names_ls_str:
+            if dyn_var in sym_str:
+                if normalized_dyn_var_check(sym_str, dyn_var):
+                    partial = True
+                    if not isinstance(w_val, values.W_PartialValue):
+                        if isinstance(w_val, values.W_Cons):
+                            q_sym = values.W_Symbol.make("quote")
+                            w_val = values.W_Cons.make(w_val, values.w_null)
+                            w_val = values.W_Cons.make(q_sym, w_val)
+                        w_val = values.W_PartialValue(w_val)
 
         return w_val, partial or isinstance(w_val, values.W_PartialValue)
 
@@ -2195,18 +2333,18 @@ class If(AST):
         else:
             return self.thn, env, cont
 
-    def interpret_partial_old(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
-        w_val, is_partial = self.tst.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-        if is_partial:
-            new_thn_ast, is_partial_thn = self.thn.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-            new_els_ast, is_partial_els = self.els.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-            if_sym = values.W_Symbol.make("if")
-            return values.W_PartialValue(values.to_list([if_sym, w_val, new_thn_ast, new_els_ast])), True
+    # def interpret_partial_old(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    #     w_val, is_partial = self.tst.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    #     if is_partial:
+    #         new_thn_ast, is_partial_thn = self.thn.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    #         new_els_ast, is_partial_els = self.els.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    #         if_sym = values.W_Symbol.make("if")
+    #         return values.W_PartialValue(values.to_list([if_sym, w_val, new_thn_ast, new_els_ast])), True
 
-        if w_val is values.w_false:
-            return self.els.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-        else:
-            return self.thn.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    #     if w_val is values.w_false:
+    #         return self.els.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    #     else:
+    #         return self.thn.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
     def direct_children(self):
         return [self.tst, self.thn, self.els]
@@ -2220,7 +2358,10 @@ class If(AST):
 
     def to_sexp(self):
         if_sym = values.W_Symbol.make("if")
-        return values.to_list([if_sym, self.tst.to_sexp(), self.thn.to_sexp(), self.els.to_sexp()])
+        return values.to_list([if_sym,
+                               self.tst.to_sexp(),
+                               self.thn.to_sexp(),
+                               self.els.to_sexp()])
 
     def write(self, port, env):
         port.write("(if ")
@@ -2282,9 +2423,24 @@ class CaseLambda(AST):
     def make_recursive_copy(self, sym):
         return CaseLambda(self.lams, sym, self._arity)
 
+    # def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+    #     import pdb;pdb.set_trace()
+    #     if self.recursive_sym and "loop" in self.recursive_sym.variable_name() and len(self.lams) == 1:
+    #         return self.lams[0]
+    #     import pdb;pdb.set_trace()
+
     def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_ls_str, env):
+        partial = False
+
         w_val = self.interpret_simple(env)
-        return w_val, False
+        if self.recursive_sym and "loop" in self.recursive_sym.variable_name() and len(self.lams) == 1:
+            import pdb;pdb.set_trace()
+            # w_val = values.W_PartialValue(self.lams[0].to_sexp(w_dyn_var_name))
+            partial = True
+            w_val = values.W_PartialValue(w_val)
+        # else:
+        #     w_val = self.interpret_simple(env)
+        return w_val, partial
 
     def interpret_simple(self, env):
         if not env.pycketconfig().callgraph:
@@ -2863,73 +3019,78 @@ class Let(SequencedBodyAST):
                 None, self, 0, env, cont)
 
     def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, dont_call, env, cont):
+        #import pdb;pdb.set_trace()
+        # for a in self.args.elems:
+        #     if "loop" in a.tostring():
+        #         import pdb;pdb.set_trace()
+
         env = self._prune_env(env, 0)
-        return self.rhss[0], env, LetCont.make(
+        return self.rhss[0], env, LetPartialCont.make(
                 None, self, 0, env, cont)
 
-    def interpret_partial_old(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
-        args_len = len(self.args.elems)
-        w_new_rhss = [None] * args_len
-        index = 0
-        i = -100
-        emit_ast_rhs = False
-        for i, rhs in enumerate(self.rhss):
-            env = self._prune_env(env, i)
-            new_rhs_ast, is_partial = rhs.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
-            emit_ast_rhs = emit_ast_rhs or is_partial
-            w_new_rhss[i] = new_rhs_ast
+    # def interpret_partial_old(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env):
+    #     args_len = len(self.args.elems)
+    #     w_new_rhss = [None] * args_len
+    #     index = 0
+    #     i = -100
+    #     emit_ast_rhs = False
+    #     for i, rhs in enumerate(self.rhss):
+    #         env = self._prune_env(env, i)
+    #         new_rhs_ast, is_partial = rhs.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    #         emit_ast_rhs = emit_ast_rhs or is_partial
+    #         w_new_rhss[i] = new_rhs_ast
 
-        assert i != -100
-        env = self._prune_env(env, i + 1)
-        if args_len == 1:
-            env = ConsEnv.make1(w_new_rhss[0], env)
-        elif args_len == 2:
-            env = ConsEnv.make2(w_new_rhss[0], w_new_rhss[1], env)
-        elif args_len > 2:
-            env = ConsEnv.make(w_new_rhss, env)
+    #     assert i != -100
+    #     env = self._prune_env(env, i + 1)
+    #     if args_len == 1:
+    #         env = ConsEnv.make1(w_new_rhss[0], env)
+    #     elif args_len == 2:
+    #         env = ConsEnv.make2(w_new_rhss[0], w_new_rhss[1], env)
+    #     elif args_len > 2:
+    #         env = ConsEnv.make(w_new_rhss, env)
 
-        w_body_result, _is_partial_body = SequencedBodyAST.interpret_partial_body(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
+    #     w_body_result, _is_partial_body = SequencedBodyAST.interpret_partial_body(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, env)
 
-        # if we're able to get a regular value from the body, then we don't have to do partial
-        # even if we have partial in one of the rhss
+    #     # if we're able to get a regular value from the body, then we don't have to do partial
+    #     # even if we have partial in one of the rhss
 
-        # w_result = None
-        # if _is_partial_body:
-        #     if not emit_ast_rhs:
-        #         if isinstance(w_body_result, values.W_PartialValue):
-        #             w_result = w_body_result
-        #         else:
-        #             w_result = values.W_PartialValue(w_body_result)
-        #     else:
-        #         # emit let body
-        #         let_sym = values.W_Symbol.make("let-values")
-        #         all_bindings_ls = [None]*len(self.counts)
-        #         total = 0
-        #         for i, count in enumerate(self.counts):
-        #             binding_ls = [None]*count
-        #             for k in range(count):
-        #                 binding_ls[k] = self.args.elems[total+k]
-        #             total += count
-        #             current_bindings_sexp = values.to_list(binding_ls)
-        #             current_rhs_sexp = w_new_rhss[i] # self.rhss[i].to_sexp()
-        #             current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
-        #             current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
-        #             all_bindings_ls[i] = current_ids
-        #         all_bindings = values.to_list(all_bindings_ls)
+    #     # w_result = None
+    #     # if _is_partial_body:
+    #     #     if not emit_ast_rhs:
+    #     #         if isinstance(w_body_result, values.W_PartialValue):
+    #     #             w_result = w_body_result
+    #     #         else:
+    #     #             w_result = values.W_PartialValue(w_body_result)
+    #     #     else:
+    #     #         # emit let body
+    #     #         let_sym = values.W_Symbol.make("let-values")
+    #     #         all_bindings_ls = [None]*len(self.counts)
+    #     #         total = 0
+    #     #         for i, count in enumerate(self.counts):
+    #     #             binding_ls = [None]*count
+    #     #             for k in range(count):
+    #     #                 binding_ls[k] = self.args.elems[total+k]
+    #     #             total += count
+    #     #             current_bindings_sexp = values.to_list(binding_ls)
+    #     #             current_rhs_sexp = w_new_rhss[i] # self.rhss[i].to_sexp()
+    #     #             current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
+    #     #             current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
+    #     #             all_bindings_ls[i] = current_ids
+    #     #         all_bindings = values.to_list(all_bindings_ls)
 
-        #         w_result = values.W_PartialValue(values.to_list([let_sym, all_bindings, w_body_result]))
+    #     #         w_result = values.W_PartialValue(values.to_list([let_sym, all_bindings, w_body_result]))
 
-        # else:
-        #     w_result = w_body_result
+    #     # else:
+    #     #     w_result = w_body_result
 
-        # #print("LET : %s\n" % self.tostring())
-        # return w_result, emit_ast_rhs or _is_partial_body
+    #     # #print("LET : %s\n" % self.tostring())
+    #     # return w_result, emit_ast_rhs or _is_partial_body
 
-        if _is_partial_body and (not isinstance(w_body_result, values.W_PartialValue)):
-            #import pdb;pdb.set_trace()
-            raise SchemeException("let interpret_partial, is_partial_body is true but w_body_result is not W_PartialValue")
+    #     if _is_partial_body and (not isinstance(w_body_result, values.W_PartialValue)):
+    #         #import pdb;pdb.set_trace()
+    #         raise SchemeException("let interpret_partial, is_partial_body is true but w_body_result is not W_PartialValue")
 
-        return w_body_result, _is_partial_body
+    #     return w_body_result, _is_partial_body
 
     def direct_children(self):
         return self.rhss + self.body

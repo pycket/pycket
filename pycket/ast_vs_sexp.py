@@ -236,14 +236,33 @@ def let_like_to_ast(let_sexp, lex_env, exports, all_toplevels, linkl_imports, mu
     else:
         return interp.make_let(varss_list, rhss_list, body_ls)
 
+def is_dynamic(rand, dyn_var_names_ls_str):
+    if not isinstance(rand, interp.Var):
+        return values.w_false
+    rand_str = rand.tostring()
+    for dyn_var in dyn_var_names_ls_str:
+        if dyn_var in rand_str:
+            if normalized_dyn_var_check(rand_str, dyn_var):
+                return values.W_Symbol.make(dyn_var)
+    return values.w_false
+
+def normalized_dyn_var_check(var_str, dyn_var):
+    i = var_str.find("_")
+    if i > 0:
+        return var_str[:i] == dyn_var
+    else:
+        return var_str == dyn_var
+
 def is_val_type(form, extra=[]):
     val_types = [values.W_Number,
                  values.W_Void,
                  values.W_Bool,
                  values.W_Null,
+                 vector.W_Vector,
                  values_string.W_String,
                  values.W_ImmutableBytes,
-                 values.W_PromotableClosure,
+                 values.W_Procedure,
+                 values.W_Closure1AsEnv,
                  values.W_Character] + extra
     for t in val_types:
         if isinstance(form, t):
@@ -463,15 +482,14 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         else:
             rands_ls, rands_len = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for r in rands_ls]
-
             if c is pe_stop_sym and rands_len >= 1: # has to be 1
                 return interp.PartialStopApp(rands[0], rands[1:])
 
             if c is partial_eval_sym and rands_len >= 3: # FIXME: refactor this
                 dynamic_variable_names = form.cdr().car().cdr().car()
                 dynamic_variable_names_ls, l = to_rpython_list(dynamic_variable_names)
-                safe_ops_sexp = form.cdr().cdr().car()
-                unsafe_ops_sexp = form.cdr().cdr().cdr().car()
+                safe_ops_sexp = form.cdr().cdr().car().cdr().car()
+                unsafe_ops_sexp = form.cdr().cdr().cdr().car().cdr().car()
                 #assert isinstance(rands[2], interp.App) and isinstance(rands[3], interp.Quote)
                 safe_op_ls, safe_op_len = to_rpython_list(safe_ops_sexp)
                 unsafe_op_ls, unsafe_op_len = to_rpython_list(unsafe_ops_sexp)
@@ -485,7 +503,7 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
 
             return interp.App.make(form_rator, rands)
     else:
-        raise SchemeException("Don't know what to do with this form yet : %s" % form.tostring())
+        raise SchemeException("Don't know what to do with this form yet : %s -- %s" % (form, form.tostring()))
 
 def looks_like_linklet(sexp):
     # (linklet () () ...)

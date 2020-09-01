@@ -430,6 +430,10 @@ def get_substring(w_string, w_start, w_end):
             "substring: ending index is smaller than starting index")
     return w_string.getslice(start, end)
 
+@expose("unsafe-string-ref", [W_String, values.W_Fixnum])
+def string_ref(s, n):
+    return values.W_Character(s.getitem(n.value))
+
 @expose("string-ref", [W_String, values.W_Fixnum])
 def string_ref(s, n):
     n = n.value

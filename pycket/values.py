@@ -273,7 +273,7 @@ class W_PartialValue(W_Object):
         return self.obj
 
     def tostring(self):
-        return self.obj.tostring()
+        return "W_PartialValue(%s)" % self.obj.tostring()
 
 class W_VariableReference(W_Object):
     errorname = "variable-reference"
@@ -1442,10 +1442,13 @@ class W_Prim(W_Procedure):
         if emit_ast and (not safe): # we are producing code
             if "values" in self.name.tostring() and len(args) == 1:
                 return return_value_direct(W_PartialValue(dynamic_names[0]), env, cont)
-
             return return_value_direct(W_PartialValue(to_list([self.name] + dynamic_names)), env, cont)
-
-        return self.code(args, env, cont, calling_app)
+        # we are actually running it
+        # so we need actual values in args
+        w_args = [None]*len(args)
+        for i, a in enumerate(args):
+            w_args[i] = args[i].get_obj() if isinstance(args[i], W_PartialValue) else args[i]
+        return self.code(w_args, env, cont, calling_app)
 
     def call_with_extra_info(self, args, env, cont, extra_call_info):
         # from pycket.util import active_log

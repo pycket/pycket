@@ -126,7 +126,7 @@ class W_StructType(values.W_Object):
         w_struct_type = self
         while isinstance(w_struct_type, W_StructType):
             offset = (w_struct_type.total_field_count -
-                      w_struct_type.init_field_count - 
+                      w_struct_type.init_field_count -
                       w_struct_type.auto_field_count)
             offsets.append((w_struct_type, offset))
             for immutable_field in w_struct_type.immutables:
@@ -139,7 +139,7 @@ class W_StructType(values.W_Object):
     @staticmethod
     def make(w_name, w_super_type, init_field_count, auto_field_count,
              w_auto_value=values.w_false, w_properties=values.w_null,
-             w_inspector=values.w_false, w_proc_spec=values.w_false, 
+             w_inspector=values.w_false, w_proc_spec=values.w_false,
              immutables=[], w_guard=values.w_false,
              w_constructor_name=values.w_false, env=None, cont=None):
         """
@@ -152,7 +152,7 @@ class W_StructType(values.W_Object):
         """
         w_struct_type = W_StructType.make_simple(
             w_name=w_name,
-            w_super_type=w_super_type, 
+            w_super_type=w_super_type,
             init_field_count=init_field_count,
             auto_field_count=auto_field_count,
             w_auto_value=w_auto_value,
@@ -186,7 +186,7 @@ class W_StructType(values.W_Object):
             w_inspector=w_prefab_symbol,
             w_proc_spec=values.w_false,
             immutables=immutables,
-            w_guard=values.w_false, 
+            w_guard=values.w_false,
             w_constructor_name=values.w_false)
         W_StructType.unbound_prefab_types[prefab_key] = w_struct_type
 
@@ -204,7 +204,7 @@ class W_StructType(values.W_Object):
         """
         w_struct_type = W_StructType(
             w_name=w_name,
-            w_super_type=w_super_type, 
+            w_super_type=w_super_type,
             init_field_count=init_field_count,
             auto_field_count=auto_field_count,
             w_auto_value=w_auto_value,
@@ -658,6 +658,9 @@ class W_RootStruct(values.W_Object):
                     self.arity_error_cont(env, cont), app)
         return proc.call_with_extra_info(args, env, cont, app)
 
+    # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+    #     import pdb;pdb.set_trace()
+
     def call_with_extra_info(self, args, env, cont, app):
         type = self.struct_type()
         proc = type.prop_procedure
@@ -716,7 +719,7 @@ class W_RootStruct(values.W_Object):
             return prop.ref(1)
         else:
             raise SchemeException("unexpected property value for prop:equal+hash: %s"%prop.tostring())
-    
+
     def hash_equal(self, info=None):
         struct_type = self.struct_type()
         prop_equal_hash = struct_type.read_property(w_prop_equal_hash)
@@ -1199,6 +1202,20 @@ class W_StructFieldAccessor(values.W_Procedure):
     def get_arity(self, promote=False):
         return Arity.ONE
 
+    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+        from pycket.interpreter import return_value_direct
+        safe = False
+        if self.field_name.tostring() in safe_ops_ls_str:
+            safe = True
+
+        w_result = None
+        # if emit_ast and (not safe): # we are producing code
+        #     # if "values" in self.name.tostring() and len(args) == 1:
+        #     #     return return_value_direct(W_PartialValue(dynamic_names[0]), env, cont)
+        #     import pdb;pdb.set_trace()
+        #     #return return_value_direct(W_PartialValue(to_list([self.name] + dynamic_names)), env, cont)
+        return self.accessor.access(args[0], self.field, env, cont, calling_app)
+
     @make_call_method([values.W_Object], simple=False,
                       name="<struct-field-accessor-method>")
     def call_with_extra_info(self, struct, env, cont, app):
@@ -1225,6 +1242,9 @@ class W_StructAccessor(W_StructTypeProcedure):
             raise SchemeException("%s: expected a %s but got a %s" % (self.tostring(), self.struct_type_name(), st.name.variable_name()))
         return struct.ref_with_extra_info(field + offset, app, env, cont)
 
+    # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+    #     import pdb;pdb.set_trace()
+
     @make_call_method([values.W_Object, values.W_Fixnum], simple=False,
                       name="<struct-accessor-method>")
     def call_with_extra_info(self, struct, field, env, cont, app):
@@ -1249,6 +1269,9 @@ class W_StructFieldMutator(values.W_Procedure):
     def get_absolute_index(self, type):
         return type.get_offset(self.mutator.struct_type()) + self.field
 
+    # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+    #     import pdb;pdb.set_trace()
+
     @make_call_method([values.W_Object, values.W_Object], simple=False,
                       name="<struct-field-mutator-method>")
     def call_with_extra_info(self, struct, val, env, cont, app):
@@ -1272,6 +1295,9 @@ class W_StructMutator(W_StructTypeProcedure):
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
         return struct.set_with_extra_info(field + offset, val, app, env, cont)
+
+    # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+    #     import pdb;pdb.set_trace()
 
     @make_call_method([values.W_Object, values.W_Fixnum, values.W_Object],
                       simple=False, name="<struct-mutator-method>")
@@ -1334,6 +1360,9 @@ class W_StructPropertyPredicate(values.W_Procedure):
     def get_arity(self, promote=False):
         return Arity.ONE
 
+    # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+    #     import pdb;pdb.set_trace()
+
     @make_call_method([values.W_Object])
     @jit.unroll_safe
     def call(self, arg):
@@ -1353,6 +1382,9 @@ class W_StructPropertyAccessor(values.W_Procedure):
 
     def get_arity(self, promote=False):
         return Arity.ONE
+
+    # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+    #     import pdb;pdb.set_trace()
 
     @make_call_method([values.W_Object, default(values.W_Object, None)], simple=False)
     def call_with_extra_info(self, arg, fail, env, cont, app):

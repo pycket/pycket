@@ -2186,4 +2186,4 @@ def pycket_partial_stop_eval(stop_app_rand):
     # Should Never Be Called
     # Either meta-hint-change app is not registered as a NoApp AST
     # Or NoApp interpret is not an identity function
-    raise SchemeException("pycket:pe -- who is calling this?")
+    raise SchemeException("pycket:pe-stop -- who is calling this?")
