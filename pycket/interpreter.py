@@ -445,7 +445,6 @@ class LetCont(Cont):
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len_vals:
-            #import pdb;pdb.set_trace()
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
@@ -515,10 +514,41 @@ class LetCont(Cont):
             i += 1
         return env
 
+class EmitLetCodeCont(Cont):
+    _immutable_fields_ = ["rhss"]
+    return_safe = True
+
+    def __init__(self, rhss, env, prev):
+        Cont.__init__(self, env, prev)
+        self.rhss = rhss # hash {W_Symbol : W_PartialValue}
+
+    def _clone(self):
+        return EmitLetCodeCont(self.rhss, self.env, self.prev)
+
+    def plug_reduce(self, body_val, env):
+        w_body_val = body_val.get_all_values()
+        assert len(w_body_val) == 1
+        # safe to assume 1, if there's more (partial), then the begin
+        # cont will produce a "begin" for it
+
+        let_sym = values.W_Symbol.make("let-values")
+        cons = values.W_Cons.make
+        null = values.w_null
+
+        all_bindings_ls = [None]*len(self.rhss)
+        current = 0
+        for rhs_id, rhs_pv in self.rhss.iteritems():
+            all_bindings_ls[current] = cons(cons(rhs_id, null), cons(rhs_pv, null))
+            current += 1
+        all_bindings = values.to_list(all_bindings_ls)
+
+        w_result = values.W_PartialValue(values.to_list([let_sym, all_bindings, body_val]))
+        return return_value_direct(w_result, self.env, self.prev)
+
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class LetPartialCont(Cont):
-    _attrs_ = ["counting_ast", "_get_size_list"]
+    _attrs_ = ["counting_ast", "_get_size_list", 'partial_rhss']
     _immutable_fields_ = ["counting_ast"]
 
     return_safe = True
@@ -526,9 +556,19 @@ class LetPartialCont(Cont):
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast  = counting_ast
+        self.partial_rhss = {}
 
     def get_ast(self):
         return self.counting_ast.ast
+
+    def set_partial_rhss(self, new_rhss):
+        self.partial_rhss = new_rhss
+
+    def add_partial_rhs(self, new_id, new_rhs):
+        self.partial_rhss[new_id] = new_rhs
+
+    def get_partial_rhss(self):
+        return self.partial_rhss
 
     def get_next_executed_ast(self):
         ast, rhsindex = self.counting_ast.unpack(Let)
@@ -556,8 +596,11 @@ class LetPartialCont(Cont):
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len_vals:
-            #import pdb;pdb.set_trace()
             raise SchemeException("wrong number of values")
+
+        if isinstance(vals, values.W_PartialValue):
+            self.add_partial_rhs(ast.args.elems[rhsindex], vals)
+
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
             if ast.env_speculation_works:
@@ -567,11 +610,10 @@ class LetPartialCont(Cont):
                 elif not jit.we_are_jitted():
                     ast.env_speculation_works = False
             env = self._construct_env(ast, len_self, vals, len_vals, new_length, prev)
-            if len_vals == 1 and isinstance(vals, values.W_PartialValue) and isinstance(ast.rhss[0], CaseLambda):
-                rec_sym = ast.rhss[0].recursive_sym
-                cc = LetLoopCodeCont(rec_sym, vals, env, self.prev)
-                return ast.make_begin_cont(env, cc)
-            return ast.make_begin_cont(env, self.prev)
+            cc = self.prev
+            if self.partial_rhss:
+                cc = EmitLetCodeCont(self.partial_rhss, env, self.prev)
+            return ast.make_begin_partial_cont(env, cc, [])
         else:
             # XXX remove copy
             vals_w = [None] * new_length
@@ -582,9 +624,10 @@ class LetPartialCont(Cont):
             for j in range(len_vals):
                 vals_w[i] = vals.get_value(j)
                 i += 1
-            return (ast.rhss[rhsindex + 1], self.env,
-                    LetPartialCont.make(vals_w, ast, rhsindex + 1,
-                                        self.env, self.prev))
+
+            cc = LetPartialCont.make(vals_w, ast, rhsindex + 1, self.env, self.prev)
+            cc.set_partial_rhss(self.get_partial_rhss())
+            return (ast.rhss[rhsindex + 1], self.env, cc)
 
     @jit.unroll_safe
     def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
@@ -700,18 +743,40 @@ class CellCont(Cont):
             vals_w.append(w_val)
         return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
-class BeginPartialCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
-    _attrs_ = ["counting_ast", "is_partial"]
-
+class EmitBeginCodeCont(Cont):
+    _immutable_fields_ = ["exprs"]
     return_safe = True
-    def __init__(self, counting_ast, env, prev, is_partial=False):
+
+    def __init__(self, exprs, env, prev):
         Cont.__init__(self, env, prev)
-        self.counting_ast = counting_ast
-        self.is_partial = is_partial
+        self.exprs = exprs
 
     def _clone(self):
-        return BeginPartialCont(self.counting_ast, self.env, self.prev)
+        return EmitBeginCodeCont(self.exprs, self.env, self.prev)
+
+    def plug_reduce(self, vals, env):
+        w_vals = vals.get_all_values()
+        assert len(w_vals) == 1
+        exprs = self.exprs + w_vals
+
+        begin_sym = values.W_Symbol.make("begin")
+        val = values.W_PartialValue(values.to_list([begin_sym] + exprs))
+
+        return return_value_direct(val, self.env, self.prev)
+
+class BeginPartialCont(Cont):
+    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = ["counting_ast", "emit_code", "partial_asts"]
+
+    return_safe = True
+    def __init__(self, counting_ast, env, prev, partial_asts=[], emit_code=False):
+        Cont.__init__(self, env, prev)
+        self.counting_ast = counting_ast
+        self.partial_asts = partial_asts # the exprs we want to keep
+        self.emit_code = emit_code
+
+    def _clone(self):
+        return BeginPartialCont(self.counting_ast, self.env, self.prev, self.partial_asts, self.emit_code)
 
     def get_ast(self):
         return self.counting_ast.ast
@@ -722,14 +787,13 @@ class BeginPartialCont(Cont):
 
     def plug_reduce(self, vals, env):
         w_vals = vals.get_all_values()
-        if not self.is_partial:
-            for v in w_vals:
-                if isinstance(v, values.W_PartialValue):
-                    self.is_partial = True
+        assert len(w_vals) == 1
+        w_val = w_vals[0]
+        if isinstance(w_val, values.W_PartialValue):
+            self.partial_asts.append(w_val)
 
         ast, i = self.counting_ast.unpack(SequencedBodyAST)
-        return ast.make_begin_partial_cont(self.env, self.prev, self.is_partial, i)
-
+        return ast.make_begin_partial_cont(self.env, self.prev, self.partial_asts, i)
 
 class BeginCont(Cont):
     _attrs_ = _immutable_fields_ = ["counting_ast"]
@@ -1376,41 +1440,34 @@ class App(AST):
 
         w_callable, emit_ast = rator.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
         args_w = [None] * len(self.rands)
-        dynamic_name_vals = [None]*len(self.rands)
+        dyn_args_w = [None]*len(self.rands)
 
         for i, rand in enumerate(self.rands):
             args_w[i], is_partial = rand.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
             emit_ast = emit_ast or is_partial
 
-            dynamic_name_vals[i] = args_w[i]
-
-            if is_partial: # args_w[i] should be a W_PartialValue
-                from pycket.ast_vs_sexp import is_dynamic
-
-                dyn_name = is_dynamic(rand, dyn_var_names_ls_str)
-                if isinstance(dyn_name, values.W_Symbol):
-                    dynamic_name_vals[i] = dyn_name
+            if isinstance(args_w[i], values.W_Cons):
+                q_sym = values.W_Symbol.make("quote")
+                dyn_args_w[i] = values.to_list([q_sym, args_w[i]])
+            else:
+                dyn_args_w[i] = args_w[i]
 
         # smaller code gen
         if isinstance(w_callable, values.W_PartialValue):
-            w_app_ast = values.W_PartialValue(values.to_list([self.rator.to_sexp()] + dynamic_name_vals))
+            w_app_ast = values.W_PartialValue(values.to_list([self.rator.to_sexp()] + dyn_args_w))
             return return_value_direct(w_app_ast, env, cont)
 
         if unsafe_inline:
             # unsafe_inline: rator is unsafe to continue PE (with the current -possibly dynamic- arguments),
             # but we can inline the procedure object directly (e.g. map)
-            w_app_ast = values.W_PartialValue(values.to_list([w_callable] + dynamic_name_vals))
+            w_app_ast = values.W_PartialValue(values.to_list([w_callable] + dyn_args_w))
             return return_value_direct(w_app_ast, env, cont)
 
         if pe_stop:
-            #kodunu_cikart(w_callable)
-            if not isinstance(rator, ToplevelVar):
-                import pdb;pdb.set_trace()
-            # put the var into the toplevels
             from pycket.env import w_global_config
             rator_sym = rator.to_sexp()
             w_global_config.pe_add_toplevel_var_name(rator_sym)
-            w_app_ast = values.W_PartialValue(values.to_list([rator_sym] + dynamic_name_vals))
+            w_app_ast = values.W_PartialValue(values.to_list([rator_sym] + dyn_args_w))
             return return_value_direct(w_app_ast, env, cont)
 
         if isinstance(w_callable, values.W_PromotableClosure):
@@ -1418,7 +1475,7 @@ class App(AST):
             jit.promote(w_callable)
             w_callable = w_callable.closure
 
-        return w_callable.call_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, args_w, emit_ast, dynamic_name_vals, env, cont, self)
+        return w_callable.call_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, args_w, emit_ast, dyn_args_w, env, cont, self)
 
     def normalize(self, context):
         context = Context.AppRator(self.rands, context)
@@ -1463,7 +1520,7 @@ class LetLoopCodeCont(Cont):
 
         all_rhs_bindings = values.to_list([rhs])
         let_code = values.to_list([let_sym, all_rhs_bindings, body_code])
-        import pdb;pdb.set_trace()
+
         return return_value_direct(values.W_PartialValue(let_code), self.env, self.prev)
 
 class PartialCont(Cont):
@@ -1519,6 +1576,11 @@ class PartialStopApp(App):
         ast = App.make(self.rator, self.rands, self.env_structure)
         return ast.interpret_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, True, env, cont)
 
+    def _tostring(self):
+        elements = [self.rator] + self.rands
+        return "(PE-STOP %s)" % " ".join([r.tostring() for r in elements])
+
+
 class PartialApp(App):
     _immutable_fields_ = ['dyn_var_names_ls_str[*]', 'safe_ops_ls_str[*]', 'unsafe_ops_inline_ls_str[*]']
     visitable = True
@@ -1527,10 +1589,15 @@ class PartialApp(App):
         App.__init__(self, rator, rands, env_structure)
         self.rator = rator
         self.rands = rands
-        self.dyn_var_names_ls_str = dynamic_var_names
-        self.safe_ops_ls_str = safe_ops
-        self.unsafe_ops_inline_ls_str = unsafe_ops
+        self.dyn_var_names_ls_str = dynamic_var_names # [str ...]
+        self.safe_ops_ls_str = safe_ops # [str ...]
+        self.unsafe_ops_inline_ls_str = unsafe_ops # [str ...]
         self.env_structure = env_structure
+
+    @staticmethod
+    def make(app, dyn_var_names, safe_ops, unsafe_ops):
+        assert isinstance(app, App)
+        return PartialApp(dyn_var_names, safe_ops, unsafe_ops, app.rator, app.rands, app.env_structure)
 
     def get_var_name(self):
         return self.dyn_var_names_ls_str
@@ -1544,45 +1611,55 @@ class PartialApp(App):
         return Context.normalize_name(self.rator, context, hint="PartialAppRator")
 
     @jit.dont_look_inside
-    def interpret(self, env, cont):
-        from pycket.ast_vs_sexp import sexp_to_ast, lam_sym
-        from pycket.assign_convert import assign_convert
-        import time
+    def partially_evaluate(self, env):
+        from pycket.ast_vs_sexp import lam_sym
+        from pycket.cont import Prompt
+        from pycket.prims.control import default_uncaught_exception_handler
         from pycket.prims.general import current_gc_time
-        from pycket.util import console_log
-        from pycket.env import w_global_config
 
         ast = App.make(self.rator, self.rands, self.env_structure)
-        cont_p = NilCont()
         env_p = env
+        cont_p = NilCont()
+        cont_p = Prompt(values.w_default_continuation_prompt_tag, None, env_p, cont_p)
+        cont_p.update_cm(values.parameterization_key, values_parameter.top_level_config)
+        cont_p.update_cm(values.exn_handler_key, default_uncaught_exception_handler)
+
         emit_ast = False
         new_w_callable_ast = None
-        time_init_p = time.time()
-        time_init_p_gc = current_gc_time()
-        time_init_p_user = time.clock()
         pe_stop = False
 
-        import pdb;pdb.set_trace()
         try:
             while True:
-                print(ast.tostring())
                 ast, env_p, cont_p = ast.interpret_partial(self.dyn_var_names_ls_str, self.safe_ops_ls_str, self.unsafe_ops_inline_ls_str, pe_stop, env_p, cont_p)
         except Done, e:
             new_w_callable_ast = e.values
 
         assert new_w_callable_ast is not None
 
-        residual_lam = values.to_list([lam_sym,
-                                       values.to_list([values.W_Symbol.make(x) for x in self.dyn_var_names_ls_str]),
-                                       new_w_callable_ast])
+        return values.to_list([lam_sym, values.to_list([values.W_Symbol.make(x) for x in self.dyn_var_names_ls_str]), new_w_callable_ast])
 
+    @jit.dont_look_inside
+    def interpret(self, env, cont):
+        from pycket.ast_vs_sexp import sexp_to_ast
+        from pycket.assign_convert import assign_convert
+        import time
+        from pycket.prims.general import current_gc_time
+        from pycket.util import console_log
+        from pycket.env import w_global_config
+
+
+        time_init_p = time.time()
+        time_init_p_gc = current_gc_time()
+        time_init_p_user = time.clock()
+
+        residual_lam = self.partially_evaluate(env)
 
         from pycket.env import w_global_config
         b_form = sexp_to_ast(residual_lam, [], {}, w_global_config.pe_get_toplevel_var_names(), [], {})
         b_form_1 = Context.normalize_term(b_form)
         b_form_2 = assign_convert(b_form_1)
 
-        import pdb;pdb.set_trace()
+        #import pdb;pdb.set_trace()
 
         time_after_p = time.time()
         time_after_p_gc = current_gc_time()
@@ -1864,6 +1941,22 @@ class SequencedBodyAST(AST):
         return w_result, emit_ast
 
     @objectmodel.always_inline
+    def make_begin_partial_cont(self, env, prev, partial_asts, i=0):
+        jit.promote(self)
+        jit.promote(i)
+        if not i:
+            env = self._prune_sequenced_envs(env, 0)
+        if i == len(self.body) - 1:
+            cc = prev
+            if partial_asts:
+                cc = EmitBeginCodeCont(partial_asts, env, prev)
+            return self.body[i], env, cc
+        else:
+            new_env = self._prune_sequenced_envs(env, i + 1)
+            return self.body[i], env, BeginPartialCont(
+                    self.counting_asts[i + 1], new_env, prev, partial_asts)
+
+    @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
         jit.promote(i)
@@ -1907,6 +2000,9 @@ class Begin0(SequencedBodyAST):
 
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
+
+    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, pe_stop, env, cont):
+        return self.make_begin_partial_cont(env, cont, [], False)
 
     def to_sexp(self):
         beg0_sym = values.W_Symbol.make("begin0")
@@ -1970,7 +2066,7 @@ class Begin(SequencedBodyAST):
         return self.make_begin_cont(env, cont)
 
     def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, pe_stop, env, cont):
-        return self.make_begin_cont(env, cont, False)
+        return self.make_begin_partial_cont(env, cont, [], False)
 
     def normalize(self, context):
         body = [Context.normalize_term(b) for b in self.body]
@@ -2039,23 +2135,22 @@ class Var(AST):
         return val
 
     def interpret_simple_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env):
-        from pycket.ast_vs_sexp import normalized_dyn_var_check
+        from pycket.ast_vs_sexp import is_dynamic
         partial = False
         w_val = self.interpret_simple(env)
 
         sym_str = self.sym.variable_name()
-        for dyn_var in dyn_var_names_ls_str:
-            if dyn_var in sym_str:
-                if normalized_dyn_var_check(sym_str, dyn_var):
-                    partial = True
-                    if not isinstance(w_val, values.W_PartialValue):
-                        if isinstance(w_val, values.W_Cons):
-                            q_sym = values.W_Symbol.make("quote")
-                            w_val = values.W_Cons.make(w_val, values.w_null)
-                            w_val = values.W_Cons.make(q_sym, w_val)
-                        w_val = values.W_PartialValue(w_val)
+        dyn_name = is_dynamic(self, dyn_var_names_ls_str)
 
-        return w_val, partial or isinstance(w_val, values.W_PartialValue)
+        # TODO: refactor the is_dynamic name thing
+        if isinstance(dyn_name, values.W_Symbol):
+            return values.W_PartialValue(dyn_name), True
+        elif isinstance(w_val, values.W_PartialValue):
+            if isinstance(w_val.get_obj(), values.W_Symbol):
+                return w_val, True
+            return values.W_PartialValue(self.sym), True
+        else:
+            return w_val, False
 
     def direct_children(self):
         return []
@@ -2437,24 +2532,9 @@ class CaseLambda(AST):
     def make_recursive_copy(self, sym):
         return CaseLambda(self.lams, sym, self._arity)
 
-    # def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, pe_stop, env, cont):
-    #     import pdb;pdb.set_trace()
-    #     if self.recursive_sym and "loop" in self.recursive_sym.variable_name() and len(self.lams) == 1:
-    #         return self.lams[0]
-    #     import pdb;pdb.set_trace()
-
     def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_inline_ls_str, env):
-        partial = False
-
         w_val = self.interpret_simple(env)
-        if self.recursive_sym and "loop" in self.recursive_sym.variable_name() and len(self.lams) == 1:
-            import pdb;pdb.set_trace()
-            # w_val = values.W_PartialValue(self.lams[0].to_sexp(w_dyn_var_name))
-            partial = True
-            w_val = values.W_PartialValue(w_val)
-        # else:
-        #     w_val = self.interpret_simple(env)
-        return w_val, partial
+        return w_val, False
 
     def interpret_simple(self, env):
         if not env.pycketconfig().callgraph:

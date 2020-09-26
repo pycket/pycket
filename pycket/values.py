@@ -1679,7 +1679,7 @@ class W_Closure(W_Procedure):
             env_structure = calling_app.env_structure
 
         prev = lam.env_structure.prev.find_env_in_chain_speculate(closure_env, env_structure, env)
-        return lam.make_begin_cont(ConsEnv.make(actuals, prev), cont)
+        return lam.make_begin_partial_cont(ConsEnv.make(actuals, prev), cont, [])
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.env import w_global_config
@@ -1751,7 +1751,7 @@ class W_Closure1AsEnv(ConsEnv):
         actuals = lam.match_args(args)
 
         prev = lam.env_structure.prev.find_env_in_chain_speculate(self, env_structure, env)
-        return lam.make_begin_cont(ConsEnv.make(actuals, prev), cont)
+        return lam.make_begin_partial_cont(ConsEnv.make(actuals, prev), cont, [])
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.env import w_global_config
