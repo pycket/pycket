@@ -179,6 +179,45 @@ def inst(linkl, imports=[], target=None):
 
     return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false])
 
+def partially_eval_app_str(app_str, dyn_var_names=[], safe_ops=[], unsafe_ops_inline=[]):
+    from pycket.ast_vs_sexp import sexp_to_ast
+    from pycket.interpreter import PartialApp
+    from pycket.env import w_global_config as conf
+    from pycket.interpreter import Context
+    from pycket.assign_convert import assign_convert
+
+    __pycketconfig = conf.get_pycketconfig()
+
+    app_sexp = string_to_sexp(app_str)
+    app_ast = sexp_to_ast(app_sexp, [], {}, conf.pe_get_toplevel_var_names(), [], {})
+    app_ast = Context.normalize_term(app_ast)
+    app_ast = assign_convert(app_ast)
+
+    papp = PartialApp.make(app_ast, dyn_var_names, safe_ops, unsafe_ops_inline)
+    return papp.partially_evaluate(ToplevelEnv(__pycketconfig))
+
+def run_residual_sexp(residual_sexp, dyn_arg): # single dyn arg is enough for now
+    from pycket.ast_vs_sexp import sexp_to_ast
+    cons = values.W_Cons.make
+    null = values.w_null
+
+    linkl_sexp = cons(values.W_Symbol.make("linklet"),
+                      cons(null,
+                           cons(null,
+                                cons(cons(residual_sexp, cons(dyn_arg, null)),
+                                     null))))
+    #import pdb;pdb.set_trace()
+    l = None
+    try:
+        do_compile_linklet(linkl_sexp, values.W_Symbol.make("l_name"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
+    except Done, e:
+        l = e.values # W_Linklet
+    assert l
+
+    return eval_fixnum(l, empty_target())[0]
+
+
+
 # CAUTION: call it with variables carrying only numbers
 def make_instance(vars):
     w_name = values.W_Symbol.make("test_linklet_instance")
