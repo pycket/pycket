@@ -697,7 +697,10 @@ def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
                         top_var = interp.ToplevelVar(n, is_free=False)
                         mode = interp.Quote(values.w_false) # FIXME: possible optimization
                         rands = [exp_var, top_var, mode]
-                        body_forms[current_index] = interp.App.make(var_set_mod_var,rands)
+                        new_b_form = interp.App.make(var_set_mod_var,rands)
+                        new_b_form = interp.Context.normalize_term(new_b_form)
+                        new_b_form = assign_convert(new_b_form)
+                        body_forms[current_index] = new_b_form
                         current_index += 1
             elif len(b_form.names) == 1:
                 n = b_form.names[0]
@@ -710,7 +713,10 @@ def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
                         top_var = interp.ToplevelVar(n, is_free=False)
                         mode = interp.Quote(values.w_false) # FIXME: possible optimization
                         rands = [exp_var, top_var, mode]
-                        body_forms[current_index] = interp.App.make(rator,rands)
+                        new_b_form = interp.App.make(rator,rands)
+                        new_b_form = interp.Context.normalize_term(new_b_form)
+                        new_b_form = assign_convert(new_b_form)
+                        body_forms[current_index] = new_b_form
                         current_index += 1
                     else:
                         # current_index += 1 # skip/delete the define-values form
@@ -721,7 +727,10 @@ def process_w_body_sexp(w_body, importss_list, exports, from_zo=False):
                         exp_var = interp.LinkletVar(exports[n].int_id)
                         mode = interp.Quote(values.w_false)
                         rands = [exp_var, b_form.rhs, mode]
-                        body_forms[current_index] = interp.App.make(rator, rands)
+                        new_b_form = interp.App.make(rator,rands)
+                        new_b_form = interp.Context.normalize_term(new_b_form)
+                        new_b_form = assign_convert(new_b_form)
+                        body_forms[current_index] = new_b_form
                         current_index += 1
                 else: # n not in exports
                     body_forms[current_index] = b_form
