@@ -17,7 +17,7 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 PYFILES := $(shell find . -name '*.py' -type f -maxdepth 1) $(shell find pycket  -name '*.py' -type f)
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets
-.PHONY: test coverage test-expander test-one test-one-expander test-mark test-mark-expander test-random
+.PHONY: test coverage test-expander test-one test-one-expander test-mark test-mark-expander test-random test-partial
 .PHONY: expander regexp fasl setup-local-racket
 
 PYPY_EXECUTABLE := $(shell which pypy)
@@ -195,6 +195,9 @@ fasl-bytecode:
 
 test:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py
+
+test-partial:
+	$(RUNINTERP) $(PYTEST) pycket -k test_partial.py
 
 test-new-no-expander:
 	$(RUNINTERP) $(PYTEST) pycket --new --ignore=pycket/test/test_old_entry_point.py

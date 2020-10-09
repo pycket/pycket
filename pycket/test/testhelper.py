@@ -179,44 +179,71 @@ def inst(linkl, imports=[], target=None):
 
     return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false])
 
-def partially_eval_app_str(app_str, dyn_var_names=[], safe_ops=[], unsafe_ops_inline=[]):
+def new_env_with(name_str_sym, w_val):
+    from pycket.env import ToplevelEnv, w_global_config
+    env = ToplevelEnv(w_global_config.get_pycketconfig())
+    name_sym = name_str_sym
+    if isinstance(name_str_sym, str):
+        name_sym = W_Symbol.make(name_str)
+    env.toplevel_env().toplevel_set(name_sym, w_val)
+    w_global_config.pe_add_toplevel_var_name(name_sym)
+    return env
+
+def make_ast(ast_str):
+    from pycket.ast_vs_sexp import sexp_to_ast
+    from pycket.assign_convert import assign_convert
+    from pycket.env import w_global_config as conf
+
+    ast_sexp = string_to_sexp(ast_str)
+    ast_ast = sexp_to_ast(ast_sexp, [], {}, conf.pe_get_toplevel_var_names(), [], {})
+    ast_ast = Context.normalize_term(ast_ast)
+    return assign_convert(ast_ast)
+
+
+def partially_eval_app(app_str_sexp, dyn_var_names=[], safe_ops=[], unsafe_ops_inline=[], env=None):
+    app_sexp = app_str_sexp
+    if isinstance(app_sexp, str):
+        app_sexp = string_to_sexp(app_str_sexp)
+    elif not isinstance(app_sexp, values.W_Cons):
+        raise Exception("boinkers!")
+    return partially_eval_app_sexp(app_sexp, dyn_var_names, safe_ops, unsafe_ops_inline, env)
+
+def partially_eval_app_sexp(app_sexp, dyn_var_names=[], safe_ops=[], unsafe_ops_inline=[], env=None):
     from pycket.ast_vs_sexp import sexp_to_ast
     from pycket.interpreter import PartialApp
     from pycket.env import w_global_config as conf
     from pycket.interpreter import Context
     from pycket.assign_convert import assign_convert
 
-    __pycketconfig = conf.get_pycketconfig()
+    if not env:
+        __pycketconfig = conf.get_pycketconfig()
+        env = ToplevelEnv(__pycketconfig)
 
-    app_sexp = string_to_sexp(app_str)
+    #app_sexp = string_to_sexp(app_str)
+    #import pdb;pdb.set_trace()
     app_ast = sexp_to_ast(app_sexp, [], {}, conf.pe_get_toplevel_var_names(), [], {})
     app_ast = Context.normalize_term(app_ast)
     app_ast = assign_convert(app_ast)
 
+    #import pdb;pdb.set_trace()
     papp = PartialApp.make(app_ast, dyn_var_names, safe_ops, unsafe_ops_inline)
-    return papp.partially_evaluate(ToplevelEnv(__pycketconfig))
+    return papp.partially_evaluate(env)
 
-def run_residual_sexp(residual_sexp, dyn_arg): # single dyn arg is enough for now
+def run_residual_sexp(residual_sexp, dyn_arg, env=ToplevelEnv(), additional_funcs=[]): # single dyn arg is enough for now
     from pycket.ast_vs_sexp import sexp_to_ast
     cons = values.W_Cons.make
     null = values.w_null
 
-    linkl_sexp = cons(values.W_Symbol.make("linklet"),
-                      cons(null,
-                           cons(null,
-                                cons(cons(residual_sexp, cons(dyn_arg, null)),
-                                     null))))
-    #import pdb;pdb.set_trace()
+    linkl_sexp = to_list([linklet_sym, null, null] + additional_funcs + [to_list([residual_sexp, dyn_arg])])
+
     l = None
     try:
-        do_compile_linklet(linkl_sexp, values.W_Symbol.make("l_name"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
+        do_compile_linklet(linkl_sexp, values.W_Symbol.make("l_name"), w_false, w_false, w_false, env, NilCont())
     except Done, e:
         l = e.values # W_Linklet
     assert l
 
     return eval_fixnum(l, empty_target())[0]
-
-
 
 # CAUTION: call it with variables carrying only numbers
 def make_instance(vars):
