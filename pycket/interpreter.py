@@ -542,7 +542,8 @@ class EmitLetCodeCont(Cont):
             current += 1
         all_bindings = values.to_list(all_bindings_ls)
 
-        w_result = values.W_PartialValue(values.to_list([let_sym, all_bindings, body_val]))
+        p_body_type = body_val.get_type()
+        w_result = values.W_PartialValue(values.to_list([let_sym, all_bindings, body_val]), p_body_type)
         return return_value_direct(w_result, self.env, self.prev)
 
 @inline_small_list(immutable=True, attrname="vals_w",
@@ -1454,7 +1455,6 @@ class App(AST):
 
         # smaller code gen
         if isinstance(w_callable, values.W_PartialValue):
-            #w_app_ast = values.W_PartialValue(values.to_list([self.rator.to_sexp()] + dyn_args_w))
             w_app_ast = values.W_PartialValue(values.to_list([w_callable] + dyn_args_w))
             return return_value_direct(w_app_ast, env, cont)
 
@@ -1654,6 +1654,12 @@ class PartialApp(App):
         time_init_p_user = time.clock()
 
         residual_lam = self.partially_evaluate(env)
+
+        # FIXME: find a way to get this automatically
+        # at least make it an input from the source
+        w_global_config.pe_add_toplevel_var_name(values.W_Symbol.make('lifted.1'))
+        w_global_config.pe_add_toplevel_var_name(values.W_Symbol.make('fold-over-perm-tree'))
+        w_global_config.pe_add_toplevel_var_name(values.W_Symbol.make('cmp-next-vertex'))
 
         from pycket.env import w_global_config
         b_form = sexp_to_ast(residual_lam, [], {}, w_global_config.pe_get_toplevel_var_names(), [], {})
@@ -2143,13 +2149,34 @@ class Var(AST):
         sym_str = self.sym.variable_name()
         dyn_name = is_dynamic(self, dyn_var_names_ls_str)
 
+        if isinstance(self, ToplevelVar):
+            from pycket.env import w_global_config
+            w_global_config.pe_add_toplevel_var_name(self.sym)
+
         # TODO: refactor the is_dynamic name thing
         if isinstance(dyn_name, values.W_Symbol):
             return values.W_PartialValue(dyn_name), True
         elif isinstance(w_val, values.W_PartialValue):
+            # in some occasions, instead of the partialvalue itself
+            # we need a reference to it (e.g. if this variable
+            # is the target of a vector-set!)
+
+            # this is why we have types in W_PartialValue
+            # currently, if you see a vector type
+            # then produce a reference (because there might be a vector-set!)
+            # for any other type just produce the value
+
+            # FIXME: note that this doesn't solve the general case
             if isinstance(w_val.get_obj(), values.W_Symbol):
                 return w_val, True
+            # if "w_closure" in w_val.get_type() or \
+            #    isinstance(w_val.get_obj(), values.W_Symbol):
+            #     return w_val, True
             return values.W_PartialValue(self.sym), True
+
+            # if "w_vector" in w_val.get_type():
+            #     return values.W_PartialValue(self.sym), True
+            # return w_val, True
         else:
             return w_val, False
 

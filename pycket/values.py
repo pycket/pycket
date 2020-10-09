@@ -265,15 +265,22 @@ class W_ContinuationMarkKey(W_Object):
 
 class W_PartialValue(W_Object):
     errorname = "partial-value"
-    _attrs_ = _immutable_fields_ = ['obj']
-    def __init__(self, obj):
+    _attrs_ = _immutable_fields_ = ['obj', 'pe_type']
+    def __init__(self, obj, pe_type='w_object'):
         self.obj = obj
+        self.pe_type = pe_type # str
+        """
+        w_object, w_symbol, w_string, w_vector, w_closure
+        """
+
+    def get_type(self):
+        return self.pe_type
 
     def get_obj(self):
         return self.obj
 
     def tostring(self):
-        return "W_PartialValue(%s)" % self.obj.tostring()
+        return "W_PartialValue(%s:%s)" % (self.pe_type, self.obj.tostring())
 
 class W_VariableReference(W_Object):
     errorname = "variable-reference"
@@ -1406,9 +1413,9 @@ class W_ThunkProcCMK(W_Procedure):
 class W_Prim(W_Procedure):
     from pycket.arity import Arity
 
-    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "is_nyi", "native_func"]
+    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "is_nyi", "native_func", "pe_type"]
 
-    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, is_nyi=False):
+    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, is_nyi=False, pe_type='w_object'):
         from pycket.arity import Arity
         self.name = W_Symbol.make(name)
         self.code = code
@@ -1416,9 +1423,13 @@ class W_Prim(W_Procedure):
         self.arity = arity
         self.result_arity = result_arity
         self.is_nyi = is_nyi
+        self.pe_type = pe_type
 
     def is_implemented(self):
         return not self.is_nyi
+
+    def get_pe_type(self):
+        return self.pe_type
 
     def get_arity(self, promote=False):
         if promote:
@@ -1441,8 +1452,8 @@ class W_Prim(W_Procedure):
         w_result = None
         if emit_ast and (not safe): # we are producing code
             if "values" in self.name.tostring() and len(args) == 1:
-                return return_value_direct(W_PartialValue(dynamic_names[0]), env, cont)
-            return return_value_direct(W_PartialValue(to_list([self.name] + dynamic_names)), env, cont)
+                return return_value_direct(W_PartialValue(dynamic_names[0], self.get_pe_type()), env, cont)
+            return return_value_direct(W_PartialValue(to_list([self.name] + dynamic_names), self.get_pe_type()), env, cont)
         # we are actually running it
         # so we need actual values in args
         w_args = [None]*len(args)

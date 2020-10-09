@@ -1381,7 +1381,7 @@ def raise_result_arity_error(args):
     return _error(args, False)
 
 
-@expose("list->vector", [values.W_List])
+@expose("list->vector", [values.W_List], partial_type='w_vector')
 def list2vector(l):
     return values_vector.W_Vector.fromelements(values.from_list(l))
 

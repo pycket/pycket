@@ -29,7 +29,8 @@ def vector_immutable(args):
     return values_vector.W_Vector.fromelements(args, immutable=True)
 
 @expose(["make-vector", "make-fxvector"],
-        [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)])
+        [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)],
+        partial_type='w_vector')
 def make_vector(w_size, w_val):
     size = w_size.value
     if size < 0:
