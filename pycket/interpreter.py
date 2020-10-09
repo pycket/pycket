@@ -1000,11 +1000,11 @@ class Module(AST):
     def _tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         mod_sym = values.W_Symbol.make("module")
         name_s_exp = values_string.W_String.fromstr_utf8(self.name)
-        lang_s_exp = self.lang.to_sexp()
-        bodies_s_exp = values.to_list([b.to_sexp() for b in self.body])
+        lang_s_exp = self.lang.to_sexp(partial_env)
+        bodies_s_exp = values.to_list([b.to_sexp(partial_env) for b in self.body])
         cons = values.W_Cons.make
         return cons(mod_sym, cons(name_s_exp, cons(lang_s_exp, bodies_s_exp)))
 
@@ -1134,7 +1134,7 @@ class Require(AST):
     def _tostring(self):
         return "(require %s)" % self.fname
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         req_sym = values.W_Symbol.make("require")
         return values.to_list([req_sym, values_string.W_String.fromstr_utf8(self.fname)])
 
@@ -1219,7 +1219,7 @@ class Quote(AST):
         write_loop(self.w_val, port, env)
         port.write(")")
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         q_sym = values.W_Symbol.make("quote")
         return values.W_Cons.make(q_sym, values.W_Cons.make(self.w_val, values.w_null))
 
@@ -1249,9 +1249,9 @@ class QuoteSyntax(AST):
     def _tostring(self):
         return "#'%s" % self.w_val.tostring()
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         qs_sym = values.W_Symbol.make("quote-syntax")
-        return values.W_Cons.make(qs_sym, values.W_Cons.make(self.w_val.to_sexp(), values.w_null))
+        return values.W_Cons.make(qs_sym, values.W_Cons.make(self.w_val.to_sexp(partial_env), values.w_null))
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
@@ -1295,11 +1295,11 @@ class VariableReference(AST):
     def _tostring(self):
         return "#<#%variable-reference>"
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         from pycket.values_string import W_String
 
         vr_sym = values.W_Symbol.make("#%variable-reference")
-        var_sexp = self.var.to_sexp() if self.var else values.w_false
+        var_sexp = self.var.to_sexp(partial_env) if self.var else values.w_false
         path_sexp = values.w_false
         if isinstance(self.path, str):
             path_sexp = W_String.fromascii(self.path)
@@ -1351,10 +1351,10 @@ class WithContinuationMark(AST):
         result = WithContinuationMark(key, value, body)
         return context.plug(result)
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         wcm_sym = values.W_Symbol.make("with-continuation-mark")
         assert self.key and self.value and self.body
-        return values.to_list([wcm_sym, self.key.to_sexp(), self.value.to_sexp(), self.body.to_sexp()])
+        return values.to_list([wcm_sym, self.key.to_sexp(partial_env), self.value.to_sexp(partial_env), self.body.to_sexp(partial_env)])
 
     def write(self, port, env):
         port.write("(with-continuation-mark ")
@@ -1454,7 +1454,8 @@ class App(AST):
 
         # smaller code gen
         if isinstance(w_callable, values.W_PartialValue):
-            w_app_ast = values.W_PartialValue(values.to_list([self.rator.to_sexp()] + dyn_args_w))
+            #w_app_ast = values.W_PartialValue(values.to_list([self.rator.to_sexp()] + dyn_args_w))
+            w_app_ast = values.W_PartialValue(values.to_list([w_callable] + dyn_args_w))
             return return_value_direct(w_app_ast, env, cont)
 
         if unsafe_inline:
@@ -1485,11 +1486,11 @@ class App(AST):
         elements = [self.rator] + self.rands
         return "(%s)" % " ".join([r.tostring() for r in elements])
 
-    def to_sexp(self):
-        rator_sexp = self.rator.to_sexp()
+    def to_sexp(self, partial_env={}):
+        rator_sexp = self.rator.to_sexp(partial_env)
         rands_sexp = values.w_null
         for rand in reversed(self.rands):
-            rands_sexp = values.W_Cons.make(rand.to_sexp(), rands_sexp)
+            rands_sexp = values.W_Cons.make(rand.to_sexp(partial_env), rands_sexp)
 
         return values.W_Cons.make(rator_sexp, rands_sexp)
 
@@ -2004,9 +2005,9 @@ class Begin0(SequencedBodyAST):
     def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, pe_stop, env, cont):
         return self.make_begin_partial_cont(env, cont, [], False)
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         beg0_sym = values.W_Symbol.make("begin0")
-        return values.to_list([beg0_sym] + [b.to_sexp() for b in self.direct_children()])
+        return values.to_list([beg0_sym] + [b.to_sexp(partial_env) for b in self.direct_children()])
 
     def write(self, port, env):
         port.write("(begin0 ")
@@ -2076,9 +2077,9 @@ class Begin(SequencedBodyAST):
     def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         begin_sym = values.W_Symbol.make("begin")
-        return values.to_list([begin_sym] + [b.to_sexp() for b in self.body])
+        return values.to_list([begin_sym] + [b.to_sexp(partial_env) for b in self.body])
 
     def write(self, port, env):
         port.write("(begin ")
@@ -2107,9 +2108,9 @@ class BeginForSyntax(AST):
     def _tostring(self):
         return "(begin-for-syntax %s)" % " ".join([b.tostring() for b in self.body])
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         bfs_sym = values.W_Symbol.make("begin-for-syntax")
-        return values.to_list([bfs_sym] + [b.to_sexp() for b in self.body])
+        return values.to_list([bfs_sym] + [b.to_sexp(partial_env) for b in self.body])
 
     def write(self, port, env):
         port.write("(begin-for-syntax ")
@@ -2165,7 +2166,12 @@ class Var(AST):
         from pycket.prims.input_output import write_loop
         write_loop(self.sym, port, env)
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
+        if self.sym in partial_env:
+            w_val = partial_env[self.sym]
+            if isinstance(w_val, values.W_Symbol):
+                return w_val
+            return self.sym
         return self.sym
 
 class CellRef(Var):
@@ -2394,9 +2400,9 @@ class SetBang(AST):
     def _tostring(self):
         return "(set! %s %s)" % (self.var.tostring(), self.rhs.tostring())
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         set_sym = values.W_Symbol.make("set!")
-        return values.to_list([set_sym, self.var.to_sexp(), self.rhs.to_sexp()])
+        return values.to_list([set_sym, self.var.to_sexp(partial_env), self.rhs.to_sexp(partial_env)])
 
     def write(self, port, env):
         port.write("(set! ")
@@ -2465,12 +2471,12 @@ class If(AST):
     def _tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         if_sym = values.W_Symbol.make("if")
         return values.to_list([if_sym,
-                               self.tst.to_sexp(),
-                               self.thn.to_sexp(),
-                               self.els.to_sexp()])
+                               self.tst.to_sexp(partial_env),
+                               self.thn.to_sexp(partial_env),
+                               self.els.to_sexp(partial_env)])
 
     def write(self, port, env):
         port.write("(if ")
@@ -2532,9 +2538,20 @@ class CaseLambda(AST):
     def make_recursive_copy(self, sym):
         return CaseLambda(self.lams, sym, self._arity)
 
-    def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_inline_ls_str, env):
-        w_val = self.interpret_simple(env)
-        return w_val, False
+    def interpret_simple_partial(self, dyn_var_name_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env):
+        if not env.pycketconfig().callgraph:
+            self.enable_jitting() # XXX not perfectly pretty
+        if not self.any_frees:
+            # cache closure if there are no free variables and the toplevel env
+            # is the same as last time
+            w_closure = self.w_closure_if_no_frees
+            if w_closure is None or (len(self.lams) > 0 and w_closure.closure._get_list(0).toplevel_env() is not env.toplevel_env()):
+                w_closure = values.W_PromotableClosure(self, env.toplevel_env())
+                self.w_closure_if_no_frees = w_closure
+            return w_closure, False
+        # if "make-vector" in self.tostring():
+        #     import pdb;pdb.set_trace()
+        return values.W_Closure.make_partial(self, dyn_var_name_ls_str, env)
 
     def interpret_simple(self, env):
         if not env.pycketconfig().callgraph:
@@ -2566,12 +2583,12 @@ class CaseLambda(AST):
         r_sym_str = self.recursive_sym.tostring() if self.recursive_sym else ""
         return "(case-lambda (recursive-sym %s) %s)" % (r_sym_str, " ".join([l.tostring() for l in self.lams]))
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         case_sym = values.W_Symbol.make("case-lambda")
         rec_sym = values.W_Symbol.make("recursive-sym")
-        rec_ls = [rec_sym, self.recursive_sym.to_sexp()] if self.recursive_sym else [rec_sym]
+        rec_ls = [rec_sym, self.recursive_sym.to_sexp(partial_env)] if self.recursive_sym else [rec_sym]
         rec_sexp = values.to_list(rec_ls)
-        lams_ls = [l.to_sexp() for l in self.lams]
+        lams_ls = [l.to_sexp(partial_env) for l in self.lams]
         return values.to_list([case_sym, rec_sexp] + lams_ls)
 
     def write(self, port, env):
@@ -2794,19 +2811,19 @@ class Lambda(SequencedBodyAST):
                 self.body[0].tostring() if len(self.body) == 1 else
                 " ".join([b.tostring() for b in self.body]))
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         lam_sym = values.W_Symbol.make("lambda")
 
         if self.rest and not self.formals:
-            args_sexp = self.rest.to_sexp()
+            args_sexp = self.rest.to_sexp(partial_env)
         elif self.rest:
-            args_sexp = self.rest.to_sexp()
+            args_sexp = self.rest.to_sexp(partial_env)
             for f in reversed(self.formals):
-                args_sexp = values.W_Cons.make(f.to_sexp(), args_sexp)
+                args_sexp = values.W_Cons.make(f.to_sexp(partial_env), args_sexp)
         else:
             args_sexp = values.to_list(self.formals)
 
-        body_ls = [b.to_sexp() for b in self.body]
+        body_ls = [b.to_sexp(partial_env) for b in self.body]
         return values.to_list([lam_sym, args_sexp] + body_ls)
 
     def write(self, port, env):
@@ -2949,7 +2966,7 @@ class Letrec(SequencedBodyAST):
         body = " ".join([b.tostring() for b in self.body])
         return "(letrec (%s) %s)" % (bindings, body)
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         letrec_sym = values.W_Symbol.make("letrec-values")
         all_bindings_ls = [None]*len(self.counts)
         total = 0
@@ -2959,7 +2976,7 @@ class Letrec(SequencedBodyAST):
                 binding_ls[k] = self.args.elems[total+k]
             total += count
             current_bindings_sexp = values.to_list(binding_ls)
-            current_rhs_sexp = self.rhss[i].to_sexp()
+            current_rhs_sexp = self.rhss[i].to_sexp(partial_env)
             current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
             current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
 
@@ -2967,7 +2984,7 @@ class Letrec(SequencedBodyAST):
 
         all_bindings = values.to_list(all_bindings_ls)
 
-        body_ls = [b.to_sexp() for b in self.body]
+        body_ls = [b.to_sexp(partial_env) for b in self.body]
         return values.to_list([letrec_sym, all_bindings] + body_ls)
 
     def write(self, port, env):
@@ -3246,7 +3263,7 @@ class Let(SequencedBodyAST):
         result.append(")")
         return "".join(result)
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         let_sym = values.W_Symbol.make("let-values")
         all_bindings_ls = [None]*len(self.counts)
         total = 0
@@ -3256,7 +3273,7 @@ class Let(SequencedBodyAST):
                 binding_ls[k] = self.args.elems[total+k]
             total += count
             current_bindings_sexp = values.to_list(binding_ls)
-            current_rhs_sexp = self.rhss[i].to_sexp()
+            current_rhs_sexp = self.rhss[i].to_sexp(partial_env)
             current_ids_ = values.W_Cons.make(current_rhs_sexp, values.w_null)
             current_ids = values.W_Cons.make(current_bindings_sexp, current_ids_)
 
@@ -3264,7 +3281,7 @@ class Let(SequencedBodyAST):
 
         all_bindings = values.to_list(all_bindings_ls)
 
-        body_ls = [b.to_sexp() for b in self.body]
+        body_ls = [b.to_sexp(partial_env) for b in self.body]
         return values.to_list([let_sym, all_bindings] + body_ls)
 
     def write(self, port, env):
@@ -3318,13 +3335,13 @@ class DefineValues(AST):
         return "(define-values (%s) %s)" % (
             ' '.join([n.tostring() for n in self.display_names]), self.rhs.tostring())
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         dv_sym = values.W_Symbol.make("define-values")
         ids = values.w_null
         for name in reversed(self.display_names):
             ids = values.W_Cons.make(name, ids)
 
-        rhs = self.rhs.to_sexp()
+        rhs = self.rhs.to_sexp(partial_env)
         rhs_sexp = values.W_Cons.make(rhs, values.w_null)
 
         return values.W_Cons.make(dv_sym, values.W_Cons.make(ids, rhs_sexp))

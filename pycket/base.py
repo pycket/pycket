@@ -148,7 +148,7 @@ class W_Object(W_ProtoObject):
     def tostring(self):
         return str(self)
 
-    def to_sexp(self):
+    def to_sexp(self, partial_env={}):
         return self
 
     # for expose

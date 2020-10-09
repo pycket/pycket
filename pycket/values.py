@@ -1640,6 +1640,49 @@ class W_Closure(W_Procedure):
 
     @staticmethod
     @jit.unroll_safe
+    def make_partial(caselam, dyn_var_name_ls_str, env):
+        # at this point, we know that there are some free variables
+        
+        # we'll check if any of them are bound to partial values.  In
+        # that case, we need to produce code for the function, so the
+        # closure is produced in the run-time (rather than in the
+        # partial-eval time)
+        # see test_closing_over_the_dynamic_var
+
+        # let's not worry about caselams having more than one lams for
+        # now
+        if len(caselam.lams) != 1:
+            return W_Closure.make(caselam, env), False
+
+        lm = caselam.lams[0]
+        vals = lm.collect_frees_without_recursive(caselam.recursive_sym, env)
+        for v in vals:
+            emit_code = isinstance(v, W_PartialValue)
+            for f in lm.frees.elems:
+                if f.variable_name() in dyn_var_name_ls_str:
+                    emit_code = True
+
+            if emit_code:
+                # we see a partial value in one of the frees,
+                # or one of the frees is a dynamic variable
+                # go ahead and produce code for the lambda
+                frees_vals = {}
+                i = 0
+                for f in lm.frees.elems:
+                    if f.variable_name() in dyn_var_name_ls_str:
+                        frees_vals[f] = f
+                    else:
+                        frees_vals[f] = vals[i]
+                    i += 1
+                #frees_vals = dict(zip(lm.frees.elems, vals))
+                lm_code = lm.to_sexp(frees_vals)
+                return W_PartialValue(lm_code, 'w_closure'), True
+        # if we don't see any partial values in free vars then
+        # it's safe to produce a closure object
+        return W_Closure1AsEnv.make(vals, caselam, env.toplevel_env()), False
+
+    @staticmethod
+    @jit.unroll_safe
     def make(caselam, env):
         from pycket.interpreter import CaseLambda
         assert isinstance(caselam, CaseLambda)
