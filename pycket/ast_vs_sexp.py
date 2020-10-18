@@ -452,7 +452,8 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             if import_id:
                 raise SchemeException("cannot mutate imported variable : %s" % form.tostring())
             cr = cell_ref
-            target = form.cdr().car()
+            target_ = form.cdr().car()
+            target = target_.get_obj() if isinstance(target_, values.W_PartialValue) else target_
             rhs = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
             # if it's for an exported variable, don't emit a set!
             # we're going to variable-set! the exported variable
@@ -641,13 +642,17 @@ def extend_dicts(list_of_dicts):
 def find_mutated(form):
     if isinstance(form, W_Correlated):
         return find_mutated(form.get_obj())
+    elif isinstance(form, values.W_PartialValue):
+        return find_mutated(form.get_obj())
     elif isinstance(form, values.W_Cons):
         if not form.is_proper_list():
             elements, _ = to_rpython_list(form, unwrap_correlated=True, improper=True)
             return extend_dicts([find_mutated(f) for f in elements])
         c = form.car()
         if c is set_bang_sym:
-            return extend_dict({form.cdr().car():None}, find_mutated(form.cdr().cdr().car()))
+            var_ = form.cdr().car()
+            var = var_.get_obj() if isinstance(var_, values.W_PartialValue) else var_
+            return extend_dict({var:None}, find_mutated(form.cdr().cdr().car()))
         elif isinstance(c, values.W_Cons) and c is not values.w_null:
             all_exprs, _ = to_rpython_list(form, unwrap_correlated=True)
             return extend_dicts([find_mutated(f) for f in all_exprs])
