@@ -1641,7 +1641,7 @@ class PartialApp(App):
 
     @jit.dont_look_inside
     def interpret(self, env, cont):
-        from pycket.ast_vs_sexp import sexp_to_ast
+        from pycket.ast_vs_sexp import sexp_to_ast, find_mutated
         from pycket.assign_convert import assign_convert
         import time
         from pycket.prims.general import current_gc_time
@@ -1662,7 +1662,12 @@ class PartialApp(App):
         w_global_config.pe_add_toplevel_var_name(values.W_Symbol.make('cmp-next-vertex'))
 
         from pycket.env import w_global_config
-        b_form = sexp_to_ast(residual_lam, [], {}, w_global_config.pe_get_toplevel_var_names(), [], {})
+
+        mutated = find_mutated(residual_lam) # {W_Symbol:None}
+
+        w_global_config.activate_debug()
+
+        b_form = sexp_to_ast(residual_lam, [], {}, w_global_config.pe_get_toplevel_var_names(), [], mutated)
         b_form_1 = Context.normalize_term(b_form)
         b_form_2 = assign_convert(b_form_1)
 
@@ -1822,14 +1827,14 @@ class SimplePrimApp2(App):
         partial = False
         w_arg1, is_partial1 = self.rand1.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
         dyn_name1 = is_dynamic(self.rand1, dyn_var_names_ls_str)
-        if isinstance(dyn_name1, values.W_Symbol) or isinstance(w_arg1, values.W_PartialValue):
+        if isinstance(dyn_name1, values.W_Symbol) and not isinstance(w_arg1, values.W_PartialValue):
             partial = True
         else:
             dyn_name1 = w_arg1
 
         w_arg2, is_partial2 = self.rand2.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
         dyn_name2 = is_dynamic(self.rand2, dyn_var_names_ls_str)
-        if isinstance(dyn_name2, values.W_Symbol) or isinstance(w_arg2, values.W_PartialValue):
+        if isinstance(dyn_name2, values.W_Symbol) and not isinstance(w_arg2, values.W_PartialValue):
             partial = True
         else:
             dyn_name2 = w_arg2
@@ -2172,7 +2177,7 @@ class Var(AST):
             # if "w_closure" in w_val.get_type() or \
             #    isinstance(w_val.get_obj(), values.W_Symbol):
             #     return w_val, True
-            return values.W_PartialValue(self.sym), True
+            return values.W_PartialValue(self.sym, 'w_symbol'), True
 
             # if "w_vector" in w_val.get_type():
             #     return values.W_PartialValue(self.sym), True
@@ -2576,8 +2581,6 @@ class CaseLambda(AST):
                 w_closure = values.W_PromotableClosure(self, env.toplevel_env())
                 self.w_closure_if_no_frees = w_closure
             return w_closure, False
-        # if "make-vector" in self.tostring():
-        #     import pdb;pdb.set_trace()
         return values.W_Closure.make_partial(self, dyn_var_name_ls_str, env)
 
     def interpret_simple(self, env):
