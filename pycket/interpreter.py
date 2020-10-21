@@ -2401,9 +2401,10 @@ class SetBang(AST):
 
     def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_inline_ls_str, env):
         w_rhs_val, is_partial = self.rhs.interpret_simple_partial(w_dyn_var_name, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
+        w_var, is_partial2 = self.var.interpret_simple_partial(w_dyn_var_name, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
         if is_partial:
             set_sym = values.W_Symbol.make("set!")
-            return values.W_PartialValue(values.to_list([set_sym, self.var.to_sexp(), w_rhs_val])), True
+            return values.W_PartialValue(values.to_list([set_sym, w_var, w_rhs_val])), True
         else:
             self.var._set(w_rhs_val, env)
             return values.w_void, False
