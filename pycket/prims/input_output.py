@@ -1029,6 +1029,23 @@ def open_outfile(w_str, mode, exists):
     # FIXME : handle different exists modes (e.g. replace)
     return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode), path=os.path.abspath(s))
 
+@expose("file-or-directory-type", [values.W_Object, default(values.W_Object, values.w_false)])
+def file_or_directory_type(path, must_exist):
+    # (or/c 'file 'directory 'link 'directory-link #f)
+    p = extract_path(path)
+    if not os.path.exists(p):
+        if must_exist is values.w_false:
+            return values.w_false
+        else:
+            raise FSException("file-or-directory-type: access failed\n path: %s" % p)
+    if os.path.isfile(p):
+        return values.W_Symbol.make('file')
+    if os.path.isdir(p):
+        return values.W_Symbol.make('directory')
+    if os.path.islink(p):
+        return values.W_Symbol.make('link')
+    # FIXME : add directory-link for Windows junctions etc
+
 @expose("rename-file-or-directory", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)])
 def rename_file_or_directory(o, n, exists_ok):
     from pycket.prims.general import exn_fail_fs
@@ -1747,7 +1764,7 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
         bytes[start + i] = res[i]
     return return_value(values.W_Fixnum(reslen), env, cont)
 
-@expose("peek-bytes-avail!", [values.W_Bytes, values.W_Fixnum, 
+@expose("peek-bytes-avail!", [values.W_Bytes, values.W_Fixnum,
                               default(values.W_Object, values.w_false),
                               default(values.W_InputPort, None),
                               default(values.W_Fixnum, values.W_Fixnum.ZERO),
