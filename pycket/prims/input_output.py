@@ -882,6 +882,13 @@ def path_to_path_complete_path(path, _base):
         return values.W_Path(p)
     return values.W_Path(base + os.path.sep + p)
 
+@expose("path->directory-path", [values.W_Object])
+def path_to_path_complete_path(path):
+    p = extract_path(path)
+    if p and p[-1] == os.path.sep:
+        return values.W_Path(p)
+    return values.W_Path(p + os.path.sep)
+
 @expose("path-convention-type", [values.W_Path])
 def path_convention_type(path):
     from pycket.prims.general import detect_platform, w_macosx_sym, w_unix_sym
