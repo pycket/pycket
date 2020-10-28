@@ -219,6 +219,7 @@ class Fasl(object):
         from rpython.rlib.rbigint import rbigint
         from pycket.prims.input_output import build_path, bytes_to_path_element
         from pycket.ast_vs_sexp import to_rpython_list
+        from pycket.racket_entry import get_primitive
 
         typ, pos = self.read_byte_no_eof(fasl_string, pos)
 
@@ -311,16 +312,28 @@ class Fasl(object):
                 return build_path(rel_elems), pos
         elif typ == FASL_PREGEXP_TYPE:
             str_str, pos = self.read_fasl_string(fasl_string, pos)
-            return W_PRegexp(str_str), pos
+            reg_str = W_String.make(str_str)
+            pregexp = get_primitive('pregexp')
+            pregexp_obj = pregexp.call_interpret([reg_str])
+            return pregexp_obj, pos
         elif typ == FASL_REGEXP_TYPE:
             str_str, pos = self.read_fasl_string(fasl_string, pos)
-            return W_Regexp(str_str), pos
+            reg_str = W_String.make(str_str)
+            regexp = get_primitive('regexp')
+            regexp_obj = regexp.call_interpret([reg_str])
+            return regexp_obj, pos
         elif typ == FASL_BYTE_PREGEXP:
             str_str, pos = self.read_fasl_string(fasl_string, pos)
-            return W_BytePRegexp(str_str), pos
+            reg_bytes = v.W_Bytes.from_string(str_str)
+            byte_pregexp = get_primitive('byte-pregexp')
+            byte_pregexp_obj = byte_pregexp.call_interpret([reg_bytes])
+            return byte_pregexp_obj, pos
         elif typ == FASL_BYTE_REGEXP_TYPE:
             str_str, pos = self.read_fasl_string(fasl_string, pos)
-            return W_ByteRegexp(str_str), pos
+            reg_bytes = v.W_Bytes.from_string(str_str)
+            byte_regexp = get_primitive('byte-regexp')
+            byte_regexp_obj = byte_regexp.call_interpret([reg_bytes])
+            return byte_regexp_obj, pos
         elif typ == FASL_LIST_TYPE:
             list_len, pos = self.read_fasl_integer(fasl_string, pos)
             lst, pos = self.read_multi_into_rpython_list(fasl_string, pos, list_len)

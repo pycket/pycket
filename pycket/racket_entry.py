@@ -65,16 +65,17 @@ def load_expander(debug):
 def load_fasl(debug=False):
     load_bootstrap_linklet("fasl", debug, from_fasl=True)
 
-def load_regexp(debug):
+def load_regexp(debug=False):
     load_bootstrap_linklet("regexp", debug)
 
-def load_bootstrap_linklets(debug=False, do_load_regexp=False):
+def load_bootstrap_linklets(debug=False, dont_load_regexp=False):
 
     load_fasl(debug)
-    load_expander(debug)
 
-    if do_load_regexp:
+    if not dont_load_regexp:
         load_regexp(debug)
+
+    load_expander(debug)
 
     console_log("Bootstrap linklets are ready.")
     return 0
@@ -108,6 +109,7 @@ def make_bootstrap_zos():
     load_fasl()
     make_zo_for("fasl")
     make_zo_for("expander")
+    make_zo_for("regexp")
 
 def load_linklet_from_fasl(file_name, set_version=False):
     from pycket.fasl import Fasl
@@ -307,10 +309,10 @@ def initiate_boot_sequence(command_line_arguments,
                            set_config_dir="",
                            set_addon_dir="",
                            compile_any=False,
-                           do_load_regexp=False):
+                           dont_load_regexp=False):
     from pycket.env import w_version
 
-    load_bootstrap_linklets(debug, do_load_regexp=do_load_regexp)
+    load_bootstrap_linklets(debug, dont_load_regexp=dont_load_regexp)
 
     with PerfRegion("set-params"):
 
@@ -474,7 +476,7 @@ def racket_entry(names, config, command_line_arguments):
     debug            = flags['verbose']
     version          = flags['version']
     c_a              = flags['compile-machine-independent']
-    do_load_regexp   = flags['load-regexp']
+    dont_load_regexp = flags['no-regexp']
     dev_mode         = flags['dev-mode']
     racket_fasl      = flags['racket-fasl']
     rpython_fasl     = flags['rpython-fasl']
@@ -510,7 +512,7 @@ def racket_entry(names, config, command_line_arguments):
                                set_config_dir,
                                set_addon_dir,
                                compile_any=c_a,
-                               do_load_regexp=do_load_regexp)
+                               dont_load_regexp=dont_load_regexp)
 
     if just_init:
         return 0
@@ -660,7 +662,7 @@ def get_options(names, config):
     debug = config['verbose']
     version = config['version']
     compile_any = config['compile-machine-independent']
-    do_load_regexp = config['load-regexp']
+    dont_load_regexp = config['no-regexp']
     dev_mode = config['dev-mode']
     racket_fasl      = config['racket-fasl']
     rpython_fasl     = config['rpython-fasl']

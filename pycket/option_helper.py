@@ -46,8 +46,8 @@ def print_help(argv):
   --save-callgraph                   : save the jit output
 
  Meta options:
-  --make-linklet-zos               : Make the compiled zo's for bootstrap linklets
-  --load-regexp                      : Loads the regexp linklet
+  --make-linklet-zos                 : Make the compiled zo's for bootstrap linklets
+  --no-regexp                        : Doesn't load the regexp linklet, uses rpython regexp functions
   --verbose <level>                  : Print the debug logs. <level> : natural number (defaults to 0)
   --jit <jitargs>                    : Set RPython JIT options may be 'default', 'off',
                                        or 'param=value,param=value' list
@@ -101,7 +101,7 @@ conf_opts = ["-c", "--no-compiled",
              "--kernel",
              "--save-callgraph"]
 meta_opts = ["--make-linklet-zos",
-             "--load-regexp",
+             "--no-regexp",
              "--verbose",
              "--jit",
              "-h", "--help"]
@@ -134,7 +134,7 @@ config = {
     'dev-mode' : False,
     'use-compiled' : True,
     'compile-machine-independent' : False,
-    'load-regexp' : False,
+    'no-regexp' : False,
     'make-zos' : False,
     'racket-fasl' : False,
     'rpython-fasl' : False
@@ -472,8 +472,8 @@ def parse_args(argv):
             i += 1
             add_name(names, 'run-as-linklet', argv[i])
 
-        elif argv[i] == "--load-regexp":
-            config['load-regexp'] = True
+        elif argv[i] == "--no-regexp":
+            config['no-regexp'] = True
             #retval = RETURN_OK
 
         elif argv[i] == "--make-linklet-zos":
