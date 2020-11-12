@@ -47,7 +47,7 @@ def test_var_name_resolve_partial_val():
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 12
 
-@pytest.mark.m
+#@pytest.mark.m
 def test_closing_over_val_depends_on_dynamic_val():
     func_ast = make_ast("(lambda (vec) (vector-set! vec 0 12))")
     func_val = func_ast.interpret_simple_partial([], [], [], ToplevelEnv())[0]
@@ -91,6 +91,8 @@ def test_different_dynamic_name():
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 12
 
+
+#@pytest.mark.m
 def test_different_dynamic_name2():
     p = """
     ((lambda (dyn)
@@ -100,10 +102,23 @@ def test_different_dynamic_name2():
          (lexer dep))) 10)
 """
     res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
-    # import pdb;pdb.set_trace()
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 13
 
+    # same test with an additional multi-value dummy rhs
+    p = """
+    ((lambda (dyn)
+       (let-values ([(lexer)
+                     (lambda (l) (+ 2 l))]
+                    [(x y z) (values 1 2 3)]
+                    [(dep) (+ 1 dyn)])
+         (lexer dep))) 10)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 13
+
+    
 def test_closing_over_the_dynamic_var():
     a_top_lvl_func = """
     (define-values (toplevel-func) (lambda (f) (f 2)))
@@ -153,3 +168,28 @@ def test_closing_over_the_dynamic_var():
     #import pdb;pdb.set_trace()
 
     assert isinstance(kk, W_Vector)
+
+#@pytest.mark.skip
+def test_partial_let_multiple_valued_rhs():
+    p = """
+    ((lambda (dyn)
+       (let-values ([(a b) (values 1 dyn)])
+         (+ a b))) 10)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 11
+
+@pytest.mark.m
+def test_partial_let_no_rhs_id():
+    p = """
+    ((lambda (dyn)
+       (let-values ([() (begin (set! dyn dyn) (values))])
+         dyn)) 10)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    import pdb;pdb.set_trace()
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 10
+    # some weird uses of let may not have any ids for their rhs
+    

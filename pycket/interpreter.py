@@ -394,6 +394,7 @@ class LetrecCont(Cont):
     def plug_reduce(self, vals, env):
         ast, i = self.counting_ast.unpack(Letrec)
         if ast.counts[i] != vals.num_values():
+            #import pdb;pdb.set_trace()
             raise SchemeException("wrong number of values")
         for j in range(vals.num_values()):
             w_val = vals.get_value(j)
@@ -445,6 +446,7 @@ class LetCont(Cont):
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len_vals:
+            #import pdb;pdb.set_trace()
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
@@ -515,15 +517,17 @@ class LetCont(Cont):
         return env
 
 class EmitLetCodeCont(Cont):
-    _immutable_fields_ = ["rhss"]
+    _immutable_fields_ = ["rhss_ids, rhss_vals"]
     return_safe = True
 
-    def __init__(self, rhss, env, prev):
+    def __init__(self, rhss_ids, rhss_vals, env, prev):
         Cont.__init__(self, env, prev)
-        self.rhss = rhss # hash {W_Symbol : W_PartialValue}
+        self.rhss_ids = rhss_ids # # [ ... [...] ... ]
+        self.rhss_vals = rhss_vals
+        assert len(rhss_ids) == len(rhss_vals)
 
     def _clone(self):
-        return EmitLetCodeCont(self.rhss, self.env, self.prev)
+        return EmitLetCodeCont(self.rhss_ids, self.rhss_vals, self.env, self.prev)
 
     def plug_reduce(self, body_val, env):
         w_body_val = body_val.get_all_values()
@@ -535,10 +539,13 @@ class EmitLetCodeCont(Cont):
         cons = values.W_Cons.make
         null = values.w_null
 
-        all_bindings_ls = [None]*len(self.rhss)
+        all_bindings_ls = [None]*len(self.rhss_vals)
         current = 0
-        for rhs_id, rhs_pv in self.rhss.iteritems():
-            all_bindings_ls[current] = cons(cons(rhs_id, null), cons(rhs_pv, null))
+        #for rhs_id, rhs_pv in self.rhss.iteritems():
+        for rhs_ids in self.rhss_ids:
+            rhs_pv = self.rhss_vals[current]
+            #all_bindings_ls[current] = cons(cons(rhs_id, null), cons(rhs_pv, null))
+            all_bindings_ls[current] = values.to_list([values.to_list(rhs_ids), rhs_pv])
             current += 1
         all_bindings = values.to_list(all_bindings_ls)
 
@@ -549,7 +556,7 @@ class EmitLetCodeCont(Cont):
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class LetPartialCont(Cont):
-    _attrs_ = ["counting_ast", "_get_size_list", 'partial_rhss']
+    _attrs_ = ["counting_ast", "_get_size_list", 'partial_rhss_ids', 'partial_rhss_vals']
     _immutable_fields_ = ["counting_ast"]
 
     return_safe = True
@@ -557,19 +564,27 @@ class LetPartialCont(Cont):
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast  = counting_ast
-        self.partial_rhss = {}
+        self.partial_rhss_ids = [] # [ ... [...] ... ]
+        self.partial_rhss_vals = [] # [ .... ]
 
     def get_ast(self):
         return self.counting_ast.ast
 
-    def set_partial_rhss(self, new_rhss):
-        self.partial_rhss = new_rhss
+    def set_partial_rhss_ids(self, new_ids):
+        self.partial_rhss_ids = new_ids
 
-    def add_partial_rhs(self, new_id, new_rhs):
-        self.partial_rhss[new_id] = new_rhs
+    def set_partial_rhss_values(self, new_rhss_values):
+        self.partial_rhss_vals = new_rhss_values
 
-    def get_partial_rhss(self):
-        return self.partial_rhss
+    def add_partial_rhs_values(self, new_ids_ls, new_rhs):
+        self.partial_rhss_ids.append(new_ids_ls)
+        self.partial_rhss_vals.append(new_rhs)
+
+    def get_partial_rhss_ids(self):
+        return self.partial_rhss_ids
+
+    def get_partial_rhss_values(self):
+        return self.partial_rhss_ids, self.partial_rhss_vals
 
     def get_next_executed_ast(self):
         ast, rhsindex = self.counting_ast.unpack(Let)
@@ -596,11 +611,41 @@ class LetPartialCont(Cont):
         new_length = len_self + len_vals
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
-        if ast.counts[rhsindex] != len_vals:
-            raise SchemeException("wrong number of values")
 
         if isinstance(vals, values.W_PartialValue):
-            self.add_partial_rhs(ast.args.elems[rhsindex], vals)
+            how_many_ids = ast.counts[rhsindex]
+            starting_index = 0
+            for r_i in range(rhsindex):
+                starting_index += ast.counts[r_i]
+            rhs_ids = ast.args.elems[starting_index:starting_index+how_many_ids]
+            self.add_partial_rhs_values(rhs_ids, vals)
+            if ast.counts[rhsindex] == 0:
+                len_self, len_vals, new_length = 0, 0, 0
+            elif ast.counts[rhsindex] > len_vals:
+                # we need a little intervention here to hack the
+                # _construct_env to not complain (see test_partial_let_multiple_valued_rhs)
+                len_vals = ast.counts[rhsindex]
+                new_length = len_self + len_vals
+                vals_ls = [vals]*len_vals
+                vals = values.Values.make(vals_ls)
+            elif ast.counts[rhsindex] != len_vals:
+                # something's actually wrong
+                #import pdb;pdb.set_trace()
+                raise SchemeException("wrong number of values")
+
+        elif ast.counts[rhsindex] != len_vals:
+            #import pdb;pdb.set_trace()
+            raise SchemeException("wrong number of values")
+
+        # if ast.counts[rhsindex] != len_vals:
+        #     # we have a rhs waiting multiple values that is now an ast (W_PartialValue)
+        #     assert isinstance(vals, values.W_PartialValue)
+
+        #     import pdb;pdb.set_trace()
+        #     raise SchemeException("wrong number of values")
+
+        # if isinstance(vals, values.W_PartialValue):
+        #     self.add_partial_rhs(ast.args.elems[rhsindex], vals)
 
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
@@ -610,10 +655,11 @@ class LetPartialCont(Cont):
                     prev = _env
                 elif not jit.we_are_jitted():
                     ast.env_speculation_works = False
+            #import pdb;pdb.set_trace()
             env = self._construct_env(ast, len_self, vals, len_vals, new_length, prev)
             cc = self.prev
-            if self.partial_rhss:
-                cc = EmitLetCodeCont(self.partial_rhss, env, self.prev)
+            if self.partial_rhss_ids:
+                cc = EmitLetCodeCont(self.partial_rhss_ids, self.partial_rhss_vals, env, self.prev)
             return ast.make_begin_partial_cont(env, cc, [])
         else:
             # XXX remove copy
@@ -627,7 +673,9 @@ class LetPartialCont(Cont):
                 i += 1
 
             cc = LetPartialCont.make(vals_w, ast, rhsindex + 1, self.env, self.prev)
-            cc.set_partial_rhss(self.get_partial_rhss())
+            cur_ids, cur_vals = self.get_partial_rhss_values()
+            cc.set_partial_rhss_ids(cur_ids)
+            cc.set_partial_rhss_values(cur_vals)
             return (ast.rhss[rhsindex + 1], self.env, cc)
 
     @jit.unroll_safe
@@ -675,21 +723,23 @@ class LetPartialCont(Cont):
         return env
 
 class IfPartialCont(Cont):
-    _attrs_ = ['w_tst_val', 'thn', 'els', 'thn_val']
-    _immutable_fields_ = ['w_tst_val', 'thn', 'els']
+    _attrs_ = ['w_tst_val', 'els', 'thn_val']
+    _immutable_fields_ = ['w_tst_val', 'els']
 
-    def __init__(self, w_tst_val, thn, els, env, prev):
+    def __init__(self, w_tst_val, els, env, prev):
         Cont.__init__(self, env, prev)
         self.w_tst_val = w_tst_val
-        self.thn = thn
         self.els = els
         self.thn_val = None
 
     def _clone(self):
-        return IfPartialCont(self.w_tst_val, self.thn, self.els, self.env, self.prev)
+        return IfPartialCont(self.w_tst_val, self.els, self.env, self.prev)
 
     def plug_reduce(self, vals, env):
-        thn_els_val = check_one_val(vals)
+        if isinstance(vals, values.W_Object):
+            thn_els_val = vals
+        else:
+            thn_els_val = values.to_list([values.W_Symbol.make("values")] + vals._get_full_list())
         if self.thn_val is None: # then the value we got is the thn value
             self.thn_val = thn_els_val
             # continue evaluating the els
@@ -757,7 +807,7 @@ class EmitBeginCodeCont(Cont):
 
     def plug_reduce(self, vals, env):
         w_vals = vals.get_all_values()
-        assert len(w_vals) == 1
+        #assert len(w_vals) == 1
         exprs = self.exprs + w_vals
 
         begin_sym = values.W_Symbol.make("begin")
@@ -1401,6 +1451,7 @@ class App(AST):
     @jit.unroll_safe
     def interpret(self, env, cont):
         rator = self.rator
+
         if (not env.pycketconfig().callgraph and
                 isinstance(rator, ModuleVar) and
                 rator.is_primitive()):
@@ -1438,7 +1489,6 @@ class App(AST):
             if unsafe_op in rator_str:
                 unsafe_inline = True
                 break
-
         w_callable, emit_ast = rator.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
         args_w = [None] * len(self.rands)
         dyn_args_w = [None]*len(self.rands)
@@ -1567,7 +1617,7 @@ class PartialStopApp(App):
         context = Context.PartialStopAppRator(self.rator, self.rands, context)
         return Context.normalize_name(self.rator, context, hint="PartialStopAppRator")
 
-    @jit.dont_look_inside
+    #@jit.dont_look_inside
     def interpret(self, env, cont):
         ast = App.make(self.rator, self.rands, self.env_structure)
         return ast.interpret(env, cont)
@@ -1629,8 +1679,11 @@ class PartialApp(App):
         new_w_callable_ast = None
         pe_stop = False
 
+        #import pdb;pdb.set_trace()
+
         try:
             while True:
+                #print(ast)
                 ast, env_p, cont_p = ast.interpret_partial(self.dyn_var_names_ls_str, self.safe_ops_ls_str, self.unsafe_ops_inline_ls_str, pe_stop, env_p, cont_p)
         except Done, e:
             new_w_callable_ast = e.values
@@ -1671,6 +1724,7 @@ class PartialApp(App):
         b_form_1 = Context.normalize_term(b_form)
         b_form_2 = assign_convert(b_form_1)
 
+        #w_global_config.deactivate_debug()
         #import pdb;pdb.set_trace()
 
         time_after_p = time.time()
@@ -2410,6 +2464,8 @@ class SetBang(AST):
             return values.w_void, False
 
     def _mutated_vars(self, cache):
+        from pycket.env import w_global_config as conf
+
         x = self.rhs.mutated_vars(cache)
         var = self.var
         if isinstance(var, CellRef):
@@ -2475,7 +2531,7 @@ class If(AST):
         w_tst_val, is_partial = self.tst.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
 
         if is_partial:
-            return self.thn, env, IfPartialCont(w_tst_val, w_tst_val, self.els, env, cont)
+            return self.thn, env, IfPartialCont(w_tst_val, self.els, env, cont)
         if w_tst_val is values.w_false:
             return self.els, env, cont
         else:
@@ -3411,6 +3467,9 @@ def inner_interpret_two_state(ast, env, cont):
         # Manual conditionals to force specialization in translation
         # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
         # (see Jones, Gomard, Sestof 1993)
+        from pycket.env import w_global_config as conf
+        if conf.is_debug_active():
+            print(ast.tostring())
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
         elif t is If:

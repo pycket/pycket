@@ -1680,6 +1680,8 @@ class W_Closure(W_Procedure):
                 frees_vals = {}
                 i = 0
                 for f in lm.frees.elems:
+                    if f is caselam.recursive_sym:
+                        continue
                     if f.variable_name() in dyn_var_name_ls_str:
                         frees_vals[f] = f
                     else:
