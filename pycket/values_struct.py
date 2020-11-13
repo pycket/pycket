@@ -659,7 +659,8 @@ class W_RootStruct(values.W_Object):
         return proc.call_with_extra_info(args, env, cont, app)
 
     # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
-    #     import pdb;pdb.set_trace()
+    #     #import pdb;pdb.set_trace()
+    #     pass
 
     def call_with_extra_info(self, args, env, cont, app):
         type = self.struct_type()
@@ -1166,6 +1167,14 @@ class W_StructConstructor(W_StructTypeProcedure):
 class W_StructPredicate(W_StructTypeProcedure):
     errorname = "struct-predicate"
 
+    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+        return self.call_with_extra_info(args, env, cont, calling_app)        
+        # if emit_ast:
+        #     #import pdb;pdb.set_trace()
+        #     pass
+        # else:
+        #     return self.call_with_extra_info(args, env, cont, calling_app)
+
     @make_call_method([values.W_Object])
     @jit.unroll_safe
     def call(self, struct):
@@ -1243,7 +1252,8 @@ class W_StructAccessor(W_StructTypeProcedure):
         return struct.ref_with_extra_info(field + offset, app, env, cont)
 
     # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
-    #     import pdb;pdb.set_trace()
+    #     #import pdb;pdb.set_trace()        
+    #     pass
 
     @make_call_method([values.W_Object, values.W_Fixnum], simple=False,
                       name="<struct-accessor-method>")
@@ -1270,7 +1280,8 @@ class W_StructFieldMutator(values.W_Procedure):
         return type.get_offset(self.mutator.struct_type()) + self.field
 
     # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
-    #     import pdb;pdb.set_trace()
+    #     #import pdb;pdb.set_trace()
+    #     pass
 
     @make_call_method([values.W_Object, values.W_Object], simple=False,
                       name="<struct-field-mutator-method>")
@@ -1297,7 +1308,8 @@ class W_StructMutator(W_StructTypeProcedure):
         return struct.set_with_extra_info(field + offset, val, app, env, cont)
 
     # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
-    #     import pdb;pdb.set_trace()
+    #     #import pdb;pdb.set_trace()
+    #     pass
 
     @make_call_method([values.W_Object, values.W_Fixnum, values.W_Object],
                       simple=False, name="<struct-mutator-method>")
@@ -1361,7 +1373,8 @@ class W_StructPropertyPredicate(values.W_Procedure):
         return Arity.ONE
 
     # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
-    #     import pdb;pdb.set_trace()
+    #     #import pdb;pdb.set_trace()
+    #     pass
 
     @make_call_method([values.W_Object])
     @jit.unroll_safe
@@ -1384,7 +1397,8 @@ class W_StructPropertyAccessor(values.W_Procedure):
         return Arity.ONE
 
     # def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
-    #     import pdb;pdb.set_trace()
+    #     #import pdb;pdb.set_trace()
+    #     pass
 
     @make_call_method([values.W_Object, default(values.W_Object, None)], simple=False)
     def call_with_extra_info(self, arg, fail, env, cont, app):
