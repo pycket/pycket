@@ -118,7 +118,7 @@ def test_different_dynamic_name2():
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 13
 
-    
+#@pytest.mark.m
 def test_closing_over_the_dynamic_var():
     a_top_lvl_func = """
     (define-values (toplevel-func) (lambda (f) (f 2)))
@@ -161,11 +161,8 @@ def test_closing_over_the_dynamic_var():
     outer_let = to_list([let_sym, to_list([rhs_1]), inner_let])
     outer_lam = to_list([lam_sym, to_list([dyn_sym]), outer_let])
     app_sexp = to_list([outer_lam, ten])
-    #import pdb;pdb.set_trace()
     res_lam = partially_eval_app_sexp(app_sexp, dyn_var_names=["dyn"], env=env)
-    #import pdb;pdb.set_trace()
     kk = run_residual_sexp(res_lam, W_Fixnum(10), additional_funcs=[func_sexp])
-    #import pdb;pdb.set_trace()
 
     assert isinstance(kk, W_Vector)
 
@@ -180,7 +177,34 @@ def test_partial_let_multiple_valued_rhs():
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 11
 
-@pytest.mark.m
+#@pytest.mark.m
+def test_partial_let_loop():
+    p = """
+    ((lambda (dyn)
+     (letrec-values ([(loop) (lambda (i)
+			   (if (<= i 1)
+			    1
+			    (* i (pe-test-stopper loop (sub1 i)))))])
+      (loop dyn))) 5)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_Fixnum(5))
+    assert kk == 120
+
+#@pytest.mark.m
+def test_partial_let_loop_dyn_rhs():
+    p = """
+    ((lambda (dyn)
+       (letrec-values ([(loop) (lambda (i)
+			   (if (> i dyn)
+			    1
+			    (* i (pe-test-stopper loop (add1 i)))))])
+        (loop 1))) 5)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_Fixnum(5))
+    assert kk == 120
+
 def test_partial_let_no_rhs_id():
     p = """
     ((lambda (dyn)
@@ -188,8 +212,6 @@ def test_partial_let_no_rhs_id():
          dyn)) 10)
 """
     res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
-    import pdb;pdb.set_trace()
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 10
     # some weird uses of let may not have any ids for their rhs
-    

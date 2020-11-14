@@ -5,6 +5,7 @@ from pycket.error import SchemeException
 from pycket.hash import simple, equal, base
 from pycket.assign_convert import assign_convert
 from pycket.util import PerfRegion
+from pycket.AST import AST
 
 mksym = values.W_Symbol.make
 
@@ -483,7 +484,9 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         else:
             rands_ls, rands_len = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for r in rands_ls]
-            if c is pe_stop_sym and rands_len >= 1: # has to be 1
+            if (c is pe_stop_sym \
+                or c is values.W_Symbol.make("pe-test-stopper")) \
+                and rands_len >= 1: # has to be 1
                 return interp.PartialStopApp(rands[0], rands[1:])
 
             if c is partial_eval_sym and rands_len >= 3: # FIXME: refactor this
@@ -503,6 +506,8 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             form_rator = sexp_to_ast(c, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref)
 
             return interp.App.make(form_rator, rands)
+    elif isinstance(form, AST):
+        return form
     else:
         raise SchemeException("Don't know what to do with this form yet : %s -- %s" % (form, form.tostring()))
 

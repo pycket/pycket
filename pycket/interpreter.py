@@ -535,7 +535,7 @@ class EmitLetCodeCont(Cont):
         # safe to assume 1, if there's more (partial), then the begin
         # cont will produce a "begin" for it
 
-        let_sym = values.W_Symbol.make("let-values")
+        let_sym = values.W_Symbol.make("letrec-values")
         cons = values.W_Cons.make
         null = values.w_null
 
@@ -1519,6 +1519,8 @@ class App(AST):
             rator_sym = rator.to_sexp()
             w_global_config.pe_add_toplevel_var_name(rator_sym)
             w_app_ast = values.W_PartialValue(values.to_list([rator_sym] + dyn_args_w))
+            if not isinstance(w_callable, values.W_PartialValue):
+                w_app_ast = values.W_PartialValue(values.to_list([w_callable] + dyn_args_w))
             return return_value_direct(w_app_ast, env, cont)
 
         if isinstance(w_callable, values.W_PromotableClosure):
@@ -3468,8 +3470,6 @@ def inner_interpret_two_state(ast, env, cont):
         # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
         # (see Jones, Gomard, Sestof 1993)
         from pycket.env import w_global_config as conf
-        if conf.is_debug_active():
-            print(ast.tostring())
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
         elif t is If:
