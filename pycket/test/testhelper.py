@@ -14,7 +14,7 @@ from pycket.error import SchemeException
 from pycket.cont import continuation
 from pycket.values import *
 from pycket.hash.base import W_HashTable
-from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive
+from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive, racket_read_str
 from pycket.prims.linklet import *
 from pycket.test.utils import *
 from pycket.config import get_testing_config
@@ -200,9 +200,20 @@ def make_ast(ast_str):
     return assign_convert(ast_ast)
 
 
-def partially_eval_app(app_str_sexp, dyn_var_names=[], safe_ops=[], unsafe_ops_inline=[], env=None):
+def partially_eval_app(app_str_sexp, dyn_var_names=[], safe_ops=[], unsafe_ops_inline=[], env=None, use_racket_read=False):
     app_sexp = app_str_sexp
-    if isinstance(app_sexp, str):
+    if use_racket_read:
+        if not w_global_config.is_expander_loaded():
+            w_global_config.set_config_val('expander_loaded', 1)
+            # get the expander
+            print("Loading and initializing the expander")
+            initiate_boot_sequence([], False)
+            # load the '#%kernel
+            print("(namespace-require '#%%kernel)")
+            namespace_require_kernel()
+        # run Racket's reader
+        app_sexp = racket_read_str(app_sexp)
+    elif isinstance(app_sexp, str):
         app_sexp = string_to_sexp(app_str_sexp)
     elif not isinstance(app_sexp, values.W_Cons):
         raise Exception("boinkers!")
