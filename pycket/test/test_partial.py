@@ -215,3 +215,15 @@ def test_partial_let_no_rhs_id():
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 10
     # some weird uses of let may not have any ids for their rhs
+
+@pytest.mark.m
+def test_partial_error_ran_while_pe():
+    p = """
+    ((lambda (dyn)
+       (if (<= dyn 10)
+           42
+           (error "not dynamic" "at all"))) 10)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 42

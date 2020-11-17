@@ -1490,6 +1490,9 @@ class App(AST):
                 unsafe_inline = True
                 break
         w_callable, emit_ast = rator.interpret_simple_partial(dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
+        # we don't wanna accidentally call prims like raise/error during partial evaluation
+        if not unsafe_inline and isinstance(w_callable, values.W_Prim) and ("error" in rator_str or "raise" in rator_str):
+            unsafe_inline = True
         args_w = [None] * len(self.rands)
         dyn_args_w = [None]*len(self.rands)
 
