@@ -307,6 +307,7 @@ known_mod_vars = {} # cache for kernel primitive ModuleVars
 meta_hint_change_sym = values.W_Symbol.make("1/meta-hint-change")
 partial_eval_sym = values.W_Symbol.make("1/pycket:pe")
 pe_stop_sym = values.W_Symbol.make("1/pycket:pe-stop")
+pe_test_stopper_sym = values.W_Symbol.make("pe-test-stopper")
 
 def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref=[], name=""):
 
@@ -485,7 +486,7 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             rands_ls, rands_len = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for r in rands_ls]
             if (c is pe_stop_sym \
-                or c is values.W_Symbol.make("pe-test-stopper")) \
+                or c is pe_test_stopper_sym) \
                 and rands_len >= 1: # has to be 1
                 return interp.PartialStopApp(rands[0], rands[1:])
 
