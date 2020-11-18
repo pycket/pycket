@@ -408,6 +408,95 @@ class LetrecCont(Cont):
                     LetrecCont(ast.counting_asts[i + 1],
                                self.env, self.prev))
 
+class LetrecPartialCont(Cont):
+    _attrs_ = ["counting_ast", 'partial_rhss_ids', 'partial_rhss_vals']
+    _immutable_fields_ = ["counting_ast"]
+
+    def __init__(self, counting_ast, env, prev):
+        Cont.__init__(self, env, prev)
+        self.counting_ast = counting_ast
+        self.partial_rhss_ids = [] # [ ... [...] ... ]
+        self.partial_rhss_vals = [] # [ .... ]
+
+    def _clone(self):
+        l = LetrecPartialCont(self.counting_ast, self.env, self.prev)
+        l.set_partial_rhss_ids(self.partial_rhss_ids)
+        l.set_partial_rhss_values(self.partial_rhss_vals)
+        return l
+
+    def get_ast(self):
+        return self.counting_ast.ast
+
+    def set_partial_rhss_ids(self, new_ids):
+        self.partial_rhss_ids = new_ids
+
+    def set_partial_rhss_values(self, new_rhss_values):
+        self.partial_rhss_vals = new_rhss_values
+
+    def add_partial_rhs_values(self, new_ids_ls, new_rhs):
+        self.partial_rhss_ids.append(new_ids_ls)
+        self.partial_rhss_vals.append(new_rhs)
+
+    def get_partial_rhss_ids(self):
+        return self.partial_rhss_ids
+
+    def get_partial_rhss_values(self):
+        return self.partial_rhss_ids, self.partial_rhss_vals
+
+    def get_next_executed_ast(self):
+        ast, rhsindex = self.counting_ast.unpack(Letrec)
+        if rhsindex == (len(ast.rhss) - 1):
+            return ast.body[0]
+        return ast.rhss[rhsindex + 1]
+
+    @jit.unroll_safe
+    def plug_reduce(self, vals, env):
+        len_vals = vals.num_values()
+        ast, i = self.counting_ast.unpack(Letrec)
+        len_self = i
+
+        if isinstance(vals, values.W_PartialValue):
+            how_many_ids = ast.counts[i]
+            starting_index = 0
+            for r_i in range(i):
+                starting_index += ast.counts[r_i]
+            rhs_ids = ast.args.elems[starting_index:starting_index+how_many_ids]
+            self.add_partial_rhs_values(rhs_ids, vals)
+            if ast.counts[i] == 0:
+                len_self, len_vals, new_length = 0, 0, 0
+            elif ast.counts[i] > len_vals:
+                # we need a little intervention here to hack the
+                # _construct_env to not complain (see test_partial_let_multiple_valued_rhs)
+                len_vals = ast.counts[i]
+                new_length = len_self + len_vals
+                vals_ls = [vals]*len_vals
+                vals = values.Values.make(vals_ls)
+            elif ast.counts[i] != len_vals:
+                # something's actually wrong
+                raise SchemeException("wrong number of values")
+
+        elif ast.counts[i] != vals.num_values():
+            #import pdb;pdb.set_trace()
+            raise SchemeException("wrong number of values")
+
+        for j in range(vals.num_values()):
+            w_val = vals.get_value(j)
+            v = self.env.lookup(ast.args.elems[ast.total_counts[i] + j], ast.args)
+            assert isinstance(v, values.W_Cell)
+            v.set_val(w_val)
+        if i >= (len(ast.rhss) - 1):
+            cc = self.prev
+            if self.partial_rhss_ids:
+                cc = EmitLetCodeCont(self.partial_rhss_ids, self.partial_rhss_vals, env, self.prev)
+            return ast.make_begin_partial_cont(self.env, cc, [])
+        else:
+            c_ast = ast.counting_asts[i+1]
+            cc = LetrecPartialCont(c_ast, self.env, self.prev)
+            cur_ids, cur_vals = self.get_partial_rhss_values()
+            cc.set_partial_rhss_ids(cur_ids)
+            cc.set_partial_rhss_values(cur_vals)
+            return (ast.rhss[i + 1], self.env, cc)
+
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
@@ -3013,6 +3102,15 @@ class Letrec(SequencedBodyAST):
             for i in range(n_elems):
                 env_new._set_list(i, values.W_Cell(None))
         return self.rhss[0], env_new, LetrecCont(self.counting_asts[0], env_new, cont)
+
+    def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, pe_stop, env, cont):
+        n_elems = len(self.args.elems)
+        env_new = ConsEnv.make_n(n_elems, env)
+        if n_elems:
+            assert isinstance(env_new, ConsEnv)
+            for i in range(n_elems):
+                env_new._set_list(i, values.W_Cell(None))
+        return self.rhss[0], env_new, LetrecPartialCont(self.counting_asts[0], env_new, cont)
 
     def direct_children(self):
         return self.rhss + self.body
