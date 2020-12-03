@@ -166,8 +166,8 @@ def test_closing_over_the_dynamic_var():
 
     assert isinstance(kk, W_Vector)
 
-#@pytest.mark.skip
-def test_partial_let_multiple_valued_rhs():
+#@pytest.mark.m
+def test_partial_let_multi_val_rhs_more_than_one():
     p = """
     ((lambda (dyn)
        (let-values ([(a b) (values 1 dyn)])
@@ -176,6 +176,121 @@ def test_partial_let_multiple_valued_rhs():
     res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 11
+
+#@pytest.mark.m
+def test_partial_let_multi_val_rhs_more_than_one_2():
+    p = """
+    ((lambda (dyn)
+       (let-values ([(a b) (values 1 dyn)]
+                    [(kek) 3])
+         (+ a b kek))) 10)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 14
+
+#@pytest.mark.m
+def test_partial_let_multi_val_rhs_no_val():
+    p = """
+    ((lambda (dyn)
+       (let-values ([() (values)])
+         dyn)) 10)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 10
+
+#@pytest.mark.m
+def test_partial_let_multi_val_rhs_no_val_2():
+    p = """
+    ((lambda (dyn)
+       (let-values ([() (begin (+ dyn dyn) (values))])
+         dyn)) 10)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 10
+
+#@pytest.mark.m
+def test_partial_let_multi_val_rhs_no_val_2_with_cells():
+    p = """
+    ((lambda (dyn)
+       (let-values ([() (begin (set! dyn dyn) (values))])
+         dyn)) 10)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 10
+
+#@pytest.mark.m
+def test_partial_let_multi_val_rhs_no_val_3():
+    p = """
+    ((lambda (dyn)
+       (let-values ([(a) dyn]
+                    [() (values)])
+         (+ a 3))) 10)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"], use_racket_read=True)
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 13
+
+#@pytest.mark.m
+def test_partial_let_multi_val_rhs_no_val_4():
+    p = """
+    ((lambda (dyn)
+       (let-values (((a) dyn) (() (begin (+ dyn dyn) (values))))
+         a)) 10)
+"""
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"], use_racket_read=True)
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 10
+
+#@pytest.mark.m
+def test_partial_let_multi_val_rhs_no_val_5():
+    p = """
+    ((lambda (dyn)
+       (let-values (((or-part) dyn)
+                    ((if53) 4)
+                    (() (begin (+ dyn dyn) (values))))
+        dyn)) 10)
+"""
+    #((lambda (dyn) (let ([or-part dyn][if53 dyn][ (begin (+ dyn dyn) (values))]) dyn)) 10)
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"], use_racket_read=True)
+    #import pdb;pdb.set_trace()
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 10
+    # some weird uses of let may not have any ids for their rhs
+
+#@pytest.mark.m
+def test_partial_let_multi_val_rhs_no_val_5_2():
+    p = """
+    ((lambda (dyn)
+       (let-values ([() (let-values ([(or-part) dyn])
+                          (let-values ([(if53) 4]) (+ dyn dyn))
+                          (values))])
+    dyn)) 10)
+"""
+    #((lambda (dyn) (let ([or-part dyn][if53 dyn][ (begin (+ dyn dyn) (values))]) dyn)) 10)
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"], use_racket_read=True)
+    #import pdb;pdb.set_trace()
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 10
+    # some weird uses of let may not have any ids for their rhs
+
+#@pytest.mark.m
+def test_partial_let_multi_val_rhs_no_val_6():
+    p = """
+    ((lambda (dyn)
+       (let-values ([() (let-values ([(or-part) dyn])
+                          (let-values ([(if53) dyn]) (+ dyn dyn))
+                          (values))])
+    dyn)) 10)
+"""
+    #((lambda (dyn) (let ([or-part dyn][if53 dyn][ (begin (+ dyn dyn) (values))]) dyn)) 10)
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"], use_racket_read=True)
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 10
+    # some weird uses of let may not have any ids for their rhs
 
 #@pytest.mark.m
 def test_partial_let_loop():
@@ -206,18 +321,6 @@ def test_partial_let_loop_dyn_rhs():
     assert kk == 120
 
 #@pytest.mark.m
-def test_partial_let_no_rhs_id():
-    p = """
-    ((lambda (dyn)
-       (let-values ([() (begin (set! dyn dyn) (values))])
-         dyn)) 10)
-"""
-    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
-    kk = run_residual_sexp(res_lam, W_Fixnum(10))
-    assert kk == 10
-    # some weird uses of let may not have any ids for their rhs
-
-#@pytest.mark.m
 def test_partial_error_ran_while_pe():
     p = """
     ((lambda (dyn)
@@ -229,7 +332,7 @@ def test_partial_error_ran_while_pe():
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 42
 
-@pytest.mark.m
+#@pytest.mark.m
 def test_partial_literal_letrec():
     p = """
     ((lambda (dyn)

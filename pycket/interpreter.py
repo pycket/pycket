@@ -394,8 +394,7 @@ class LetrecCont(Cont):
     def plug_reduce(self, vals, env):
         ast, i = self.counting_ast.unpack(Letrec)
         if ast.counts[i] != vals.num_values():
-            #import pdb;pdb.set_trace()
-            raise SchemeException("wrong number of values")
+            raise SchemeException("LetrecCont : wrong number of values")
         for j in range(vals.num_values()):
             w_val = vals.get_value(j)
             v = self.env.lookup(ast.args.elems[ast.total_counts[i] + j], ast.args)
@@ -434,7 +433,10 @@ class LetrecPartialCont(Cont):
         self.partial_rhss_vals = new_rhss_values
 
     def add_partial_rhs_values(self, new_ids_ls, new_rhs):
-        self.partial_rhss_ids.append(new_ids_ls)
+        if new_ids_ls == []:
+            self.partial_rhss_ids.append([values.W_Symbol.make('<no-id>')])
+        else:
+            self.partial_rhss_ids.append(new_ids_ls)
         self.partial_rhss_vals.append(new_rhs)
 
     def get_partial_rhss_ids(self):
@@ -454,6 +456,7 @@ class LetrecPartialCont(Cont):
         len_vals = vals.num_values()
         ast, i = self.counting_ast.unpack(Letrec)
         len_self = i
+        new_length = len_self + len_vals
 
         if isinstance(vals, values.W_PartialValue):
             how_many_ids = ast.counts[i]
@@ -463,7 +466,8 @@ class LetrecPartialCont(Cont):
             rhs_ids = ast.args.elems[starting_index:starting_index+how_many_ids]
             self.add_partial_rhs_values(rhs_ids, vals)
             if ast.counts[i] == 0:
-                len_self, len_vals, new_length = 0, 0, 0
+                new_length -= len_vals
+                len_vals = 0
             elif ast.counts[i] > len_vals:
                 # we need a little intervention here to hack the
                 # _construct_env to not complain (see test_partial_let_multiple_valued_rhs)
@@ -473,11 +477,10 @@ class LetrecPartialCont(Cont):
                 vals = values.Values.make(vals_ls)
             elif ast.counts[i] != len_vals:
                 # something's actually wrong
-                raise SchemeException("wrong number of values")
+                raise SchemeException("LetrecPartialCont: wrong number of values")
 
         elif ast.counts[i] != vals.num_values():
-            #import pdb;pdb.set_trace()
-            raise SchemeException("wrong number of values")
+            raise SchemeException("LetrecPartialCont: wrong number of values")
 
         for j in range(vals.num_values()):
             w_val = vals.get_value(j)
@@ -535,8 +538,7 @@ class LetCont(Cont):
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len_vals:
-            #import pdb;pdb.set_trace()
-            raise SchemeException("wrong number of values")
+            raise SchemeException("LetCont: wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
             if ast.env_speculation_works:
@@ -633,8 +635,10 @@ class EmitLetCodeCont(Cont):
         #for rhs_id, rhs_pv in self.rhss.iteritems():
         for rhs_ids in self.rhss_ids:
             rhs_pv = self.rhss_vals[current]
-            #all_bindings_ls[current] = cons(cons(rhs_id, null), cons(rhs_pv, null))
-            all_bindings_ls[current] = values.to_list([values.to_list(rhs_ids), rhs_pv])
+            if len(rhs_ids) == 1  and rhs_ids[0] is values.W_Symbol.make('<no-id>'):
+                all_bindings_ls[current] = values.to_list([null, rhs_pv])
+            else:
+                all_bindings_ls[current] = values.to_list([values.to_list(rhs_ids), rhs_pv])
             current += 1
         all_bindings = values.to_list(all_bindings_ls)
 
@@ -666,7 +670,10 @@ class LetPartialCont(Cont):
         self.partial_rhss_vals = new_rhss_values
 
     def add_partial_rhs_values(self, new_ids_ls, new_rhs):
-        self.partial_rhss_ids.append(new_ids_ls)
+        if new_ids_ls == []:
+            self.partial_rhss_ids.append([values.W_Symbol.make('<no-id>')])
+        else:
+            self.partial_rhss_ids.append(new_ids_ls)
         self.partial_rhss_vals.append(new_rhs)
 
     def get_partial_rhss_ids(self):
@@ -690,9 +697,6 @@ class LetPartialCont(Cont):
 
     @jit.unroll_safe
     def plug_reduce(self, vals, _env):
-
-        #import pdb;pdb.set_trace()
-
         len_vals = vals.num_values()
         jit.promote(len_vals)
         len_self = self._get_size_list()
@@ -709,7 +713,8 @@ class LetPartialCont(Cont):
             rhs_ids = ast.args.elems[starting_index:starting_index+how_many_ids]
             self.add_partial_rhs_values(rhs_ids, vals)
             if ast.counts[rhsindex] == 0:
-                len_self, len_vals, new_length = 0, 0, 0
+                new_length -= len_vals
+                len_vals = 0
             elif ast.counts[rhsindex] > len_vals:
                 # we need a little intervention here to hack the
                 # _construct_env to not complain (see test_partial_let_multiple_valued_rhs)
@@ -719,22 +724,10 @@ class LetPartialCont(Cont):
                 vals = values.Values.make(vals_ls)
             elif ast.counts[rhsindex] != len_vals:
                 # something's actually wrong
-                #import pdb;pdb.set_trace()
-                raise SchemeException("wrong number of values")
+                raise SchemeException("LetPartialCont: wrong number of values")
 
         elif ast.counts[rhsindex] != len_vals:
-            #import pdb;pdb.set_trace()
-            raise SchemeException("wrong number of values")
-
-        # if ast.counts[rhsindex] != len_vals:
-        #     # we have a rhs waiting multiple values that is now an ast (W_PartialValue)
-        #     assert isinstance(vals, values.W_PartialValue)
-
-        #     import pdb;pdb.set_trace()
-        #     raise SchemeException("wrong number of values")
-
-        # if isinstance(vals, values.W_PartialValue):
-        #     self.add_partial_rhs(ast.args.elems[rhsindex], vals)
+            raise SchemeException("LetPartialCont: wrong number of values")
 
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
@@ -744,7 +737,6 @@ class LetPartialCont(Cont):
                     prev = _env
                 elif not jit.we_are_jitted():
                     ast.env_speculation_works = False
-            #import pdb;pdb.set_trace()
             env = self._construct_env(ast, len_self, vals, len_vals, new_length, prev)
             cc = self.prev
             if self.partial_rhss_ids:
@@ -853,7 +845,6 @@ class IfPartialCont(Cont):
             all_bindings = values.W_Cons.make(current_ids, values.w_null)
             body_ls = values.to_list([if_sym, if_id, if_id, thn_els_val]) # (if if-v if-v k)
             value = values.to_list([let_sym, all_bindings, body_ls])
-            #import pdb;pb.set_trace()
         else:
             value = values.to_list([if_sym, self.w_tst_val, self.thn_val, thn_els_val])
         w_val = values.W_PartialValue(value)
@@ -898,6 +889,8 @@ class EmitBeginCodeCont(Cont):
         w_vals = vals.get_all_values()
         #assert len(w_vals) == 1
         exprs = self.exprs + w_vals
+        if len(exprs) == 1:
+            return return_value_direct(exprs[0], self.env, self.prev)
 
         begin_sym = values.W_Symbol.make("begin")
         val = values.W_PartialValue(values.to_list([begin_sym] + exprs))
@@ -1223,7 +1216,7 @@ class Module(AST):
                     for n in range(len(vs)):
                         self.defs[f.names[n]] = vs[n]
                 else:
-                    raise SchemeException("wrong number of values for define-values")
+                    raise SchemeException("DefineValues: wrong number of values for define-values")
             else: # FIXME modules can have other things, assuming expression
                 vs = interpret_one(f, self.env)
                 continue
@@ -1540,7 +1533,6 @@ class App(AST):
     @jit.unroll_safe
     def interpret(self, env, cont):
         rator = self.rator
-
         if (not env.pycketconfig().callgraph and
                 isinstance(rator, ModuleVar) and
                 rator.is_primitive()):
@@ -1777,7 +1769,6 @@ class PartialApp(App):
 
         try:
             while True:
-                #print(ast)
                 ast, env_p, cont_p = ast.interpret_partial(self.dyn_var_names_ls_str, self.safe_ops_ls_str, self.unsafe_ops_inline_ls_str, pe_stop, env_p, cont_p)
         except Done, e:
             new_w_callable_ast = e.values
