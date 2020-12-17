@@ -2181,6 +2181,11 @@ def pycket_partial_eval(stat_var_name, stat_var_val, actual_app_rator, actual_ap
     # Or NoApp interpret is not an identity function
     raise SchemeException("pycket:pe -- who is calling this?")
 
+@expose("pycket:pe:is-dynamic", [values.W_Object])
+def pycket_pe_is_dynamic(possibly_dynamic_val):
+    # #t if the argument is a W_PartialValue
+    return values.W_Bool.make(isinstance(possibly_dynamic_val, values.W_PartialValue))
+
 @expose("pycket:pe-stop", [values.W_Object])
 def pycket_partial_stop_eval(stop_app_rand):
     # Should Never Be Called

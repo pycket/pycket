@@ -516,7 +516,7 @@ kernel_str = ["*", "+", "-",
               "current-compile-target-machine",
               "compile-target-machine?",
               "sha1-bytes", "sha224-bytes", "sha256-bytes",
-              "meta-hint-change", "pycket:pe", "pycket:pe-stop", "pycket:time-apply"]
+              "meta-hint-change", "pycket:pe", "pycket:pe-stop", "pycket:time-apply", "pycket:pe:is-dynamic"]
 
 pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug",
                     "pycket:get-verbosity", "pycket:set-verbosity",
