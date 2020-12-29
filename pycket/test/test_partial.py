@@ -63,7 +63,6 @@ def test_closing_over_val_depends_on_dynamic_val():
         (vector-ref v 0))) 10)
     """
     res_lam = partially_eval_app(p, dyn_var_names=["dyn"], env=env)
-    #import pdb;pdb.set_trace()
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 12
 
@@ -87,7 +86,6 @@ def test_different_dynamic_name():
          (lexer dyn))) 10)
 """
     res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
-    #import pdb;pdb.set_trace()
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 12
 
@@ -164,6 +162,28 @@ def test_closing_over_the_dynamic_var():
     res_lam = partially_eval_app_sexp(app_sexp, dyn_var_names=["dyn"], env=env)
     kk = run_residual_sexp(res_lam, W_Fixnum(10), additional_funcs=[func_sexp])
 
+    assert isinstance(kk, W_Vector)
+
+#@pytest.mark.m
+def test_closing_over_the_dynamic_var_2():
+    a_top_lvl_func = """
+    (define-values (toplevel-func) (lambda (f) (f 2)))
+    """
+    func_sexp = string_to_sexp(a_top_lvl_func)
+    top_sym = W_Symbol.make("toplevel-func")
+    env = new_env_with(top_sym, make_ast("(lambda (f) (f 2))"))
+    # trick the sexp_to_ast
+    w_global_config.pe_add_toplevel_var_name(top_sym)
+
+    p = """
+    ((lambda (dyn)
+       (let-values ([(dyn_depend) (+ dyn 3)])
+         (let-values([(closure) (lambda (l) (make-vector dyn_depend))])
+           (1/pycket:pe-stop toplevel-func closure)))) 10)
+    """
+
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"], env=env, use_racket_read=True)
+    kk = run_residual_sexp(res_lam, W_Fixnum(10), additional_funcs=[func_sexp])
     assert isinstance(kk, W_Vector)
 
 #@pytest.mark.m
@@ -256,7 +276,6 @@ def test_partial_let_multi_val_rhs_no_val_5():
 """
     #((lambda (dyn) (let ([or-part dyn][if53 dyn][ (begin (+ dyn dyn) (values))]) dyn)) 10)
     res_lam = partially_eval_app(p, dyn_var_names=["dyn"], use_racket_read=True)
-    #import pdb;pdb.set_trace()
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 10
     # some weird uses of let may not have any ids for their rhs
@@ -272,7 +291,6 @@ def test_partial_let_multi_val_rhs_no_val_5_2():
 """
     #((lambda (dyn) (let ([or-part dyn][if53 dyn][ (begin (+ dyn dyn) (values))]) dyn)) 10)
     res_lam = partially_eval_app(p, dyn_var_names=["dyn"], use_racket_read=True)
-    #import pdb;pdb.set_trace()
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 10
     # some weird uses of let may not have any ids for their rhs
@@ -346,3 +364,15 @@ def test_partial_literal_letrec():
     res_lam = partially_eval_app(p, dyn_var_names=["dyn"], use_racket_read=True)
     kk = run_residual_sexp(res_lam, W_Fixnum(5))
     assert kk == 600
+
+@pytest.mark.m
+def test_closure_arg_name_dyn_name():
+    p = """
+    ((lambda (dyn)
+       (let-values ([(closure) (lambda (x dyn) (+ x (string-length dyn) (string-length (string-append dyn dyn))))])
+         (closure dyn "caner"))) 10)
+    """
+
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"], use_racket_read=False)
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 25
