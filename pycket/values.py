@@ -1450,6 +1450,8 @@ class W_Prim(W_Procedure):
             safe = True
 
         w_result = None
+        if "values" in self.name.tostring() and len(args) == 0:
+            return return_value_direct(W_PartialValue(to_list([self.name])), env, cont)
         if emit_ast and (not safe): # we are producing code
             if "values" in self.name.tostring() and len(args) == 1:
                 return return_value_direct(W_PartialValue(dynamic_names[0], self.get_pe_type()), env, cont)
@@ -1652,8 +1654,10 @@ class W_Closure(W_Procedure):
     @staticmethod
     @jit.unroll_safe
     def make_partial(caselam, dyn_var_name_ls_str, env):
+        from pycket.ast_vs_sexp import normalized_dyn_var_check
+
         # at this point, we know that there are some free variables
-        
+
         # we'll check if any of them are bound to partial values.  In
         # that case, we need to produce code for the function, so the
         # closure is produced in the run-time (rather than in the
@@ -1665,31 +1669,50 @@ class W_Closure(W_Procedure):
         if len(caselam.lams) != 1:
             return W_Closure.make(caselam, env), False
 
+        emit_code = False
         lm = caselam.lams[0]
         vals = lm.collect_frees_without_recursive(caselam.recursive_sym, env)
-        for v in vals:
-            emit_code = isinstance(v, W_PartialValue)
-            for f in lm.frees.elems:
-                if f.variable_name() in dyn_var_name_ls_str:
-                    emit_code = True
+        frees_vals = {}
 
-            if emit_code:
-                # we see a partial value in one of the frees,
-                # or one of the frees is a dynamic variable
-                # go ahead and produce code for the lambda
-                frees_vals = {}
-                i = 0
-                for f in lm.frees.elems:
-                    if f is caselam.recursive_sym:
-                        continue
-                    if f.variable_name() in dyn_var_name_ls_str:
+        for v in vals:
+            emit_code = emit_code or isinstance(v, W_PartialValue)
+            # we see a partial value in one of the frees,
+            # or one of the frees is a dynamic variable
+            # go ahead and produce code for the lambda
+            i = 0
+            for f in lm.frees.elems:
+                if f is caselam.recursive_sym:
+                    continue
+                for dyn_var in dyn_var_name_ls_str:
+                    var_str = f.variable_name()
+                    if normalized_dyn_var_check(var_str, dyn_var):
+                        emit_code = True
+                        if isinstance(v, W_PartialValue) and dyn_var in v.tostring():
+                            # it's bound to a code that has dyn in it
+                            frees_vals[f] = v
+                        elif var_str.find("_") > 0:
+                            frees_vals[f] = W_Symbol.make(dyn_var)
+                        else:
+                            assert dyn_var == var_str
+                            frees_vals[f] = f
+                        break
+                    # if f.variable_name() in dyn_var_name_ls_str:
+                    #     frees_vals[f] = f
+                    # else:
+                    #     frees_vals[f] = vals[i]
+                else:
+                    if isinstance(vals[i], W_Cell):
                         frees_vals[f] = f
                     else:
                         frees_vals[f] = vals[i]
-                    i += 1
-                #frees_vals = dict(zip(lm.frees.elems, vals))
-                lm_code = lm.to_sexp(frees_vals)
-                return W_PartialValue(lm_code, 'w_closure'), True
+                i += 1
+        if emit_code:
+            case_sym = W_Symbol.make("case-lambda")
+            rec_sym = W_Symbol.make("recursive-sym")
+            rec_ls = [rec_sym, caselam.recursive_sym.to_sexp(frees_vals, env)] if caselam.recursive_sym else [rec_sym]
+            rec_sexp = to_list(rec_ls)
+            lm_code = to_list([case_sym, rec_sexp, lm.to_sexp(frees_vals, env)])
+            return W_PartialValue(lm_code, 'w_closure'), True
         # if we don't see any partial values in free vars then
         # it's safe to produce a closure object
         return W_Closure1AsEnv.make(vals, caselam, env.toplevel_env()), False
