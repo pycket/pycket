@@ -207,6 +207,7 @@ def let_like_to_ast(let_sexp, lex_env, exports, all_toplevels, linkl_imports, mu
     rhss_list = [None] * varss_len
     num_ids = 0
     i = 0
+
     for w_vars_rhss in varss_rhss:
         varr, varr_len = to_rpython_list(w_vars_rhss.car(), unwrap_correlated=True)
         varss_list[i] = varr
@@ -255,6 +256,7 @@ def normalized_dyn_var_check(var_str, dyn_var):
         return var_str == dyn_var
 
 def is_val_type(form, extra=[]):
+    from pycket.prims.linklet import W_LinkletVar
     val_types = [values.W_Number,
                  values.W_Void,
                  values.W_Bool,
@@ -262,8 +264,12 @@ def is_val_type(form, extra=[]):
                  vector.W_Vector,
                  values_string.W_String,
                  values.W_ImmutableBytes,
+                 values.W_MutableBytes,
                  values.W_Procedure,
+                 W_LinkletVar,
                  values.W_Closure1AsEnv,
+                 values.W_StringInputPort,
+                 values.W_CustomInputPort,
                  values.W_Character] + extra
     for t in val_types:
         if isinstance(form, t):
@@ -310,7 +316,7 @@ pe_stop_sym = values.W_Symbol.make("1/pycket:pe-stop")
 pe_test_stopper_sym = values.W_Symbol.make("pe-test-stopper")
 
 def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref=[], name=""):
-
+    from pycket.prims.linklet import W_LinkletVar
     #util.console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
@@ -361,6 +367,8 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             if c is var_ref_sym or c is var_ref_no_check_sym:
                 rator = var_ref_mod_var if c is var_ref_sym else var_ref_no_check_mod_var
                 rands = [interp.LinkletVar(linklet_var_sym)]
+                if isinstance(linklet_var_sym, W_LinkletVar):
+                    rands = [interp.Quote(linklet_var_sym)]
             return interp.App.make(rator, rands)
         ###
         if c is begin_sym:
