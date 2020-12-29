@@ -23,6 +23,9 @@ class W_ProtoObject(object):
     def get_all_values(self):
         raise NotImplementedError("not a real value!")
 
+    def get_type(self):
+        raise NotImplementedError("not a real value!")
+
 class W_Object(W_ProtoObject):
     __metaclass__ = extendabletype
     _attrs_ = []
@@ -37,6 +40,9 @@ class W_Object(W_ProtoObject):
     def get_value(self, index):
         assert index == 0
         return self
+
+    def get_type(self):
+        return 'w_object'
 
     def get_all_values(self):
         return [self]
@@ -148,7 +154,7 @@ class W_Object(W_ProtoObject):
     def tostring(self):
         return str(self)
 
-    def to_sexp(self, partial_env={}):
+    def to_sexp(self, partial_env={}, env=None):
         return self
 
     # for expose
