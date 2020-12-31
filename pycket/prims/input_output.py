@@ -1597,6 +1597,15 @@ def printf(args, env, cont):
         raise ContractException("printf: expected a format string, got something else")
     return do_print(format(fmt, args[1:], "printf"), None, env, cont)
 
+@expose("pycket:pe:printf", simple=False)
+def printf(args, env, cont):
+    if not args:
+        raise ArityException("printf: expected at least one argument, got 0")
+    fmt = args[0]
+    if not isinstance(fmt, values_string.W_String):
+        raise ContractException("printf: expected a format string, got something else")
+    return do_print(format(fmt, args[1:], "printf"), None, env, cont)
+
 @expose("eprintf", simple=False)
 def eprintf(args, env, cont):
     if not args:

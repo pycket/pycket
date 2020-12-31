@@ -1571,6 +1571,9 @@ class App(AST):
                     safe = True
                     break
 
+        if "pycket:pe:printf" in rator_str:
+            safe = True
+
         unsafe_inline = False
         for unsafe_op in unsafe_ops_inline_ls_str:
             if unsafe_op in rator_str:
@@ -1593,6 +1596,7 @@ class App(AST):
             else:
                 dyn_args_w[i] = args_w[i]
 
+        emit_ast = emit_ast and (not safe)
         # smaller code gen
         if isinstance(w_callable, values.W_PartialValue):
             w_app_ast = values.W_PartialValue(values.to_list([w_callable] + dyn_args_w))

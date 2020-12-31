@@ -1445,14 +1445,14 @@ class W_Prim(W_Procedure):
     # args -> [W_Object] values
     def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
         from pycket.interpreter import return_value_direct
-        safe = False
+        safe = (not emit_ast)
         if self.name.tostring() in safe_ops_ls_str:
             safe = True
 
         w_result = None
         if "values" in self.name.tostring() and len(args) == 0:
             return return_value_direct(W_PartialValue(to_list([self.name])), env, cont)
-        if emit_ast and (not safe): # we are producing code
+        if not safe: # we are producing code
             if "values" in self.name.tostring() and len(args) == 1:
                 return return_value_direct(W_PartialValue(dynamic_names[0], self.get_pe_type()), env, cont)
             return return_value_direct(W_PartialValue(to_list([self.name] + dynamic_names), self.get_pe_type()), env, cont)
