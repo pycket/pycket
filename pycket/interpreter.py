@@ -1841,7 +1841,8 @@ class PartialApp(App):
         w_global_config.pe_add_toplevel_var_name(values.W_Symbol.make('fold-over-perm-tree'))
         w_global_config.pe_add_toplevel_var_name(values.W_Symbol.make('cmp-next-vertex'))
 
-        from pycket.env import w_global_config
+        if w_global_config.get_config_val('print_residual'):
+            console_log(residual_lam.tostring(), debug=True)
 
         mutated = find_mutated(residual_lam) # {W_Symbol:None}
 
