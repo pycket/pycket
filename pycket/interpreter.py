@@ -437,7 +437,12 @@ class LetrecPartialCont(Cont):
             self.partial_rhss_ids.append([values.W_Symbol.make('<no-id>')])
         else:
             self.partial_rhss_ids.append(new_ids_ls)
-        self.partial_rhss_vals.append(new_rhs)
+        if not isinstance(new_rhs, values.W_PartialValue):
+            # quote a coming regular value for sexp_to_ast
+            q_sym = values.W_Symbol.make("quote")
+            self.partial_rhss_vals.append(values.to_list([q_sym, new_rhs]))
+        else:
+            self.partial_rhss_vals.append(new_rhs)
 
     def get_partial_rhss_ids(self):
         return self.partial_rhss_ids
@@ -458,13 +463,14 @@ class LetrecPartialCont(Cont):
         len_self = i
         new_length = len_self + len_vals
 
+        how_many_ids = ast.counts[i]
+        starting_index = 0
+        for r_i in range(i):
+            starting_index += ast.counts[r_i]
+        rhs_ids = ast.args.elems[starting_index:starting_index+how_many_ids]
+        self.add_partial_rhs_values(rhs_ids, vals)
+
         if isinstance(vals, values.W_PartialValue):
-            how_many_ids = ast.counts[i]
-            starting_index = 0
-            for r_i in range(i):
-                starting_index += ast.counts[r_i]
-            rhs_ids = ast.args.elems[starting_index:starting_index+how_many_ids]
-            self.add_partial_rhs_values(rhs_ids, vals)
             if ast.counts[i] == 0:
                 new_length -= len_vals
                 len_vals = 0
@@ -677,7 +683,12 @@ class LetPartialCont(Cont):
             self.partial_rhss_ids.append([values.W_Symbol.make('<no-id>')])
         else:
             self.partial_rhss_ids.append(new_ids_ls)
-        self.partial_rhss_vals.append(new_rhs)
+        if not isinstance(new_rhs, values.W_PartialValue):
+            # quote a coming regular value for sexp_to_ast
+            q_sym = values.W_Symbol.make("quote")
+            self.partial_rhss_vals.append(values.to_list([q_sym, new_rhs]))
+        else:
+            self.partial_rhss_vals.append(new_rhs)
 
     def get_partial_rhss_ids(self):
         return self.partial_rhss_ids
@@ -731,6 +742,15 @@ class LetPartialCont(Cont):
 
         elif ast.counts[rhsindex] != len_vals:
             raise SchemeException("LetPartialCont: wrong number of values")
+        elif ast.is_mutable_var(rhsindex):
+            # check if the current rhs ids are mutable,
+            # we gotta keep them in the residual in case they're set!ed with a partial rhs
+            how_many_ids = ast.counts[rhsindex]
+            starting_index = 0
+            for r_i in range(rhsindex):
+                starting_index += ast.counts[r_i]
+            rhs_ids = ast.args.elems[starting_index:starting_index+how_many_ids]
+            self.add_partial_rhs_values(rhs_ids, vals)
 
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
@@ -1562,8 +1582,6 @@ class App(AST):
         rator = self.rator
         rator_str = rator.tostring()
 
-        # if "lazy-bytes-before-end" in self.tostring() or "ariable-ref/no-check lazy-bytes-bef" in self.tostring():
-
         safe = False # rator_str in safe_ops_ls_str
         for safe_op in safe_ops_ls_str:
             if safe_op in rator_str:
@@ -2346,6 +2364,8 @@ class Var(AST):
             # if "w_vector" in w_val.get_type():
             #     return values.W_PartialValue(self.sym), True
             # return w_val, True
+        elif isinstance(self, CellRef):
+            return self.sym, False
         else:
             return w_val, False
 
@@ -2574,10 +2594,12 @@ class SetBang(AST):
 
     def interpret_simple_partial(self, w_dyn_var_name, safe_ops_ls_str, unsafe_ops_inline_ls_str, env):
         w_rhs_val, is_partial = self.rhs.interpret_simple_partial(w_dyn_var_name, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
-        w_var, is_partial2 = self.var.interpret_simple_partial(w_dyn_var_name, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
-        if is_partial:
+        w_val = self.var.interpret_simple(env)
+        is_partial2 = isinstance(w_val, values.W_PartialValue)
+        #w_var, is_partial2 = self.var.interpret_simple_partial(w_dyn_var_name, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
+        if is_partial or is_partial2:
             set_sym = values.W_Symbol.make("set!")
-            return values.W_PartialValue(values.to_list([set_sym, w_var, w_rhs_val])), True
+            return values.W_PartialValue(values.to_list([set_sym, self.var.to_sexp(), w_rhs_val])), True
         else:
             self.var._set(w_rhs_val, env)
             return values.w_void, False

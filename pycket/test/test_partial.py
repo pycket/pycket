@@ -365,7 +365,7 @@ def test_partial_literal_letrec():
     kk = run_residual_sexp(res_lam, W_Fixnum(5))
     assert kk == 600
 
-@pytest.mark.m
+#@pytest.mark.m
 def test_closure_arg_name_dyn_name():
     p = """
     ((lambda (dyn)
@@ -373,6 +373,43 @@ def test_closure_arg_name_dyn_name():
          (closure dyn "caner"))) 10)
     """
 
-    res_lam = partially_eval_app(p, dyn_var_names=["dyn"], use_racket_read=False)
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 25
+
+@pytest.mark.xfail
+def test_different_types_in_branches():
+    p = """
+    ((lambda (dyn)
+       (if (number? dyn) (+ dyn dyn) (string-length 3))) 10)
+    """
+
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    #import pdb;pdb.set_trace()
+    kk = run_residual_sexp(res_lam, W_Fixnum(10))
+    assert kk == 20
+
+#@pytest.mark.m
+def test_closure():
+    p = """
+    ((lambda (dyn)
+      (let-values ([(var) (string->symbol "x")])
+        (let-values ([(closure-dyn) (lambda (k) (begin (set! var (+ k k)) 3))])
+          (let-values ([(a) 4])
+            (begin (closure-dyn (+ a dyn)) var))))) 5)
+    """
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    #import pdb;pdb.set_trace()
+    kk = run_residual_sexp(res_lam, W_Fixnum(5))
+    assert kk == 18
+
+#@pytest.mark.m
+def test_regular_rhs_set_bang_with_partial_value():
+    p = """
+    ((lambda (dyn)
+      (let-values ([(var) (string->symbol "x")])
+        (begin (set! var (+ dyn dyn)) var))) 5)
+    """
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_Fixnum(5))
+    assert kk == 10
