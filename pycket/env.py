@@ -111,6 +111,7 @@ class GlobalConfig(object):
         self.config = {'verbose':MIN_INT,
                        'expander_loaded':0,
                        'repl_loaded':0,
+                       'print_residual':0,
                        'debug_active':0,
                        'boot_done':0,
                        'linklet_mode':1}
