@@ -270,7 +270,8 @@ class W_PartialValue(W_Object):
         self.obj = obj
         self.pe_type = pe_type # str
         """
-        w_object, w_symbol, w_string, w_vector, w_closure
+        w_object, w_symbol, w_string, w_vector, w_closure,
+        w_expression
         """
 
     def get_type(self):
@@ -1451,11 +1452,11 @@ class W_Prim(W_Procedure):
 
         w_result = None
         if "values" in self.name.tostring() and len(args) == 0:
-            return return_value_direct(W_PartialValue(to_list([self.name])), env, cont)
+            return return_value_direct(W_PartialValue(to_list([self.name]), 'w_expression'), env, cont)
         if not safe: # we are producing code
             if "values" in self.name.tostring() and len(args) == 1:
                 return return_value_direct(W_PartialValue(dynamic_names[0], self.get_pe_type()), env, cont)
-            return return_value_direct(W_PartialValue(to_list([self.name] + dynamic_names), self.get_pe_type()), env, cont)
+            return return_value_direct(W_PartialValue(to_list([self.name] + dynamic_names), 'w_expression'), env, cont)
         # we are actually running it
         # so we need actual values in args
         w_args = [None]*len(args)

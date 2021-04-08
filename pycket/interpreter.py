@@ -702,6 +702,15 @@ class LetPartialCont(Cont):
             return ast.body[0]
         return ast.rhss[rhsindex + 1]
 
+    def is_var_mutable(self, ast, counts, rhsindex):
+        index = rhsindex
+        for c in counts[:rhsindex+1]:
+            if c == 0:
+                index -= 1
+        if index < 0:
+            return False
+        return ast.is_mutable_var(index)
+
     @staticmethod
     @jit.unroll_safe
     def make(vals_w, ast, rhsindex, env, prev):
@@ -742,7 +751,7 @@ class LetPartialCont(Cont):
 
         elif ast.counts[rhsindex] != len_vals:
             raise SchemeException("LetPartialCont: wrong number of values")
-        elif ast.is_mutable_var(rhsindex):
+        elif self.is_var_mutable(ast, ast.counts, rhsindex):
             # check if the current rhs ids are mutable,
             # we gotta keep them in the residual in case they're set!ed with a partial rhs
             how_many_ids = ast.counts[rhsindex]
@@ -1948,7 +1957,7 @@ class SimplePrimApp1(App):
         w_result = None
         if partial and (not safe):
             rator_name = values.W_Symbol.make(self.rator.tostring())
-            w_result = values.W_PartialValue(values.to_list([rator_name, w_arg1])) #arg_dyn_name]))
+            w_result = values.W_PartialValue(values.to_list([rator_name, w_arg1]), 'w_expression')
         elif partial and safe:
             if isinstance(w_arg1, values.W_PartialValue):
                 w_arg1 = w_arg1.get_obj()
@@ -2028,7 +2037,7 @@ class SimplePrimApp2(App):
         w_result = None
         if partial and (not safe):
             rator_name = values.W_Symbol.make(self.rator.tostring())
-            w_result = values.W_PartialValue(values.to_list([rator_name, w_arg1, w_arg2]))
+            w_result = values.W_PartialValue(values.to_list([rator_name, w_arg1, w_arg2]), 'w_expression')
         elif partial and safe:
             if isinstance(w_arg1, values.W_PartialValue):
                 w_arg1 = w_arg1.get_obj()
@@ -2130,7 +2139,7 @@ class SequencedBodyAST(AST):
                     w_result = values.W_PartialValue(w_vals[0])
                 return w_result, True
             begin_sym = values.W_Symbol.make("begin")
-            w_result = values.W_PartialValue(values.to_list([begin_sym]+w_vals))
+            w_result = values.W_PartialValue(values.to_list([begin_sym]+w_vals), 'w_expression')
         else:
             w_result = b_expr_result
         return w_result, emit_ast
@@ -2341,20 +2350,21 @@ class Var(AST):
             from pycket.env import w_global_config
             w_global_config.pe_add_toplevel_var_name(self.sym)
 
-        # TODO: refactor the is_dynamic name thing
-        if isinstance(dyn_name, values.W_Symbol) and isinstance(w_val, values.W_PartialValue):
-            return values.W_PartialValue(dyn_name), True
+        # FIXME: refactor this mess
+        if isinstance(dyn_name, values.W_Symbol):
+            if not isinstance(w_val, values.W_PartialValue):
+                return w_val, False
+            elif 'w_expression' in w_val.get_type():
+                # dyn_name is symbol, w_val is PartialValue containing an expression
+                return w_val, True
+            else:
+                #assert isinstance(w_val, values.W_PartialValue)
+                # emit the symbol itself
+                return values.W_PartialValue(dyn_name, 'w_symbol'), True
         elif isinstance(w_val, values.W_PartialValue):
-            # in some occasions, instead of the partialvalue itself
-            # we need a reference to it (e.g. if this variable
-            # is the target of a vector-set!)
+            # the variable is not the dynamic variable
+            # but bound to a partial value
 
-            # this is why we have types in W_PartialValue
-            # currently, if you see a vector type
-            # then produce a reference (because there might be a vector-set!)
-            # for any other type just produce the value
-
-            # FIXME: note that this doesn't solve the general case
             if isinstance(w_val.get_obj(), values.W_Symbol):
                 return w_val, True
             # if "w_closure" in w_val.get_type() or \
@@ -2772,6 +2782,7 @@ class CaseLambda(AST):
     def interpret_simple_partial(self, dyn_var_name_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env):
         if not env.pycketconfig().callgraph:
             self.enable_jitting() # XXX not perfectly pretty
+
         if not self.any_frees:
             # cache closure if there are no free variables and the toplevel env
             # is the same as last time

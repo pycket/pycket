@@ -4,6 +4,7 @@
 import pytest
 
 from pycket.values import *
+from pycket.values_string import W_String
 from pycket.vector import *
 from pycket.test.testhelper import *
 from pycket.env import ToplevelEnv, w_global_config
@@ -365,7 +366,6 @@ def test_partial_literal_letrec():
     kk = run_residual_sexp(res_lam, W_Fixnum(5))
     assert kk == 600
 
-#@pytest.mark.m
 def test_closure_arg_name_dyn_name():
     p = """
     ((lambda (dyn)
@@ -376,6 +376,20 @@ def test_closure_arg_name_dyn_name():
     res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
     kk = run_residual_sexp(res_lam, W_Fixnum(10))
     assert kk == 25
+
+#@pytest.mark.m
+def test_closure_arg_name_dyn_name2():
+    p = """
+    ((lambda (dyn)
+       (let-values ([(closure) (lambda (x dyn) (+ x dyn))])
+         (closure 35 (string-length dyn)))) "string")
+    """
+
+    # (lambda (in) (+ (string-length in) 5))
+
+    res_lam = partially_eval_app(p, dyn_var_names=["dyn"])
+    kk = run_residual_sexp(res_lam, W_String.make("string"))
+    assert kk == 41
 
 @pytest.mark.xfail
 def test_different_types_in_branches():
