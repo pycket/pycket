@@ -197,7 +197,15 @@ test:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py
 
 test-partial:
+	@echo "Running test_partial with PyPy"
 	$(RUNINTERP) $(PYTEST) pycket -k test_partial.py
+
+partial-sanity-check: test-partial
+	@echo "EARLEY w/ PE"
+	./pycket-c-linklets partial-main-benches/earley.rkt
+
+test-m:
+	$(RUNINTERP) $(PYTEST) pycket -k test_partial.py -m m
 
 test-new-no-expander:
 	$(RUNINTERP) $(PYTEST) pycket --new --ignore=pycket/test/test_old_entry_point.py
