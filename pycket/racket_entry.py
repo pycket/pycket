@@ -448,6 +448,7 @@ def dev_mode_entry(dev_mode, eval_sexp, run_rkt_as_linklet):
 def racket_entry(names, config, command_line_arguments):
     from pycket.prims.general import executable_yield_handler
     from pycket.values import W_Fixnum
+    from pycket.env import w_global_config
 
     if config['make-zos']:
         make_bootstrap_zos()
@@ -478,8 +479,12 @@ def racket_entry(names, config, command_line_arguments):
     c_a              = flags['compile-machine-independent']
     dont_load_regexp = flags['no-regexp']
     dev_mode         = flags['dev-mode']
+    print_residual   = flags['print-residual']
     racket_fasl      = flags['racket-fasl']
     rpython_fasl     = flags['rpython-fasl']
+
+    if print_residual:
+        w_global_config.set_config_val('print_residual', 1)
 
     if load_as_linklets:
         for rkt in load_as_linklets:
@@ -664,6 +669,7 @@ def get_options(names, config):
     compile_any = config['compile-machine-independent']
     dont_load_regexp = config['no-regexp']
     dev_mode = config['dev-mode']
+    print_residual = config['print-residual']
     racket_fasl      = config['racket-fasl']
     rpython_fasl     = config['rpython-fasl']
 
@@ -710,6 +716,7 @@ use-compiled       : %s
 verbosity-level    : %s
 verbosity-keywords : %s
 dev-mode           : %s
+print-residual     : %s
 """ % (loads_print_str,
        init_library[0],
        set_run_file[0],
@@ -728,7 +735,8 @@ dev-mode           : %s
        use_compiled,
        verbosity_lvl,
        verbosity_keywords,
-       dev_mode
+       dev_mode,
+       print_residual
        )
 
     console_log(log_str, debug=debug)

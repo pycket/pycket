@@ -14,7 +14,7 @@ from pycket.error import SchemeException
 from pycket.cont import continuation
 from pycket.values import *
 from pycket.hash.base import W_HashTable
-from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive
+from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive, racket_read_str
 from pycket.prims.linklet import *
 from pycket.test.utils import *
 from pycket.config import get_testing_config
@@ -178,6 +178,83 @@ def inst(linkl, imports=[], target=None):
         target = w_false
 
     return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false])
+
+def new_env_with(name_str_sym, w_val):
+    from pycket.env import ToplevelEnv, w_global_config
+    env = ToplevelEnv(w_global_config.get_pycketconfig())
+    name_sym = name_str_sym
+    if isinstance(name_str_sym, str):
+        name_sym = W_Symbol.make(name_str)
+    env.toplevel_env().toplevel_set(name_sym, w_val)
+    w_global_config.pe_add_toplevel_var_name(name_sym)
+    return env
+
+def make_ast(ast_str):
+    from pycket.ast_vs_sexp import sexp_to_ast
+    from pycket.assign_convert import assign_convert
+    from pycket.env import w_global_config as conf
+
+    ast_sexp = string_to_sexp(ast_str)
+    ast_ast = sexp_to_ast(ast_sexp, [], {}, conf.pe_get_toplevel_var_names(), [], {})
+    ast_ast = Context.normalize_term(ast_ast)
+    return assign_convert(ast_ast)
+
+
+def partially_eval_app(app_str_sexp, dyn_var_names=[], safe_ops=[], unsafe_ops_inline=[], env=None, use_racket_read=False):
+    app_sexp = app_str_sexp
+    if use_racket_read:
+        if not w_global_config.is_expander_loaded():
+            w_global_config.set_config_val('expander_loaded', 1)
+            # get the expander
+            print("Loading and initializing the expander")
+            initiate_boot_sequence([], False)
+            # load the '#%kernel
+            print("(namespace-require '#%%kernel)")
+            namespace_require_kernel()
+        # run Racket's reader
+        app_sexp = racket_read_str(app_sexp)
+    elif isinstance(app_sexp, str):
+        app_sexp = string_to_sexp(app_str_sexp)
+    elif not isinstance(app_sexp, values.W_Cons):
+        raise Exception("boinkers!")
+    return partially_eval_app_sexp(app_sexp, dyn_var_names, safe_ops, unsafe_ops_inline, env)
+
+def partially_eval_app_sexp(app_sexp, dyn_var_names=[], safe_ops=[], unsafe_ops_inline=[], env=None):
+    from pycket.ast_vs_sexp import sexp_to_ast
+    from pycket.interpreter import PartialApp
+    from pycket.env import w_global_config as conf
+    from pycket.interpreter import Context
+    from pycket.assign_convert import assign_convert
+
+    if not env:
+        __pycketconfig = conf.get_pycketconfig()
+        env = ToplevelEnv(__pycketconfig)
+
+    #app_sexp = string_to_sexp(app_str)
+    #import pdb;pdb.set_trace()
+    app_ast = sexp_to_ast(app_sexp, [], {}, conf.pe_get_toplevel_var_names(), [], {})
+    app_ast = Context.normalize_term(app_ast)
+    app_ast = assign_convert(app_ast)
+
+    #import pdb;pdb.set_trace()
+    papp = PartialApp.make(app_ast, dyn_var_names, safe_ops, unsafe_ops_inline)
+    return papp.partially_evaluate(env)
+
+def run_residual_sexp(residual_sexp, dyn_arg, env=ToplevelEnv(), additional_funcs=[]): # single dyn arg is enough for now
+    from pycket.ast_vs_sexp import sexp_to_ast
+    cons = values.W_Cons.make
+    null = values.w_null
+
+    linkl_sexp = to_list([linklet_sym, null, null] + additional_funcs + [to_list([residual_sexp, dyn_arg])])
+
+    l = None
+    try:
+        do_compile_linklet(linkl_sexp, values.W_Symbol.make("l_name"), w_false, w_false, w_false, env, NilCont())
+    except Done, e:
+        l = e.values # W_Linklet
+    assert l
+
+    return eval_fixnum(l, empty_target())[0]
 
 # CAUTION: call it with variables carrying only numbers
 def make_instance(vars):

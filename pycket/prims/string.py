@@ -430,6 +430,10 @@ def get_substring(w_string, w_start, w_end):
             "substring: ending index is smaller than starting index")
     return w_string.getslice(start, end)
 
+@expose("unsafe-string-ref", [W_String, values.W_Fixnum])
+def string_ref(s, n):
+    return values.W_Character(s.getitem(n.value))
+
 @expose("string-ref", [W_String, values.W_Fixnum])
 def string_ref(s, n):
     n = n.value
@@ -698,11 +702,11 @@ for a in [("bytes<?"  , op.lt) ,
 @expose(["bytes->string/locale",
          "bytes->string/utf-8"], [values.W_Bytes,
                                   default(values.W_Object, values.w_false),
-                                  default(values.W_Integer, values.W_Fixnum.ZERO),
-                                  default(values.W_Integer, None)])
+                                  default(values.W_Fixnum, values.W_Fixnum.ZERO),
+                                  default(values.W_Fixnum, None)])
 def string_to_bytes_locale(bytes, errbyte, start, end):
     # FIXME: This ignores the locale
-    return W_String.fromstr_utf8(bytes.as_str())
+    return get_substring(W_String.fromstr_utf8(bytes.as_str()), start, end)
 
 @expose("bytes->immutable-bytes", [values.W_Bytes])
 def bytes_to_immutable_bytes(b):

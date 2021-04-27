@@ -29,6 +29,12 @@ class AST(object):
     def defined_vars(self, defs):
         pass
 
+    def interpret_partial(self, s_var_name_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, pe_stop, env, cont):
+        from pycket.interpreter import return_value_direct
+        assert self.simple
+        val, is_partial = self.interpret_simple_partial(s_var_name_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, env)
+        return return_value_direct(val, env, cont)
+
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct
         from pycket.prims.control import convert_runtime_exception, convert_os_error
@@ -47,7 +53,7 @@ class AST(object):
 
     def interpret_simple(self, env):
         raise NotImplementedError("abstract base class")
-
+    
     def set_surrounding_lambda(self, lam):
         from pycket.interpreter import Lambda
         assert isinstance(lam, Lambda)
@@ -136,4 +142,4 @@ class AST(object):
 
     def __str__(self):
         return self.tostring()
-
+        

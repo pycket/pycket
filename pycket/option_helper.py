@@ -107,6 +107,7 @@ meta_opts = ["--make-linklet-zos",
              "-h", "--help"]
 dev_opts = ["--dev",
             "--load-linklets",
+            "--print-residual",
             "--load-as-linklets",
             "--eval-linklet",
             "--run-as-linklet",
@@ -132,6 +133,7 @@ config = {
     'verbose' : False,
     'just-init' : False,
     'dev-mode' : False,
+    'print-residual' : False,
     'use-compiled' : True,
     'compile-machine-independent' : False,
     'no-regexp' : False,
@@ -389,6 +391,10 @@ def parse_args(argv):
 
         elif argv[i] == "--dev":
             config['dev-mode'] = True
+            #retval = RETURN_OK
+
+        elif argv[i] == "--print-residual":
+            config['print-residual'] = True
             #retval = RETURN_OK
 
         elif argv[i] == "--racket-fasl":

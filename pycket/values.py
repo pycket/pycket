@@ -263,6 +263,26 @@ class W_ContinuationMarkKey(W_Object):
     def tostring(self):
         return "#<continuation-mark-name>"
 
+class W_PartialValue(W_Object):
+    errorname = "partial-value"
+    _attrs_ = _immutable_fields_ = ['obj', 'pe_type']
+    def __init__(self, obj, pe_type='w_object'):
+        self.obj = obj
+        self.pe_type = pe_type # str
+        """
+        w_object, w_symbol, w_string, w_vector, w_closure,
+        w_expression
+        """
+
+    def get_type(self):
+        return self.pe_type
+
+    def get_obj(self):
+        return self.obj
+
+    def tostring(self):
+        return "W_PartialValue(%s:%s)" % (self.pe_type, self.obj.tostring())
+
 class W_VariableReference(W_Object):
     errorname = "variable-reference"
     _attrs_ = _immutable_fields_ = ['varref', 'linklet_instance']
@@ -1351,6 +1371,8 @@ class W_Procedure(W_Object):
         return self.call_with_extra_info(args, env, cont, None)
     def call_with_extra_info(self, args, env, cont, app):
         return self.call(args, env, cont)
+    def get_sexp_repr(self):
+        return w_null
     def tostring(self):
         return "#<procedure>"
 
@@ -1392,9 +1414,9 @@ class W_ThunkProcCMK(W_Procedure):
 class W_Prim(W_Procedure):
     from pycket.arity import Arity
 
-    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "is_nyi"]
+    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "is_nyi", "native_func", "pe_type"]
 
-    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, is_nyi=False):
+    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, is_nyi=False, pe_type='w_object'):
         from pycket.arity import Arity
         self.name = W_Symbol.make(name)
         self.code = code
@@ -1402,9 +1424,13 @@ class W_Prim(W_Procedure):
         self.arity = arity
         self.result_arity = result_arity
         self.is_nyi = is_nyi
+        self.pe_type = pe_type
 
     def is_implemented(self):
         return not self.is_nyi
+
+    def get_pe_type(self):
+        return self.pe_type
 
     def get_arity(self, promote=False):
         if promote:
@@ -1417,6 +1443,27 @@ class W_Prim(W_Procedure):
     def get_result_arity(self):
         return self.result_arity
 
+    # args -> [W_Object] values
+    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+        from pycket.interpreter import return_value_direct
+        safe = (not emit_ast)
+        if self.name.tostring() in safe_ops_ls_str:
+            safe = True
+
+        w_result = None
+        if "values" in self.name.tostring() and len(args) == 0:
+            return return_value_direct(W_PartialValue(to_list([self.name]), 'w_expression'), env, cont)
+        if not safe: # we are producing code
+            if "values" in self.name.tostring() and len(args) == 1:
+                return return_value_direct(W_PartialValue(dynamic_names[0], self.get_pe_type()), env, cont)
+            return return_value_direct(W_PartialValue(to_list([self.name] + dynamic_names), 'w_expression'), env, cont)
+        # we are actually running it
+        # so we need actual values in args
+        w_args = [None]*len(args)
+        for i, a in enumerate(args):
+            w_args[i] = args[i].get_obj() if isinstance(args[i], W_PartialValue) else args[i]
+        return self.code(w_args, env, cont, calling_app)
+
     def call_with_extra_info(self, args, env, cont, extra_call_info):
         # from pycket.util import active_log
         ## logging here is useful for debugging, but it's very expensive to keep it uncommented
@@ -1426,6 +1473,13 @@ class W_Prim(W_Procedure):
 
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
+
+class W_PrimPartial(W_Prim):
+    from pycket.arity import Arity
+
+    def call_prim_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, env):
+        """ overridden by the generated subclasses in expose.py"""
+        raise NotImplementedError("abstract base class")
 
 class W_PrimSimple1(W_Prim):
     from pycket.arity import Arity
@@ -1592,8 +1646,77 @@ class W_Closure(W_Procedure):
     def enable_jitting(self):
         self.caselam.enable_jitting()
 
+    def get_sexp_repr(self):
+        return self.caselam.sexp_as_closure()
+
     def tostring(self):
         return self.caselam.tostring_as_closure()
+
+    @staticmethod
+    @jit.unroll_safe
+    def make_partial(caselam, dyn_var_name_ls_str, env):
+        from pycket.ast_vs_sexp import normalized_dyn_var_check
+
+        # at this point, we know that there are some free variables
+
+        # we'll check if any of them are bound to partial values.  In
+        # that case, we need to produce code for the function, so the
+        # closure is produced in the run-time (rather than in the
+        # partial-eval time)
+        # see test_closing_over_the_dynamic_var
+
+        # let's not worry about caselams having more than one lams for
+        # now
+        if len(caselam.lams) != 1:
+            return W_Closure.make(caselam, env), False
+
+        emit_code = False
+        lm = caselam.lams[0]
+        vals = lm.collect_frees_without_recursive(caselam.recursive_sym, env)
+        frees_vals = {}
+
+        for v in vals:
+            emit_code = emit_code or isinstance(v, W_PartialValue)
+            # we see a partial value in one of the frees,
+            # or one of the frees is a dynamic variable
+            # go ahead and produce code for the lambda
+            i = 0
+            for f in lm.frees.elems:
+                if f is caselam.recursive_sym:
+                    continue
+                for dyn_var in dyn_var_name_ls_str:
+                    var_str = f.variable_name()
+                    if normalized_dyn_var_check(var_str, dyn_var):
+                        emit_code = True
+                        if isinstance(v, W_PartialValue) and dyn_var in v.tostring():
+                            # it's bound to a code that has dyn in it
+                            frees_vals[f] = v
+                        elif var_str.find("_") > 0:
+                            frees_vals[f] = W_Symbol.make(dyn_var)
+                        else:
+                            assert dyn_var == var_str
+                            frees_vals[f] = f
+                        break
+                    # if f.variable_name() in dyn_var_name_ls_str:
+                    #     frees_vals[f] = f
+                    # else:
+                    #     frees_vals[f] = vals[i]
+                else:
+                    if isinstance(vals[i], W_Cell):
+                        frees_vals[f] = f
+                    else:
+                        frees_vals[f] = vals[i]
+                i += 1
+        if emit_code:
+            case_sym = W_Symbol.make("case-lambda")
+            rec_sym = W_Symbol.make("recursive-sym")
+            rec_ls = [rec_sym, caselam.recursive_sym.to_sexp(frees_vals, env)] if caselam.recursive_sym else [rec_sym]
+            rec_sexp = to_list(rec_ls)
+            lm_code = to_list([case_sym, rec_sexp, lm.to_sexp(frees_vals, env)])
+            return W_PartialValue(lm_code, 'w_closure'), True
+        # if we don't see any partial values in free vars then
+        # it's safe to produce a closure object
+        return W_Closure1AsEnv.make(vals, caselam, env.toplevel_env()), False
 
     @staticmethod
     @jit.unroll_safe
@@ -1627,6 +1750,16 @@ class W_Closure(W_Procedure):
             single_lambda = self.caselam.lams[0]
             single_lambda.raise_nice_error(args)
         raise SchemeException("No matching arity in case-lambda")
+
+    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+        from pycket.env import ConsEnv
+        (actuals, closure_env, lam) = self._find_lam(args)
+        env_structure = None
+        if calling_app is not None:
+            env_structure = calling_app.env_structure
+
+        prev = lam.env_structure.prev.find_env_in_chain_speculate(closure_env, env_structure, env)
+        return lam.make_begin_partial_cont(ConsEnv.make(actuals, prev), cont, [])
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.env import w_global_config
@@ -1676,6 +1809,9 @@ class W_Closure1AsEnv(ConsEnv):
     def immutable(self):
         return True
 
+    def get_sexp_repr(self):
+        return self.caselam.sexp_as_closure()
+
     def tostring(self):
         return self.caselam.tostring_as_closure()
 
@@ -1684,6 +1820,18 @@ class W_Closure1AsEnv(ConsEnv):
         if promote:
             caselam = jit.promote(caselam)
         return caselam.get_arity()
+
+    def call_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_ls_str, args, emit_ast, dynamic_names, env, cont, calling_app):
+        from pycket.env import ConsEnv
+        env_structure = None
+        if calling_app is not None:
+            env_structure = calling_app.env_structure
+
+        lam = self.caselam.lams[0]
+        actuals = lam.match_args(args)
+
+        prev = lam.env_structure.prev.find_env_in_chain_speculate(self, env_structure, env)
+        return lam.make_begin_partial_cont(ConsEnv.make(actuals, prev), cont, [])
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.env import w_global_config
@@ -1750,6 +1898,9 @@ class W_PromotableClosure(W_Procedure):
         envs = [toplevel_env] * len(caselam.lams)
         self.closure = W_Closure._make(envs, caselam, toplevel_env)
         self.arity   = caselam._arity
+
+    def get_sexp_repr(self):
+        return self.closure.get_sexp_repr()
 
     def enable_jitting(self):
         self.closure.enable_jitting()
@@ -1930,6 +2081,84 @@ class W_InputPort(W_Port):
         return "#<input-port>"
     def _length_up_to_end(self):
         raise NotImplementedError("abstract class")
+
+class W_CustomInputPort(W_InputPort):
+    errorname = "input-port"
+    _immutable_fields_ = ["name", 'w_read_in', 'w_peek', 'w_close', 'w_get_progress_evt', 'w_commit', 'w_get_location', 'w_count_lines_bang', 'w_init_position', 'w_buffer_mode']
+    _attrs_ = ['closed', 'name', 'line', 'column', 'read_handler', 'w_read_in', 'w_peek', 'w_close', 'w_get_progress_evt', 'w_commit', 'w_get_location', 'w_count_lines_bang', 'w_init_position', 'w_buffer_mode']
+    #_attrs_ = ['closed', 'str', 'ptr', 'read_handler']
+    def __init__(self, name, w_read_in, w_peek, w_close,
+                 w_get_progress_evt=w_false, w_commit=w_false,
+                 w_get_location=w_false,
+                 w_count_lines_bang=w_false, # count-lines! (-> any)
+                 w_init_position=W_Fixnum.ONE, w_buffer_mode=w_false):
+        #self.closed = False
+        self.name = name
+        self.w_read_in = w_read_in
+        self.w_peek = w_peek
+        self.w_close = w_close
+        self.read_handler = None
+        self.line = 1
+        self.column = 0
+        self.w_get_progress_evt = w_get_progress_evt
+        self.w_commit = w_commit
+        self.w_get_location = w_get_location
+        self.w_count_lines_bang = w_count_lines_bang
+        self.w_init_position = w_init_position
+        self.w_buffer_mode = w_buffer_mode
+
+    def w_read_is_port(self):
+        if isinstance(self.w_read_in, W_InputPort):
+            return self.w_read_in
+        else:
+            return w_false
+
+    def close(self):
+        self.closed = True
+
+    def _call_read_in(self, bstr, env, cont):
+        assert self.w_read_in.iscallable()
+        # (make-bytes 1)
+
+        return self.w_read_in.call([bstr], env, cont)
+
+    def _call_peek(self, dest_bstr, skip_bytes_amt, progress, env, cont):
+        peek_func = self.w_peek
+        if not peek_func or peek_func is w_false:
+            raise SchemeException("CustomInputPort - automatic peek through read_in is currently NYI")
+        assert peek_func.iscallable()
+        return peek_func.call([dest_bstr, skip_bytes_amt, progress], env, cont)
+
+    def obj_name(self):
+        return W_Symbol.make("string")
+
+    def get_read_handler(self):
+        return self.read_handler
+
+    def set_read_handler(self, handler):
+        self.read_handler = handler
+
+    def get_line(self):
+        return w_false
+
+    def get_column(self):
+        return w_false
+
+    def get_position(self):
+        return w_false
+
+    def read(self, n):
+        #raise NotImplementedError("custom port nyi")
+        raise SchemeException("custom port - read_in should've been called")
+    def peek(self):
+        #raise NotImplementedError("custom port nyi")
+        raise SchemeException("custom port - peek should've been called")
+    def readline(self):
+        #raise NotImplementedError("custom port nyi")
+        raise SchemeException("custom port readline")
+    def _length_up_to_end(self):
+        #raise NotImplementedError("custom port nyi")
+        raise SchemeException("custom port length up to end")
 
 class W_StringInputPort(W_InputPort):
     errorname = "input-port"
@@ -2202,7 +2431,7 @@ class W_SecurityGuard(W_Object):
 
     def __init__(self):
         pass
-    
+
 class W_Channel(W_Object):
     errorname = "channel"
     def __init__(self):

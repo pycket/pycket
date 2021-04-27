@@ -844,6 +844,40 @@ def time_apply(a, args, env, cont, extra_call_info):
                                    env, time_apply_cont(initial, initial_user, initial_gc, env, cont),
                                    extra_call_info)
 
+
+@continuation
+def pycket_time_apply_cont(initial, initial_user, initial_gc, env, cont, vals):
+    from pycket.interpreter import return_multi_vals
+    from pycket.util import console_log
+
+    #ms_residual_cpu, ms_residual_gc, ms_residual_real = w_global_config.get_time_residual()
+    #console_log("-- RESIDUAL : CPU : %s - REAL : %s - GC : %s" % (ms_residual_cpu, ms_residual_real, ms_residual_gc), debug=True)
+
+    final = time.time()
+    final_gc = current_gc_time()
+    final_user = time.clock()
+    ms = int((final - initial) * 1000)
+    ms_gc = int((final_gc - initial_gc))
+    ms_user = int((final_user - initial_user) * 1000)
+
+    console_log("-- OVERALL : cpu time : %s - real time : %s - gc time : %s" % (ms, ms_user, ms_gc), debug=True)
+    ms_PE_cpu, ms_PE_gc, ms_PE_real = w_global_config.get_time_pe_overhead()
+    console_log("-- PE OVERHEAD : CPU : %s - REAL : %s - GC : %s" % (ms_PE_cpu, ms_PE_real, ms_PE_gc), debug=True)
+    w_global_config.reset_times()
+
+    return return_multi_vals(vals, env, cont)
+
+@expose("pycket:time-apply", [procedure], simple=False, extra_info=True)
+def pycket_time(a, env, cont, extra_call_info):
+    initial = time.time()
+    initial_user = time.clock()
+    initial_gc = current_gc_time()
+
+    return a.call_with_extra_info([], env,
+                                  pycket_time_apply_cont(initial, initial_user, initial_gc, env, cont),
+                                  extra_call_info)
+
+
 @expose("apply", simple=False, extra_info=True)
 def apply(args, env, cont, extra_call_info):
     if len(args) < 2:
@@ -1347,7 +1381,7 @@ def raise_result_arity_error(args):
     return _error(args, False)
 
 
-@expose("list->vector", [values.W_List])
+@expose("list->vector", [values.W_List], partial_type='w_vector')
 def list2vector(l):
     return values_vector.W_Vector.fromelements(values.from_list(l))
 
@@ -2064,7 +2098,7 @@ def report_undefined_prims():
 
 addr_sym = values.W_Symbol.make("mem-address")
 
-@expose("pycket:print", [values.W_Object, default(values.W_Symbol, addr_sym)])
+@expose("pycket:print", [values.W_Object, default(values.W_Symbol, values.W_Symbol.make("g"))])
 def pycket_print(o, sym):
     from pycket.util import console_log
     if sym is addr_sym:
@@ -2132,3 +2166,33 @@ def make_channel():
 @expose("primitive-lookup", [values.W_Symbol], simple=True)
 def primitive_lookup(sym):
     return prim_env.get(sym, values.w_false)
+
+@expose("meta-hint-change", [values.W_Object])
+def meta_hint_change(obj):
+    # Should Never Be Called
+    # Either meta-hint-change app is not registered as a NoApp AST
+    # Or NoApp interpret is not an identity function
+    raise SchemeException("meta-hint-change -- who is calling this?")
+
+@expose("pycket:pe", [values.W_Object, values.W_Object, values.W_Object, values.W_Object, values.W_Object])
+def pycket_partial_eval(stat_var_name, stat_var_val, actual_app_rator, actual_app_rand_dummy1, actual_app_rand_dummy2):
+    # Should Never Be Called
+    # Either meta-hint-change app is not registered as a NoApp AST
+    # Or NoApp interpret is not an identity function
+    raise SchemeException("pycket:pe -- who is calling this?")
+
+@expose("pycket:pv", [values.W_Object])
+def pycket_partial_value(obj):
+    return values.W_PartialValue(obj)
+
+@expose("pycket:pe:is-dynamic", [values.W_Object])
+def pycket_pe_is_dynamic(possibly_dynamic_val):
+    # #t if the argument is a W_PartialValue
+    return values.W_Bool.make(isinstance(possibly_dynamic_val, values.W_PartialValue))
+
+@expose("pycket:pe-stop", [values.W_Object])
+def pycket_partial_stop_eval(stop_app_rand):
+    # Should Never Be Called
+    # Either meta-hint-change app is not registered as a NoApp AST
+    # Or NoApp interpret is not an identity function
+    raise SchemeException("pycket:pe-stop -- who is calling this?")

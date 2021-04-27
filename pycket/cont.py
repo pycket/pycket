@@ -371,6 +371,9 @@ def make_label(func, enter=False):
             args = cont._get_args()
             args += (cont.env, cont.prev)
             return func(*args)
+        def interpret_partial(self, dyn_var_names_ls_str, safe_ops_ls_str, unsafe_ops_inline_ls_str, pe_stop, env, cont):
+            # just do it
+            return self.interpret(env, cont)
         def tostring(self):
             return strrepr
     Label.__name__ = clsname
@@ -417,4 +420,3 @@ def call_cont(proc, env, cont, vals):
 @continuation
 def call_extra_cont(proc, calling_app, env, cont, vals):
     return proc.call_with_extra_info(vals.get_all_values(), env, cont, calling_app)
-

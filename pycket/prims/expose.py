@@ -270,7 +270,7 @@ def make_remove_extra_info(func):
     remove_extra_info.__name__ += func.__name__
     return remove_extra_info
 
-def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, only_old=False):
+def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, only_old=False, partial_type='w_object'):
     """
     n:          names that the function should be exposed under
     argstypes:  if None, the list of args is passed directly to the function
@@ -285,6 +285,7 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
                 the last argument. This will ensure that the call graph
                 information stays correct.
     only_old:   this only should be exposed for old pycket
+    partial_type: The type of value the residual will produce; w_object, w_symbol, w_string, w_vector, w_closure
     """
     def wrapper(func):
         from pycket import values
@@ -334,7 +335,11 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
             cls.__name__ += name
         p = cls(name, func_result_handling,
                           arity=_arity, result_arity=result_arity,
-                          is_nyi=nyi)
+                          is_nyi=nyi, pe_type=partial_type)
+        if simple:
+            p.native_func = func_arg_unwrap
+        else:
+            p.native_func = func_result_handling
         for nam in names:
             sym = values.W_Symbol.make(nam)
             if sym in prim_env and prim_env[sym].is_implemented():

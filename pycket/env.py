@@ -105,12 +105,13 @@ class ModuleEnv(object):
 
 class GlobalConfig(object):
 
-    attrs_ = ['config', 'callgraph', 'error_exit', 'verbose_keywords', 'environment_vars', 'pycketconfig']
+    attrs_ = ['config', 'callgraph', 'error_exit', 'verbose_keywords', 'environment_vars', 'pycketconfig', 'pe_overhead', 'residual_time', 'pe_toplevel_var_names']
 
     def __init__(self):
         self.config = {'verbose':MIN_INT,
                        'expander_loaded':0,
                        'repl_loaded':0,
+                       'print_residual':0,
                        'debug_active':0,
                        'boot_done':0,
                        'linklet_mode':1}
@@ -119,6 +120,17 @@ class GlobalConfig(object):
         self.verbose_keywords = []
         self.environment_vars = {}
         self.pycketconfig = None
+        # The two below is for measuring partial eval
+        # overhead and residual program performance
+        self.pe_overhead = (0,0,0)
+        self.residual_time = (0,0,0)
+        self.pe_toplevel_var_names = {} # {W_Symbol:None}
+
+    def pe_add_toplevel_var_name(self, w_var_sym):
+        self.pe_toplevel_var_names[w_var_sym] = None
+
+    def pe_get_toplevel_var_names(self):
+        return self.pe_toplevel_var_names
 
     # debug_active can be used to set a logical
     # point where a set_trace or a print
@@ -216,6 +228,36 @@ class GlobalConfig(object):
             return
         assert isinstance(ast, Module)
         self.config = ast.config.copy()
+
+    def reset_times(self):
+        self.reset_pe_overhead()
+        self.reset_residual_time()
+
+    def reset_pe_overhead(self):
+        self.pe_overhead = (0,0,0)
+
+    def reset_residual_time(self):
+        self.residual_time = (0,0,0)
+
+    def add_pe_overhead(self, cpu, gc, real):
+        #import pdb;pdb.set_trace()
+        c,g,r = self.pe_overhead
+        self.pe_overhead = (cpu+c, gc+g, real+r)
+
+    def add_residual(self, cpu, gc, real):
+        c,g,r = self.residual_time
+        self.residual_time = (cpu+c, gc+g, real+r)
+
+    def set_pe_overhead(self, cpu, gc, real):
+        self.pe_overhead = (cpu, gc, real)
+
+    def set_residual_time(self, cpu, gc, real):
+        self.residual_time = (cpu, gc, real)
+
+    def get_time_pe_overhead(self):
+        return self.pe_overhead
+    def get_time_residual(self):
+        return self.residual_time
 
     def reset_callgraph(self):
         self.callgraph = CallGraph()
