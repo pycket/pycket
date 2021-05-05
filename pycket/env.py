@@ -104,6 +104,9 @@ class ModuleEnv(object):
         return self.modules.get(name, None)
 
 class GlobalConfig(object):
+
+    attrs_ = ['config', 'callgraph', 'error_exit', 'verbose_keywords', 'environment_vars', 'pycketconfig']
+
     def __init__(self):
         self.config = {'verbose':MIN_INT,
                        'expander_loaded':0,
@@ -111,6 +114,7 @@ class GlobalConfig(object):
                        'debug_active':0,
                        'boot_done':0,
                        'linklet_mode':1}
+        self.callgraph = CallGraph()
         self.error_exit = None
         self.verbose_keywords = []
         self.environment_vars = {}
@@ -212,6 +216,9 @@ class GlobalConfig(object):
             return
         assert isinstance(ast, Module)
         self.config = ast.config.copy()
+
+    def reset_callgraph(self):
+        self.callgraph = CallGraph()
 
 w_global_config = GlobalConfig()
 

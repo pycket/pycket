@@ -504,7 +504,9 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
         raise ValueError # XXX or check?
 
     def as_str_utf8(self, w_str):
-        return self.unerase(w_str.get_storage()).encode("utf-8")
+        s = self.unerase(w_str.get_storage())
+        assert s is not None
+        return s.encode("utf-8")
 
     def as_unicode(self, w_str):
         return self.unerase(w_str.get_storage())

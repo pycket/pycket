@@ -211,6 +211,7 @@ class Fasl(object):
         from pycket.values_regex import W_Regexp, W_PRegexp, W_ByteRegexp, W_BytePRegexp
         from pycket.vector import W_Vector
         from pycket.values_struct import W_Struct
+        from pycket.prims.general import srcloc
         from pycket.hash import simple as hash_simple
         from pycket.hash.equal import W_EqualHashTable
         from pycket.prims.numeric import float_bytes_to_real
@@ -218,6 +219,7 @@ class Fasl(object):
         from rpython.rlib.rbigint import rbigint
         from pycket.prims.input_output import build_path, bytes_to_path_element
         from pycket.ast_vs_sexp import to_rpython_list
+        from pycket.racket_entry import get_primitive
 
         typ, pos = self.read_byte_no_eof(fasl_string, pos)
 
@@ -310,16 +312,28 @@ class Fasl(object):
                 return build_path(rel_elems), pos
         elif typ == FASL_PREGEXP_TYPE:
             str_str, pos = self.read_fasl_string(fasl_string, pos)
-            return W_PRegexp(str_str), pos
+            reg_str = W_String.make(str_str)
+            pregexp = get_primitive('pregexp')
+            pregexp_obj = pregexp.call_interpret([reg_str])
+            return pregexp_obj, pos
         elif typ == FASL_REGEXP_TYPE:
             str_str, pos = self.read_fasl_string(fasl_string, pos)
-            return W_Regexp(str_str), pos
+            reg_str = W_String.make(str_str)
+            regexp = get_primitive('regexp')
+            regexp_obj = regexp.call_interpret([reg_str])
+            return regexp_obj, pos
         elif typ == FASL_BYTE_PREGEXP:
             str_str, pos = self.read_fasl_string(fasl_string, pos)
-            return W_BytePRegexp(str_str), pos
+            reg_bytes = v.W_Bytes.from_string(str_str)
+            byte_pregexp = get_primitive('byte-pregexp')
+            byte_pregexp_obj = byte_pregexp.call_interpret([reg_bytes])
+            return byte_pregexp_obj, pos
         elif typ == FASL_BYTE_REGEXP_TYPE:
             str_str, pos = self.read_fasl_string(fasl_string, pos)
-            return W_ByteRegexp(str_str), pos
+            reg_bytes = v.W_Bytes.from_string(str_str)
+            byte_regexp = get_primitive('byte-regexp')
+            byte_regexp_obj = byte_regexp.call_interpret([reg_bytes])
+            return byte_regexp_obj, pos
         elif typ == FASL_LIST_TYPE:
             list_len, pos = self.read_fasl_integer(fasl_string, pos)
             lst, pos = self.read_multi_into_rpython_list(fasl_string, pos, list_len)
@@ -381,7 +395,7 @@ class Fasl(object):
             column, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
             position, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
             span, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
-            return v.to_list([v.W_Symbol.make("srcloc"), source, line, column, position, span]), pos
+            return W_Struct.make([source, line, column, position, span], srcloc), pos
         else:
             if typ >= FASL_SMALL_INTEGER_START:
                 return v.W_Fixnum((typ-FASL_SMALL_INTEGER_START)+FASL_LOWEST_SMALL_INTEGER), pos

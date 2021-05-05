@@ -275,6 +275,13 @@ var_set_sym = mksym("variable-set!")
 
 var_prim_syms = [var_ref_sym, var_ref_no_check_sym, var_set_check_undef_sym, var_set_sym]
 
+var_ref_mod_var = interp.ModuleVar(var_ref_sym, "#%kernel", var_ref_sym, None)
+var_ref_no_check_mod_var = interp.ModuleVar(var_ref_no_check_sym, "#%kernel", var_ref_no_check_sym, None)
+var_set_check_undef_mod_var = interp.ModuleVar(var_set_check_undef_sym, "#%kernel", var_set_check_undef_sym, None)
+var_set_mod_var = interp.ModuleVar(var_set_sym, "#%kernel", var_set_sym, None)
+
+known_mod_vars = {} # cache for kernel primitive ModuleVars
+
 def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref=[], name=""):
 
     #util.console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
@@ -290,9 +297,8 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         if form in exports and (form in mutated_ids or form not in all_toplevels):
             # dynamically find the W_LinkletVar for the exported variable
             # possible point of optimization
-            rator = interp.ModuleVar(var_ref_sym, "#%kernel", var_ref_sym, None)
             rands = [interp.LinkletVar(exports[form].int_id)]
-            return interp.App.make(rator, rands)
+            return interp.App.make(var_ref_mod_var, rands)
         if form in all_toplevels:
             return interp.ToplevelVar(form, is_free=False)
 
@@ -300,12 +306,16 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         if import_var_int_id: # this is gensymed internal variable name
             # dynamically find the W_LinkletVar for the imported variable
             # possible point of optimization
-            rator = interp.ModuleVar(var_ref_no_check_sym, "#%kernel", var_ref_no_check_sym, None)
             rands = [interp.LinkletVar(import_var_int_id)]
-            return interp.App.make(rator, rands)
+            return interp.App.make(var_ref_no_check_mod_var, rands)
 
         # kernel primitive ModuleVar
-        return interp.ModuleVar(form, "#%kernel", form, None)
+        if form in known_mod_vars:
+            return known_mod_vars[form]
+
+        m_var = interp.ModuleVar(form, "#%kernel", form, None)
+        known_mod_vars[form] = m_var
+        return m_var
     elif isinstance(form, values.W_List):
         c = form.car()
         ### these are for the desearialization of the linklet body
@@ -313,15 +323,15 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             linklet_var_sym = form.cdr().car()
             rator, rands = None, None
             if c is var_set_sym or c is var_set_check_undef_sym:
-                rator = interp.ModuleVar(c, "#%kernel", c, None)
+                rator = var_set_mod_var if c is var_set_sym else var_set_check_undef_mod_var
                 linklet_var = interp.LinkletVar(linklet_var_sym)
                 new_val = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
                 mode = interp.Quote(values.w_false) # FIXME: possible optimization
                 rands = [linklet_var, new_val, mode]
                 return interp.App.make(rator, rands)
             if c is var_ref_sym or c is var_ref_no_check_sym:
+                rator = var_ref_mod_var if c is var_ref_sym else var_ref_no_check_mod_var
                 rands = [interp.LinkletVar(linklet_var_sym)]
-                rator = interp.ModuleVar(c, "#%kernel", c, None)
             return interp.App.make(rator, rands)
         ###
         if c is begin_sym:
@@ -420,7 +430,7 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             # if it's for an exported variable, don't emit a set!
             # we're going to variable-set! the exported variable
             if target in exports:
-                rator = interp.ModuleVar(var_set_check_undef_sym, "#%kernel", var_set_check_undef_sym, None)
+                rator = var_set_check_undef_mod_var
                 mode = interp.Quote(values.w_false) # FIXME: possible optimization
                 rands = [interp.LinkletVar(exports[target].int_id), rhs, mode]
                 return interp.App.make(rator, rands)

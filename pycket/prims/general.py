@@ -526,8 +526,8 @@ def sem_post_cont(sem, env, cont, vals):
     from pycket.interpreter import return_multi_vals
     return return_multi_vals(vals, env, cont)
 
-@expose("call-with-semaphore", simple=False)
-def call_with_sem(args, env, cont):
+@expose("call-with-semaphore", simple=False, extra_info=True)
+def call_with_sem(args, env, cont, extra_call_info):
     if len(args) < 2:
         raise SchemeException("error call-with-semaphore")
     sem = args[0]
@@ -544,7 +544,7 @@ def call_with_sem(args, env, cont):
     assert isinstance(sem, values.W_Semaphore)
     assert f.iscallable()
     sem.wait()
-    return f.call(new_args, env, sem_post_cont(sem, env, cont))
+    return f.call_with_extra_info(new_args, env, sem_post_cont(sem, env, cont), extra_call_info)
 
 c_thread = values.W_Thread()
 
@@ -834,7 +834,7 @@ def current_gc_time():
     else:
         memory = 0
     return memory
-     
+
 @expose("time-apply", [procedure, values.W_List], simple=False, extra_info=True)
 def time_apply(a, args, env, cont, extra_call_info):
     initial = time.time()
@@ -1974,6 +1974,14 @@ if not w_global_config.is_expander_loaded():
 def unsafe_start_atomic():
     return values.w_void
 
+@expose("unsafe-start-breakable-atomic", [])
+def unsafe_start_atomic():
+    return values.w_void
+
+@expose("unsafe-end-breakable-atomic", [])
+def unsafe_start_atomic():
+    return values.w_void
+
 @expose("unsafe-end-atomic", [])
 def unsafe_start_atomic():
     return values.w_void
@@ -1991,16 +1999,20 @@ def primitive_table(v):
     if v not in select_prim_table:
         return values.w_false
 
-    id_table = select_prim_table[v]
+    if v in prim_table_cache:
+        return prim_table_cache[v]
 
     expose_env = {}
-    for k,v in prim_env.iteritems():
-        if k in id_table:
-            expose_env[k] = v
+    for prim_name_sym in select_prim_table[v]:
+        if prim_name_sym in prim_env:
+            expose_env[prim_name_sym] = prim_env[prim_name_sym]
 
-    return make_simple_immutable_table(W_EqImmutableHashTable,
-                                       expose_env.keys(),
-                                       expose_env.values())
+    table = make_simple_immutable_table(W_EqImmutableHashTable,
+                                        expose_env.keys(),
+                                        expose_env.values())
+
+    prim_table_cache[v] = table
+    return table
 
 @expose("unquoted-printing-string", [values_string.W_String])
 def up_string(s):
@@ -2116,3 +2128,7 @@ def thread_susp(p):
 @expose("make-channel", [])
 def make_channel():
     return values.W_Channel()
+
+@expose("primitive-lookup", [values.W_Symbol], simple=True)
+def primitive_lookup(sym):
+    return prim_env.get(sym, values.w_false)

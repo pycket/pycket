@@ -388,6 +388,14 @@ def initial_exit_handler(v, env, cont):
 exit_handler_param = values_parameter.W_Parameter(initial_exit_handler)
 expose_val("exit-handler", exit_handler_param)
 
+@make_procedure("error-value-string-handler", [values.W_Object, values.W_Fixnum])
+def error_value_string_handler(v, repr_length):
+    # FIXME: truncate it with the given representation length
+    return values_string.W_String.make(v.tostring())
+
+error_val_string_handler_param = values_parameter.W_Parameter(error_value_string_handler)
+expose_val("error-value->string-handler", error_val_string_handler_param)
+
 @continuation
 def exit_cont(env, cont, _vals):
     from pycket.interpreter import return_value
@@ -492,8 +500,8 @@ def default_continuation_prompt_handler(proc, env, cont):
 # def call_with_exception_handler(f, thunk, env, cont):
 #     #FIXME
 
-@expose("call-with-continuation-prompt", simple=False, arity=Arity.geq(1))
-def call_with_continuation_prompt(args, env, cont):
+@expose("call-with-continuation-prompt", simple=False, arity=Arity.geq(1), extra_info=True)
+def call_with_continuation_prompt(args, env, cont, extra_call_info):
     if not args:
         raise SchemeException("call-with-continuation-prompt: not given enough values")
     parser  = ArgParser("call-with-continuation-prompt", args)
@@ -515,7 +523,7 @@ def call_with_continuation_prompt(args, env, cont):
     if handler is values.w_false:
         handler = None
     cont = Prompt(tag, handler, env, cont)
-    return fun.call(args, env, cont)
+    return fun.call_with_extra_info(args, env, cont, extra_call_info)
 
 @expose("call-with-continuation-barrier", [procedure], simple=False, extra_info=True)
 def call_with_continuation_barrier(proc, env, cont, calling_app):

@@ -65,16 +65,17 @@ def load_expander(debug):
 def load_fasl(debug=False):
     load_bootstrap_linklet("fasl", debug, from_fasl=True)
 
-def load_regexp(debug):
+def load_regexp(debug=False):
     load_bootstrap_linklet("regexp", debug)
 
-def load_bootstrap_linklets(debug=False, do_load_regexp=False):
+def load_bootstrap_linklets(debug=False, dont_load_regexp=False):
 
     load_fasl(debug)
-    load_expander(debug)
 
-    if do_load_regexp:
+    if not dont_load_regexp:
         load_regexp(debug)
+
+    load_expander(debug)
 
     console_log("Bootstrap linklets are ready.")
     return 0
@@ -108,6 +109,7 @@ def make_bootstrap_zos():
     load_fasl()
     make_zo_for("fasl")
     make_zo_for("expander")
+    make_zo_for("regexp")
 
 def load_linklet_from_fasl(file_name, set_version=False):
     from pycket.fasl import Fasl
@@ -197,10 +199,10 @@ def create_linklet_json(rkt_file_name=""):
     EXPANDER_DIR = os.path.join(PLTHOME, os.path.join("racket", os.path.join("src", "expander")))
 
     # FIXME: error check
-    prep_cmd = "raco make -v %s/bootstrap-run.rkt" % EXPANDER_DIR
-    pipe1 = create_popen_file(prep_cmd, "r")
-    pipe1.read()
-    pipe1.close()
+    # prep_cmd = "raco make -v %s/bootstrap-run.rkt" % EXPANDER_DIR
+    # pipe1 = create_popen_file(prep_cmd, "r")
+    # pipe1.read()
+    # pipe1.close()
     extract_cmd = "racket -t %s/bootstrap-run.rkt -- -c compiled/cache-src/ ++knot read - -s -x -t %s -o compiled/%s.sexp" % (EXPANDER_DIR, rkt_file_name, rkt_file_name)
     pipe2 = create_popen_file(extract_cmd, "r")
     pipe2.read()
@@ -255,6 +257,25 @@ def dev_mode_metainterp_fasl_zo():
     port = open_infile(W_Path("sample.fasl"), "r")
     r = fasl_to_sexp.call_interpret([port, w_true])
 
+def racket_fasl_to_sexp(fasl_file):
+    from pycket.prims.input_output import open_infile
+    from rpython.rlib        import rtime
+    load_fasl()
+    fasl_to_sexp = get_primitive("fasl->s-exp")
+    port = open_infile(W_Path(fasl_file), "r")
+    start_time = rtime.time()
+    sexp = fasl_to_sexp.call_interpret([port, w_true])
+    console_log("racket fasl->s-exp time : %s" % (rtime.time()-start_time), debug=True)
+    console_log("%s" % sexp.tostring(), 1)
+
+def rpython_fasl_to_sexp(fasl_file):
+    from rpython.rlib        import rtime
+    from pycket.fasl import Fasl
+    start_time = rtime.time()
+    sexp = Fasl().to_sexp_from_file(fasl_file)
+    console_log("rpython fasl->s-exp time : %s" % (rtime.time()-start_time), debug=True)
+    console_log("%s" % sexp.tostring(), 1)
+
 def dev_mode_entry_sexp(eval_sexp_str=None):
     from pycket.values import W_Fixnum
     from pycket.util import console_log
@@ -288,10 +309,10 @@ def initiate_boot_sequence(command_line_arguments,
                            set_config_dir="",
                            set_addon_dir="",
                            compile_any=False,
-                           do_load_regexp=False):
+                           dont_load_regexp=False):
     from pycket.env import w_version
 
-    load_bootstrap_linklets(debug, do_load_regexp=do_load_regexp)
+    load_bootstrap_linklets(debug, dont_load_regexp=dont_load_regexp)
 
     with PerfRegion("set-params"):
 
@@ -445,17 +466,20 @@ def racket_entry(names, config, command_line_arguments):
     run_as_linklet   = startup_options['run_as_linklet'][0]
     load_linklets    = startup_options['load_linklets']
     load_as_linklets = startup_options['load_as_linklets']
+    fasl_file        = startup_options['fasl-file'][0]
 
-    is_repl          = flags['is_repl']
-    no_lib           = flags['no_lib']
+    is_repl          = flags['repl']
+    no_lib           = flags['no-lib']
     just_kernel      = flags['just_kernel']
-    just_init        = flags['just_init']
-    use_compiled     = flags['use_compiled']
-    debug            = flags['debug']
+    just_init        = flags['just-init']
+    use_compiled     = flags['use-compiled']
+    debug            = flags['verbose']
     version          = flags['version']
-    c_a              = flags['compile_any']
-    do_load_regexp   = flags['do_load_regexp']
-    dev_mode         = flags['dev_mode']
+    c_a              = flags['compile-machine-independent']
+    dont_load_regexp = flags['no-regexp']
+    dev_mode         = flags['dev-mode']
+    racket_fasl      = flags['racket-fasl']
+    rpython_fasl     = flags['rpython-fasl']
 
     if load_as_linklets:
         for rkt in load_as_linklets:
@@ -471,6 +495,14 @@ def racket_entry(names, config, command_line_arguments):
         dev_mode_entry(dev_mode, eval_sexp, run_as_linklet)
         return 0
 
+    if racket_fasl:
+        racket_fasl_to_sexp(fasl_file)
+        return 0
+
+    if rpython_fasl:
+        rpython_fasl_to_sexp(fasl_file)
+        return 0
+
     with PerfRegion("startup"):
         initiate_boot_sequence(command_line_arguments,
                                use_compiled,
@@ -480,7 +512,7 @@ def racket_entry(names, config, command_line_arguments):
                                set_config_dir,
                                set_addon_dir,
                                compile_any=c_a,
-                               do_load_regexp=do_load_regexp)
+                               dont_load_regexp=dont_load_regexp)
 
     if just_init:
         return 0
@@ -630,8 +662,10 @@ def get_options(names, config):
     debug = config['verbose']
     version = config['version']
     compile_any = config['compile-machine-independent']
-    do_load_regexp = config['load-regexp']
+    dont_load_regexp = config['no-regexp']
     dev_mode = config['dev-mode']
+    racket_fasl      = config['racket-fasl']
+    rpython_fasl     = config['rpython-fasl']
 
     load_rators = names['loads'] if 'loads' in names else []
     load_rands = names['load_arguments'] if 'load_arguments' in names else []
@@ -646,6 +680,7 @@ def get_options(names, config):
     run_as_linklet = names['run-as-linklet'] if 'run-as-linklet' in names else [""]
     load_linklets = names['load-linklets'] if 'load-linklets' in names else []
     load_as_linklets = names['load-as-linklets'] if 'load-as-linklets' in names else []
+    fasl_file = names['fasl-file'] if 'fasl-file' in names else [""]
 
     loads_print_str = []
     loads = []
@@ -707,20 +742,8 @@ dev-mode           : %s
         'eval_sexp'        : eval_sexp,
         'run_as_linklet'   : run_as_linklet,
         'load_linklets'    : load_linklets,
-        'load_as_linklets' : load_as_linklets
+        'load_as_linklets' : load_as_linklets,
+        'fasl-file'        : fasl_file
     }
 
-    flags = {
-        'is_repl'          : is_repl,
-        'no_lib'           : no_lib,
-        'just_kernel'      : just_kernel,
-        'just_init'        : just_init,
-        'use_compiled'     : use_compiled,
-        'debug'            : debug,
-        'version'          : version,
-        'compile_any'      : compile_any,
-        'do_load_regexp'   : do_load_regexp,
-        'dev_mode'         : dev_mode
-    }
-
-    return loads, startup_options, flags
+    return loads, startup_options, config

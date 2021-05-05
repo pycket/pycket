@@ -1,5 +1,5 @@
 from pycket.values import W_Symbol
-from pycket.prims.expose import define_nyi, prim_env
+from pycket.prims.expose import define_nyi, prim_env, expose
 
 DEBUG = False
 
@@ -40,7 +40,7 @@ flfxnum_str = ["fx->fl", "fl->fx", "fxabs", "fx+",
                "make-fxvector", "shared-fxvector", "make-shared-fxvector", "fxvector-length",
                "fxvector-ref", "fxvector-set!", "fl+",
                "fl-", "fl*", "fl/", "flabs",
-               "flsqrt", "flexp", "fllog", "flsin",
+               "flsqrt", "flexp", "fllog", "flsin", "flsingle",
                "flcos", "fltan", "flasin", "flacos",
                "flatan", "flfloor", "flceiling", "flround",
                "fltruncate", "flexpt", "fl=", "fl<",
@@ -89,6 +89,7 @@ foreign_str = ["_bool", "_bytes", "_double", "_double*",
                "ffi-call", "ffi-callback", "ffi-callback?", "ffi-lib",
                "ffi-lib-name", "ffi-lib?", "ffi-obj", "ffi-obj-lib",
                "ffi-obj-name", "ffi-obj?", "flvector->cpointer", "free",
+               "ffi-lib-unload",
                "free-immobile-cell", "lookup-errno", "make-array-type", "make-cstruct-type",
                "make-ctype", "make-late-weak-box", "make-late-weak-hasheq", "make-sized-byte-string",
                "make-stubborn-will-executor", "make-union-type", "malloc", "malloc-immobile-cell",
@@ -105,7 +106,8 @@ linklet_str = ["linklet?", "compile-linklet", "recompile-linklet", "eval-linklet
                "linklet-bundle->hash", "variable-reference?", "variable-reference->instance", "variable-reference-constant?",
                "primitive-table", "variable-reference-from-unsafe?",
                "compiled-position->primitive", "linklet-virtual-machine-bytes",
-               "read-linklet-bundle-hash", "write-linklet-bundle-hash", "instance-describe-variable!"]
+               "read-linklet-bundle-hash", "write-linklet-bundle-hash", "instance-describe-variable!",
+               "primitive-lookup"]
 
 unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-list-ref", "unsafe-cons-list", "unsafe-fx+",
@@ -184,7 +186,7 @@ unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
 kernel_str = ["*", "+", "-",
               "/", "<", "<=",
               "=", ">", ">=",
-              "quotient", "quotient/remainder", "remainder", 
+              "quotient", "quotient/remainder", "remainder",
               "abort-current-continuation", "abs", "absolute-path?",
               "add1", "acos", "alarm-evt",
               "always-evt", "andmap", "angle",
@@ -271,7 +273,8 @@ kernel_str = ["*", "+", "-",
               "exit-handler", "exn-continuation-marks", "exn-message",
               "exn?", "expand-user-path", "exp",
               "explode-path", "expt", "file-exists?",
-              "file-or-directory-modify-seconds", "file-or-directory-identity", "file-or-directory-permissions",
+              "file-or-directory-modify-seconds", "file-or-directory-identity",
+              "file-or-directory-permissions", "file-or-directory-type",
               "file-position", "file-position*", "file-size",
               "file-stream-buffer-mode", "file-stream-port?", "file-truncate",
               "filesystem-change-evt", "filesystem-change-evt?", "filesystem-change-evt-cancel",
@@ -399,7 +402,8 @@ kernel_str = ["*", "+", "-",
               "string->bytes/latin-1", "string->bytes/locale", "string->bytes/utf-8",
               "string->immutable-string", "string->list", "string->number",
               "string->path", "string->path-element", "string->symbol",
-              "string->uninterned-symbol", "string->unreadable-symbol", "string-append",
+              "string->uninterned-symbol", "string->unreadable-symbol",
+              "string-append", "string-append-immutable"
               "string-ci=?", "string-ci<=?", "string-ci<?",
               "string-ci>=?", "string-ci>?", "string-copy",
               "string-copy!", "string-downcase", "string-fill!",
@@ -419,7 +423,7 @@ kernel_str = ["*", "+", "-",
               "sub1", "subbytes", "subprocess?",
               "subprocess", "subprocess-group-enabled", "subprocess-kill",
               "subprocess-pid", "subprocess-status", "subprocess-wait",
-              "substring", "symbol->string", "symbol-interned?",
+              "substring", "symbol->string", "symbol->immutable-string", "symbol-interned?",
               "symbol-unreadable?", "symbol<?", "symbol?",
               "sync", "sync/timeout", "sync/enable-break",
               "sync/timeout/enable-break", "system-big-endian?", "system-idle-evt",
@@ -450,7 +454,7 @@ kernel_str = ["*", "+", "-",
               "write-bytes-avail*", "write-bytes-avail/enable-break", "write-bytes-avail-evt",
               "write-char", "write-special", "write-special-avail*",
               "write-special-evt", "write-string", "zero?",
-              "keyword<?", "string->keyword", "keyword->string",
+              "keyword<?", "string->keyword", "keyword->string", "keyword->immutable-string",
               "keyword?", "cons", "pair?",
               "car", "cdr", "caar",
               "cadr", "cdar", "cddr",
@@ -522,6 +526,9 @@ pycket_extra_str = ["pycket:activate-debug", "pycket:deactivate-debug",
 schemify_hooks = ["variable-ref", "variable-ref/no-check",
                   "variable-set!/check-undefined", "variable-set!"]
 
+# The reason for make_primitive_table is for turning these into list
+# of symbols (to avoid making new objects everytime we look things up)
+
 place = make_primitive_table(place_str)
 paramz = make_primitive_table(paramz_str)
 internal = make_primitive_table(internal_str)
@@ -536,8 +543,6 @@ unsafe = make_primitive_table(unsafe_str)
 kernel = make_primitive_table(kernel_str)
 pycket = make_primitive_table(pycket_extra_str + schemify_hooks)
 
-
-
 select_prim_table = {W_Symbol.make("#%linklet"): linklet,
                      W_Symbol.make("#%kernel"): kernel,
                      W_Symbol.make("#%paramz"): paramz,
@@ -549,6 +554,9 @@ select_prim_table = {W_Symbol.make("#%linklet"): linklet,
                      W_Symbol.make("#%extfl"): extfl,
                      W_Symbol.make("#%pycket"): pycket,
                      W_Symbol.make("#%network"): network}
+
+# Lists of actual functions indexed by the names above
+prim_table_cache = {}
 
 all_prims = linklet_str + \
             kernel_str + \

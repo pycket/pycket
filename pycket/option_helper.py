@@ -46,8 +46,8 @@ def print_help(argv):
   --save-callgraph                   : save the jit output
 
  Meta options:
-  --make-linklet-zos               : Make the compiled zo's for bootstrap linklets
-  --load-regexp                      : Loads the regexp linklet
+  --make-linklet-zos                 : Make the compiled zo's for bootstrap linklets
+  --no-regexp                        : Doesn't load the regexp linklet, uses rpython regexp functions
   --verbose <level>                  : Print the debug logs. <level> : natural number (defaults to 0)
   --jit <jitargs>                    : Set RPython JIT options may be 'default', 'off',
                                        or 'param=value,param=value' list
@@ -101,7 +101,7 @@ conf_opts = ["-c", "--no-compiled",
              "--kernel",
              "--save-callgraph"]
 meta_opts = ["--make-linklet-zos",
-             "--load-regexp",
+             "--no-regexp",
              "--verbose",
              "--jit",
              "-h", "--help"]
@@ -110,7 +110,9 @@ dev_opts = ["--dev",
             "--load-as-linklets",
             "--eval-linklet",
             "--run-as-linklet",
-            "--just-init"]
+            "--just-init",
+            "--racket-fasl",
+            "--rpython-fasl"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts + dev_opts
 
@@ -132,8 +134,10 @@ config = {
     'dev-mode' : False,
     'use-compiled' : True,
     'compile-machine-independent' : False,
-    'load-regexp' : False,
-    'make-zos' : False
+    'no-regexp' : False,
+    'make-zos' : False,
+    'racket-fasl' : False,
+    'rpython-fasl' : False
 }
 
 def add_name(names, name, val, replace=False):
@@ -387,6 +391,24 @@ def parse_args(argv):
             config['dev-mode'] = True
             #retval = RETURN_OK
 
+        elif argv[i] == "--racket-fasl":
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            config['racket-fasl'] = True
+            i += 1
+            add_name(names, 'fasl-file', argv[i])
+
+        elif argv[i] == "--rpython-fasl":
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            config['rpython-fasl'] = True
+            i += 1
+            add_name(names, 'fasl-file', argv[i])
+
         elif argv[i] == "--eval-linklet":
             if to <= i + 1 or argv[i+1] in all_opts:
                 print "missing argument after %s" % argv[i]
@@ -450,8 +472,8 @@ def parse_args(argv):
             i += 1
             add_name(names, 'run-as-linklet', argv[i])
 
-        elif argv[i] == "--load-regexp":
-            config['load-regexp'] = True
+        elif argv[i] == "--no-regexp":
+            config['no-regexp'] = True
             #retval = RETURN_OK
 
         elif argv[i] == "--make-linklet-zos":

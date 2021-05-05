@@ -124,14 +124,16 @@ class ParamKey(W_Object):
     def __init__(self):
         pass
 
+OBJ_NAME = "parameter-procedure"
+
 class W_BaseParameter(W_Object):
     errorname = "parameter"
-    _attrs_ = ["guard"]
-    _immutable_fields_ = ["guard"]
+    _attrs_ = _immutable_fields_ = ["guard", "name"]
 
     ARITY = Arity.oneof(0, 1)
 
-    def __init__(self, guard=None):
+    def __init__(self, guard=None, name=OBJ_NAME):
+        self.name = name
         self.guard = None if guard is values.w_false else guard
 
     def iscallable(self):
@@ -144,14 +146,14 @@ class W_BaseParameter(W_Object):
         return W_BaseParameter.ARITY
 
     def tostring(self):
-        return "#<parameter-procedure>"
+        return "#<procedure:%s>" % self.name
 
 class W_Parameter(W_BaseParameter):
     _immutable_fields_ = ["key"]
     _attrs_ = ["key"]
 
-    def __init__(self, val, guard=None):
-        W_BaseParameter.__init__(self, guard)
+    def __init__(self, val, guard=None, name=OBJ_NAME):
+        W_BaseParameter.__init__(self, guard, name)
         self.key = ParamKey()
         cell = values.W_ThreadCell(val, True)
         top_level_config.root.table[self.key] = cell
@@ -218,4 +220,3 @@ class W_DerivedParameter(W_BaseParameter):
             return self.parameter.call(args, env, cont)
         else:
             raise SchemeException("wrong number of arguments to parameter")
-

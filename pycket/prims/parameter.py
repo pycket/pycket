@@ -14,10 +14,14 @@ from rpython.rlib           import jit
 def reparameterize(p):
     return p
 
+OBJ_SYM = values.W_Symbol.make(values_parameter.OBJ_NAME)
+
 @expose("make-parameter",
-        [values.W_Object, default(values.W_Object, values.w_false)])
-def make_parameter(init, guard):
-    return values_parameter.W_Parameter(init, guard)
+        [values.W_Object,
+         default(values.W_Object, values.w_false),
+         default(values.W_Symbol, OBJ_SYM)])
+def make_parameter(init, guard, name):
+    return values_parameter.W_Parameter(init, guard, name.tostring())
 
 @expose("make-derived-parameter",
         [values_parameter.W_BaseParameter, procedure, procedure])
