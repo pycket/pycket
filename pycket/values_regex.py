@@ -36,7 +36,7 @@ class PortBuffer(buffer.Buffer):
 
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["source"]
-    _attrs_ = ["source", "code", "flags", "groupcount", "groupindex", "indexgroup", "group_offsets"]
+    _attrs_ = ["source", "code", "groupcount", "groupindex", "indexgroup", "group_offsets"]
     errorname = "regexp"
     def __init__(self, source):
         self.source = source
@@ -44,9 +44,8 @@ class W_AnyRegexp(W_Object):
 
     def ensure_compiled(self):
         if self.code is None:
-            code, flags, groupcount, groupindex, indexgroup, group_offsets = regexp.compile(CACHE, self.source, 0)
+            code, groupcount, groupindex, indexgroup, group_offsets = regexp.compile(CACHE, self.source, 0)
             self.code = code
-            self.flags = flags
             self.groupcount = groupcount
             self.groupindex = groupindex
             self.indexgroup = indexgroup
@@ -60,9 +59,9 @@ class W_AnyRegexp(W_Object):
         self.ensure_compiled()
         start, end = rsre_core._adjust(start, end, len(s))
         if isinstance(s, unicode):
-            return rsre_core.UnicodeMatchContext(s, start, end, self.flags)
+            return rsre_core.UnicodeMatchContext(s, start, end)
         assert isinstance(s, str)
-        return rsre_core.StrMatchContext(s, start, end, self.flags)
+        return rsre_core.StrMatchContext(s, start, end)
 
     @specialize.argtype(1)
     def match_string(self, s, start=0, end=sys.maxint):
@@ -115,7 +114,7 @@ class W_AnyRegexp(W_Object):
             return _extract_result(ctx, self.groupcount)
         buf = PortBuffer(w_port)
         end = min(end, buf.getlength())
-        ctx = rsre_core.BufMatchContext(buf, 0, end, 0)
+        ctx = rsre_core.BufMatchContext(buf, 0, end)
         matched = rsre_core.search_context(ctx, self.code)
         if not matched:
             return None

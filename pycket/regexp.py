@@ -269,8 +269,9 @@ class BranchSorter(BaseSorter):
 
 
 class CompilerContext(object):
-    def __init__(self):
+    def __init__(self, flags=0):
         self.data = []
+        self.flags = flags
 
     def emit(self, opcode):
         self.data.append(opcode)
@@ -282,7 +283,7 @@ class CompilerContext(object):
         self.data[pos] = value
 
     def build(self):
-        return CompiledPattern(self.data[:])
+        return CompiledPattern(self.data[:], self.flags)
 
 
 class Counts(object):
@@ -1344,7 +1345,7 @@ def _compile_no_cache(pattern, flags):
     parsed.fix_groups()
     parsed = parsed.optimize(info)
 
-    ctx = CompilerContext()
+    ctx = CompilerContext(info.flags)
     parsed.compile(ctx)
     ctx.emit(OPCODE_SUCCESS)
     code = ctx.build()
@@ -1352,7 +1353,7 @@ def _compile_no_cache(pattern, flags):
     index_group = {}
     for n, v in info.group_index.iteritems():
         index_group[v] = n
-    return code, info.flags, info.group_count, info.group_index, index_group, info.group_offsets
+    return code, info.group_count, info.group_index, index_group, info.group_offsets
 
 
 def compile(cache, pattern, flags=0):
