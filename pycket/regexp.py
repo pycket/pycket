@@ -3,12 +3,12 @@ import sys
 from rpython.rlib.listsort import make_timsort_class
 from rpython.rlib.objectmodel import specialize
 from rpython.rlib.rstring import UnicodeBuilder
-from rpython.rlib.rsre.rsre_core import (OPCODE_LITERAL, OPCODE_LITERAL_IGNORE,
+from rpython.rlib.rsre.rsre_core import CompiledPattern
+from rpython.rlib.rsre.rsre_constants import (OPCODE_LITERAL, OPCODE_LITERAL_IGNORE,
     OPCODE_SUCCESS, OPCODE_ASSERT, OPCODE_MARK, OPCODE_REPEAT, OPCODE_ANY,
     OPCODE_ANY_ALL, OPCODE_MAX_UNTIL, OPCODE_MIN_UNTIL, OPCODE_GROUPREF,
     OPCODE_AT, OPCODE_BRANCH, OPCODE_RANGE, OPCODE_JUMP, OPCODE_ASSERT_NOT,
-    OPCODE_CATEGORY, OPCODE_FAILURE, OPCODE_IN, OPCODE_NEGATE,
-    CompiledPattern)
+    OPCODE_CATEGORY, OPCODE_FAILURE, OPCODE_IN, OPCODE_NEGATE)
 from rpython.rlib.rsre.rsre_char import is_digit, is_space, is_word
 
 IGNORE_CASE = 1 << 0
