@@ -888,6 +888,8 @@ class W_Character(W_Object):
     _attrs_ = _immutable_fields_ = ["value"]
     errorname = "char"
     def __init__(self, val):
+        # for now
+        assert isinstance(val, unicode)
         self.value = val
 
     def tostring(self):

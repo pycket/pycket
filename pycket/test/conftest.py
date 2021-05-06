@@ -19,10 +19,11 @@ def replace(func):
     return replacement
 
 def pytest_addoption(parser):
-    parser.addoption('--bytecode', action='store', default='', help='Run pycket with bytecode expansion')
-    parser.addoption('--random', action='store_true', help='Override functions in rpython.rlib.jit.py to test special cases for the JIT')
-    parser.addoption('--new', action='store_true', default=False, help='Use the entry point of the NEW Pycket')
-    parser.addoption('--use-expander', action='store_true', default=False, help='Run the tests using the reader and evaluator from expander linklet')
+    group = parser.getgroup("pycket")
+    group._addoption('--bytecode', action='store', default='', help='Run pycket with bytecode expansion')
+    group._addoption('--random', action='store_true', dest='random', help='Override functions in rpython.rlib.jit.py to test special cases for the JIT')
+    group._addoption('--new', action='store_true', default=False, help='Use the entry point of the NEW Pycket')
+    group._addoption('--use-expander', action='store_true', default=False, help='Run the tests using the reader and evaluator from expander linklet')
 
 def pytest_configure(config):
     if config.getvalue('random'):

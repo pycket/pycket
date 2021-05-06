@@ -319,9 +319,15 @@ def read_stream_rt(port, rt, env, cont):
     from pycket.interpreter import return_value
     if rt is not None:
         c = port.peek()
-        c = c[0]
-        if c == rt.key.value:
-            port.read(1) # since we peeked
+        i = ord(c[0])
+        needed = utf8_code_length(i)
+        old = port.tell()
+        c = port.read(needed)
+        port.seek(old)
+        u = c.decode("utf-8")
+        assert len(u) == 1
+        if u == rt.key.value:
+            port.read(needed) # since we peeked
             args = [rt.key, port, values.w_false, values.w_false, values.w_false, values.w_false]
             return rt.action.call(args, env, cont)
     # ignore the possibility that the readtable is relevant in the future
@@ -453,8 +459,6 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
     i = ord(c[0])
     if as_bytes:
         return return_value(values.W_Fixnum(i), env, cont)
-    elif w_port.is_stdin():
-        return return_value(values.W_Character(c[0]), env, cont)
     else:
         # hmpf, poking around in internals
         needed = utf8_code_length(i)
@@ -464,9 +468,9 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
             w_port.seek(old)
         elif needed > 1:
             c += w_port.read(needed - 1)
-        c = c.decode("utf-8")
-        assert len(c) == 1
-        return return_value(values.W_Character(c[0]), env, cont)
+        u = c.decode("utf-8")
+        assert len(u) == 1
+        return return_value(values.W_Character(u[0]), env, cont)
 
 @expose("read-char-or-special", [values.W_Object, default(values.W_Object, values.w_false), default(values.W_Object, values.w_false)], simple=False)
 def read_char_or_special(in_port, special_wrap, source_name, env, cont):
