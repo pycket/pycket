@@ -213,6 +213,8 @@ def test_char_integer(doctest):
     """
     > (char->integer (integer->char 65))
     65
+    > (char->integer (integer->char 128293))
+    128293
     """
 
 def test_char_general_category(doctest):
