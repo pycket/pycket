@@ -385,6 +385,18 @@ def test_checked_procedure_check_and_extract(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
+# This is 8.0+ only and I have no idea how to teach the toolchain that...
+@skip
+def test_struct_prop_sealed_fail(source):
+    """
+    (struct x () #:property prop:sealed #t)
+    (struct y x ())
+    (y)
+    """
+    with pytest.raises(SchemeException) as e:
+      run_mod_expr(source, wrap=True)
+    assert "cannot make a subtype of a sealed type" in str(e.value)
+
 
 # Generic Interfaces
 

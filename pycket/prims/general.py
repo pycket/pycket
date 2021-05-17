@@ -284,6 +284,7 @@ for name in ["exn:srclocs",
 
 
 expose_val("prop:authentic", values_struct.w_prop_authentic)
+expose_val("prop:sealed", values_struct.w_prop_sealed)
 expose_val("prop:object-name", values_struct.w_prop_object_name)
 
 expose_val("prop:procedure", values_struct.w_prop_procedure)
@@ -933,6 +934,24 @@ def assq(a, b):
     if b is not values.w_null:
         raise SchemeException("assq: reached a non-pair")
     return values.w_false
+
+
+@expose("memq", [values.W_Object, values.W_List])
+def memq(w_o, w_l):
+    while isinstance(w_l, values.W_Cons):
+        if eq_prims.eqp_logic(w_o, w_l.car()):
+            return w_l
+        w_l = w_l.cdr()
+    return values.w_false
+
+@expose("memv", [values.W_Object, values.W_List])
+def memv(w_o, w_l):
+    while isinstance(w_l, values.W_Cons):
+        if w_o.eqv(w_l.car()):
+            return w_l
+        w_l = w_l.cdr()
+    return values.w_false
+
 
 @expose("cons", [values.W_Object, values.W_Object])
 def do_cons(a, b):
