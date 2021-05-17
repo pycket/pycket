@@ -59,7 +59,8 @@ class W_StructType(values.W_Object):
             "w_auto_value", "properties", "w_inspector", "immutables[*]",
             "immutable_fields[*]", "w_guard", "auto_values_w[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
-            "constructor_arity", "procedure_source", "isprefab", "isopaque"]
+            "constructor_arity", "procedure_source", "isprefab", "isopaque",
+            "prop_sealed"]
 
     _attrs_ = map(strip_immutable_field_name, _immutable_fields_)
 
@@ -86,6 +87,7 @@ class W_StructType(values.W_Object):
         self.w_auto_value = w_auto_value
         self.properties = []
         self.prop_procedure = None
+        self.prop_sealed = False
         self.procedure_source = None
         self.w_inspector = w_inspector
 
@@ -245,6 +247,11 @@ class W_StructType(values.W_Object):
                     env, self.save_property_value(properties, idx, True, env, cont))
             if property.isinstance(w_prop_procedure):
                 self.prop_procedure = property_val
+            if property.isinstance(w_prop_sealed):
+                # The value associated with the property is ignored; the
+                # presence of the property itself makes the structure
+                # type sealed.
+                self.prop_sealed = True
             self.properties.append((property, property_val))
             return self.attach_property(properties, idx + 1, False, env, cont)
         # at this point all properties are saved, next step is to copy
@@ -1306,6 +1313,7 @@ sym = values.W_Symbol.make
 
 w_prop_object_name = W_StructProperty(sym("prop:object-name"), values.w_false)
 w_prop_authentic = W_StructProperty(sym("prop:authentic"), values.w_false)
+w_prop_sealed = W_StructProperty(sym("prop:sealed"), values.w_false)
 #FIXME: check if these propeties need guards or not
 w_prop_procedure = W_StructProperty(sym("prop:procedure"), values.w_false)
 w_prop_checked_procedure = W_StructProperty(sym("prop:checked-procedure"), values.w_false)
