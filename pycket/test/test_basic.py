@@ -717,3 +717,27 @@ def test_let_too_many_values(doctest):
     1
     """
     assert doctest
+
+
+def test_memq(doctest):
+    """
+    > (memq 'a '(a b c))
+    '(a b c)
+    > (memq 'b '(a b c))
+    '(b c)
+    > (memq 'x '(a b c))
+    #f
+    > (memq 2 (list 1 2 3 4))
+    '(2 3 4)
+    > (memq 9 (list 1 2 3 4))
+    #f
+    """
+    assert doctest
+
+def test_memv(doctest):
+    """
+    > (memv 2 (list 1 2 3 4))
+    '(2 3 4)
+    > (memv 9 (list 1 2 3 4))
+    #f
+    """

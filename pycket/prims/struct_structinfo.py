@@ -108,6 +108,10 @@ def do_make_struct_type(w_name, w_super_type, w_init_field_count,
             w_super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f for the super type , but got %s : %s" % (w_super_type, w_super_type.tostring()))
 
+    if (isinstance(w_super_type, values_struct.W_StructType) and
+       w_super_type.prop_sealed):
+      raise SchemeException("make-struct-type: cannot make a subtype of a sealed type")
+
     init_field_count = w_init_field_count.value
     auto_field_count = w_auto_field_count.value
 
