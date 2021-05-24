@@ -410,6 +410,8 @@ def test_fixnum_special(doctest):
     #f
     > (fx<= -1 1)
     #t
+    > (fx<= 1 2 3)
+    #t
     > (fx<= -10 -10)
     #t
     > (fx< -10 -10)
