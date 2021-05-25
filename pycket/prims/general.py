@@ -112,7 +112,6 @@ for args in [
         ("parameter?", values_parameter.W_BaseParameter),
         ("parameterization?", values_parameter.W_Parameterization),
         ("hash?", W_HashTable),
-        ("hash-weak?", W_HashTable), # FIXME
         ("cpointer?", W_CPointer),
         ("ctype?", W_CType),
         ("continuation-prompt-tag?", values.W_ContinuationPromptTag),
@@ -141,6 +140,21 @@ for args in [
         ("null?", values.w_null),
         ]:
     make_pred_eq(*args)
+
+@expose("hash-weak?", [values.W_Object], simple=True)
+def hash_weah_huh(obj):
+    # FIXME
+    return values.w_false
+
+@expose("hash-strong?", [values.W_Object], simple=True)
+def hash_strong_huh(obj):
+    # FIXME: /pypy/rpython/rlib/rweakref.py
+    return values.W_Bool.make(isinstance(obj, W_HashTable))
+
+@expose("hash-ephemeron?", [values.W_Object], simple=True)
+def hash_strong_huh(obj):
+    # FIXME
+    return values.w_false
 
 @expose("hash-equal?", [values.W_Object], simple=True)
 def hash_eq(obj):
