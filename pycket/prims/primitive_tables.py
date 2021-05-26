@@ -154,7 +154,7 @@ unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-weak-hash-iterate-first", "unsafe-weak-hash-iterate-next",
               "unsafe-ephemeron-hash-iterate-key+value", "unsafe-ephemeron-hash-iterate-pair",
               "unsafe-ephemeron-hash-iterate-value", "unsafe-ephemeron-hash-iterate-key",
-              "unsafe-ephemeron-hash-iterate-first", "unsafe-ephemeron-hash-iterate-next"
+              "unsafe-ephemeron-hash-iterate-first", "unsafe-ephemeron-hash-iterate-next",
               "unsafe-chaperone-procedure", "unsafe-impersonate-procedure", "unsafe-impersonate-vector",
               "unsafe-chaperone-vector", "unsafe-undefined", "check-not-unsafe-undefined",
               "check-not-unsafe-undefined/assign", "prop:chaperone-unsafe-undefined",
