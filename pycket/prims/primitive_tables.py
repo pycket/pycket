@@ -578,8 +578,7 @@ if DEBUG:
     print("\n\nPriming all primitives in : linklet + kernel + paramz + unsafe + foreign + futures + place + flfxnum + extfl + network\n")
 
 for prim_name_str in all_prims:
-    if W_Symbol.make(prim_name_str) not in prim_env:
-        define_nyi(prim_name_str)
+    define_nyi(prim_name_str)
 
 def report_undefined_prims():
     linklets = get_undef_prims_in(linklet_str)
