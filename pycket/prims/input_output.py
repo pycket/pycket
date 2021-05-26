@@ -1938,7 +1938,7 @@ def do_has_custom_write(v):
     return values.w_false
 
 
-def bytes_to_path_element(bytes, path_type=None):
+def bytes_to_path_element(bytes, path_type=None, false_on_non_element=None):
     from pycket.prims.general import w_unix_sym, w_windows_sym
     if path_type is None:
         path_type = w_windows_sym if platform in ('win32', 'cygwin') else w_unix_sym
@@ -1946,10 +1946,12 @@ def bytes_to_path_element(bytes, path_type=None):
         raise SchemeException("bytes->path-element: unknown system type %s" % path_type.tostring())
     str = bytes.as_str()
     if os.sep in str:
+        if false_on_non_element is values.w_true:
+            return values.w_false
         raise SchemeException("bytes->path-element: cannot be converted to a path element %s" % str)
     return values.W_Path(str)
 
-expose("bytes->path-element", [values.W_Bytes, default(values.W_Symbol, None)])(bytes_to_path_element)
+expose("bytes->path-element", [values.W_Bytes, default(values.W_Symbol, None), default(values.W_Bool, None)])(bytes_to_path_element)
 
 def shutdown(env):
     # called before the interpreter exits
