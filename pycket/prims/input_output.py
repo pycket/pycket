@@ -463,9 +463,12 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
         # hmpf, poking around in internals
         needed = utf8_code_length(i)
         if peek:
-            old = w_port.tell()
-            c = w_port.read(needed)
-            w_port.seek(old)
+            if w_port.is_stdin():
+                c = c[:needed]
+            else:
+                old = w_port.tell()
+                c = w_port.read(needed)
+                w_port.seek(old)
         elif needed > 1:
             c += w_port.read(needed - 1)
         u = c.decode("utf-8")
