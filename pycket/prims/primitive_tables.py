@@ -33,6 +33,7 @@ futures_str = ["futures-enabled?", "processor-count", "future", "future?",
 
 flfxnum_str = ["fx->fl", "fl->fx", "fxabs", "fx+",
                "fx-", "fx*", "fxquotient", "fxremainder",
+               "fx+/wraparound", "fx-/wraparound", "fx*/wraparound", "fxlshift/wraparound",
                "fxmodulo", "fxand", "fxior", "fxxor",
                "fxnot", "fxrshift", "fxlshift", "fx>=",
                "fx>", "fx=", "fx<", "fx<=",
