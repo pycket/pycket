@@ -79,6 +79,17 @@ def exact_nonneg_integerp(n):
         return values.W_Bool.make(n.value.gt(NULLRBIGINT))
     return values.w_false
 
+@expose("most-positive-fixnum", [])
+def most_positive_fixnum():
+    from sys import maxint
+    return values.W_Fixnum(maxint)
+
+@expose("most-negative-fixnum", [])
+def most_negative_fixnum():
+    from sys import maxint
+    # there's one more negative than positive
+    return values.W_Fixnum(-maxint-1)
+
 @always_inline
 def is_real(obj):
     return isinstance(obj, values.W_Real)
