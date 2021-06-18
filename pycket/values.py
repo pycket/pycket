@@ -1933,6 +1933,91 @@ class W_InputPort(W_Port):
     def _length_up_to_end(self):
         raise NotImplementedError("abstract class")
 
+class W_CustomInputPort(W_InputPort):
+    errorname = "input-port"
+    _immutable_fields_ = ["name", 'w_read_in', 'w_peek', 'w_close', 'w_get_progress_evt', 'w_commit', 'w_get_location', 'w_count_lines_bang', 'w_init_position', 'w_buffer_mode']
+    _attrs_ = ['closed', 'name', 'line', 'column', 'read_handler', 'w_read_in', 'w_peek', 'w_close', 'w_get_progress_evt', 'w_commit', 'w_get_location', 'w_count_lines_bang', 'w_init_position', 'w_buffer_mode']
+    #_attrs_ = ['closed', 'str', 'ptr', 'read_handler']
+    def __init__(self, name, w_read_in, w_peek, w_close,
+                 w_get_progress_evt=w_false, w_commit=w_false,
+                 w_get_location=w_false,
+                 w_count_lines_bang=w_false, # count-lines! (-> any)
+                 w_init_position=W_Fixnum.ONE, w_buffer_mode=w_false):
+        #self.closed = False
+        self.name = name
+        self.w_read_in = w_read_in
+        self.w_peek = w_peek
+        self.w_close = w_close
+        self.read_handler = None
+        self.line = 1
+        self.column = 0
+        self.w_get_progress_evt = w_get_progress_evt
+        self.w_commit = w_commit
+        self.w_get_location = w_get_location
+        self.w_count_lines_bang = w_count_lines_bang
+        self.w_init_position = w_init_position
+        self.w_buffer_mode = w_buffer_mode
+
+    def w_read_is_port(self):
+        if isinstance(self.w_read_in, W_InputPort):
+            return self.w_read_in
+        else:
+            return w_false
+
+    def close(self):
+        self.closed = True
+
+    def _call_read_in(self, bstr, env, cont):
+        assert self.w_read_in.iscallable()
+        # (make-bytes 1)
+
+        return self.w_read_in.call([bstr], env, cont)
+
+    def _call_close(self, env, cont):
+        close_func = self.w_close
+        if not close_func or close_func is w_false:
+            raise SchemeException("CustomInputPort - no close procedure")
+        assert close_func.iscallable()
+        return close_func.call([], env, cont)
+
+    def _call_peek(self, dest_bstr, skip_bytes_amt, progress, env, cont):
+        peek_func = self.w_peek
+        if not peek_func or peek_func is w_false:
+            raise SchemeException("CustomInputPort - automatic peek through read_in is currently NYI")
+        assert peek_func.iscallable()
+        return peek_func.call([dest_bstr, skip_bytes_amt, progress], env, cont)
+
+    def obj_name(self):
+        return W_Symbol.make("string")
+
+    def get_read_handler(self):
+        return self.read_handler
+
+    def set_read_handler(self, handler):
+        self.read_handler = handler
+
+    def get_line(self):
+        return w_false
+
+    def get_column(self):
+        return w_false
+
+    def get_position(self):
+        return w_false
+
+    def read(self, n):
+        #raise NotImplementedError("custom port nyi")
+        raise SchemeException("custom port - read_in should've been called")
+    def peek(self):
+        #raise NotImplementedError("custom port nyi")
+        raise SchemeException("custom port - peek should've been called")
+    def readline(self):
+        #raise NotImplementedError("custom port nyi")
+        raise SchemeException("custom port readline")
+    def _length_up_to_end(self):
+        #raise NotImplementedError("custom port nyi")
+        raise SchemeException("custom port length up to end")
+
 class W_StringInputPort(W_InputPort):
     errorname = "input-port"
     _immutable_fields_ = ["str"]
@@ -2204,7 +2289,7 @@ class W_SecurityGuard(W_Object):
 
     def __init__(self):
         pass
-    
+
 class W_Channel(W_Object):
     errorname = "channel"
     def __init__(self):
