@@ -141,7 +141,7 @@ clean-racket:
 	rm -rf racket
 
 clone-pypy:
-	hg clone https://bitbucket.org/pypy/pypy
+	hg clone https://foss.heptapod.net/pypy/pypy pypy
 
 make-pypy:
 	$(MAKE) -C pypy
