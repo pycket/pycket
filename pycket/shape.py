@@ -74,7 +74,7 @@ class StructTag(_Tag):
 
     _immutable_fields_ = ['_struct_type']
     def __init__(self, struct_type):
-        name = struct_type.name
+        name = struct_type.name.utf8value
         arity = struct_type.total_field_count
         _Tag.__init__(self, name, arity)
         self._struct_type = struct_type
@@ -144,7 +144,7 @@ class Shape(object):
         return self.merge_point_string_seen([])
 
     def merge_point_string_seen(self, seen):
-        return "<some shape>"
+        return "(<some shape>)"
 
 
 
@@ -334,7 +334,7 @@ class CompoundShape(Shape):
     #
     def merge_point_string_seen(self, seen):
         seen.append(self)
-        res  = "%s%d{" % (self._tag.name, self._tag.arity())
+        res  = "(%s%d{" % (self._tag.name, self._tag.arity())
         first = True
         for subshape in self._structure:
             if first:
@@ -342,7 +342,7 @@ class CompoundShape(Shape):
             else:
                 res += ", "
             res += subshape.merge_point_string_seen(seen) #if not subshape in seen else "."
-        res += "}"
+        res += "})"
         return res
 
     def print_transforms(self):
@@ -452,8 +452,8 @@ class ShapeTuple(object):
             res += self.parent.merge_point_string()
         if self.shape is not None:
             res += ".%s" % self.shape.merge_point_string()
-        else:
-            res += "."
+        # else:
+        #     res += "."
         return res
 
 _empty_tuple = ShapeTuple(None, None)
