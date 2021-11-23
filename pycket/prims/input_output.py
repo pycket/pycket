@@ -434,11 +434,37 @@ def read_bytes_line(w_port, w_mode, env, cont):
     cont = do_read_line(w_mode, True, env, cont)
     return get_input_port(w_port, env, cont)
 
+@continuation
+def custom_port_read_peek_cont(bstr, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    from pycket.env import w_global_config as glob
+
+    read_peek_result = check_one_val(_vals) # this should be Fixnum(1)
+
+    assert not isinstance(read_peek_result, values.W_Procedure) # For now
+
+    return return_value(bstr.ref(0), env, cont)
+
 
 @continuation
 def do_read_one_cont(as_bytes, peek, env, cont, _vals):
     from pycket.interpreter import check_one_val
     w_port = check_one_val(_vals)
+
+    if isinstance(w_port, values.W_CustomInputPort):
+        w_port_or_proc = w_port.w_read_is_port()
+        if isinstance(w_port_or_proc, values.W_InputPort):
+            # redirect the read to the given port
+            return do_read_one(w_port_or_proc, as_bytes, peek, env, cont)
+        else:
+            # w_port_or_proc is a procedure, so let's call it
+            _bstr = [chr(0)]
+            bstr = values.W_MutableBytes(_bstr)
+            if peek:
+                return w_port._call_peek(bstr, values.W_Fixnum.ZERO, values.w_false, env, custom_port_read_peek_cont(bstr, env, cont))
+            else:
+                return w_port._call_read_in(bstr,env,custom_port_read_peek_cont(bstr, env, cont))
+
     return do_read_one(w_port, as_bytes, peek, env, cont)
 
 def utf8_code_length(i):
@@ -463,9 +489,12 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
         # hmpf, poking around in internals
         needed = utf8_code_length(i)
         if peek:
-            old = w_port.tell()
-            c = w_port.read(needed)
-            w_port.seek(old)
+            if w_port.is_stdin():
+                c = c[:needed]
+            else:
+                old = w_port.tell()
+                c = w_port.read(needed)
+                w_port.seek(old)
         elif needed > 1:
             c += w_port.read(needed - 1)
         u = c.decode("utf-8")
@@ -474,9 +503,6 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
 
 @expose("read-char-or-special", [values.W_Object, default(values.W_Object, values.w_false), default(values.W_Object, values.w_false)], simple=False)
 def read_char_or_special(in_port, special_wrap, source_name, env, cont):
-    # FIXME: ignoring special values and custom ports for now
-
-    #return read_char(in_port, env, cont)
     try:
         cont = do_read_one_cont(False, False, env, cont)
         return get_input_port(in_port, env, cont)
@@ -503,6 +529,17 @@ def read_byte(w_port, env, cont):
 def do_peek_cont(as_bytes, skip, env, cont, _vals):
     from pycket.interpreter import check_one_val
     w_port = check_one_val(_vals)
+    if isinstance(w_port, values.W_CustomInputPort):
+        w_port_or_proc = w_port.w_read_is_port()
+        if isinstance(w_port_or_proc, values.W_InputPort):
+            # redirect the read to the given port
+            return do_peek(w_port_or_proc, as_bytes, skip, env, cont)
+        else:
+            # w_port_or_proc is a procedure, so let's call it
+            _bstr = [chr(0)]
+            bstr = values.W_MutableBytes(_bstr)
+            return w_port._call_peek(bstr, values.W_Fixnum.make(skip), values.w_false, env, custom_port_read_peek_cont(bstr, env, cont))
+
     return do_peek(w_port, as_bytes, skip, env, cont)
 
 def do_peek(w_port, as_bytes, skip, env, cont):
@@ -626,9 +663,18 @@ def close_input_port(port, env, cont):
     return get_input_port(port, env, cont)
 
 @continuation
+def custom_port_close_cont(port, env, cont, _vals):
+    from pycket.interpreter import return_multi_vals
+    port.close()
+    return return_multi_vals(_vals, env, cont)
+
+@continuation
 def close_port_cont(env, cont, _vals):
     from pycket.interpreter import check_one_val
     port = check_one_val(_vals)
+    # FIXME : Call "w_close" if CustomPort
+    if isinstance(port, values.W_CustomInputPort):
+        return port._call_close(env, custom_port_close_cont(port, env, cont))
     try:
         port.close()
     except OSError, err:
@@ -1775,6 +1821,28 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
         bytes[start + i] = res[i]
     return return_value(values.W_Fixnum(reslen), env, cont)
 
+@continuation
+def peek_bytes_custom_port_cont(dest_bstr, w_bstr, start, stop, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    w_reslen = check_one_val(_vals)
+    n = stop - start
+    bytes = w_bstr.as_bytes_list()
+
+    if w_reslen is values.eof_object:
+        return return_value(values.eof_object, env, cont)
+
+    assert isinstance(w_reslen, values.W_Fixnum)
+    # shortcut without allocation when complete replace
+    if isinstance(w_bstr, values.W_MutableBytes):
+        if start == 0 and stop == len(bytes) and w_reslen.value == n:
+            w_bstr.value = dest_bstr.value
+            return return_value(w_reslen, env, cont)
+
+    for i in range(0, w_reslen.value):
+        bytes[start + i] = dest_bstr.value[i]
+    return return_value(w_reslen, env, cont)
+
+
 @expose("peek-bytes-avail!", [values.W_Bytes, values.W_Fixnum,
                               default(values.W_Object, values.w_false),
                               default(values.W_InputPort, None),
@@ -1782,12 +1850,13 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
                               default(values.W_Fixnum, None)], simple=False)
 def peek_bytes_avail_bang(w_bstr, skip_bytes_amt, progress, w_in, start_pos, end_pos, env, cont):
     from pycket.interpreter import return_value
+
     w_port = w_in if w_in else current_in_param.get(cont)
+
     start = start_pos.value
     stop = end_pos.value if end_pos else w_bstr.length()
     if w_bstr.immutable():
         raise ContractException("peek-bytes-avail!: given immutable byte string")
-    # FIXME : implementation
     bytes = w_bstr.as_bytes_list()
 
     if stop == start:
@@ -1796,6 +1865,13 @@ def peek_bytes_avail_bang(w_bstr, skip_bytes_amt, progress, w_in, start_pos, end
     # FIXME: assert something on indices
     assert start >= 0 and stop <= len(bytes)
     n = stop - start
+
+    if isinstance(w_in, values.W_CustomInputPort):
+        _bstr = [chr(0)]*n
+        # dest_bstr is a temporary bytes for custom port to peek the bytes into
+        dest_bstr = values.W_MutableBytes(_bstr)
+
+        return w_in._call_peek(dest_bstr, values.W_Fixnum(skip_bytes_amt.value), progress, env, peek_bytes_custom_port_cont(dest_bstr, w_bstr, start, stop, env, cont))
 
     old = w_port.tell()
     res = w_port.read(n)
@@ -1938,7 +2014,7 @@ def do_has_custom_write(v):
     return values.w_false
 
 
-def bytes_to_path_element(bytes, path_type=None):
+def bytes_to_path_element(bytes, path_type=None, false_on_non_element=None):
     from pycket.prims.general import w_unix_sym, w_windows_sym
     if path_type is None:
         path_type = w_windows_sym if platform in ('win32', 'cygwin') else w_unix_sym
@@ -1946,10 +2022,12 @@ def bytes_to_path_element(bytes, path_type=None):
         raise SchemeException("bytes->path-element: unknown system type %s" % path_type.tostring())
     str = bytes.as_str()
     if os.sep in str:
+        if false_on_non_element is values.w_true:
+            return values.w_false
         raise SchemeException("bytes->path-element: cannot be converted to a path element %s" % str)
     return values.W_Path(str)
 
-expose("bytes->path-element", [values.W_Bytes, default(values.W_Symbol, None)])(bytes_to_path_element)
+expose("bytes->path-element", [values.W_Bytes, default(values.W_Symbol, None), default(values.W_Bool, None)])(bytes_to_path_element)
 
 def shutdown(env):
     # called before the interpreter exits
@@ -2014,7 +2092,9 @@ MIP_ARGS = [
 def make_input_port(name, read_in, peek, close,
                     get_progress_evt, commit, get_location, count_lines_bang, init_position, buffer_mode):
     # FIXME : implementation (or get the IO linklet)
-    return values.W_StringInputPort("")
+    #return values.W_StringInputPort("")
+    return values.W_CustomInputPort(name, read_in, peek, close, get_progress_evt, commit, get_location,
+                                    count_lines_bang, init_position, buffer_mode)
 
 print_graph_param = values_parameter.W_Parameter(values.w_false)
 print_struct_param = values_parameter.W_Parameter(values.w_false)

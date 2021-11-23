@@ -33,6 +33,7 @@ futures_str = ["futures-enabled?", "processor-count", "future", "future?",
 
 flfxnum_str = ["fx->fl", "fl->fx", "fxabs", "fx+",
                "fx-", "fx*", "fxquotient", "fxremainder",
+               "fx+/wraparound", "fx-/wraparound", "fx*/wraparound", "fxlshift/wraparound",
                "fxmodulo", "fxand", "fxior", "fxxor",
                "fxnot", "fxrshift", "fxlshift", "fx>=",
                "fx>", "fx=", "fx<", "fx<=",
@@ -152,6 +153,9 @@ unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-weak-hash-iterate-key+value", "unsafe-weak-hash-iterate-pair",
               "unsafe-weak-hash-iterate-value", "unsafe-weak-hash-iterate-key",
               "unsafe-weak-hash-iterate-first", "unsafe-weak-hash-iterate-next",
+              "unsafe-ephemeron-hash-iterate-key+value", "unsafe-ephemeron-hash-iterate-pair",
+              "unsafe-ephemeron-hash-iterate-value", "unsafe-ephemeron-hash-iterate-key",
+              "unsafe-ephemeron-hash-iterate-first", "unsafe-ephemeron-hash-iterate-next",
               "unsafe-chaperone-procedure", "unsafe-impersonate-procedure", "unsafe-impersonate-vector",
               "unsafe-chaperone-vector", "unsafe-undefined", "check-not-unsafe-undefined",
               "check-not-unsafe-undefined/assign", "prop:chaperone-unsafe-undefined",
@@ -291,7 +295,7 @@ kernel_str = ["*", "+", "-",
               "hash-iterate-pair", "hash-iterate-value", "hash-keys-subset?",
               "hash-map", "hash-placeholder?", "hash-ref",
               "hash-remove", "hash-remove!", "hash-set",
-              "hash-set!", "hash-weak?", "hash?",
+              "hash-set!", "hash-weak?", "hash-strong?", "hash-ephemeron?", "hash?",
               "hasheq", "hasheqv", "imag-part",
               "immutable?", "impersonate-box", "impersonate-channel",
               "impersonate-continuation-mark-key", "impersonate-hash", "impersonate-procedure",
@@ -331,6 +335,7 @@ kernel_str = ["*", "+", "-",
               "make-weak-box", "make-weak-hash", "make-weak-hasheq",
               "make-weak-hasheqv", "make-will-executor", "map",
               "max", "memq", "memv", "min", "modulo",
+              "most-positive-fixnum", "most-negative-fixnum",
               "nack-guard-evt", "negative?", "never-evt",
               "newline", "not", "null",
               "null?", "number->string", "number?",
@@ -575,8 +580,7 @@ if DEBUG:
     print("\n\nPriming all primitives in : linklet + kernel + paramz + unsafe + foreign + futures + place + flfxnum + extfl + network\n")
 
 for prim_name_str in all_prims:
-    if W_Symbol.make(prim_name_str) not in prim_env:
-        define_nyi(prim_name_str)
+    define_nyi(prim_name_str)
 
 def report_undefined_prims():
     linklets = get_undef_prims_in(linklet_str)

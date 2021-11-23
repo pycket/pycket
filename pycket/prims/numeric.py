@@ -79,6 +79,17 @@ def exact_nonneg_integerp(n):
         return values.W_Bool.make(n.value.gt(NULLRBIGINT))
     return values.w_false
 
+@expose("most-positive-fixnum", [])
+def most_positive_fixnum():
+    from sys import maxint
+    return values.W_Fixnum(maxint)
+
+@expose("most-negative-fixnum", [])
+def most_negative_fixnum():
+    from sys import maxint
+    # there's one more negative than positive
+    return values.W_Fixnum(-maxint-1)
+
 @always_inline
 def is_real(obj):
     return isinstance(obj, values.W_Real)
@@ -263,17 +274,54 @@ for args in [
 
 def make_fixedtype_cmps(name, methname):
     methname = "arith_%s_same" % methname
-    def do(a, b):
-        return values.W_Bool.make(getattr(a, methname)(b))
-    do.__name__ = "fl_" + methname
-    expose("fl" + name, [values.W_Flonum] * 2, simple=True)(do)
-    expose("unsafe-fl" + name, [unsafe(values.W_Flonum)] * 2, simple=True)(do)
 
-    def do(a, b):
-        return values.W_Bool.make(getattr(a, methname)(b))
+    @jit.unroll_safe
+    def do(args):
+        idx = 2
+        truth = True
+        while idx <= len(args):
+            start = idx - 2
+            assert start >= 0
+            w_a, w_b = args[start], args[start + 1]
+            nan_a = not isinstance(w_a, values.W_Number)
+            nan_b = not isinstance(w_b, values.W_Number)
+            if nan_a or nan_b:
+                pf = ["st", "nd", "rd"][idx-1] if idx <= 3 else "th"
+                w = w_a if nan_a else w_b
+                raise SchemeException("%s expected number as %s%s argument, got : %s" % (name, idx, pf, w.tostring()))
+            idx += 1
+            truth = truth and getattr(w_a, methname)(w_b)
+
+        return values.W_Bool.make(truth)
+
+    do.__name__ = "fl_" + methname
+    expose("fl" + name, simple=True, arity=Arity.geq(2))(do)
+    expose("unsafe-fl" + name, simple=True, arity=Arity.geq(2))(do)
+
+    # FIXME: get rid of this code duplication
+
+    @jit.unroll_safe
+    def do(args):
+        idx = 2
+        truth = True
+        while idx <= len(args):
+            start = idx - 2
+            assert start >= 0
+            w_a, w_b = args[start], args[start + 1]
+            nan_a = not isinstance(w_a, values.W_Number)
+            nan_b = not isinstance(w_b, values.W_Number)
+            if nan_a or nan_b:
+                pf = ["st", "nd", "rd"][idx-1] if idx <= 3 else "th"
+                w = w_a if nan_a else w_b
+                raise SchemeException("%s expected number as %s%s argument, got : %s" % (name, idx, pf, w.tostring()))
+            idx += 1
+            truth = truth and getattr(w_a, methname)(w_b)
+
+        return values.W_Bool.make(truth)
+
     do.__name__ = "fx_" + methname
-    expose("fx" + name, [values.W_Fixnum] * 2, simple=True)(do)
-    expose("unsafe-fx" + name, [unsafe(values.W_Fixnum)] * 2, simple=True)(do)
+    expose("fx" + name, simple=True, arity=Arity.geq(2))(do)
+    expose("unsafe-fx" + name, simple=True, arity=Arity.geq(2))(do)
 
 for args in [
     ("<",  "lt"),
