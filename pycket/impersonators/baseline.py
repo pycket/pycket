@@ -474,7 +474,7 @@ def make_struct_proxy(cls, inner, overrides, handlers, keys, vals):
 class W_InterposeStructBase(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
-    _immutable_fields_ = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]", "struct_info_handler", "struct_properties", "properties"]
+    _immutable_fields_ = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]", "struct_info_handler", "struct_props", "properties"]
 
     @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
@@ -485,9 +485,9 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
         self.inner = inner
 
-        field_count = inner.struct_type().total_field_count
-        accessors = [values.w_false] * (field_count * 2)
-        mutators  = [values.w_false] * (field_count * 2)
+        field_cnt = inner.struct_type().total_field_cnt
+        accessors = [values.w_false] * (field_cnt * 2)
+        mutators  = [values.w_false] * (field_cnt * 2)
 
         # The mask field contains an array of pointers to the next object
         # in the proxy stack that overrides a given field operation.
@@ -499,11 +499,11 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             mask      = inner.mask[:]
         else:
             self.base = inner
-            mask      = [inner] * field_count
+            mask      = [inner] * field_cnt
 
         assert isinstance(self.base, values_struct.W_Struct)
 
-        struct_properties = None
+        struct_props = None
         properties   = None
 
         # Does not deal with properties as of yet
@@ -526,9 +526,9 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
                 mutators[2 * index] = op
                 mutators[2 * index + 1] = handlers[i]
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
-                if struct_properties is None:
-                    struct_properties = {}
-                struct_properties[base] = (op, handlers[i])
+                if struct_props is None:
+                    struct_props = {}
+                struct_props[base] = (op, handlers[i])
             elif base is struct_info:
                 self.struct_info_handler = handlers[i]
             else:
@@ -543,7 +543,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         self.accessors    = accessors
         self.mutators     = mutators
         self.properties   = properties
-        self.struct_properties = struct_properties
+        self.struct_props = struct_props
         self.mask         = mask
 
     def post_ref_cont(self, interp, app, env, cont):
@@ -587,9 +587,9 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @label
     def get_prop(self, property, env, cont):
-        if self.struct_properties is None:
+        if self.struct_props is None:
             return self.inner.get_prop(property, env, cont)
-        op, interp = self.struct_properties.get(property, (None, None))
+        op, interp = self.struct_props.get(property, (None, None))
         if op is None or interp is None:
             return self.inner.get_prop(property, env, cont)
         after = self.post_ref_cont(interp, None, env, cont)
