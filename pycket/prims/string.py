@@ -5,7 +5,7 @@ from pycket import values
 from pycket.values_string import W_String
 from pycket.error import SchemeException
 from pycket.prims.expose import default, expose, unsafe, subclass_unsafe
-from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
+from rpython.rlib.unicodedata import unicodedb_9_0_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
 from rpython.rlib import jit
 
