@@ -74,82 +74,6 @@ def gcd1(u, v):
     result = u << shift
     return result
 
-@jit.elidable
-def gcd(u, v):
-    from rpython.rlib.rbigint import _v_isub, _v_rshift, SHIFT
-    # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
-    if not u.tobool():
-        return v.abs()
-    if not v.tobool():
-        return u.abs()
-
-    # The result is negative iff both inputs have a common -1 factor
-    if v.sign == -1 and u.sign == -1:
-        sign = -1
-    else:
-        sign = 1
-
-    if u.size == 1 and v.size == 1:
-        result = gcd1(u.digit(0), v.digit(0))
-        return rbigint([result], sign, 1)
-
-    # Compute the factors of 2 for u and v and record the number of
-    # common 2 factors in shift.
-    shiftu = count_trailing_zeros(u)
-    shiftv = count_trailing_zeros(v)
-    shift  = min(shiftu, shiftv)
-
-    # Perform shift on each number, but guarantee that we will end up with a new
-    # digit array for each rbigint. They will be mutated
-    if shiftu:
-        u = u.rshift(shiftu, dont_invert=True)
-        if u.sign == -1:
-            u.sign = 1
-    else:
-        u = rbigint(u._digits[:], 1, u.numdigits())
-
-    if shiftv:
-        v = v.rshift(shiftv, dont_invert=True)
-        if v.sign == -1:
-            v.sign = 1
-    else:
-        v = rbigint(v._digits[:], 1, v.numdigits())
-
-    # From here on, u is always odd.
-    while True:
-
-        if u.size == 1 and v.size == 1:
-            digit = gcd1(u.digit(0), v.digit(0))
-            u = rbigint([digit], 1, 1)
-            break
-
-        # Now u and v are both odd. Swap if necessary so u <= v,
-        # then set v = v - u (which is even).
-        if u.gt(v):
-            u, v, = v, u
-
-        assert _v_isub(v, 0, v.numdigits(), u, u.numdigits()) == 0
-        v._normalize()
-
-        if not v.tobool():
-            break
-
-        # remove all factors of 2 in v -- they are not common
-        # note: v is not zero, so while will terminate
-        # XXX: Better to perform multiple inplace shifts, or one
-        # shift which allocates a new array?
-        rshift = count_trailing_zeros(v)
-        while rshift >= SHIFT:
-            assert _v_rshift(v, v, v.numdigits(), SHIFT - 1) == 0
-            rshift -= SHIFT - 1
-        assert _v_rshift(v, v, v.numdigits(), rshift) == 0
-        v._normalize()
-
-    # restore common factors of 2 and sign
-    result = u.lshift(shift)
-    result.sign = sign
-    return result
-
 if sys.maxint > 2147483647:
     SQRT_BIT_MAX = 31
 else:
@@ -1000,7 +924,7 @@ class __extend__(values.W_Bignum):
 
     def arith_gcd_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return values.W_Integer.frombigint(gcd(self.value, other.value))
+        return values.W_Integer.frombigint(self.value.gcd(other.value))
 
     # ------------------ miscellanous ------------------
 
@@ -1017,10 +941,10 @@ class __extend__(values.W_Bignum):
         return values.W_Bool.make(not self.value.tobool())
 
     def arith_negativep(self):
-        return values.W_Bool.make(self.value.sign == -1)
+        return values.W_Bool.make(self.value.get_sign() == -1)
 
     def arith_positivep(self):
-        return values.W_Bool.make(self.value.sign == 1)
+        return values.W_Bool.make(self.value.get_sign() == 1)
 
     def arith_evenp(self):
         return values.W_Bool.make(
@@ -1084,8 +1008,7 @@ class __extend__(values.W_Rational):
 
     def arith_gcd_same(self, other):
         assert isinstance(other, values.W_Rational)
-        num = gcd(self._numerator.mul(other._denominator),
-                  other._numerator.mul(self._denominator))
+        num = self._numerator.mul(other._denominator).gcd(other._numerator.mul(self._denominator))
         den = self._denominator.mul(other._denominator)
         return values.W_Rational.frombigint(num, den)
 
@@ -1094,10 +1017,10 @@ class __extend__(values.W_Rational):
         return values.W_Rational(num, self._denominator)
 
     def arith_negativep(self):
-        return values.W_Bool.make(self._numerator.sign == -1)
+        return values.W_Bool.make(self._numerator.get_sign() == -1)
 
     def arith_positivep(self):
-        return values.W_Bool.make(self._numerator.sign == 1)
+        return values.W_Bool.make(self._numerator.get_sign() == 1)
 
     def arith_zerop(self):
         return values.W_Bool.make(not self._numerator.tobool())
@@ -1130,7 +1053,7 @@ class __extend__(values.W_Rational):
 
     def arith_truncate(self):
         assert self._numerator.ne(NULLRBIGINT)
-        if self._numerator.sign == self._denominator.sign:
+        if self._numerator.get_sign() == self._denominator.get_sign():
             return self.arith_floor()
         else:
             return self.arith_ceiling()
@@ -1144,7 +1067,7 @@ class __extend__(values.W_Rational):
         try:
             return values.W_Flonum(num.truediv(den))
         except OverflowError:
-            if num.sign == den.sign:
+            if num.get_sign() == den.get_sign():
                 return values.W_Flonum.INF
             return values.W_Flonum.NEGINF
 

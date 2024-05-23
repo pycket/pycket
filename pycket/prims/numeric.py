@@ -635,7 +635,7 @@ def float_bytes_to_real(bytes, signed):
             for i, v in enumerate(bytes):
                 val += rarithmetic.r_uint64(ord(v)) << (i * 8)
             return values.W_Flonum(pycket_longlong2float(val))
-    except OverflowError, e:
+    except OverflowError as e:
         # Uncomment the check below to run Pycket on the
         # interpreter with compiled (zo) files
         # (fasl makes a call that blows the longlong2float on rpython)
@@ -769,15 +769,15 @@ def integer_length(obj):
 
         if not bignum.tobool():
             return values.W_Fixnum.ZERO
-        elif bignum.sign != -1:
+        elif bignum.get_sign() != -1:
             negative_power_of_two = False
         else:
-            for i in range(bignum.size - 1):
+            for i in range(bignum.numdigits() - 1):
                 if bignum.udigit(i) != 0:
                     negative_power_of_two = False
                     break
 
-            msd = bignum.udigit(r_uint(bignum.size - 1))
+            msd = bignum.udigit(r_uint(bignum.numdigits() - 1))
             while msd:
                 if (msd & r_uint(0x1)) and msd != r_uint(1):
                     negative_power_of_two = False
