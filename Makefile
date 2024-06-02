@@ -14,7 +14,7 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 		translate-no-strategies translate-no-type-size-specialization \
 		translate-jit-linklets
 
-PYFILES := $(shell find . -name '*.py' -type f -maxdepth 1) $(shell find pycket  -name '*.py' -type f)
+PYFILES := $(shell find .  -maxdepth 1 -name '*.py' -type f) $(shell find pycket  -name '*.py' -type f)
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets
 .PHONY: test coverage test-expander test-one test-one-expander test-mark test-mark-expander test-random
@@ -31,6 +31,7 @@ endif
 
 WITH_JIT = -Ojit --translation-jit_opencoder_model=big
 
+RACKET_INSTALLER_SCRIPT_NAME := racket-8.13.0.5-x86_64-linux-jammy-cs.sh
 
 translate-jit-all: $(TRANSLATE_TARGETS)
 all: translate-jit-all translate-no-jit
@@ -117,13 +118,16 @@ else
 	$(error Pycket binary does not exist)
 endif
 
-setup-local-racket:
-	$(info Downloading Racket)
-	$(shell wget http://www.cs.utah.edu/plt/snapshots/current/installers/racket-current-x86_64-linux-precise.sh)
+.PHONY: download-racket
+download-racket:
+	$(info Downloading Racket installer)
+	wget http://www.cs.utah.edu/plt/snapshots/current/installers/$(RACKET_INSTALLER_SCRIPT_NAME)
+
+setup-local-racket: download-racket
 	$(info Installing Racket)
-	chmod 755 racket-current-x86_64-linux-precise.sh
-	./racket-current-x86_64-linux-precise.sh --in-place --dest racket
-	rm -f racket-current-x86_64-linux-precise.sh
+	chmod 755 $(RACKET_INSTALLER_SCRIPT_NAME)
+	./$(RACKET_INSTALLER_SCRIPT_NAME) --in-place --dest racket
+	rm -f $(RACKET_INSTALLER_SCRIPT_NAME)
 	$(eval export PLTHOME=$(shell pwd)/racket)
 	$(eval export PLTCOLLECTS=$(shell pwd)/racket/collects)
 	$(info Telling Racket about Pycket)
@@ -159,39 +163,44 @@ bootstrap-linklets: expander fasl
 	@echo "ASSUMES: a built pycket-c-linklets binary"
 	./pycket-c-linklets --make-linklet-zos
 
-expander:
-	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	$(MAKE) -C linklet-extractor expander
+check_plthome:
+	@if [ -z "$(PLTHOME)" ]; then \
+		echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environment variable"; \
+	fi
 
-expander-json:
-	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	$(MAKE) -C linklet-extractor expander-json
+check_pycket_c_linklets:
+	@if ! command -v $(PYCKET_C_LINKLETS) > /dev/null; then \
+		echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"; \
+	fi
 
-regexp:
-	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	$(MAKE) -C linklet-extractor regexp
+expander: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor expander
+	@echo "Done. expander is at: $(CURDIR)/expander.fasl"
+
+expander-json: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor expander-json
+	@echo "Done. expander json is at: $(CURDIR)/expander.rkt.linklet"
+
+regexp: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor regexp
+	@echo "Done. regexp is at: $(CURDIR)/regexp.fasl"
 
 fasl:
-	$(MAKE) -C linklet-extractor fasl
+	$(MAKE) -s -C linklet-extractor fasl
+	@echo "Done. fasl is at: $(CURDIR)/fasl.fasl"
 
 fasl-json:
-	$(MAKE) -C linklet-extractor fasl-json
+	$(MAKE) -s -C linklet-extractor fasl-json
+	@echo "Done. fasl json is at: $(CURDIR)/fasl.rktl.linklet"
 
-expander-bytecode:
-	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	$(MAKE) -C linklet-extractor expander-bytecode
+expander-bytecode: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor expander-bytecode
 
-regexp-bytecode:
-	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	$(MAKE) -C linklet-extractor regexp-bytecode
+regexp-bytecode: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor regexp-bytecode
 
 fasl-bytecode:
-	$(MAKE) -C linklet-extractor fasl-bytecode
+	$(MAKE) -s -C linklet-extractor fasl-bytecode
 
 test:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py
