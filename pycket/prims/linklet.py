@@ -351,6 +351,8 @@ make_pred("linklet?", W_Linklet)
 
 make_pred("instance?", W_LinkletInstance)
 
+# compile-linklet prepares a linklet for instantiation. Takes an s-expr (or a
+# W_Linklet) and returns a W_Linklet to be passed to instantiate-linklet.
 @expose("compile-linklet", [W_Object, default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false)], simple=False)
 def compile_linklet(form, name, import_keys, get_import, options, env, cont):
     from pycket.util import console_log
@@ -359,6 +361,8 @@ def compile_linklet(form, name, import_keys, get_import, options, env, cont):
         cont_ = finish_perf_region_cont("compile-linklet", env, cont)
         return do_compile_linklet(form, name, import_keys, get_import, options, env, cont_)
 
+# do-compile-linklet prepares a linklet for instantiation. Takes an s-expr (or a
+# W_Linklet) and returns a W_Linklet to be passed to instantiate-linklet.
 def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
     from pycket.util import console_log
     if isinstance(form, W_WrappedConsProper): # s-expr

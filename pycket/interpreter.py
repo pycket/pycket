@@ -722,7 +722,7 @@ class Module(AST):
         try:
             self.interpreted = True
             return self._interpret_mod(env)
-        except SchemeException, e:
+        except SchemeException as e:
             if e.context_module is None:
                 e.context_module = self
             raise
@@ -1096,9 +1096,9 @@ class App(AST):
                 # fast path
                 jit.promote(w_callable)
                 w_callable = w_callable.closure
-        except SchemeException, exn:
+        except SchemeException as exn:
             return convert_runtime_exception(exn, env, cont)
-        except OSError, exn:
+        except OSError as exn:
             return convert_os_error(exn, env, cont)
 
         return w_callable.call_with_extra_info(args_w, env, cont, self)
@@ -1156,9 +1156,9 @@ class SimplePrimApp1(App):
             self.set_should_enter() # to jit downrecursion
         try:
             result = self.run(env)
-        except SchemeException, exn:
+        except SchemeException as exn:
             return convert_runtime_exception(exn, env, cont)
-        except OSError, exn:
+        except OSError as exn:
                 return convert_os_error(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
@@ -1193,9 +1193,9 @@ class SimplePrimApp2(App):
             self.set_should_enter() # to jit downrecursion
         try:
             result = self.run(env)
-        except SchemeException, exn:
+        except SchemeException as exn:
             return convert_runtime_exception(exn, env, cont)
-        except OSError, exn:
+        except OSError as exn:
             return convert_os_error(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
@@ -2563,12 +2563,12 @@ def interpret_one(ast, env=None, cont=None):
         cell.set(vector.W_Vector.fromelements(env.get_commandline_arguments()))
     try:
         inner_interpret(ast, env, cont)
-    except Done, e:
+    except Done as e:
         if w_global_config.is_error_triggered():
             from pycket.error import ExitException
             raise ExitException(e.values)
         return e.values
-    except SchemeException, e:
+    except SchemeException as e:
         if e.context_ast is None:
             e.context_ast = ast
         raise
