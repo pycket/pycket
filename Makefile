@@ -185,6 +185,10 @@ regexp: check_pycket_c_linklets check_plthome
 	$(MAKE) -s -C linklet-extractor regexp
 	@echo "Done. regexp is at: $(CURDIR)/regexp.fasl"
 
+regexp-json: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor regexp-json
+	@echo "Done. regexp json is at: $(CURDIR)/regexp.rktl.linklet"
+
 fasl:
 	$(MAKE) -s -C linklet-extractor fasl
 	@echo "Done. fasl is at: $(CURDIR)/fasl.fasl"
