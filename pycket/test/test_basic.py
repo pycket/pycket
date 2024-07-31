@@ -196,8 +196,8 @@ def test_bools():
 
 @pytest.mark.skipif(pytest.config.load_expander, reason="they're in racket/bool")
 def test_racket_bool():
-    run ("true", w_true, stdlib=True)
-    run ("false", w_false, stdlib=True)
+    run("true", w_true, extra="(require racket/bool)")
+    run("false", w_false, extra="(require racket/bool)")
 
 def test_lists():
     run ("null", w_null)
