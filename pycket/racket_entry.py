@@ -8,10 +8,10 @@ from pycket.util import console_log, LinkletPerf, linklet_perf, PerfRegion
 from pycket.prims.correlated import syntax_primitives
 from pycket.error import ExitException
 from rpython.rlib.debug import debug_start, debug_stop, debug_print
+from pycket.error import BootstrapError
 
 def locate_linklet(file_name):
     import os
-    from pycket.error import SchemeException
 
     env_vars = os.environ.keys()
     if "PYTHONPATH" not in env_vars:
@@ -33,24 +33,25 @@ def locate_linklet(file_name):
             file_path = up_file
             break
     else:
-        raise SchemeException("Can't locate the : %s" % file_name)
+        raise BootstrapError("locating linklet : %s" % file_name)
 
     return file_path
 
 def load_bootstrap_linklet(which_str, debug, is_it_expander=False, from_fasl=True):
-    from pycket.error import SchemeException
-
     with PerfRegion("%s-linklet" % which_str):
         console_log("Loading the %s linklet..." % which_str)
         linklet_file_path = locate_linklet("%s.rktl.linklet" % which_str)
         if from_fasl:
             try:
                 linklet_file_path = locate_linklet("%s.zo" % which_str)
-            except SchemeException:
+            except BootstrapError:
                 linklet_file_path = locate_linklet("%s.fasl" % which_str)
 
         # load the linklet
-        _instance = load_inst_linklet(linklet_file_path, debug, set_version=is_it_expander, from_fasl=from_fasl)
+        try:
+            _instance = load_inst_linklet(linklet_file_path, debug, set_version=is_it_expander, from_fasl=from_fasl)
+        except Exception as e:
+            raise BootstrapError("loading %s linklet: %s" % (which_str, e.message))
         _instance.expose_vars_to_prim_env(excludes=syntax_primitives)
 
         if is_it_expander:

@@ -35,20 +35,19 @@ instantiate_linklet = get_primitive("instantiate-linklet")
 
 # This is where all the work happens
 
-try:
-    if not pytest.config.new_pycket:
-        w_global_config.set_linklet_mode_off()
 
-    if pytest.config.load_expander:
-        w_global_config.set_config_val('expander_loaded', 1)
-        # get the expander
-        print("Loading and initializing the expander")
-        initiate_boot_sequence([], False)
-        # load the '#%kernel
-        print("(namespace-require '#%%kernel)")
-        namespace_require_kernel()
-except:
-    pass
+if not pytest.config.new_pycket:
+    w_global_config.set_linklet_mode_off()
+
+if pytest.config.load_expander:
+    w_global_config.set_config_val('expander_loaded', 1)
+    # get the expander
+    print("Loading and initializing the expander")
+    initiate_boot_sequence([], False)
+    # load the '#%kernel
+    print("(namespace-require '#%%kernel)")
+    namespace_require_kernel()
+
 
 def run_sexp(body_sexp_str, v=None, just_return=False, extra="", equal_huh=False, expect_to_fail=False):
     linkl_str = "(linklet () () %s %s)" % (extra, body_sexp_str)

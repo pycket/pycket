@@ -48,6 +48,9 @@ class SchemeException(Exception):
             result += "\n  in module: %s" % context.full_module_path()
         return result
 
+class BootstrapError(SchemeException):
+    pass
+
 class UserException(SchemeException):
     _attrs_ = ["msg"]
     _immutable_ = True
