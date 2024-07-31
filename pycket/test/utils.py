@@ -117,7 +117,7 @@ def string_to_sexp(sexp):
             s = W_String.make(value[1:-1])
             out.append(s)
         elif term == 'char':
-            c = W_Character(value[2:])
+            c = W_Character(unicode(value[2:], 'utf-8'))
             out.append(c)
         elif term == 'bool':
             if value in ['#t', '#T', 'true', '#true']:
