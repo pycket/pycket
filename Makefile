@@ -17,7 +17,7 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 PYFILES := $(shell find .  -maxdepth 1 -name '*.py' -type f) $(shell find pycket  -name '*.py' -type f)
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets
-.PHONY: test coverage test-expander test-one test-one-expander test-mark test-mark-expander test-random
+.PHONY: test coverage test-expander test-one test-one-expander test-mark test-mark-expander test-random test-old-single test-old-mark test-new-no-expander-single test-new-no-expander-mark test-new-with-expander-single test-new-with-expander-mark
 .PHONY: expander regexp fasl setup-local-racket
 
 PYPY_EXECUTABLE := $(shell which pypy)
@@ -209,11 +209,41 @@ fasl-bytecode:
 test:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py
 
+# To run a single test module
+# make test-old-single test_basic.py
+test-old-single:
+	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py -k $(filter-out $@,$(MAKECMDGOALS))
+
+# To run only the tests marked with a given mark
+# make test-old-mark my-mark
+test-old-mark:
+	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py -m $(filter-out $@,$(MAKECMDGOALS))
+
 test-new-no-expander:
 	$(RUNINTERP) $(PYTEST) pycket --new --ignore=pycket/test/test_old_entry_point.py
 
+# To run a single test module
+# make test-new-no-expander-single test_basic.py
+test-new-no-expander-single:
+	$(RUNINTERP) $(PYTEST) pycket --new --ignore=pycket/test/test_old_entry_point.py -k $(filter-out $@,$(MAKECMDGOALS))
+
+# To run only the tests marked with a given mark
+# make test-new-no-expander-mark my-mark
+test-new-no-expander-mark:
+	$(RUNINTERP) $(PYTEST) pycket --new --ignore=pycket/test/test_old_entry_point.py -m $(filter-out $@,$(MAKECMDGOALS))
+
 test-new-with-expander:
 	$(RUNINTERP) $(PYTEST) pycket --new --use-expander --ignore=pycket/test/test_old_entry_point.py
+
+# To run a single test module
+# make test-new-with-expander-single test_basic.py
+test-new-with-expander-single:
+	$(RUNINTERP) $(PYTEST) pycket --new --use-expander --ignore=pycket/test/test_old_entry_point.py -k $(filter-out $@,$(MAKECMDGOALS))
+
+# To run only the tests marked with a given mark
+# make test-new-with-expander-mark my-mark
+test-new-with-expander-mark:
+	$(RUNINTERP) $(PYTEST) pycket --new --use-expander --ignore=pycket/test/test_old_entry_point.py -m $(filter-out $@,$(MAKECMDGOALS))
 
 # test-random: #$(PYFILES)
 # 	@echo "Not yet implemented"
@@ -223,3 +253,7 @@ coverage: pycket/test/coverage_report .coverage
 pycket/test/coverage_report .coverage: $(PYFILES)
 	$(PYTEST) pycket --cov pycket \
 		--cov-report=term-missing --cov-report=html
+
+# Prevent make from trying to interpret arguments as targets
+%:
+	@:
