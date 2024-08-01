@@ -666,3 +666,11 @@ def variable_set_bang(w_var, w_val, constance):
         raise SchemeException("Reference to an uninitialized variable : %s" % w_var.name.tostring())
     do_var_set_bang(w_var, w_val, constance)
     return w_void
+
+@expose("linklet-add-target-machine-info", [W_Linklet, W_Linklet])
+def linklet_add_target_machine_info(linkl, from_linklet):
+    """linklet-add-target-machine-info injects target-specific information from the from_linklet into the linkl to be used in cross-compilation.
+
+    A linklet implementation may support information for multiple target machines within a linklet (which we don't in Pycket, hence the no-op).
+    """
+    return linkl
