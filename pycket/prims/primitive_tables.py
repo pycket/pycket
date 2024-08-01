@@ -561,6 +561,30 @@ schemify_hooks = [
     "variable-set!/check-undefined", "variable-set!"
 ]
 
+terminal_table = [
+    "terminal-init",
+    "terminal-read-char",
+    "terminal-write-char",
+    "terminal-char-width",
+    "terminal-set-color",
+    "terminal-flush",
+    "terminal-get-screen-size",
+    "terminal-raw-mode",
+    "terminal-postoutput-mode",
+    "terminal-signal-mode",
+    "terminal-automargin-mode",
+    "terminal-nanosleep",
+    "terminal-pause",
+    "terminal-get-clipboard",
+    "terminal-move-cursor",
+    "terminal-clear",
+    "terminal-scroll-reverse",
+    "terminal-bell",
+    "terminal-carriage-return",
+    "terminal-line-feed"
+]
+
+
 # The reason for make_primitive_table is for turning these into list
 # of symbols (to avoid making new objects everytime we look things up)
 
@@ -574,9 +598,9 @@ network = make_primitive_table(network_str)
 foreign = make_primitive_table(foreign_str)
 linklet = make_primitive_table(linklet_str)
 unsafe = make_primitive_table(unsafe_str)
-# FIXME : make it a #%pycket-extra, instead of piggybacking on the #%kernel
 kernel = make_primitive_table(kernel_str)
 pycket = make_primitive_table(pycket_extra_str + schemify_hooks)
+terminal = make_primitive_table(terminal_table)
 
 select_prim_table = {W_Symbol.make("#%linklet"): linklet,
                      W_Symbol.make("#%kernel"): kernel,
@@ -588,7 +612,8 @@ select_prim_table = {W_Symbol.make("#%linklet"): linklet,
                      W_Symbol.make("#%flfxnum"): flfxnum,
                      W_Symbol.make("#%extfl"): extfl,
                      W_Symbol.make("#%pycket"): pycket,
-                     W_Symbol.make("#%network"): network}
+                     W_Symbol.make("#%network"): network,
+                     W_Symbol.make("#%terminal"): terminal}
 
 # Lists of actual functions indexed by the names above
 prim_table_cache = {}
@@ -604,10 +629,11 @@ all_prims = linklet_str + \
     extfl_str + \
     pycket_extra_str + \
     schemify_hooks + \
-    network_str
+    network_str + \
+    terminal_table
 
 if DEBUG:
-    print("\n\nPriming all primitives in : linklet + kernel + paramz + unsafe + foreign + futures + place + flfxnum + extfl + network\n")
+    print("\n\nPriming all primitives in : linklet + kernel + paramz + unsafe + foreign + futures + place + flfxnum + extfl + network + terminal\n")
 
 for prim_name_str in all_prims:
     define_nyi(prim_name_str)
@@ -624,9 +650,10 @@ def report_undefined_prims():
     flfxnum = get_undef_prims_in(flfxnum_str)
     extfl = get_undef_prims_in(extfl_str)
     network = get_undef_prims_in(network_str)
+    terminal = get_undef_prims_in(terminal_table)
 
     total = linklets + kernel + paramz + unsafe + foreign + \
-        futures + places + flfxnum + extfl + network
+        futures + places + flfxnum + extfl + network + terminal
 
     report = """
     linklets   : %s -- %s
@@ -639,17 +666,20 @@ def report_undefined_prims():
     flfxnum    : %s -- %s
     extfl      : %s -- %s
     network    : %s -- %s
+    terminal   : %s -- %s
     TOTAL      : %s
     """ % (len(linklets), linklets,
-           len(kernel), kernel,
-           len(paramz), paramz,
-           len(unsafe), unsafe,
-           len(foreign), foreign,
-           len(futures), futures,
-           len(places), places,
-           len(flfxnum), flfxnum,
-           len(extfl), extfl,
-           len(network), network, len(total))
+            len(kernel), kernel,
+            len(paramz), paramz,
+            len(unsafe), unsafe,
+            len(foreign), foreign,
+            len(futures), futures,
+            len(places), places,
+            len(flfxnum), flfxnum,
+            len(extfl), extfl,
+            len(network), network,
+            len(terminal), terminal,
+            len(total))
 
     print(report)
     return 0
