@@ -552,8 +552,11 @@ def raise_exception(v, barrier, env, cont):
 
 expose("raise", [values.W_Object, default(values.W_Object, values.w_true)], simple=False)(raise_exception)
 
-@expose("raise-argument-error", arity=Arity.geq(3))
 def raise_arg_err(args):
+    """raise_arg_err is used to expose:
+
+    raise-argument-error, raise-argument-error*
+    """
     nargs = len(args)
     if nargs < 3:
         raise SchemeException("raise-argument-error: expected at least 3 arguments")
@@ -581,8 +584,30 @@ def raise_arg_err(args):
         raise SchemeException("%s: contract violation\n  expected: %s\n  given: %s\n argument position: %s"%(
              name.utf8value, expected.as_str_utf8(), v.tostring(), value + 1))
 
-@expose("raise-arguments-error", arity=Arity.geq(2))
+expose("raise-argument-error",  arity=Arity.geq(3))(raise_arg_err)
+
+@expose("raise-argument-error*", arity=Arity.geq(4))
+def raise_arg_err_star(args):
+    """(raise-argument-error* name realm expected v) → any
+
+    name : symbol?
+    realm : symbol?
+    expected : string?
+    v : any/c
+
+    Like raise-argument-error, but using the given realm for error-message adjustments.
+    Ignoring the realm argument in Pycket. TODO(cderici - 8/1/2024): Can be added if a proper error adjustment is needed/implemented.
+    """
+    # Call raise_arg_err with all the arguments except the second arg (realm)
+    return raise_arg_err(args[:1] + args[2:])
+
 def raise_args_err(args):
+    """
+    raise_args_err is used to expose:
+
+    raise-arguments-error, raise-arguments-error*
+    """
+
     name = args[0]
     assert isinstance(name, values.W_Symbol)
     message = args[1]
@@ -602,6 +627,27 @@ def raise_args_err(args):
         error_msg.append("%s: %s\n" % (field.as_str_utf8(), v.tostring()))
         i += 2
     raise SchemeException(error_msg.build())
+
+expose("raise-arguments-error", arity=Arity.geq(2))(raise_args_err)
+
+@expose("raise-arguments-error*", arity=Arity.geq(3))
+def raise_args_err_star(args):
+    """(raise-arguments-error*	name
+                                realm
+                                message
+                                field
+                                v ...
+                                ...) → any
+    name : symbol?
+    realm : symbol?
+    message : string?
+    field : string?
+    v : any/c
+
+    Like raise-arguments-error, but using the given realm for error-message adjustments.
+    """
+    # Call raise_args_err with all the arguments except the second arg (realm)
+    return raise_args_err(args[:1] + args[2:])
 
 @expose("raise-mismatch-error", arity=Arity.geq(3))
 def raise_mismatch_err(args):
