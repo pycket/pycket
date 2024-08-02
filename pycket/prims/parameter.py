@@ -102,6 +102,10 @@ expose_val("error-print-source-location", values_parameter.W_Parameter(values.w_
 
 expose_val("port-count-lines-enabled", values_parameter.W_Parameter(values.w_false))
 
+# error-syntax->string-handler determines the error syntax conversion handler,
+# which is used to print a syntax form that is embedded in an error message
+expose_val("error-syntax->string-handler", values_parameter.W_Parameter(values.w_false))
+
 READ_TRUE_PARAMS = """
 read-accept-reader
 read-accept-lang
