@@ -328,10 +328,13 @@ def uses_same_eq_comparison(hash_1, hash_2):
     if hash_2.is_impersonator() or hash_2.is_chaperone():
         h_2 = hash_2.get_proxied()
 
+    # equal?
     if isinstance(h_1, W_EqualHashTable):
         return isinstance(h_2, W_EqualHashTable)
+    # eq?
     elif isinstance(h_1, W_EqMutableHashTable) or isinstance(h_1, W_EqImmutableHashTable):
         return isinstance(h_2, W_EqMutableHashTable) or isinstance(h_2, W_EqImmutableHashTable)
+    # eqv?
     elif isinstance(h_1, W_EqvMutableHashTable) or isinstance(h_1, W_EqvImmutableHashTable):
         return isinstance(h_2, W_EqvMutableHashTable) or isinstance(h_2, W_EqvImmutableHashTable)
     else:
@@ -342,6 +345,27 @@ def hash_keys_subset_huh(hash_1, hash_2, env, cont):
     if not uses_same_eq_comparison(hash_1, hash_2):
         raise SchemeException("hash-keys-subset?: given hash tables do not use the same key comparison -- first table : %s - second table: %s" % (hash_1.tostring(), hash_2.tostring()))
     return hash_keys_subset_huh_loop(hash_1.hash_items(), hash_2, 0, env, cont)
+
+@continuation
+def hash_ref_key_cont(default, key, env, cont, _vals):
+    """Continuation used in hash-ref-key
+    Returns the key (as opposed to hash-ref returning the value).
+    """
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    if val is not w_missing:
+        return return_value(key, env, cont)
+    if default is None:
+        raise SchemeException("key %s not found"%key.tostring())
+    if default.iscallable():
+        return default.call([], env, cont)
+    return return_value(default, env, cont)
+
+@expose("hash-ref-key", [W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
+def hash_ref_key(ht, key, default, env, cont):
+    """Returns the key held by ht that is equivalent to key according to ht's key-comparison function.
+    """
+    return ht.hash_ref(key, env, hash_ref_key_cont(default, key, env, cont))
 
 @continuation
 def hash_copy_ref_cont(keys, idx, src, new, env, cont, _vals):

@@ -129,6 +129,22 @@ def test_hash_simple(doctest):
     #t
     """
 
+def test_hash_ref_key(doctest):
+    """
+    ! (define original-key "hello")
+    ! (define key-copy (string-copy original-key))
+    ! (define table (make-hash))
+    ! (hash-set! table original-key 'value)
+    > (equal? original-key key-copy)
+    #t
+    > (eq? original-key key-copy)
+    #f
+    > (eq? (hash-ref-key table "hello") original-key)
+    #t
+    > (eq? (hash-ref-key table "hello") key-copy)
+    #f
+    """
+
 def test_hash_immutable(doctest):
     """
     > (immutable? (hash))

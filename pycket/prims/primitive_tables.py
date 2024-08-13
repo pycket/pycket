@@ -316,7 +316,7 @@ kernel_str = [
     "hash-equal?", "hash-for-each", "hash-iterate-first",
     "hash-iterate-key", "hash-iterate-key+value", "hash-iterate-next",
     "hash-iterate-pair", "hash-iterate-value", "hash-keys-subset?",
-    "hash-map", "hash-placeholder?", "hash-ref",
+    "hash-map", "hash-placeholder?", "hash-ref", "hash-ref-key",
     "hash-remove", "hash-remove!", "hash-set",
     "hash-set!", "hash-weak?", "hash-strong?", "hash-ephemeron?", "hash?",
     "hasheq", "hasheqv", "imag-part",
