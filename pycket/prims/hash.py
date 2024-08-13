@@ -39,8 +39,8 @@ def hash_iterate_first(ht):
 def hash_iterate_next(ht, pos):
     return ht.hash_iterate_next(pos)
 
-@objectmodel.specialize.arg(4)
-def hash_iter_ref(ht, n, env, cont, returns):
+@objectmodel.specialize.arg(5)
+def hash_iter_ref(ht, n, bad_index_v, env, cont, returns):
     from pycket.interpreter import return_value, return_multi_vals
     try:
         w_key, w_val = ht.get_item(n)
@@ -55,30 +55,30 @@ def hash_iter_ref(ht, n, env, cont, returns):
             vals = values.W_Cons.make(w_key, w_val)
             return return_value(vals, env, cont)
         assert False, "unknown return code"
-    except KeyError:
-        raise SchemeException("hash-iterate-key: invalid position")
-    except IndexError:
+    except (KeyError, IndexError):
+        if bad_index_v is not None:
+            return return_value(bad_index_v, env, cont)
         raise SchemeException("hash-iterate-key: invalid position")
 
 @expose(prefix_hash_names("hash-iterate-key"),
-        [W_HashTable, values.W_Fixnum], simple=False)
-def hash_iterate_key(ht, pos, env, cont):
-    return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY)
+        [W_HashTable, values.W_Fixnum, default(values.W_Object, None)], simple=False)
+def hash_iterate_key(ht, pos, bad_index_v, env, cont):
+    return hash_iter_ref(ht, pos.value, bad_index_v, env, cont, returns=_KEY)
 
 @expose(prefix_hash_names("hash-iterate-value"),
-        [W_HashTable, values.W_Fixnum], simple=False)
-def hash_iterate_value(ht, pos, env, cont):
-    return hash_iter_ref(ht, pos.value, env, cont, returns=_VALUE)
+        [W_HashTable, values.W_Fixnum, default(values.W_Object, None)], simple=False)
+def hash_iterate_value(ht, pos, bad_index_v, env, cont):
+    return hash_iter_ref(ht, pos.value, bad_index_v, env, cont, returns=_VALUE)
 
 @expose(prefix_hash_names("hash-iterate-key+value"),
-        [W_HashTable, values.W_Fixnum], simple=False)
-def hash_iterate_key_value(ht, pos, env, cont):
-    return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY_AND_VALUE)
+        [W_HashTable, values.W_Fixnum, default(values.W_Object, None)], simple=False)
+def hash_iterate_key_value(ht, pos, bad_index_v, env, cont):
+    return hash_iter_ref(ht, pos.value, bad_index_v, env, cont, returns=_KEY_AND_VALUE)
 
 @expose(prefix_hash_names("hash-iterate-pair"),
-        [W_HashTable, values.W_Fixnum], simple=False)
-def hash_iterate_pair(ht, pos, env, cont):
-    return hash_iter_ref(ht, pos.value, env, cont, returns=_PAIR)
+        [W_HashTable, values.W_Fixnum, default(values.W_Object, None)], simple=False)
+def hash_iterate_pair(ht, pos, bad_index_v, env, cont):
+    return hash_iter_ref(ht, pos.value, bad_index_v, env, cont, returns=_PAIR)
 
 @expose("hash-for-each", [W_HashTable, procedure, default(values.W_Object, values.w_false)], simple=False)
 def hash_for_each(ht, f, try_order, env, cont):
