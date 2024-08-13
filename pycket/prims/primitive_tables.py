@@ -266,6 +266,7 @@ kernel_str = [
     "continuation-mark-set->list*", "continuation-mark-set->context", "continuation-prompt-available?",
     "continuation-prompt-tag?", "continuation?", "copy-file",
     "cos", "current-code-inspector", "current-command-line-arguments",
+    "current-compile-realm",
     "current-continuation-marks", "current-custodian", "current-directory",
     "current-directory-for-user", "current-drive", "current-environment-variables",
     "current-error-port", "current-evt-pseudo-random-generator", "current-force-delete-permissions",
