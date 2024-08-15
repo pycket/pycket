@@ -1737,8 +1737,13 @@ def port_count_lines_bang(p):
     return values.w_void
 
 # FIXME: implementation
-@expose("port-counts-lines?", [values.W_Port])
+@expose("port-counts-lines?", [values.W_Object])
 def port_count_lines_huh(p):
+    from pycket.prims.general import struct_port_huh
+    if not isinstance(p, values.W_Port) and \
+        (isinstance(p, values_struct.W_RootStruct) and not struct_port_huh(p)):
+        raise ContractException("port-counts-lines?: expected port, got : %s" % p.tostring())
+
     return values.w_true
 
 def is_path_string(path):
