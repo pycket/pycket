@@ -995,6 +995,16 @@ class __extend__(values.W_Rational):
 
     def arith_div_same(self, other):
         assert isinstance(other, values.W_Rational)
+        # To div, we take the inverse of "other" and multiply with self. When a
+        # W_Rational is contstructed, the denom always needs to be positive. If
+        # other._numerator < 0, swap the signs before multiplying, so when we
+        # construct the denominator of the result the sign is not carried over
+        # the the denominator of the result. e.g. -2/3 div -5/1
+        if other._numerator.get_sign() == -1:
+            return values.W_Rational.frombigint(
+                self._numerator.mul(other._denominator.int_mul(-1)),
+                self._denominator.mul(other._numerator.int_mul(-1)))
+
         return values.W_Rational.frombigint(
             self._numerator.mul(other._denominator),
             self._denominator.mul(other._numerator))
