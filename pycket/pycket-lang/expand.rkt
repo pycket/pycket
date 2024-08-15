@@ -320,6 +320,24 @@
     (expanded-module)
     (list (symbol->string p))))
 
+;; convert-extflonum is used when (not (extflonum-available?))
+;; to manually convert an extflonum into an inexact number
+(define (convert-extflonum exflnum lex v/loc)
+  (if (extflonum-available?)
+    (extfl->inexact exflnum)
+    (let* ([num-str (format "~a" exflnum)]
+           [trimmed (regexp-replace #rx"[tT].*$" num-str "")]
+           [newnum (string->number trimmed)])
+      (cond
+        [(false? newnum)
+          (error "unable to convert extflonum: ~a" exflnum)]
+        [(string? newnum)
+          (error (format "unable to convert extflonum: ~a \n~v" exflnum newnum))]
+        [else
+         (to-json*
+          (datum->syntax lex (exact->inexact newnum))
+          v/loc)]))))
+
 (define (to-json* v v/loc)
   (define (proper l)
     (match l
@@ -524,7 +542,7 @@
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
     ;; These numeric types seem excessive
     [_ #:when (extflonum? (syntax-e v))
-       (hash 'number (num (extfl->inexact (syntax-e v))))]
+       (convert-extflonum (syntax-e v) #'lex v/loc)]
     [_ #:when (number? (syntax-e v))
        (hash 'number (num (syntax-e v)))]
     [_ #:when (char? (syntax-e v))
