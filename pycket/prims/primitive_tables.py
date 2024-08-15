@@ -311,6 +311,7 @@ kernel_str = [
     "flush-output", "for-each", "format",
     "fprintf", "gcd", "gensym",
     "get-output-bytes", "get-output-string", "global-port-print-handler",
+    "get-installation-name",
     "handle-evt", "handle-evt?", "hash",
     "hash-clear", "hash-clear!", "hash-copy",
     "hash-count", "hash-eq?", "hash-eqv?",

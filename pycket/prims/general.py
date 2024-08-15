@@ -2165,3 +2165,7 @@ def make_channel():
 @expose("primitive-lookup", [values.W_Symbol], simple=True)
 def primitive_lookup(sym):
     return prim_env.get(sym, values.w_false)
+
+@expose("get-installation-name", [default(values.W_Object, None)])
+def get_installation_name(config):
+    return values_string.W_String.make("development")
