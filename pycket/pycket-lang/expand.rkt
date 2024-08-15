@@ -178,6 +178,10 @@
     [((~datum for-meta) _ p ...) '()]
     [((~datum just-meta) 0 p ...)
      (append-map require-json (syntax->list #'(p ...)))]
+    [((~datum for-space) _ p ...)
+     (append-map require-json (syntax->list #'(p ...)))]
+    [((~datum just-space) _ p ...)
+     (append-map require-json (syntax->list #'(p ...)))]
     [((~datum just-meta) _ p ...) '()]
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
     [((~datum file) s:str) (list (resolve-module (syntax-e #'s)))]
@@ -500,7 +504,7 @@
                                           (identifier-binding #'i (current-phase))
                                           (let-values (((m b) (module-path-index-split src-mod))) m)
                                           (let-values (((m b) (module-path-index-split src-mod))) b)
-                                          (current-module)))                                                   
+                                          (current-module)))
                                        (cons (full-path-string (car src)) (cdr src)))]
                                     [(path? src)
                                      (list (full-path-string src))]
