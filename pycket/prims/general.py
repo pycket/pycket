@@ -728,8 +728,8 @@ def procedure_reduce_arity(proc, arity, e):
     #proc.set_arity(arity)
     return proc
 
-@expose("procedure-reduce-arity-mask", [procedure, values.W_Fixnum, default(values.W_Object, values.w_false)])
-def procedure_reduce_arity_mask(proc, mask, name):
+@expose("procedure-reduce-arity-mask", [procedure, values.W_Fixnum, default(values.W_Object, values.w_false), default(values.W_Symbol, values.W_Symbol.make("racket"))])
+def procedure_reduce_arity_mask(proc, mask, name, realm):
     import math
     return proc # FIXME: do this without mutation
 
