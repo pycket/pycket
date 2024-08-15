@@ -571,20 +571,20 @@ def test_gcd():
 
     for a, b, r in [(5, 0, 5),
                     (2**1000, 0, 2**1000),
-                    (2**1000 + 1, 3, 1),
+                    (2**1000 + 1, 3, 1L),
                     (4, 2, 2),
                     (3*3*5*7*11*2**10, 2**7*3*7*11*13, 2**7*3*7*11)]:
         assert gcd_long(a, b) == r
         assert gcd_long(b, a) == r
         if b:
             assert gcd_long(a, -b) == r
-            assert gcd_long(-a, -b) == (-r if a else r)
+            assert gcd_long(-a, -b) == r
             assert gcd_long(a, b) == r
         else:
             assert gcd_long(-a, b) == r
         if a:
             assert gcd_long(b, -a) == r
-            assert gcd_long(-b, -a) == (-r if b else r)
+            assert gcd_long(-b, -a) == r
             assert gcd_long(-b, a) == r
         else:
             assert gcd_long(-b, a) == r
@@ -600,8 +600,8 @@ def test_gcd_random():
         # Commutative
         assert a.gcd(b) == b.gcd(a)
         # Idempotent
-        assert a.gcd(a) == a
-        assert b.gcd(b) == b
+        assert a.gcd(a) == a.abs()
+        assert b.gcd(b) == b.abs()
         # Associative
         assert a.gcd(b.gcd(c)) == a.gcd(b).gcd(c)
 
