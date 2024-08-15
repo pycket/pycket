@@ -128,6 +128,7 @@ read-square-bracket-with-tag
 read-curly-brace-with-tag
 read-cdot
 read-single-flonum
+read-syntax-accept-graph
 """
 
 for name in READ_TRUE_PARAMS.split():
