@@ -26,13 +26,13 @@ def elidable_iff(pred):
 @loop_label
 def equal_hash_ref_loop(data, idx, key, env, cont):
     from pycket.interpreter import return_value
-    from pycket.prims.equal import equal_func_unroll_n, EqualInfo
+    from pycket.prims.equal import equal_func_unroll_n, EqualInfo, EQUAL_HUH
     if idx >= len(data):
         return return_value(w_missing, env, cont)
     k, v = data[idx]
     info = EqualInfo.BASIC_SINGLETON
     cont = catch_ref_is_equal_cont(data, idx, key, v, env, cont)
-    return equal_func_unroll_n(k, key, info, env, cont, 5)
+    return equal_func_unroll_n(k, key, info, EQUAL_HUH, env, cont, 5)
 
 @continuation
 def catch_ref_is_equal_cont(data, idx, key, v, env, cont, _vals):
