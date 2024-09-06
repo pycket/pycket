@@ -10,6 +10,7 @@ from pycket.prims.expose import expose, procedure
 from rpython.rlib        import jit, objectmodel
 
 from pycket.hash.base   import W_HashTable
+from pycket.hash.equal import EQUAL_HUH, EQUAL_ALWAYS
 
 # All of my hate...
 # Configuration table for information about how to perform equality checks.
@@ -29,9 +30,6 @@ class EqualInfo(object):
 EqualInfo.BASIC_SINGLETON = EqualInfo(EqualInfo.BASIC)
 EqualInfo.CHAPERONE_SINGLETON = EqualInfo(EqualInfo.CHAPERONE)
 EqualInfo.IMPERSONATOR_SINGLETON = EqualInfo(EqualInfo.IMPERSONATOR)
-
-EQUAL_HUH = "equal?"
-EQUAL_ALWAYS = "equal-always"
 
 @expose("equal?", [values.W_Object] * 2, simple=False)
 def equalp(a, b, env, cont):
