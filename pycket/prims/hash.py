@@ -9,7 +9,7 @@ from pycket.hash.simple  import (
     W_EqvImmutableHashTable, W_EqImmutableHashTable,
     make_simple_mutable_table, make_simple_mutable_table_assocs,
     make_simple_immutable_table, make_simple_immutable_table_assocs)
-from pycket.hash.equal   import W_EqualHashTable
+from pycket.hash.equal   import W_EqualHashTable, W_EqualAlwaysHashTable
 from pycket.impersonators.baseline import W_ImpHashTable, W_ChpHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
@@ -184,6 +184,14 @@ def hash(args):
     vals = [args[i] for i in range(1, len(args), 2)]
     return W_EqualHashTable(keys, vals, immutable=True)
 
+@expose("hashalw")
+def hash(args):
+    if len(args) % 2 != 0:
+        raise SchemeException("hashalw: key does not have a corresponding value")
+    keys = [args[i] for i in range(0, len(args), 2)]
+    vals = [args[i] for i in range(1, len(args), 2)]
+    return W_EqualAlwaysHashTable(keys, vals, immutable=True)
+
 @expose("hasheq")
 def hasheq(args):
     if len(args) % 2 != 0:
@@ -203,6 +211,10 @@ def hasheqv(args):
 @expose("make-hash", [default(values.W_List, values.w_null)])
 def make_hash(pairs):
     return W_EqualHashTable(*from_assocs(pairs, "make-hash"))
+
+@expose("make-hashalw", [default(values.W_List, values.w_null)])
+def make_hash(pairs):
+    return W_EqualAlwaysHashTable(*from_assocs(pairs, "make-hashalw"))
 
 @expose("make-hasheq", [default(values.W_List, values.w_null)])
 def make_hasheq(pairs):

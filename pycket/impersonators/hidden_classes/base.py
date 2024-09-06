@@ -44,7 +44,7 @@ def add_impersonator_counts(cls):
     def callback(config, env):
         impersonators = cls.impersonators.value
         chaperones    = cls.chaperones.value
-        print "%s(impersonators=%d, chaperones=%d)" % (name, impersonators, chaperones)
+        print("%s(impersonators=%d, chaperones=%d)" % (name, impersonators, chaperones))
     register_post_run_callback(callback)
 
     counting_init.__name__ = old_init.__name__

@@ -14,7 +14,7 @@ from pycket import values_regex
 from pycket import vector as values_vector
 from pycket.error import SchemeException, UserException
 from pycket.foreign import W_CPointer, W_CType
-from pycket.hash.equal import W_EqualHashTable
+from pycket.hash.equal import W_EqualHashTable, W_EqualAlwaysHashTable
 from pycket.hash.base import W_HashTable
 from pycket.hash.simple import (W_EqImmutableHashTable, W_EqvImmutableHashTable, W_EqMutableHashTable, W_EqvMutableHashTable, make_simple_immutable_table)
 from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
@@ -162,6 +162,13 @@ def hash_eq(obj):
     if isinstance(obj, imp.W_ImpHashTable) or isinstance(obj, imp.W_ChpHashTable):
         inner = obj.get_proxied()
     return values.W_Bool.make(isinstance(inner, W_EqualHashTable))
+
+@expose("hash-equal-always?", [values.W_Object], simple=True)
+def hash_eq(obj):
+    inner = obj
+    if isinstance(obj, imp.W_ImpHashTable) or isinstance(obj, imp.W_ChpHashTable):
+        inner = obj.get_proxied()
+    return values.W_Bool.make(isinstance(inner, W_EqualAlwaysHashTable))
 
 @expose("hash-eq?", [values.W_Object], simple=True)
 def hash_eq(obj):
@@ -1930,8 +1937,8 @@ def make_reader_graph(v):
         # setfield_gc(p29, p15, descr=<FieldP pycket.values.W_WrappedCons.inst__car 8 pure>)
         # setfield_gc(p29, ConstPtr(ptr32), descr=<FieldP pycket.values.W_WrappedCons.inst__cdr 16 pure>)
         if isinstance(v, values.W_WrappedCons):
-            print v._car.tostring()
-            print v._cdr.tostring()
+            print(v._car.tostring())
+            print(v._cdr.tostring())
     return builder.reader_graph_loop(v)
 
 @expose("procedure-specialize", [procedure])
@@ -1971,7 +1978,7 @@ def cache_configuration(index, proc, env, cont):
 
 @expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure], only_old=True)
 def make_readtable(parent, char, sym, proc):
-    print "making readtable", [parent, char, sym, proc]
+    print("making readtable", [parent, char, sym, proc])
     return values.W_ReadTable(parent, char, sym, proc)
 
 @expose("read/recursive", only_old=True)
@@ -1984,7 +1991,7 @@ def make_stub_predicates(names):
         @expose(name, [values.W_Object])
         def predicate(obj):
             if not objectmodel.we_are_translated():
-                print message
+                print(message)
             return values.w_false
         predicate.__name__ = "stub_predicate(%s)" % name
 
@@ -2024,7 +2031,7 @@ def __dummy__():
     from rpython.rlib.rbigint  import ONERBIGINT
     from rpython.rlib.runicode import str_decode_utf_8
     ex = ONERBIGINT.touint()
-    print ex
+    print(ex)
 
 
 @expose("primitive-table", [values.W_Object])
