@@ -562,6 +562,11 @@
              [ht* (syntax-e v/loc)])
          (parameterize ([quoted? #t])
            (cond
+             [(hash-equal-always? ht)
+              (hash 'hasheqalw-keys (to-json (datum->syntax #'lex (hash-keys ht))
+                                             (datum->syntax #'lex (hash-keys ht*)))
+                    'hasheqalw-vals (to-json (datum->syntax #'lex (hash-values ht))
+                                             (datum->syntax #'lex (hash-values ht*))))]
              [(hash-eq? ht)
               (hash 'hasheq-keys (to-json (datum->syntax #'lex (hash-keys ht))
                                           (datum->syntax #'lex (hash-keys ht*)))
