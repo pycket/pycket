@@ -348,6 +348,9 @@ def uses_same_eq_comparison(hash_1, hash_2):
     # equal?
     if isinstance(h_1, W_EqualHashTable):
         return isinstance(h_2, W_EqualHashTable)
+    # equal-always?
+    if isinstance(h_1, W_EqualAlwaysHashTable):
+        return isinstance(h_2, W_EqualAlwaysHashTable)
     # eq?
     elif isinstance(h_1, W_EqMutableHashTable) or isinstance(h_1, W_EqImmutableHashTable):
         return isinstance(h_2, W_EqMutableHashTable) or isinstance(h_2, W_EqImmutableHashTable)
