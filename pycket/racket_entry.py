@@ -51,7 +51,7 @@ def load_bootstrap_linklet(which_str, debug, is_it_expander=False, from_fasl=Tru
         try:
             _instance = load_inst_linklet(linklet_file_path, debug, set_version=is_it_expander, from_fasl=from_fasl)
         except Exception as e:
-            raise BootstrapError("loading %s linklet: %s" % (which_str, e.message))
+            raise BootstrapError("loading %s linklet: " % which_str)
         _instance.expose_vars_to_prim_env(excludes=syntax_primitives)
 
         if is_it_expander:
@@ -291,7 +291,7 @@ def dev_mode_entry_sexp(eval_sexp_str=None):
     linkl = None
     try:
         do_compile_linklet(linkl_sexp, W_Symbol.make("linkl"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
-    except Done, e:
+    except Done as e:
         linkl = e.values
 
     instantiate_linklet = get_primitive("instantiate-linklet")
