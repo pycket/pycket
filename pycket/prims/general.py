@@ -593,6 +593,10 @@ def sem_wait(s):
 def procedure_rename(p, n):
     return p
 
+@expose("procedure-realm", [procedure])
+def procedure_rename(p):
+    return parameter.REALM
+
 @expose("procedure->method", [procedure])
 def procedure_to_method(proc):
     # TODO provide a real implementation

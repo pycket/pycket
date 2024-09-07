@@ -102,7 +102,9 @@ expose_val("error-print-source-location", values_parameter.W_Parameter(values.w_
 
 expose_val("port-count-lines-enabled", values_parameter.W_Parameter(values.w_false))
 
-expose_val("current-compile-realm", values_parameter.W_Parameter(values.W_Symbol.make("racket")))
+REALM = values.W_Symbol.make("pycket")
+
+expose_val("current-compile-realm", values_parameter.W_Parameter(REALM))
 
 # error-syntax->string-handler determines the error syntax conversion handler,
 # which is used to print a syntax form that is embedded in an error message
