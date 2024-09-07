@@ -204,9 +204,9 @@ def _make_result_handling_func(func_arg_unwrap, simple):
             args = args[:-2]
             try:
                 result = func_arg_unwrap(*args)
-            except SchemeException, exn:
+            except SchemeException as exn:
                 return convert_runtime_exception(exn, env, cont)
-            except OSError, exn:
+            except OSError as exn:
                 return convert_os_error(exn, env, cont)
             if result is None:
                 result = values.w_void
@@ -235,9 +235,9 @@ def _make_result_handling_func(func_arg_unwrap, simple):
 
             try:
                 return func_arg_unwrap(*args)
-            except SchemeException, exn:
+            except SchemeException as exn:
                 return convert_runtime_exception(exn, env, cont)
-            except OSError, exn:
+            except OSError as exn:
                 return convert_os_error(exn, env, cont)
 
         return func_error_handling
@@ -380,7 +380,7 @@ def expose_val(name, w_v, only_old=False):
     from pycket.env import w_global_config as glob
 
     if only_old and (glob.are_we_in_linklet_mode() and glob.is_expander_loaded()):
-        return 
+        return
 
     sym = values.W_Symbol.make(name)
     if sym in prim_env and prim_env[sym].is_implemented():
@@ -398,5 +398,5 @@ def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):
             @expose(name, prim_args, nyi=False, *args, **kwargs)
             def nyi(a):
                 from pycket import values
-                print "NOT YET IMPLEMENTED: %s" % name
+                print("NOT YET IMPLEMENTED: %s" % name)
                 return values.w_false
