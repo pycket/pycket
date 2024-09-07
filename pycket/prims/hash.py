@@ -168,6 +168,11 @@ def make_immutable_hash(assocs):
     keys, vals = from_assocs(assocs, "make-immutable-hash")
     return W_EqualHashTable(keys, vals, immutable=True)
 
+@expose("make-immutable-hashalw", [default(values.W_List, values.w_null)])
+def make_immutable_hash(assocs):
+    keys, vals = from_assocs(assocs, "make-immutable-hash")
+    return W_EqualAlwaysHashTable(keys, vals, immutable=True)
+
 @expose("make-immutable-hasheq", [default(values.W_List, values.w_null)])
 def make_immutable_hasheq(assocs):
     return make_simple_immutable_table_assocs(W_EqImmutableHashTable, assocs, "make-immutable-hasheq")
