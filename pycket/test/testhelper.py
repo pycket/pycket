@@ -192,7 +192,7 @@ def make_linklet(linkl_str, l_name="test_linklet_sexp"):
     linkl_sexp = string_to_sexp(linkl_str)
     try:
         do_compile_linklet(linkl_sexp, values.W_Symbol.make(l_name), w_false, w_false, w_false, ToplevelEnv(), NilCont())
-    except Done, e:
+    except Done as e:
         l = e.values # W_Linklet
         return l
     raise Exception("do_compile_linklet didn't raised a Done exception")
@@ -354,7 +354,7 @@ def check_all(*snippets_returning_true, **kwargs):
         tail.append("  " * (i + 1) + "%s)" % i)
     code.append("  " * (i + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
-    print code
+    print(code)
     res = execute(code, extra=kwargs.get("extra", ""))
     if res is not values.w_true:
         assert 0, "%s returned a non-true value" % snippets_returning_true[res.value]
@@ -367,7 +367,7 @@ def check_none(*snippets_returning_false, **kwargs):
         tail.append("  " * (i + 1) + ")")
     code.append("  " * (i + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
-    print code
+    print(code)
     res = execute(code, extra=kwargs.get("extra", ""))
     if res is not values.w_true:
         assert 0, "%s returned a true value" % snippets_returning_false[res.value]
@@ -395,9 +395,9 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
     code.append("  " * (ind + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     try:
-        print code
+        print(code)
     except UnicodeEncodeError:
-        print code.encode("ascii", 'replace')
+        print(code.encode("ascii", 'replace'))
 
     extra = kwargs.get("extra", "")
     res = execute(code, extra=extra)
@@ -412,11 +412,11 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
 
 def dumb_repl():
     import sys
-    print "Simple repl. One expression per line. Run inside an empty linklet."
+    print("Simple repl. One expression per line. Run inside an empty linklet.")
     while True:
-        print "linklet> ",
+        print("linklet> ",)
         line = sys.stdin.readline()
         if not line:
             break
         result = run_sexp(line, just_return=True)
-        print result.tostring()
+        print(result.tostring())
