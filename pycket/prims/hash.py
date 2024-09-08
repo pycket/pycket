@@ -163,6 +163,12 @@ def make_weak_hash(assocs):
         return W_EqualHashTable([], [], immutable=False)
     return W_EqualHashTable(*from_assocs(assocs, "make-weak-hash"), immutable=False)
 
+@expose(["make-weak-hashalw", "make-ephemeron-hashalw"], [default(values.W_List, None)])
+def make_weak_hash(assocs):
+    if assocs is None:
+        return W_EqualAlwaysHashTable([], [], immutable=False)
+    return W_EqualAlwaysHashTable(*from_assocs(assocs, "make-weak-hashalw"), immutable=False)
+
 @expose("make-immutable-hash", [default(values.W_List, values.w_null)])
 def make_immutable_hash(assocs):
     keys, vals = from_assocs(assocs, "make-immutable-hash")

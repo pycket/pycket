@@ -360,6 +360,7 @@ kernel_str = [
     "make-struct-field-mutator", "make-struct-type", "make-struct-type-property",
     "make-thread-cell", "make-thread-group", "make-vector",
     "make-weak-box", "make-weak-hash", "make-weak-hasheq",
+    "make-weak-hashalw", "make-ephemeron-hashalw",
     "make-weak-hasheqv", "make-will-executor", "map",
     "max", "memq", "memv", "min", "modulo",
     "most-positive-fixnum", "most-negative-fixnum",
