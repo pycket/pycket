@@ -475,7 +475,10 @@ kernel_str = [
     "unquoted-printing-string-value", "values", "vector",
     "vector->immutable-vector", "vector->list", "vector->pseudo-random-generator",
     "vector->pseudo-random-generator!", "vector->values", "vector-cas!",
+    "vector-copy", "vector-append", "vector-set/copy",
     "vector-copy!", "vector-fill!", "vector-immutable",
+    "vector*-copy", "vector*-set/copy", "vector*-append",
+    "vector-extend", "vector*-extend",
     "vector-length", "vector-ref", "vector-set!",
     "vector*-length", "vector*-ref", "vector*-set!",
     "vector-set-performance-stats!", "vector?", "version",
@@ -502,7 +505,8 @@ kernel_str = [
     "mpair?", "mcons", "mcar",
     "mcdr", "set-mcar!", "set-mcdr!",
     "raise-argument-error", "raise-argument-error*", "raise-arguments-error", "raise-arguments-error*", "raise-result-error", "raise-result-error*",
-    "raise-mismatch-error", "raise-range-error", "raise-arity-error",
+    "raise-mismatch-error", "raise-range-error",
+    "raise-range-error*", "raise-arity-error",
     "raise-result-arity-error", "raise-arity-mask-error",
     "raise-type-error", "struct:exn", "exn",
     "error-message->adjusted-string", "error-contract->adjusted-string",
@@ -549,7 +553,12 @@ kernel_str = [
     "syntax-property-symbol-keys",
     "current-compile-target-machine",
     "compile-target-machine?",
-    "sha1-bytes", "sha224-bytes", "sha256-bytes"
+    "sha1-bytes", "sha224-bytes", "sha256-bytes",
+    # mutability
+    "immutable-string?", "immutable-bytes?", "immutable-vector?",
+    "immutable-hash?", "immutable-box?",
+    "mutable-string?", "mutable-bytes?", "mutable-vector?",
+    "mutable-hash?", "mutable-box?"
 ]
 
 pycket_extra_str = [
