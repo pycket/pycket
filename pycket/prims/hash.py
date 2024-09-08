@@ -425,7 +425,7 @@ def hash_copy(src, env, cont):
 expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
 
 # FIXME: not implemented
-@expose("equal-hash-code", [values.W_Object])
+@expose(["equal-hash-code", "equal-always-hash-code"], [values.W_Object])
 def equal_hash_code(v):
 
     # only for improper path cache entries

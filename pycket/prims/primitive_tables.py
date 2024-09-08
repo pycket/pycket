@@ -290,7 +290,7 @@ kernel_str = [
     "environment-variables-copy", "environment-variables-names", "environment-variables?",
     "eof", "eof-object?", "ephemeron?",
     "ephemeron-value", "eprintf", "eq-hash-code",
-    "eq?", "equal-hash-code", "equal-secondary-hash-code",
+    "eq?", "equal-hash-code", "equal-always-hash-code", "equal-secondary-hash-code",
     "equal?", "equal-always?", "equal?/recur", "eqv?",
     "eqv-hash-code", "error", "error-display-handler",
     "error-escape-handler", "error-print-context-length", "error-print-source-location",
