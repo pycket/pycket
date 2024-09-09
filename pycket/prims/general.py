@@ -1341,6 +1341,24 @@ def current_seconds():
 def curr_millis():
     return values.W_Flonum(time.time() * 1000.0)
 
+@expose("current-inexact-monotonic-milliseconds", [])
+def curr_monotonic_millis():
+    """
+        This is primarily used to measure elapsed time without worrying about system clock adjustments. So the exact value returned by this monotonic timer (elapsed time since unspecified start of a monotonic clock) is not relevant or meaningful.
+
+        Unfortunately we don't have the time.montonic() available in Python 2.
+    """
+    from rpython.rlib import rtime
+
+    with rtime.lltype.scoped_alloc(rtime.TIMESPEC) as a:
+        if rtime.c_clock_gettime(rtime.CLOCK_MONOTONIC_RAW, a) != 0:
+            raise OSError("unable to retrieve monotonic clock")
+        sec = float(rtime.rffi.getintfield(a, 'c_tv_sec'))
+        nsec = float(rtime.rffi.getintfield(a, 'c_tv_nsec'))
+
+        # seconds (* 1000.0 for milliseconds)
+        return values.W_Flonum((sec + nsec) * 0.000000001)
+
 @expose("seconds->date", [values.W_Fixnum])
 def seconds_to_date(s):
     # TODO: Proper implementation
