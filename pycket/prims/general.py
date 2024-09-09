@@ -1541,10 +1541,49 @@ def symbol_lt(args):
         head = t
     return values.w_true
 
-
 @expose("immutable?", [values.W_Object])
 def immutable(v):
     return values.W_Bool.make(v.immutable())
+
+@expose("immutable-string?", [values.W_Object])
+def immutable_string_huh(v):
+    return values.W_Bool.make(isinstance(v, values_string.W_ImmutableString))
+
+@expose("mutable-string?", [values.W_Object])
+def mutable_string_huh(v):
+    return values.W_Bool.make(isinstance(v, values_string.W_MutableString))
+
+@expose("mutable-hash?", [values.W_Object])
+def mutable_hash_huh(v):
+    return values.W_Bool.make(isinstance(v, W_HashTable) and not v.immutable())
+
+@expose("immutable-hash?", [values.W_Object])
+def immutable_hash_huh(v):
+    return values.W_Bool.make(isinstance(v, W_HashTable) and v.immutable())
+
+@expose("mutable-vector?", [values.W_Object])
+def mutable_vector_huh(v):
+    return values.W_Bool.make(isinstance(v, values_vector.W_Vector) and not v.immutable())
+
+@expose("immutable-vector?", [values.W_Object])
+def immutable_vector_huh(v):
+    return values.W_Bool.make(isinstance(v, values_vector.W_Vector) and v.immutable())
+
+@expose("mutable-box?", [values.W_Object])
+def mutable_box_huh(v):
+    return values.W_Bool.make(isinstance(v, values.W_MBox))
+
+@expose("immutable-box?", [values.W_Object])
+def immutable_box_huh(v):
+    return values.W_Bool.make(isinstance(v, values.W_IBox))
+
+@expose("mutable-bytes?", [values.W_Object])
+def mutable_bytes_huh(v):
+    return values.W_Bool.make(isinstance(v, values.W_MutableBytes))
+
+@expose("immutable-bytes?", [values.W_Object])
+def immutable_bytes_huh(v):
+    return values.W_Bool.make(isinstance(v, values.W_ImmutableBytes))
 
 @expose("make-thread-cell",
         [values.W_Object, default(values.W_Bool, values.w_false)])
