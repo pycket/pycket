@@ -19,7 +19,7 @@ from pycket              import vector as values_vector
 from pycket.hash.simple  import W_EqvImmutableHashTable, W_EqMutableHashTable, W_EqvMutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
 from pycket.hash.base    import W_HashTable
 from pycket              import impersonators as imp
-from pycket.hash.equal   import W_EqualHashTable
+from pycket.hash.equal   import W_EqualHashTable, W_EqualAlwaysHashTable
 from pycket              import values_string
 from pycket.error        import SchemeException, FSException, ContractException, ArityException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
@@ -65,7 +65,7 @@ class SpecialToken(Token):
 class DelimToken(Token):
     _attrs_ = ['str']
 
-    def __init__(self, s):
+    def __init__(self, s=""):
         self.str = s
 
 class LParenToken(DelimToken):
@@ -78,6 +78,21 @@ class DotToken(DelimToken):
     _attrs_ = []
 
 class HashToken(DelimToken):
+    _attrs_ = []
+
+class HashToken(DelimToken):
+    _attrs_ = []
+
+class HashEqToken(DelimToken):
+    _attrs_ = []
+
+class HashEqvToken(DelimToken):
+    _attrs_ = []
+
+class HashAlwToken(DelimToken):
+    _attrs_ = []
+
+class NoToken(DelimToken):
     _attrs_ = []
 
 # Some prebuilt tokens
@@ -178,25 +193,24 @@ def is_hash_token(s):
     if s.read(1) == "a" and s.read(1) == "s" and s.read(1) == "h":
         # we're on to something
         if s.peek() == "(":
-            return True
+            return HashToken()
         e = s.read(1)
         q = s.read(1)
         v = s.read(1)
         if e == "e" and q == "q" and v == "(":
             s.seek(7)
-            return True
+            return HashEqToken()
         elif e == "e" and q == "q" and v == "v" and s.peek() == "(":
-            return True
+            return HashEqvToken()
+        elif e == "a" and q == "l" and v == "w" and s.peek() == "(":
+            return HashAlwToken()
         else:
-            s.seek(1)
-            return False
+            return NoToken()
     else:
-        s.seek(1)
-        return False
+        return NoToken()
 
-def read_hash(stream, end):
+def read_hash(stream, token):
     # cursor is at the start (
-    where_we_are = stream.tell()
     elements = read_stream(stream)
 
     keys = []
@@ -209,11 +223,13 @@ def read_hash(stream, end):
         vals.append(c.cdr())
         elements = elements.cdr()
 
-    if where_we_are == 5:
+    if isinstance(token, HashToken):
         return W_EqualHashTable(keys, vals, immutable=True)
-    elif where_we_are == 7:
+    elif isinstance(token, HashAlwToken):
+        return W_EqualAlwaysHashTable(keys, vals, immutable=True)
+    elif isinstance(token, HashEqToken):
         return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
-    elif where_we_are == 8:
+    elif isinstance(token, HashEqvToken):
         return make_simple_immutable_table(W_EqvImmutableHashTable, keys, vals)
     else:
         raise SchemeException("read: cannot read hash in string : %s" % stream.tostring())
@@ -260,8 +276,11 @@ def read_token(f):
                 if c3 == "(":
                     return LParenToken("#s(")
                 raise SchemeException("bad token in read: %s reading %s" % (c+c2+c3, f))
-            if c2 == "h" and is_hash_token(f):
-                return HashToken("dummy")
+            if c2 == "h":
+                token = is_hash_token(f)
+                if not isinstance(token, NoToken):
+                    return token
+                f.seek(1)
             if c2 == "'":
                 return syntax_token
             if c2 == "`":
@@ -340,7 +359,7 @@ def read_stream(stream):
         v = read_stream(stream)
         return next_token.finish(v)
     if isinstance(next_token, HashToken):
-        v = read_hash(stream, next_token.str)
+        v = read_hash(stream, next_token)
         return v
     if isinstance(next_token, DelimToken):
         if not isinstance(next_token, LParenToken):
@@ -677,7 +696,7 @@ def close_port_cont(env, cont, _vals):
         return port._call_close(env, custom_port_close_cont(port, env, cont))
     try:
         port.close()
-    except OSError, err:
+    except OSError as err:
         #import pdb; pdb.set_trace()
         raise FSException("close-*-port: cannot close port : %s %s" % (port,err.strerror))
     return return_void(env, cont)
@@ -1383,6 +1402,20 @@ def write_hash_table(v, port, env):
         port.write(")")
     elif isinstance(ht, W_EqualHashTable):
         port.write("#hash(")
+        for k, v in ht.hash_items():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            if is_bundle(v):
+                write_linklet_bundle(v, port, env)
+            elif is_directory(v):
+                write_linklet_directory(v, port, env)
+            else:
+                write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+    elif isinstance(ht, W_EqualAlwaysHashTable):
+        port.write("#hashalw(")
         for k, v in ht.hash_items():
             port.write("(")
             write_loop(k, port, env)
