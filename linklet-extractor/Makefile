@@ -22,30 +22,41 @@ check_racket_installed:
 EXPANDER_DIR := $(PLTHOME)/racket/src/expander
 REGEXP_DIR := $(PLTHOME)/racket/src/regexp
 
+EXPANDER_FASL_FILENAME := expander.linklet.fasl
+EXPANDER_JSON_FILENAME := expander.linklet.json
+
+BOOTSTRAP_LINKLET_DIR := ../bootstrap-linklets
+
 expander: expander-sexp
-	$(RACKET) linklet-sexp-to-fasl.rkt --version --output ../expander.fasl compiled/expander.rktl
+	$(RACKET) linklet-sexp-to-fasl.rkt --version --output $(BOOTSTRAP_LINKLET_DIR)/$(EXPANDER_FASL_FILENAME) compiled/expander.rktl
 
 expander-json: expander-sexp
-	$(RACKET) linklet-sexp-to-json.rkt --output ../expander.rktl.linklet compiled/expander.rktl
+	$(RACKET) linklet-sexp-to-json.rkt --output $(BOOTSTRAP_LINKLET_DIR)/$(EXPANDER_JSON_FILENAME) compiled/expander.rktl
 
 expander-sexp:
 	$(ZUO) $(EXPANDER_DIR) expander-src
 
+FASL_FASL_FILENAME := fasl.linklet.fasl
+FASL_JSON_FILENAME := fasl.linklet.json
+
 fasl: fasl-sexp
-	$(RACKET) linklet-sexp-to-fasl.rkt --output ../fasl.fasl fasl.rktl
+	$(RACKET) linklet-sexp-to-fasl.rkt --output $(BOOTSTRAP_LINKLET_DIR)/$(FASL_FASL_FILENAME) fasl.rktl
 
 fasl-json: fasl-sexp
-	$(RACKET) linklet-sexp-to-json.rkt --output ../fasl.rktl.linklet fasl.rktl
+	$(RACKET) linklet-sexp-to-json.rkt --output $(BOOTSTRAP_LINKLET_DIR)/$(FASL_JSON_FILENAME) fasl.rktl
 
 fasl-sexp:
 	raco make -v $(EXPANDER_DIR)/bootstrap-run.rkt
 	$(RACKET) -t $(EXPANDER_DIR)/bootstrap-run.rkt -- -c compiled/cache-src ++knot read - -s -x -t fasl.rkt -o fasl.rktl
 
+REGEXP_FASL_FILENAME := regexp.linklet.fasl
+REGEXP_JSON_FILENAME := regexp.linklet.json
+
 regexp: regexp-sexp
-	$(RACKET) linklet-sexp-to-fasl.rkt --output ../regexp.fasl compiled/regexp.rktl
+	$(RACKET) linklet-sexp-to-fasl.rkt --output $(BOOTSTRAP_LINKLET_DIR)/$(REGEXP_FASL_FILENAME) compiled/regexp.rktl
 
 regexp-json: regexp-sexp
-	$(RACKET) linklet-sexp-to-json.rkt --output ../regexp.rktl.linklet compiled/regexp.rktl
+	$(RACKET) linklet-sexp-to-json.rkt --output $(BOOTSTRAP_LINKLET_DIR)/$(REGEXP_JSON_FILENAME) compiled/regexp.rktl
 
 regexp-sexp:
 	$(ZUO) $(REGEXP_DIR) regexp-src

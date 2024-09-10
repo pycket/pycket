@@ -159,7 +159,7 @@ update-pypy: pull-pypy
 
 setup-old-pycket: setup-racket-for-old-pycket update-pypy
 
-bootstrap-linklets: expander fasl
+bootstrap-linklets: expander fasl regexp
 	@echo "ASSUMES: a built pycket-c-linklets binary"
 	./pycket-c-linklets --make-linklet-zos
 
@@ -173,29 +173,40 @@ check_pycket_c_linklets:
 		echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"; \
 	fi
 
+BOOTSTRAP_LINKLET_DIR := $(CURDIR)/bootstrap-linklets
+
+EXPANDER_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/expander.linklet.fasl
+EXPANDER_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/expander.linklet.json
+
 expander: check_pycket_c_linklets check_plthome
 	$(MAKE) -s -C linklet-extractor expander
-	@echo "Done. expander is at: $(CURDIR)/expander.fasl"
+	@echo "Done. expander is at: $(EXPANDER_PATH_FASL)"
 
 expander-json: check_pycket_c_linklets check_plthome
 	$(MAKE) -s -C linklet-extractor expander-json
-	@echo "Done. expander json is at: $(CURDIR)/expander.rkt.linklet"
+	@echo "Done. expander json is at: $(EXPANDER_PATH_JSON)"
+
+REGEXP_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.fasl
+REGEXP_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.json
 
 regexp: check_pycket_c_linklets check_plthome
 	$(MAKE) -s -C linklet-extractor regexp
-	@echo "Done. regexp is at: $(CURDIR)/regexp.fasl"
+	@echo "Done. regexp is at: $(REGEXP_PATH_FASL)"
 
 regexp-json: check_pycket_c_linklets check_plthome
 	$(MAKE) -s -C linklet-extractor regexp-json
-	@echo "Done. regexp json is at: $(CURDIR)/regexp.rktl.linklet"
+	@echo "Done. regexp json is at: $(REGEXP_PATH_JSON)"
+
+FASL_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/fasl.linklet.fasl
+FASL_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/fasl.linklet.json
 
 fasl:
 	$(MAKE) -s -C linklet-extractor fasl
-	@echo "Done. fasl is at: $(CURDIR)/fasl.fasl"
+	@echo "Done. fasl is at: $(FASL_PATH_FASL)"
 
 fasl-json:
 	$(MAKE) -s -C linklet-extractor fasl-json
-	@echo "Done. fasl json is at: $(CURDIR)/fasl.rktl.linklet"
+	@echo "Done. fasl json is at: $(FASL_PATH_JSON)"
 
 expander-bytecode: check_pycket_c_linklets check_plthome
 	$(MAKE) -s -C linklet-extractor expander-bytecode
