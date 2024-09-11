@@ -47,9 +47,9 @@ def make_entry_point(pycketconfig=None):
                 return actual_entry(argv)
             else:
                 return old_pycket_actual_entry(argv)
-        except SchemeException, e:
-            print "ERROR:"
-            print e.format_error()
+        except SchemeException as e:
+            print("ERROR:")
+            print(e.format_error())
             raise # to see interpreter-level traceback
 
     def actual_entry(argv):
@@ -102,7 +102,7 @@ def make_entry_point(pycketconfig=None):
         try:
             if not config['stop']:
                 racket_entry(names, config, current_cmd_args)
-        except ExitException, e:
+        except ExitException as e:
             pass
         finally:
             from pycket.prims.input_output import shutdown

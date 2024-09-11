@@ -227,39 +227,27 @@ def datum_intern_literal(v):
 
 @expose("byte?", [values.W_Object])
 def byte_huh(val):
-    if isinstance(val, values.W_Fixnum):
-        return values.W_Bool.make(0 <= val.value <= 255)
-    return values.w_false
+    return values.W_Bool.make(isinstance(val, values.W_Fixnum) and 0 <= val.value <= 255)
 
 @expose("regexp?", [values.W_Object])
 def regexp_huh(r):
-    if isinstance(r, values_regex.W_Regexp) or isinstance(r, values_regex.W_PRegexp):
-        return values.w_true
-    return values.w_false
+    return values.W_Bool.make(isinstance(r, values_regex.W_AnyRegexp))
 
 @expose("pregexp?", [values.W_Object])
 def pregexp_huh(r):
-    if isinstance(r, values_regex.W_PRegexp):
-        return values.w_true
-    return values.w_false
+    return values.W_Bool.make(isinstance(r, values_regex.W_PRegexp))
 
 @expose("byte-regexp?", [values.W_Object])
 def byte_regexp_huh(r):
-    if isinstance(r, values_regex.W_ByteRegexp) or isinstance(r, values_regex.W_BytePRegexp):
-        return values.w_true
-    return values.w_false
+    return values.W_Bool.make(isinstance(r, values_regex.W_ByteRegexp) or isinstance(r, values_regex.W_BytePRegexp))
 
 @expose("byte-pregexp?", [values.W_Object])
 def byte_pregexp_huh(r):
-    if isinstance(r, values_regex.W_BytePRegexp):
-        return values.w_true
-    return values.w_false
+    return values.W_Bool.make(isinstance(r, values_regex.W_BytePRegexp))
 
 @expose("true-object?", [values.W_Object])
 def true_object_huh(val):
-    if val is values.w_true:
-        return values.w_true
-    return values.w_false
+    return values.W_Bool.make(val is values.w_true)
 
 @expose("procedure?", [values.W_Object])
 def procedurep(n):
