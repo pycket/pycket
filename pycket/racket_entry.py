@@ -641,6 +641,10 @@ def racket_eval(sexp):
     eval_prim = get_primitive("eval")
     return eval_prim.call_interpret([sexp])
 
+def racket_read_eval(expr_str):
+    sexp = racket_read_str(expr_str)
+    return racket_eval(sexp)
+
 def racket_expand(sexp):
     ex = get_primitive("expand")
     return check_one_val(ex.call_interpret([sexp]))
