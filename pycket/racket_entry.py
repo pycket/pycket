@@ -19,11 +19,18 @@ class BootstrapLinklet():
     def __init__(self, which_str):
         self.which_str = which_str
         self.file_path = ""
+        self.linkl = None
+        self.instance = None
         self.load_from = None
         self.is_expander = "expander" in which_str
-        self.is_loaded = False
+        self.is_exposed = False
+        self.version_sexp = None # w_s-exp
 
     def locate(self):
+        if self.file_path:
+            return self.file_path
+
+        console_log("Locating the %s linklet..." % self.which_str)
         possible_exts = [BootstrapLinklet.ZO, BootstrapLinklet.FASL, BootstrapLinklet.JSON]
         for ext in possible_exts:
             try:
@@ -34,34 +41,71 @@ class BootstrapLinklet():
                 continue
         if not self.file_path:
             raise BootstrapError("unable to locate %s linklet" % self.which_str)
+        return self.file_path
 
-    def load(self):
+    # Loads the linklet from the file
+    def load_linklet(self):
+        if self.linkl:
+            return self.linkl
+
         console_log("Loading the %s linklet..." % self.which_str)
-        if self.is_loaded:
+
+        if not self.file_path:
+            self.locate()
+
+        if self.load_from == BootstrapLinklet.ZO or self.load_from == BootstrapLinklet.FASL:
+            self.linkl, self.version_sexp = load_linklet_from_fasl(self.file_path, set_version=self.is_expander)
+        elif self.load_from == BootstrapLinklet.JSON:
+            self.linkl = load_linklet_from_json(self.file_path, set_version=self.is_expander)
+
+        if self.linkl is None:
+            raise BootstrapError("loading %s linklet file : %s" % (self.which_str, self.file_path))
+
+        return self.linkl
+
+    # Instantiates the linklet
+    def instantiate_linklet(self):
+        if self.instance:
+            return self.instance
+
+        # Make sure the linklet is loaded
+        if not self.linkl:
+            self.load_linklet()
+
+        self.instance = _instantiate_linklet(self.file_path, self.linkl)
+        return self.instance
+
+    # Exposes the vars to the primitive environment
+    def expose(self):
+        if self.is_exposed:
+            return
+
+        if not self.instance:
+            self.instantiate_linklet()
+
+        console_log("Exporting vars of %s linklet." % self.which_str)
+        self.instance.expose_vars_to_prim_env()
+        self.is_exposed = True
+
+    # Loads and instantiates the linklet, exposes its vars to the primitive
+    # environment
+    def load(self):
+        if self.is_exposed:
             console_log("%s linklet already loaded." % self.which_str)
             return 0
+
         with PerfRegion("%s-linklet" % self.which_str):
             # Locate the linklet file if needed
-            if not self.file_path:
-                self.locate()
+            self.locate()
 
             # Load the linklet from file
-            linkl = None
-            if self.load_from == BootstrapLinklet.ZO:
-                raise BootstrapError("unable to load from zo -- loading %s linklet: %s" % (self.which_str, self.file_path))
-            if self.load_from == BootstrapLinklet.FASL:
-                linkl, _ = load_linklet_from_fasl(self.file_path, set_version=self.is_expander)
-            elif self.load_from == BootstrapLinklet.JSON:
-                linkl = load_linklet_from_json(self.file_path, set_version=self.is_expander)
+            self.load_linklet()
 
-            if linkl is None:
-                raise BootstrapError("loading %s linklet file : %s" % (self.which_str, self.file_path))
             # Instantiate the linklet
-            linkl_instance = _instantiate_linklet(self.file_path, linkl)
+            self.instantiate_linklet()
 
             # Expose vars to the primitive environment
-            console_log("Exporting vars of %s linklet." % self.which_str)
-            linkl_instance.expose_vars_to_prim_env()
+            self.expose()
 
             # Flag the expander as loaded if it's the expander linklet
             if self.is_expander:
@@ -69,8 +113,32 @@ class BootstrapLinklet():
                 w_global_config.set_config_val('expander_loaded', 1)
 
             console_log("DONE loading the %s linklet." % self.which_str)
-            self.is_loaded = True
             return 0
+
+    # Creates a .zo file for the linklet
+    def create_zo(self):
+        console_log("Creating .zo file for %s linklet." % self.which_str)
+        from pycket.ast_vs_sexp import ast_to_sexp
+        from pycket.values import W_Cons
+        from pycket.prims.input_output import open_outfile
+
+        # Make sure we have the fasl linklet loaded (for s-exp->fasl)
+        FASL_LINKLET.load()
+
+        # Make sure the linklet is loaded
+        linklet = self.load_linklet()
+        linklet_sexp = ast_to_sexp(linklet)
+
+        # s-exp->fasl the linklet into a .zo
+        sexp_to_fasl = get_primitive("s-exp->fasl")
+        out_port = open_outfile(W_Path("%s/%s" % (BootstrapLinklet.DIR, self.which_str + BootstrapLinklet.ZO)), "w", W_Symbol.make("replace"))
+
+        if self.is_expander:
+            sexp_to_fasl.call_interpret([W_Cons.make(self.version_sexp, linklet_sexp), out_port])
+        else:
+            sexp_to_fasl.call_interpret([linklet_sexp, out_port])
+        out_port.close()
+        console_log("DONE creating .zo file for %s linklet." % self.which_str)
 
 FASL_LINKLET = BootstrapLinklet('fasl')
 EXPANDER_LINKLET = BootstrapLinklet('expander')
@@ -125,29 +193,10 @@ def load_linklet_from_json(file_name, set_version=False):
     debug_stop("loading-linklet")
     return linkl
 
-def make_zo_for(linklet_name):
-    from pycket.ast_vs_sexp import ast_to_sexp
-    from pycket.values import W_Cons
-    from pycket.prims.input_output import open_outfile
-
-    # load the linklet
-    linklet, version_sexp = load_linklet_from_fasl(linklet_name + ".fasl", set_version="expander" in linklet_name)
-
-    # s-exp->fasl the linklet into a .zo
-    sexp_to_fasl = get_primitive("s-exp->fasl")
-    out_port = open_outfile(W_Path(linklet_name + ".zo"), "w", W_Symbol.make("replace"))
-    linklet_sexp = ast_to_sexp(linklet)
-    if "expander" in linklet_name:
-        sexp_to_fasl.call_interpret([W_Cons.make(version_sexp, linklet_sexp), out_port])
-    else:
-        sexp_to_fasl.call_interpret([linklet_sexp, out_port])
-    out_port.close()
-
 def make_bootstrap_zos():
-    FASL_LINKLET.load()
-    make_zo_for("fasl")
-    make_zo_for("expander")
-    make_zo_for("regexp")
+    FASL_LINKLET.create_zo()
+    EXPANDER_LINKLET.create_zo()
+    REGEXP_LINKLET.create_zo()
 
 def load_linklet_from_fasl(file_name, set_version=False):
     from pycket.fasl import Fasl
@@ -670,6 +719,7 @@ def read_eval_print_string(expr_str, return_val=False, debug=False):
 
     # expand
     #expanded = racket_expand(sexp)
+    import pdb;pdb.set_trace()
 
     # eval
     results = racket_eval(sexp)
