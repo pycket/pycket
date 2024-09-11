@@ -53,7 +53,13 @@ def run_sexp(body_sexp_str, v=None, just_return=False, extra="", equal_huh=False
     linkl_str = "(linklet () () %s %s)" % (extra, body_sexp_str)
     l = make_linklet(linkl_str)
 
-    result, _ = eval(l, empty_target(), just_return=just_return)
+    try:
+        result, _ = eval(l, empty_target(), just_return=just_return)
+    except Exception as e:
+        if expect_to_fail:
+            return
+        raise e
+
     if expect_to_fail and isinstance(result, W_Void):
         raise SchemeException("test raised exception")
     if just_return:
@@ -65,8 +71,13 @@ def run_string(expr_str, v=None, just_return=False, equal_huh=False, expect_to_f
     # FIXME : removing \n is not ideal, as the test itself may have one
     expr_str = expr_str.replace('\n', '') # remove the newlines added by the multi line doctest
     expr_str = "(begin %s)" % expr_str
-    result = read_eval_print_string(expr_str, return_val=True)
-
+    try:
+        result = read_eval_print_string(expr_str, return_val=True)
+    except Exception as e:
+        if expect_to_fail:
+            return
+        raise e
+    import pdb;pdb.set_trace()
     if expect_to_fail and isinstance(result, W_Void):
         raise SchemeException("test raised exception")
 
@@ -255,12 +266,17 @@ def run_mod_defs(m, extra="",stdlib=False, srcloc=True):
     mod = run_mod(str, srcloc=srcloc)
     return mod
 
-def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False):
+def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False, expect_to_fail=False):
     # this (let () e) wrapping is needed if e is `(begin (define x 1) x)`, for example
     # FIXME: this should get moved into a language
     expr = "(let () %s)"%e if wrap else e
     defn = "(define #%%pycket-expr %s)"%expr
-    mod = run_mod_defs(defn, stdlib=stdlib, extra=extra, srcloc=srcloc)
+    try:
+        mod = run_mod_defs(defn, stdlib=stdlib, extra=extra, srcloc=srcloc)
+    except SchemeException as e:
+        if expect_to_fail:
+            return
+        raise e
     ov = mod.defs[values.W_Symbol.make("#%pycket-expr")]
     if v:
         assert ov.equal(v)
@@ -289,7 +305,7 @@ def run_flo(p, v=None, stdlib=False, extra=""):
 def run(p, v=None, stdlib=False, extra="", expect_to_fail=False):
     if pytest.config.new_pycket:
         return run_expr_result(p, expect_to_fail=expect_to_fail, v=v)
-    return run_mod_expr(p,v=v,stdlib=stdlib, extra=extra)
+    return run_mod_expr(p,v=v,stdlib=stdlib, extra=extra, expect_to_fail=expect_to_fail)
 
 def run_top(p, v=None, stdlib=False, extra=""):
     return run_mod_expr(p,v=v,stdlib=stdlib, wrap=True, extra=extra)

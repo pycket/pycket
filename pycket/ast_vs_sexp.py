@@ -240,6 +240,8 @@ def is_val_type(form, extra=[]):
     val_types = [values.W_Number,
                  values.W_Void,
                  values.W_Bool,
+                 values.W_Bytes,
+                 values_regex.W_AnyRegexp,
                  values_string.W_String,
                  values.W_ImmutableBytes,
                  values.W_Character] + extra
@@ -814,6 +816,17 @@ def deserialize_loop(sexp):
             i += 1
 
         return equal.W_EqualHashTable(keys, vals, immutable=True)
+    elif isinstance(sexp, equal.W_EqualAlwaysHashTable):
+        l = sexp.length()
+        keys = [None]*l
+        vals = [None]*l
+        i = 0
+        for k, v in sexp.hash_items():
+            keys[i] = k
+            vals[i] = deserialize_loop(v)
+            i += 1
+
+        return equal.W_EqualAlwaysHashTable(keys, vals, immutable=True)
     elif isinstance(sexp, vector.W_Vector):
         new = [None]*sexp.length()
         items = sexp.get_strategy().ref_all(sexp)

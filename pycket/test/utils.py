@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import re
-from pycket.values import w_false, W_Cons, W_Symbol, w_null, W_Flonum, W_Fixnum, w_true, W_Bignum, W_Complex, W_Rational, W_Character
+from pycket.values import w_false, W_Cons, W_Symbol, w_null, W_Flonum, W_Fixnum, w_true, W_Bignum, W_Complex, W_Rational, W_Character, W_Bytes
+from pycket import values_regex
 from pycket.values_string import W_String
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import string_to_int
@@ -44,6 +45,11 @@ term_regex = r'''(?mx)
         (?P<num>(\-?\d+\.\d+|\-?\d+)|\+inf.0|-inf.0|\+nan.0)|
         (?P<bool>\btrue\b|\bfalse\b|\#[tTfF]\b|\#true\b|\#false\b)|
         (?P<string>"[^"]*")|
+        (?P<bytes>\#"[^"]*")|
+        (?P<byte_regexp>\#rx\#"[^"]*")|
+        (?P<byte_pregexp>\#px\#"[^"]*")|
+        (?P<regexp>\#rx"[^"]*")|
+        (?P<pregexp>\#px"[^"]*")|
         (?P<sym>[^(^)\s]+)
        )'''
 
@@ -113,6 +119,16 @@ def string_to_sexp(sexp):
         elif term == 'num':
             v = to_num(value)
             out.append(v)
+        elif term == 'bytes':
+            out.append(W_Bytes.from_string(value[2:-1]))
+        elif term == 'regexp':
+            out.append(values_regex.W_Regexp(value[4:-1]))
+        elif term == 'pregexp':
+            out.append(values_regex.W_PRegexp(value[4:-1]))
+        elif term == 'byte_regexp':
+            out.append(values_regex.W_ByteRegexp(value[5:-1]))
+        elif term == 'byte_pregexp':
+            out.append(values_regex.W_BytePRegexp(value[5:-1]))
         elif term == 'string':
             s = W_String.make(value[1:-1])
             out.append(s)
