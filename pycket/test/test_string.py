@@ -482,4 +482,6 @@ def test_bytes_utf_8_length(doctest):
     8
     > (bytes-utf-8-length (make-bytes 5 65))
     5
+    > (bytes-utf-8-length (bytes 195 167 195 176 195 182 194 163 255) #\?)
+    5
     """

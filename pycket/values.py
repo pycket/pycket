@@ -898,6 +898,9 @@ class W_Character(W_Object):
     def get_value_utf8(self):
         return self.value.encode('utf-8')
 
+    def get_value_unicode(self):
+        return self.value
+
     def immutable(self):
         return True
 
