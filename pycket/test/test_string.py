@@ -139,6 +139,8 @@ def test_bytes_to_string_utf8(doctest):
     "ABC"
     > (immutable? (bytes->string/utf-8 (bytes 65 66 67)))
     #f
+    > (bytes->string/utf-8 (string->bytes/utf-8 "abc" 0 0 3) #\? 2 3)
+    "c"
     """
 
 def test_string_ref(doctest):

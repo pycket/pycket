@@ -69,7 +69,7 @@ def _str2num(s, radix):
                 numb = float(f_parts[0])
                 prec = int(f_parts[1])
                 p = math.pow(10, prec)
-            except ValueError, e:
+            except ValueError:
                 return values.w_false
 
             return values.W_Flonum.make(numb*p, True)
@@ -83,7 +83,7 @@ def _str2num(s, radix):
                 num = float(e_parts[0])
                 exp = int(e_parts[1])
                 p = math.pow(10, exp)
-            except ValueError, e:
+            except ValueError:
                 return values.w_false
 
             return values.W_Flonum(num*p)
@@ -700,9 +700,20 @@ for a in [("bytes<?"  , op.lt) ,
                                   default(values.W_Object, values.w_false),
                                   default(values.W_Integer, values.W_Fixnum.ZERO),
                                   default(values.W_Integer, None)])
-def string_to_bytes_locale(bytes, errbyte, start, end):
+def string_to_bytes_locale(w_bytes, errbyte, w_start, w_end):
     # FIXME: This ignores the locale
-    return W_String.fromstr_utf8(bytes.as_str())
+
+    if w_start.toint() == 0 and w_end is None:
+        w_sub_str = w_bytes.as_str()
+    else:
+        s_val = w_start.toint()
+        e_val = w_end.toint() if w_end else w_bytes.length()
+        # FIXME: check the bounds
+        assert s_val >= 0 and e_val <= w_bytes.length() and e_val >= 0
+        sub_bytes = w_bytes.getslice(s_val, e_val)
+        w_sub_str = "".join(sub_bytes)
+
+    return W_String.fromstr_utf8(w_sub_str)
 
 @expose("bytes->immutable-bytes", [values.W_Bytes])
 def bytes_to_immutable_bytes(b):
