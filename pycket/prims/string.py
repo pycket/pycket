@@ -7,6 +7,8 @@ from pycket.error import SchemeException
 from pycket.prims.expose import default, expose, unsafe, subclass_unsafe
 from rpython.rlib.unicodedata import unicodedb_9_0_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
+from rpython.rlib.runicode  import str_decode_utf_8, unicode_encode_utf_8
+from rpython.rlib.rutf8     import check_utf8, CheckError, codepoints_in_utf8
 from rpython.rlib import jit
 
 
@@ -390,24 +392,21 @@ def string_utf8_length(w_str, w_start, w_end):
 def bytes_utf8_length(w_bstr, err_char, w_start, w_end):
     s_val = w_start.value
     e_val = w_end.value if w_end else w_bstr.length()
-    # Take the bytes list from the w_bstr
-    ls = w_bstr.as_bytes_list()
 
-    # Check the boundries
-    assert s_val >= 0 and e_val <= w_bstr.length() and e_val >= 0
+    _utf_bstr = w_bstr.as_str()
 
-    # Get the substring
-    bytes_subst = "".join(ls[s_val:e_val])
+    try:
+        check_utf8(_utf_bstr, False)
+        utf_bstr = _utf_bstr
+    except CheckError:
+        if err_char is values.w_false:
+            raise SchemeException("bytes-utf-8-length: invalid utf-8 sequence")
+        # TODO (cderici - 09/14/2024): can we do this witout decoding/encoding?
+        decoded = str_decode_utf_8(_utf_bstr, len(_utf_bstr), 'replace')
+        decoded = decoded[0].replace(u'\ufffd', err_char.get_value_unicode())
+        utf_bstr = unicode_encode_utf_8(decoded, len(decoded), 'strict')
 
-    # Decode the substring bytes (unicode code points)
-    decoded = bytes_subst.decode('utf-8', errors='replace')
-
-    # If a replacement character is found, replace it with the error character
-    if '\ufffd' in decoded and err_char is not values.w_false:
-        decoded = decoded.replace('\ufffd', err_char.get_value_unicode())
-
-    # Return the length of the decoded string
-    return values.W_Fixnum(len(decoded))
+    return values.W_Fixnum(codepoints_in_utf8(utf_bstr, s_val, e_val))
 
 @expose("string-copy", [W_String])
 def string_copy(s):
