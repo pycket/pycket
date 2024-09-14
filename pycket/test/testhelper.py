@@ -72,12 +72,12 @@ def run_string(expr_str, v=None, just_return=False, equal_huh=False, expect_to_f
     expr_str = expr_str.replace('\n', '') # remove the newlines added by the multi line doctest
     expr_str = "(begin %s)" % expr_str
     try:
-        result = read_eval_print_string(expr_str, return_val=True, expect_to_fail=expect_to_fail)
+        result = read_eval_print_string(expr_str, return_val=True)
     except Exception as e:
         if expect_to_fail:
             return
         raise e
-    import pdb;pdb.set_trace()
+
     if expect_to_fail and isinstance(result, W_Void):
         raise SchemeException("test raised exception")
 
@@ -138,6 +138,8 @@ def check_result(result, expected, equal_huh=False):
         expected = "void"
     elif expected is w_null:
         expected = ()
+    elif isinstance(expected, W_Fixnum):
+        expected = expected.value
     elif isinstance(expected, W_Keyword):
         expected = "#:" + expected.value
 
