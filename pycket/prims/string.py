@@ -390,16 +390,24 @@ def string_utf8_length(w_str, w_start, w_end):
 def bytes_utf8_length(w_bstr, err_char, w_start, w_end):
     s_val = w_start.value
     e_val = w_end.value if w_end else w_bstr.length()
-    ls = w_bstr.as_str()
+    # Take the bytes list from the w_bstr
+    ls = w_bstr.as_bytes_list()
 
+    # Check the boundries
     assert s_val >= 0 and e_val <= w_bstr.length() and e_val >= 0
-    decoded = ls.decode('utf-8', errors='replace')
 
-    # If we find a replacement character, we replace it with the error character
+    # Get the substring
+    bytes_subst = "".join(ls[s_val:e_val])
+
+    # Decode the substring bytes (unicode code points)
+    decoded = bytes_subst.decode('utf-8', errors='replace')
+
+    # If a replacement character is found, replace it with the error character
     if '\ufffd' in decoded and err_char is not values.w_false:
         decoded = decoded.replace('\ufffd', err_char.get_value_unicode())
 
-    return values.W_Fixnum(len(decoded[s_val:e_val]))
+    # Return the length of the decoded string
+    return values.W_Fixnum(len(decoded))
 
 @expose("string-copy", [W_String])
 def string_copy(s):

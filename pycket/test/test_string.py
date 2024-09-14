@@ -141,6 +141,8 @@ def test_bytes_to_string_utf8(doctest):
     #f
     > (bytes->string/utf-8 (string->bytes/utf-8 "abc" 0 0 3) #\? 2 3)
     "c"
+    > (bytes->string/utf-8 (bytes 195 167 195 176 195 182 194 163))
+    "çðö£"
     """
 
 def test_string_ref(doctest):
@@ -475,7 +477,7 @@ def test_string_utf_8_length(doctest):
     """
 
 def test_bytes_utf_8_length(doctest):
-    """
+    ur"""
     > (bytes-utf-8-length (bytes 195 167 195 176 195 182 194 163))
     4
     > (bytes-length (bytes 195 167 195 176 195 182 194 163))
@@ -484,4 +486,8 @@ def test_bytes_utf_8_length(doctest):
     5
     > (bytes-utf-8-length (bytes 195 167 195 176 195 182 194 163 255) #\?)
     5
+    > (bytes-utf-8-length (string->bytes/utf-8 "λΖχβα") #\? 0 6)
+    3
+    > (bytes-utf-8-length (string->bytes/utf-8 "λΖχβα") #\? 0 8)
+    4
     """
