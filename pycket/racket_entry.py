@@ -6,7 +6,7 @@ from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
 from pycket.util import console_log, LinkletPerf, linklet_perf, PerfRegion
 from pycket.prims.correlated import syntax_primitives
-from pycket.error import ExitException
+from pycket.error import ExitException, SchemeException
 from rpython.rlib.debug import debug_start, debug_stop, debug_print
 from pycket.error import BootstrapError
 
@@ -713,16 +713,25 @@ def racket_print(results):
     else:
         raise Exception("Unsupoorted result value : %s" % results.tostring())
 
-def read_eval_print_string(expr_str, return_val=False, debug=False):
+def read_eval_print_string(expr_str, return_val=False, debug=False, expect_to_fail=False):
     # read
-    sexp = racket_read_str(expr_str)
+    try:
+        sexp = racket_read_str(expr_str)
+    except Exception as e:
+        if expect_to_fail:
+            return 0
+        raise SchemeException("Error (Racket) reading : %s\n%s\n" % (expr_str, e))
 
     # expand
-    #expanded = racket_expand(sexp)
-    import pdb;pdb.set_trace()
+    expanded = racket_expand(sexp)
 
     # eval
-    results = racket_eval(sexp)
+    try:
+        results = racket_eval(sexp)
+    except Exception as e:
+        if expect_to_fail:
+            return 0
+        raise SchemeException("Error (Racket) evaluating : %s\n%s\n" % (expr_str, e))
 
     if return_val:
         return results

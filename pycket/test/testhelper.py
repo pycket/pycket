@@ -72,7 +72,7 @@ def run_string(expr_str, v=None, just_return=False, equal_huh=False, expect_to_f
     expr_str = expr_str.replace('\n', '') # remove the newlines added by the multi line doctest
     expr_str = "(begin %s)" % expr_str
     try:
-        result = read_eval_print_string(expr_str, return_val=True)
+        result = read_eval_print_string(expr_str, return_val=True, expect_to_fail=expect_to_fail)
     except Exception as e:
         if expect_to_fail:
             return
