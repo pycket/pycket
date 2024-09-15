@@ -58,7 +58,7 @@
      (error 'do-expand "got something that isn't a module: ~a\n" (syntax->datum #'rest))])
   ;; work
   (when DEBUG
-    (printf "running -> do-expand with stx : ~a" stx))
+    (printf "running -> do-expand with stx : ~a\n" stx))
   (parameterize ([current-namespace (make-base-namespace)]
                  [current-directory (if (complete-expansion-mode)
                                         (path-only in-path)
@@ -69,8 +69,8 @@
                                      (when DEBUG
                                        (printf "\n---- do-expand -stx- : ~a \n--- in-path: ~a \n"
                                                (syntax-e stx) in-path)
-                                       (printf "\n------ current-directory : ~a" (current-directory))
-                                       (printf "\n------ current-directory-for-user : ~a" (current-directory-for-user)))
+                                       (printf "\n------ current-directory : ~a\n" (current-directory))
+                                       (printf "\n------ current-directory-for-user : ~a\n" (current-directory-for-user)))
                                      (raise e))])
                     (expand stx))))
     (values stx* (do-post-expand stx* in-path))))
@@ -93,17 +93,17 @@
 
 (define (index->path i)
   (when DEBUG
-    (printf "running -> index->path with : ~a - module-path-index? : ~a" i (module-path-index? i)))
+    (printf "running -> index->path with : ~a - module-path-index? : ~a\n" i (module-path-index? i)))
   (define-values (v u) (module-path-index-split i))
   (when DEBUG
-    (printf "let's try to resolve it : ~a" (module-path-index-resolve i)))
+    (printf "let's try to resolve it : ~a\n" (module-path-index-resolve i)))
   (if v
       (list (resolved-module-path-name (module-path-index-resolve i)) #f)
       (list (current-module) #t)))
 
 (define (full-path-string p)
   (when DEBUG
-    (printf "running -> full-path-string with : ~a" p))
+    (printf "running -> full-path-string with : ~a\n" p))
   (path->string (normalize-path (simplify-path p #t))))
 
 (define (desymbolize s)
@@ -122,7 +122,7 @@
 
 (define (resolve-module mod-name [relative-path #f])
   (when DEBUG
-    (printf "running -> resolve-module with : ~a" mod-name))
+    (printf "running -> resolve-module with : ~a\n" mod-name))
   (if (memv mod-name (list "." ".."))
     (list mod-name)
     (with-handlers
@@ -134,7 +134,7 @@
        (with-handlers ([exn:fail?
                         (lambda (e)
                           (when DEBUG
-                            (printf "full-path-string error, current-directory : ~a" (current-directory)))
+                            (printf "full-path-string error, current-directory : ~a\n" (current-directory)))
                           (raise e))])
          (full-path-string
           (resolve-module-path mod-name relative-path)))))))
@@ -156,7 +156,7 @@
   (define (desym stx)
     (desymbolize (syntax-e stx)))
   (when DEBUG
-    (printf "running -> require-json with : ~a" v))
+    (printf "running -> require-json with : ~a\n" v))
   (syntax-parse v
     [v:str        (list (resolve-module (syntax-e #'v) relative-path))]
     [s:identifier (list (translate (syntax-e #'s)))]
@@ -274,7 +274,7 @@
 
 (define (to-json v v/loc)
   (when DEBUG
-    (printf "running -> to-json with : ~a" v))
+    (printf "running -> to-json with : ~a\n" v))
   (define (path/symbol/list->string o)
     (cond [(path-string? o) (hash '%p (full-path-string o))]
           [(symbol? o)      (hash 'quote (symbol->string o))]
@@ -349,7 +349,7 @@
       (append path (list str))
       (list path str)))
   (when DEBUG
-    (printf "running ->> to-json* with ~a" v))
+    (printf "running ->> to-json* with ~a\n" v))
   (syntax-parse (list v v/loc)
     #:literal-sets ((kernel-literals #:phase (current-phase)))
     [(v:str _) (hash 'string (syntax-e #'v))]
@@ -367,7 +367,7 @@
                            (to-json (cdr (last-pair (syntax-e v))) (cdr (last-pair (syntax-e v/loc))))))]
     [((module name _ ...) _)
      (when DEBUG
-       (printf "enter the module -> ~a" (syntax-e #'name)))
+       (printf "enter the module -> ~a\n" (syntax-e #'name)))
      (parameterize ([current-module (push-module (current-module) (syntax-e #'name))])
        (convert v v/loc #f))]
     [((module* name _ ...) _)
@@ -484,7 +484,7 @@
                              ;; already expanded?
                              (hash-has-key? expanded-modules (string->symbol p))))
                    (when DEBUG
-                     (printf "Coming from a require -> ~a" p))
+                     (printf "Coming from a require -> ~a\n" p))
                    (hash-set! expanded-modules
                               (string->symbol p)
                               (expand-file (string->path p)))))
@@ -517,7 +517,7 @@
                                      (begin
                                        (when DEBUG
                                          (printf
-                                          "\n--- i : ~a\n--- i binding : ~a\n--- src-mod-split-m : ~a\n--- src-mod-split-b : ~a\n--- current-module : ~a"
+                                          "\n--- i : ~a\n--- i binding : ~a\n--- src-mod-split-m : ~a\n--- src-mod-split-b : ~a\n--- current-module : ~a\n"
                                           #'i
                                           (identifier-binding #'i (current-phase))
                                           (let-values (((m b) (module-path-index-split src-mod))) m)
@@ -605,7 +605,7 @@
                  (string->symbol (caar lang-req))
                  (expand-file (string->path (caar lang-req))))))
   (when DEBUG
-    (printf "running -> convert with mod : ~a" mod))
+    (printf "running -> convert with mod : ~a\n" mod))
   (syntax-parse (list mod mod/loc)
     #:literal-sets ((kernel-literals #:phase (current-phase)))
     [((module name:id lang:expr (#%plain-module-begin forms ...))
@@ -650,7 +650,7 @@
 
 (define (expand-file rkt-path)
   (when DEBUG
-    (printf "\n---- expand-file: -rkt-path- : ~a -curent-module- : ~a" rkt-path (current-module)))
+    (printf "\n---- expand-file: -rkt-path- : ~a -curent-module- : ~a\n" rkt-path (current-module)))
   (parameterize ((current-module (list rkt-path)))
     (let*-values ([(input) (open-input-file rkt-path)]
                   [(mod) (read-syntax (object-name input) input)]
@@ -664,7 +664,7 @@
                      (convert expanded expanded-srcloc #t #f))])
       (begin
         (when DEBUG
-          (printf "\n---- expand-file -> returning json for : ~a" rkt-path))
+          (printf "\n---- expand-file -> returning json for : ~a\n" rkt-path))
         final-json))))
 
 (module+ main
@@ -760,7 +760,7 @@
       (define-values  (expanded expanded-srcloc)
         (begin
           (when DEBUG
-            (printf "\nmain module before do-expand -mod- : ~a" mod))
+            (printf "\nmain module before do-expand -mod- : ~a\n" mod))
           (do-expand mod in-path)))
       (if (complete-expansion-mode)
           (let ([main-module (convert expanded expanded-srcloc)])
@@ -769,7 +769,7 @@
                          (string->symbol (path->string in-path))
                          main-module)
               (when DEBUG
-                (printf "Writing the final Hash : ~a" 'disabled #;expanded-modules))
+                (printf "Writing the final Hash : ~a\n" 'disabled #;expanded-modules))
               ; enabling the line above prints the entire hash table, use with caution
               (write-json expanded-modules out)))
           (write-json (convert expanded expanded-srcloc config?) out)))
