@@ -128,10 +128,9 @@ def test_mcons():
     else:
         run_fix ("(unsafe-mcar (mcons 1 2))", 1)
         run_fix ("(unsafe-mcdr (mcons 1 2))", 2)
-    with pytest.raises(Exception):
-        run("(mcar 1)", None, expect_to_fail=True)
-    with pytest.raises(Exception):
-        run("(mcar 1 2)", None, expect_to_fail=True)
+
+    run("(mcar 1)", None, expect_to_fail=True)
+    run("(mcar 1 2)", None, expect_to_fail=True)
 
 def test_mcons_equal(doctest):
     """
@@ -146,10 +145,8 @@ def test_mcons_equal(doctest):
 def test_cons():
     run_fix ("(car (cons 1 2))", 1)
     run_fix ("(cdr (cons 1 2))", 2)
-    with pytest.raises(Exception):
-        run("(car 1)", None, expect_to_fail=True)
-    with pytest.raises(Exception):
-        run("(car 1 2)", None, expect_to_fail=True)
+    run("(car 1)", None, expect_to_fail=True)
+    run("(car 1 2)", None, expect_to_fail=True)
 
 def test_set_mcar_car():
     run_fix ("(letrec-values ([(x) (mcons 1 2)]) (set-mcar! x 3) (mcar x))", 3)

@@ -217,7 +217,7 @@ regexp-bytecode: check_pycket_c_linklets check_plthome
 fasl-bytecode:
 	$(MAKE) -s -C linklet-extractor fasl-bytecode
 
-test:
+test-old:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py
 
 # To run a single test module
