@@ -708,7 +708,7 @@ for a in [("bytes<?"  , op.lt) ,
                                   default(values.W_Object, values.w_false),
                                   default(values.W_Integer, values.W_Fixnum.ZERO),
                                   default(values.W_Integer, None)])
-def string_to_bytes_locale(w_bytes, errbyte, w_start, w_end):
+def bytes_to_string_locale(w_bytes, errbyte, w_start, w_end):
     # FIXME: This ignores the locale
 
     if w_start.toint() == 0 and w_end is None:

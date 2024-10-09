@@ -39,14 +39,14 @@ class AST(object):
         # safe to not use the Label implementation of return_value here
         try:
             val = self.interpret_simple(env)
-        except SchemeException, exn:
+        except SchemeException as exn:
             return convert_runtime_exception(exn, env, cont)
-        except OSError, exn:
+        except OSError as exn:
             return convert_os_error(exn, env, cont)
         return return_value_direct(val, env, cont)
 
     def interpret_simple(self, env):
-        raise NotImplementedError("abstract base class")
+        raise NotImplementedError("possible issue in A-normalization: %s is not simple interpretable" % self.tostring())
 
     def set_surrounding_lambda(self, lam):
         from pycket.interpreter import Lambda

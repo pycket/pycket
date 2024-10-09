@@ -195,8 +195,21 @@ def load_linklet_from_json(file_name, set_version=False):
 
 def make_bootstrap_zos():
     FASL_LINKLET.create_zo()
-    EXPANDER_LINKLET.create_zo()
+
+    # Regexp linklet needs to be fully loaded here. There's a slightly annoying
+    # dependency between the regexp linklet and the expander. Primitives used
+    # within the expander such as  "regexp-match?" are "simple" in RPython, but
+    # not "simple" when used from the regexp linklet (they're Racket closures).
+    # So if the expander is to be run with the regexp linklet then it needs to
+    # be compiled in an environment where the primitives like "regexp-match?"
+    # are not "simple" so the a-normalization let-bind those. (e.g. (if
+    # (regexp-match? ...) ...)). Therefore the regexp linklet needs to expose
+    # its functions before we load and compile the expander.
+    REGEXP_LINKLET.load()
     REGEXP_LINKLET.create_zo()
+
+    EXPANDER_LINKLET.create_zo()
+
 
 def load_linklet_from_fasl(file_name, set_version=False):
     from pycket.fasl import Fasl
