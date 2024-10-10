@@ -41,6 +41,11 @@ def scheme_extend_parameterization(args, env, cont):
     if argc < 2 or argc % 2 != 1: # or not isinstance(config, values_parameter.W_Parameterization):
         return return_value(config, env, cont)
 
+    # strip out the proxies from impersonated/chaperoned parameters
+    # as parameter-procedures can be proxied
+    for i in range(1, len(args)):
+        if args[i].is_impersonator() or args[i].is_chaperone():
+            args[i] = args[i].get_proxied()
 
     parser = ArgParser("extend-parameterization", args, start_at=1)
     params = [None]*((argc-1)/2)
