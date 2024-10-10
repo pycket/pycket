@@ -40,8 +40,8 @@ class ArgParser(object):
             self.index += 1
             return val
         raise SchemeException(
-                "%s: expected %s at argument %d got %s" %
-                (self.context, errorname(*args), self.index, val.tostring()))
+                "%s: expected %s at argument %d got %s -- type: %s" %
+                (self.context, errorname(*args), self.index, val.tostring(), type(val)))
 
     @specialize.arg(1)
     @jit.unroll_safe

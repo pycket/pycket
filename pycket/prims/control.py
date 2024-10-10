@@ -441,7 +441,7 @@ def display_stack_trace(port, cont):
         while isinstance(context, values.W_Cons):
             if count >= total_frames_to_show:
                 break
-            port.write("-- %s\n" % context.car().tostring()[:1000])
+            port.write("-- %s\n\n" % context.car().tostring()[:1000])
             context = context.cdr()
             count += 1
 
