@@ -669,12 +669,14 @@ w_truncate_replace_sym = values.W_Symbol.make("truncate/replace")
 
 @expose("open-output-file", [values.W_Object,
                              default(values.W_Symbol, w_binary_sym),
-                             default(values.W_Symbol, w_error_sym)])
-def open_output_file(path, mode, exists):
+                             default(values.W_Symbol, w_error_sym),
+                             default(values.W_Fixnum, values.W_Fixnum(0o666)),
+                             default(values.W_Bool, values.w_false)])
+def open_output_file(path, mode, exists, perms, replace_perms):
     if not isinstance(path, values_string.W_String) and not isinstance(path, values.W_Path):
         raise ContractException("open-input-file: expected path-string for argument 0")
     m = "w" if mode is w_text_sym else "wb"
-    return open_outfile(path, m, exists)
+    return open_outfile(path, m, exists, perms, replace_perms)
 
 @expose("close-input-port", [values.W_Object], simple=False)
 def close_input_port(port, env, cont):
@@ -1088,8 +1090,8 @@ def open_infile(w_str, mode):
 
     return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21), path=os.path.abspath(s))
 
-def open_outfile(w_str, mode, exists):
-    from pycket.prims.general import exn_fail_fs
+def open_outfile(w_str, mode, exists, w_perms=values.W_Fixnum(0o666), w_replace_perms=values.w_false):
+    # TODO (cderici-10-10-2024): w_perms and w_replace_perms are ignored
     s = extract_path(w_str)
     if exists is w_error_sym and os.path.exists(s):
         raise FSException("File exists : %s" % s)
@@ -1124,7 +1126,6 @@ def file_or_directory_type(path, must_exist):
 
 @expose("rename-file-or-directory", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)])
 def rename_file_or_directory(o, n, exists_ok):
-    from pycket.prims.general import exn_fail_fs
 
     old = extract_path(o)
     new = extract_path(n)
@@ -1179,9 +1180,11 @@ def call_with_input_file(s, proc, mode, env, cont):
 @expose("call-with-output-file", [values.W_Object,
                                   values.W_Object,
                                   default(values.W_Symbol, w_binary_sym),
-                                  default(values.W_Symbol, w_error_sym)],
+                                  default(values.W_Symbol, w_error_sym),
+                                  default(values.W_Fixnum, values.W_Fixnum(0o666)),
+                                  default(values.W_Bool, values.w_false)],
                                 simple=False)
-def call_with_output_file(s, proc, mode, exists, env, cont):
+def call_with_output_file(path, proc, mode, exists, perms, replace_perms, env, cont):
     m = ""
     if exists is w_append_sym:
         m += "a"
@@ -1191,7 +1194,7 @@ def call_with_output_file(s, proc, mode, exists, env, cont):
         raise SchemeException("mode not yet supported: %s" % exists.tostring())
     if mode is not w_text_sym:
         m += "b"
-    port = open_outfile(s, m, exists)
+    port = open_outfile(path, m, exists, perms, replace_perms)
     return proc.call([port], env, close_cont(port, env, cont))
 
 @expose("with-input-from-file", [values.W_Object, values.W_Object,
@@ -1207,12 +1210,14 @@ def with_input_from_file(s, proc, mode, env, cont):
 @expose("with-output-to-file",
         [values_string.W_String, values.W_Object,
          default(values.W_Object, None),
-         default(values.W_Object, None)], simple=False)
-def with_output_to_file(s, proc, mode, exists, env, cont):
+         default(values.W_Object, None),
+         default(values.W_Fixnum, values.W_Fixnum(0o666)),
+         default(values.W_Bool, values.w_false)], simple=False)
+def with_output_to_file(s, proc, mode, exists, perms, replace_perms, env, cont):
     # XXX mode and exists are currently ignored, they need to be translated into
     # the proper mode string.
     from pycket.prims.parameter import call_with_extended_paramz
-    port = open_outfile(s, "wb", exists)
+    port = open_outfile(s, "wb", exists, perms, replace_perms)
     return call_with_extended_paramz(proc, [], [current_out_param], [port],
                                      env, close_cont(port, env, cont))
 
