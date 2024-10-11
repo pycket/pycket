@@ -130,7 +130,7 @@ def make_direct_arg_unwrapper(func, num_args, unroll_argtypes, errormsg_arity):
         def func_direct_unwrap(arg1, *rest):
             typed_arg1 = unwrapper(arg1)
             if typed_arg1 is None:
-                raise SchemeException(type_errormsg + arg1.tostring())
+                raise SchemeException(type_errormsg + "%s : %s\n" % (type(arg1), arg1.tostring()))
             return func(typed_arg1, *rest)
         func_direct_unwrap.func_name = "%s_fast1" % (func.func_name, )
         return func_arg_unwrap, func_direct_unwrap, None
@@ -153,7 +153,7 @@ def make_direct_arg_unwrapper(func, num_args, unroll_argtypes, errormsg_arity):
             else:
                 type_errormsg = type_errormsg1
                 arg = arg1
-            raise SchemeException(type_errormsg + arg.tostring())
+            raise SchemeException(type_errormsg + "%s : %s\n" % (type(arg), arg.tostring()))
         func_direct_unwrap.func_name = "%s_fast2" % (func.func_name, )
         return func_arg_unwrap, None, func_direct_unwrap
 
@@ -189,7 +189,7 @@ def make_list_arg_unwrapper(func, has_self, min_arg, max_arity, unroll_argtypes,
             return func(*typed_args)
         # reachable only by break when the type check fails
         assert type_errormsg is not None
-        raise SchemeException(type_errormsg + arg.tostring())
+        raise SchemeException(type_errormsg + "%s : %s\n" % (type(arg), arg.tostring()))
     func_arg_unwrap.func_name = "%s_arg_unwrap" % (func.func_name, )
     return func_arg_unwrap
 
