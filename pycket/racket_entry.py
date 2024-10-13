@@ -173,12 +173,12 @@ def locate_linklet(file_name):
 
 def load_bootstrap_linklets(dont_load_regexp=False):
 
-    # Load fasl linklet
-    FASL_LINKLET.load()
-
     if not dont_load_regexp:
         # Load regexp linklet
         REGEXP_LINKLET.load()
+
+    # Load fasl linklet
+    FASL_LINKLET.load()
 
     # Load expander linklet
     EXPANDER_LINKLET.load()
