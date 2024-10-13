@@ -59,6 +59,7 @@ FASL_PREFIX_LENGTH = len(FASL_PREFIX)
 FASL_HASH_EQ_VARIANT = 0
 FASL_HASH_EQUAL_VARIANT = 1
 FASL_HASH_EQV_VARIANT = 2
+FASL_HASH_EQ_ALW_VARIANT = 3
 
 #################################################
 
@@ -213,7 +214,7 @@ class Fasl(object):
         from pycket.values_struct import W_Struct
         from pycket.prims.general import srcloc
         from pycket.hash import simple as hash_simple
-        from pycket.hash.equal import W_EqualHashTable
+        from pycket.hash.equal import W_EqualHashTable, W_EqualAlwaysHashTable
         from pycket.prims.numeric import float_bytes_to_real
         from pycket.prims.string import _str2num
         from rpython.rlib.rbigint import rbigint
@@ -372,22 +373,30 @@ class Fasl(object):
             variant, pos = self.read_byte_no_eof(fasl_string, pos)
             length, pos = self.read_fasl_integer(fasl_string, pos)
             keys, vals, pos = self.read_multi_double_into_rpython_list(fasl_string, pos, length)
-            if variant == FASL_HASH_EQ_VARIANT:
+            if variant == FASL_HASH_EQUAL_VARIANT:
+                return W_EqualHashTable(keys, vals, immutable=False), pos
+            elif variant == FASL_HASH_EQ_VARIANT:
                 return hash_simple.make_simple_mutable_table(hash_simple.W_EqMutableHashTable, keys, vals), pos
             elif variant == FASL_HASH_EQV_VARIANT:
                 return hash_simple.make_simple_mutable_table(hash_simple.W_EqvMutableHashTable, keys, vals), pos
-            else: # variant == FASL_HASH_EQUAL_VARIANT:
-                return W_EqualHashTable(keys, vals, immutable=False), pos
+            elif variant == FASL_HASH_EQ_ALW_VARIANT:
+                return W_EqualAlwaysHashTable(keys, vals, immutable=False), pos
+            else:
+                raise Exception("unrecognized hash variant fasl tag: %s" % typ)
         elif typ == FASL_IMMUTABLE_HASH_TYPE:
             variant, pos = self.read_byte_no_eof(fasl_string, pos)
             length, pos = self.read_fasl_integer(fasl_string, pos)
             keys, vals, pos = self.read_multi_double_into_rpython_list(fasl_string, pos, length)
-            if variant == FASL_HASH_EQ_VARIANT:
+            if variant == FASL_HASH_EQUAL_VARIANT:
+                return W_EqualHashTable(keys, vals, immutable=True), pos
+            elif variant == FASL_HASH_EQ_VARIANT:
                 return hash_simple.make_simple_immutable_table(hash_simple.W_EqImmutableHashTable, keys, vals), pos
             elif variant == FASL_HASH_EQV_VARIANT:
                 return hash_simple.make_simple_immutable_table(hash_simple.W_EqvImmutableHashTable, keys, vals), pos
+            elif variant == FASL_HASH_EQ_ALW_VARIANT:
+                return W_EqualAlwaysHashTable(keys, vals, immutable=True), pos
             else: # variant == FASL_HASH_EQUAL_VARIANT:
-                return W_EqualHashTable(keys, vals, immutable=True), pos
+                raise Exception("unrecognized immutable hash variant fasl tag: %s" % typ)
         elif typ == FASL_SRCLOC:
             # difficult to create an instance of srcloc struct so defer that to the runtime
             source, pos = self.fasl_to_sexp_recursive(fasl_string, pos)
