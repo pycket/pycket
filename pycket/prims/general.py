@@ -514,6 +514,22 @@ def object_name(v):
 
     elif isinstance(v, values_regex.W_AnyRegexp) or isinstance(v, values.W_Port):
         return v.obj_name()
+    elif isinstance(v, values_struct.W_Struct):
+        obj_name_prop = v.struct_type().read_property_precise(values_struct.w_prop_object_name)
+        if obj_name_prop:
+            if isinstance(obj_name_prop, values.W_Fixnum):
+                # Object name is one of the fields (indexed by obj_name_prop)
+                # TODO (cderici 10-13-2024): Check if we need to check the field
+                # range boundry
+                # Access the field value
+                return v._ref(obj_name_prop.value)
+            else:
+                # obj_name_prop has to be a procedure (assert that it is)
+                if not obj_name_prop.iscallable():
+                    raise SchemeException("prop:object-name of type %s is not callable, struct: %s" % (obj_name_prop, v.tostring()))
+                # Object name is the result of calling proc (with struct as
+                # argument)
+                return obj_name_prop.call_interpret([v])
 
     return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 

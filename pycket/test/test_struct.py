@@ -621,6 +621,15 @@ def test_struct_operations_arity(doctest):
     2
     """
 
+@pytest.mark.caner
+def test_struct_object_name_field(doctest):
+    """
+    ! (require racket/base)
+    ! (struct posn (x y name) #:property prop:object-name 2)
+    > (object-name (posn 1 2 'my-point))
+    'my-point
+    """
+
 @skip
 def test_serializable(source):
     """
