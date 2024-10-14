@@ -354,23 +354,42 @@ make_pred("instance?", W_LinkletInstance)
 # compile-linklet prepares a linklet for instantiation. Takes an s-expr (or a
 # W_Linklet) and returns a W_Linklet to be passed to instantiate-linklet.
 @expose("compile-linklet", [W_Object, default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false)], simple=False)
-def compile_linklet(form, name, import_keys, get_import, options, env, cont):
+def compile_linklet(form, info, import_keys, get_import, options, env, cont):
     from pycket.util import console_log
-    console_log("compiling linklet : %s %s\n import_keys : %s -- get_import : %s" % (name.tostring(), form.tostring(), import_keys.tostring(), get_import.tostring()), 5)
+    console_log("compiling linklet : %s %s\n import_keys : %s -- get_import : %s" % (info.tostring(), form.tostring(), import_keys.tostring(), get_import.tostring()), 5)
     with PerfRegionCPS("compile-linklet"):
         cont_ = finish_perf_region_cont("compile-linklet", env, cont)
-        return do_compile_linklet(form, name, import_keys, get_import, options, env, cont_)
+        return do_compile_linklet(form, info, import_keys, get_import, options, env, cont_)
 
 # do-compile-linklet prepares a linklet for instantiation. Takes an s-expr (or a
 # W_Linklet) and returns a W_Linklet to be passed to instantiate-linklet.
-def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
+def do_compile_linklet(form, info, import_keys, get_import, options, env, cont):
     from pycket.util import console_log
+    from pycket.hash.base import w_missing
+
     if isinstance(form, W_WrappedConsProper): # s-expr
         # read it and create an AST, put it in a W_Linklet and return
         if not isinstance(form.car(), W_Symbol) or "linklet" != form.car().tostring():
             raise SchemeException("Malformed s-expr. Expected a linklet, got %s" % form.tostring())
         else:
-            w_name = W_Symbol.make("ad-hoc") if name is w_false else name
+            w_name = W_Symbol.make("ad-hoc")
+
+            if info is not w_false:
+                # For tests
+                # TODO (cderici 10-13-2024): change testing with proper info
+                # parametter
+                if isinstance(info, W_Symbol):
+                    w_name = info
+                else:
+                    if not isinstance(info, W_HashTable):
+                        raise SchemeException("Expected a hash? as info parameter in compile-linklet, given: %s -- %s" % (type(info), info.tostring()))
+
+                    # TODO (cderici 10-13-2024): keep the rest of the
+                    # information in the info parameter (phase, etc.) for
+                    # debugging purposes, instead of throwing them away
+                    w_name = info.val_at(W_Symbol.make("name"), w_missing)
+                    if w_name is w_missing:
+                        raise Exception("Linklet info doesn't have a name field: %s\nlinklet: %s" % (info.tostring(), form.tostring()))
 
             # Process the imports
             w_importss = form.cdr().car()
