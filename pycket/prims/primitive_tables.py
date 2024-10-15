@@ -86,7 +86,7 @@ network_str = [
     "udp?", "udp-bind!", "udp-bound?", "udp-close",
     "udp-connect!", "udp-connected?", "udp-multicast-interface", "udp-multicast-join-group!",
     "udp-multicast-leave-group!", "udp-multicast-loopback?", "udp-multicast-set-interface!", "udp-multicast-set-loopback!",
-    "udp-multicast-set-ttl!", "udp-multicast-ttl", "udp-open-socket", "udp-receive!",
+    "udp-multicast-set-ttl!", "udp-multicast-ttl", "udp-open-socket", "udp-receive!", "udp-ttl", "udp-set-ttl!",
     "udp-receive!*", "udp-receive!-evt", "udp-receive!/enable-break", "udp-receive-ready-evt",
     "udp-set-receive-buffer-size!",
     "udp-send", "udp-send*", "udp-send-evt", "udp-send-ready-evt",
@@ -95,6 +95,7 @@ network_str = [
 ]
 
 foreign_str = [
+    "assert-ctype-representation",
     "_bool", "_bytes", "_double", "_double*",
     "_fixint", "_fixnum", "_float", "_fpointer",
     "_gcpointer", "_int16", "_int32", "_int64",
@@ -110,7 +111,7 @@ foreign_str = [
     "ffi-obj-name", "ffi-obj?", "flvector->cpointer", "free",
     "ffi-lib-unload",
     "free-immobile-cell", "lookup-errno", "make-array-type", "make-cstruct-type",
-    "make-ctype", "make-late-weak-box", "make-late-weak-hasheq", "make-sized-byte-string",
+    "make-ctype", "make-late-weak-box", "make-late-weak-hasheq", "make-sized-byte-string", "ffi-maybe-call-and-callback-core",
     "make-stubborn-will-executor", "make-union-type", "malloc", "malloc-immobile-cell",
     "memcpy", "memmove", "memset", "offset-ptr?",
     "prop:cpointer", "ptr-add", "ptr-add!", "ptr-equal?",
@@ -240,7 +241,7 @@ kernel_str = [
     "bytes>?", "bytes<?", "bytes=?",
     "bytes?",
     "caadr", "call-in-nested-thread", "call-with-composable-continuation",
-    "call-with-continuation-barrier", "call-with-continuation-prompt", "call-with-current-continuation",
+    "call-with-continuation-barrier", "call-with-continuation-prompt", "call-with-current-continuation", "call-in-continuation",
     "call-with-escape-continuation", "call-with-immediate-continuation-mark", "call-with-input-file",
     "call-with-output-file", "call-with-semaphore", "call-with-semaphore/enable-break",
     "call-with-values", "ceiling", "channel?",
@@ -392,6 +393,7 @@ kernel_str = [
     "port-read-handler", "set-port-next-location!", "port-try-file-lock?",
     "port-write-handler", "port-writes-atomic?", "port-writes-special?",
     "positive?", "prefab-key->struct-type", "prefab-key?",
+    "prefab-struct-type-key+field-count",
     "prefab-struct-key", "pregexp", "pregexp?",
     "primitive?", "primitive-closure?",
     "primitive-result-arity", "printf", "print",
