@@ -24,9 +24,7 @@ jobs:
                 python-version: "pypy-2.7-v7.3.17"
 
             - name: Setup PyPy Code
-              uses: actions/checkout@main
-              with:
-                repository: pypy/pypy
+              run: cd pycket && git clone https://github.com/pypy/pypy.git
 
             - name: install dependencies
               run: |
