@@ -1,0 +1,21 @@
+# Build workflow testing if the code compiles.
+
+name: Build
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened, ready_for_review]
+    push:
+        branches:
+            - "master"
+jobs:
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check out code
+              uses: actions/checkout@v4
+            - name: Setup PyPy
+              run: make setup-pypy
+            - name: Compile Pycket
+              run: make pycket-c-linklets

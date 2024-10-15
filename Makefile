@@ -141,6 +141,15 @@ setup-racket-for-old-pycket:
 	./racket/bin/raco pkg install -t dir pycket/pycket-lang/ || \
 	./racket/bin/raco pkg update --link pycket/pycket-lang
 
+PYPY_V=pypy2.7-v7.3.17-linux64
+PYPY_PAK=$PYPY_V.tar.bz2
+
+setup-pypy:
+	wget https://downloads.python.org/pypy/$PYPY_PAK
+	tar xzf $PYPY_PAK
+	ln -s $PYPY_V/bin/pypy pypy-c
+	export PATH=$PATH:$PYPY_V/bin
+
 clean-racket:
 	rm -rf racket
 
