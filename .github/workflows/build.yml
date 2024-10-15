@@ -15,7 +15,11 @@ jobs:
         steps:
             - name: Check out code
               uses: actions/checkout@v4
-            - name: Setup PyPy
+            - name: Setup PyPy Binary
               run: make setup-pypy
+            - name: Setup PyPy Code
+              uses: actions/checkout@main
+              with:
+                name: pypy/pypy
             - name: Compile Pycket
               run: make pycket-c-linklets

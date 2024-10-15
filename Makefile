@@ -154,17 +154,11 @@ clean-racket:
 	rm -rf racket
 
 clone-pypy:
-	hg clone https://foss.heptapod.net/pypy/pypy pypy
+	git clone https://github.com/pypy/pypy.git
 
 make-pypy:
 	$(MAKE) -C pypy
 	cp pypy/pypy/goal/pypy-c pypy/pypy/goal/pypy
-
-pull-pypy:
-	hg -R $(PYPYPATH) pull
-
-update-pypy: pull-pypy
-	hg -R $(PYPYPATH) update
 
 setup-old-pycket: setup-racket-for-old-pycket update-pypy
 
