@@ -20,6 +20,6 @@ jobs:
             - name: Setup PyPy Code
               uses: actions/checkout@main
               with:
-                name: pypy/pypy
+                repository: pypy/pypy
             - name: Compile Pycket
               run: make pycket-c-linklets

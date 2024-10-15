@@ -22,7 +22,7 @@ jobs:
             - name: Setup PyPy Code
               uses: actions/checkout@main
               with:
-                name: pypy/pypy
+                repository: pypy/pypy
             - name: Setup local Racket
               run: make setup-local-racket
             - name: Run test

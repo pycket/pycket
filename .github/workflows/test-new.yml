@@ -22,7 +22,7 @@ jobs:
             - name: Setup PyPy Code
               uses: actions/checkout@main
               with:
-                name: pypy/pypy
+                repository: pypy/pypy
             - name: Run test
               run: make test-new
     on-failure:
