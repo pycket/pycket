@@ -513,8 +513,8 @@ class __extend__(values.W_Fixnum):
 
         return result
 
-    def arith_log(self):
-        return values.W_Flonum(math.log(self.value))
+    def arith_log(self, alt_base):
+        return values.W_Flonum(math.log(self.value) / math.log(alt_base))
     def arith_sin(self):
         return values.W_Flonum(math.sin(self.value))
     def arith_cos(self):
@@ -683,8 +683,8 @@ class __extend__(values.W_Flonum):
             return imaginary(values.W_Flonum(math.sqrt(-n)))
         return values.W_Flonum(math.sqrt(n))
 
-    def arith_log(self):
-        return values.W_Flonum(math.log(self.value))
+    def arith_log(self, alt_base):
+        return values.W_Flonum(math.log(self.value) / math.log(alt_base))
     def arith_sin(self):
         return values.W_Flonum(math.sin(self.value))
     def arith_cos(self):

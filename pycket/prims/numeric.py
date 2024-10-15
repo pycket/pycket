@@ -384,7 +384,7 @@ for args in [
         ("asin", "arith_asin", True),
         ("acos", "arith_acos", True),
         # ("tan", "arith_tan", True), down below
-        ("log", "arith_log", True),
+        # ("log", "arith_log", True),
         ("sub1", "arith_sub1"),
         ("inexact->exact", "arith_inexact_exact"),
         ("exact->inexact", "arith_exact_inexact"),
@@ -398,6 +398,21 @@ for args in [
         ("exp",     "arith_exp", True),
         ]:
     make_unary_arith(*args)
+
+def logfllog(n, b):
+    from rpython.rlib.longlong2float import float2longlong
+    if isinstance(b, values.W_Flonum):
+        r = float2longlong(b.value)
+    elif isinstance(b, values.W_Fixnum):
+        r = b.value
+    else:
+        raise SchemeException("unexpected base argument to log : %s" % b.tostring())
+
+    return n.arith_log(r)
+
+expose("log", [values.W_Number, default(values.W_Number, values.W_Flonum.ONE.arith_exp())], simple=True)(logfllog)
+
+expose("fllog", [values.W_Flonum, default(values.W_Number, values.W_Flonum.ONE.arith_exp())], simple=True)(logfllog)
 
 @expose("odd?", [values.W_Number])
 def oddp(n):
