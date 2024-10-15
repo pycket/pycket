@@ -17,14 +17,24 @@ jobs:
         steps:
             - name: Check out code
               uses: actions/checkout@v4
-            - name: Setup PyPy
-              run: make setup-pypy
+
+            - name: Set up PyPy 2.7
+              uses: actions/setup-python@v5
+              with:
+                python-version: "pypy-2.7-v7.3.17"
+
             - name: Setup PyPy Code
               uses: actions/checkout@main
               with:
                 repository: pypy/pypy
+
+            - name: install dependencies
+              run: |
+                    sudo apt install libffi-dev pkg-config zlib1g-dev libbz2-dev libsqlite3-dev libncurses5-dev libexpat1-dev libssl-dev libgdbm-dev tk-dev libgc-dev liblzma-dev libncursesw5-dev patchelf
+                    cd pycket/pypy && pypy -m pip install -r requirements.txt
+
             - name: Run test
-              run: make test-new
+              run: cd pycket && make test-new
     on-failure:
         runs-on: ubuntu-latest
         if: ${{ github.event.workflow_run.conclusion == 'failure' }}
