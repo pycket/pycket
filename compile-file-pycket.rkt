@@ -53,6 +53,7 @@
     "racket/stxparam-exptime"
     "racket/private/generic-methods"
     "racket/private/struct-info"
+    "racket/private/struct-util"
     "racket/private/define-struct"
     "racket/require-transform"
     "racket/provide-transform"
@@ -73,6 +74,7 @@
     "racket/private/namespace"
     "racket/private/struct"
     "racket/private/base"
+    "racket/phase+space"
     "racket/base"
     "racket/private/performance-hint"
     "racket/private/executable-path"
@@ -88,6 +90,7 @@
 (define racket-modules
   (append racket-base-modules
           '("racket/private/list-predicates"
+            "racket/private/print-value-columns"
             "racket/private/math-predicates"
             "racket/list"
             "racket/private/arity"
@@ -112,6 +115,7 @@
             "racket/unsafe/ops"
             "racket/flonum"
             "racket/fixnum"
+            "racket/private/fixnum"
             "syntax/private/boundmap"
             "syntax/srcloc"
             "syntax/stx"
@@ -194,18 +198,18 @@
             "racket/private/streams"
             "racket/private/stream-cons"
             "racket/private/truncate-path"
-            "racket/private/unit-keywords"
+            "racket/private/unit/keywords"
             "racket/private/unix-rand"
             "racket/private/serialize" ;; fail
             "racket/private/unit-compiletime" ;; fail
-            "racket/private/unit-utils" ;; fail
+            "racket/private/unit/util" ;; fail
             "racket/private/set" ;; fail
             "racket/private/set-types" ;; fail
             "racket/private/shared-body" ;; fail
             "racket/private/tethered-installer" ;; fail
-            "racket/private/unit-contract-syntax" ;; fail
-            "racket/private/unit-contract" ;; fail
-            "racket/private/unit-runtime"
+            "racket/private/unit/contract-syntax" ;; fail
+            "racket/private/unit/contract" ;; fail
+            "racket/private/unit/runtime"
             "racket/async-channel" ;; fail
             "racket/bool"
             "racket/block"
@@ -366,7 +370,7 @@
    #:args paths
    ;; do this with mutation because parameterization doesn't currently work
    (current-namespace (make-base-namespace))
-   (let ([racket-modules (if base-only racket-base-modules racket-modules)]) 
+   (let ([racket-modules (if base-only racket-base-modules racket-modules)])
      (when clean
        (for ([p (in-list racket-modules)])
          (clean-file p))
@@ -379,9 +383,14 @@
          (with-handlers ([exn:fail?
                           (lambda (e)
                             (let* ((msg (lambda (n)
-                                          (string-append (substring (exn-message e) 0 n) " ...")))
+                                          (string-append
+                                            (substring
+                                              (exn-message e)
+                                              0
+                                              (min (string-length (exn-message e)) n))
+                                            " ...")))
                                    (msg-short (msg 40))
-                                   (msg-long (msg (min (string-length (exn-message e)) 200)))
+                                   (msg-long (msg 200))
                                    (mod.msg (cons p msg-short)))
                               (set! fails (cons mod.msg fails))
                               (printf "ERROR : ~a\n\n" (exn-message e))))])

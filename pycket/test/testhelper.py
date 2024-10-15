@@ -35,26 +35,31 @@ instantiate_linklet = get_primitive("instantiate-linklet")
 
 # This is where all the work happens
 
-try:
-    if not pytest.config.new_pycket:
-        w_global_config.set_linklet_mode_off()
 
-    if pytest.config.load_expander:
-        w_global_config.set_config_val('expander_loaded', 1)
-        # get the expander
-        print("Loading and initializing the expander")
-        initiate_boot_sequence([], False)
-        # load the '#%kernel
-        print("(namespace-require '#%%kernel)")
-        namespace_require_kernel()
-except:
-    pass
+if not pytest.config.new_pycket:
+    w_global_config.set_linklet_mode_off()
+
+if pytest.config.load_expander:
+    w_global_config.set_config_val('expander_loaded', 1)
+    # get the expander
+    print("Loading and initializing the expander")
+    initiate_boot_sequence([], False)
+    # load the '#%kernel
+    print("(namespace-require '#%%kernel)")
+    namespace_require_kernel()
+
 
 def run_sexp(body_sexp_str, v=None, just_return=False, extra="", equal_huh=False, expect_to_fail=False):
     linkl_str = "(linklet () () %s %s)" % (extra, body_sexp_str)
     l = make_linklet(linkl_str)
 
-    result, _ = eval(l, empty_target(), just_return=just_return)
+    try:
+        result, _ = eval(l, empty_target(), just_return=just_return)
+    except Exception as e:
+        if expect_to_fail:
+            return
+        raise e
+
     if expect_to_fail and isinstance(result, W_Void):
         raise SchemeException("test raised exception")
     if just_return:
@@ -66,7 +71,12 @@ def run_string(expr_str, v=None, just_return=False, equal_huh=False, expect_to_f
     # FIXME : removing \n is not ideal, as the test itself may have one
     expr_str = expr_str.replace('\n', '') # remove the newlines added by the multi line doctest
     expr_str = "(begin %s)" % expr_str
-    result = read_eval_print_string(expr_str, return_val=True)
+    try:
+        result = read_eval_print_string(expr_str, return_val=True)
+    except Exception as e:
+        if expect_to_fail:
+            return
+        raise e
 
     if expect_to_fail and isinstance(result, W_Void):
         raise SchemeException("test raised exception")
@@ -128,6 +138,8 @@ def check_result(result, expected, equal_huh=False):
         expected = "void"
     elif expected is w_null:
         expected = ()
+    elif isinstance(expected, W_Fixnum):
+        expected = expected.value
     elif isinstance(expected, W_Keyword):
         expected = "#:" + expected.value
 
@@ -193,7 +205,7 @@ def make_linklet(linkl_str, l_name="test_linklet_sexp"):
     linkl_sexp = string_to_sexp(linkl_str)
     try:
         do_compile_linklet(linkl_sexp, values.W_Symbol.make(l_name), w_false, w_false, w_false, ToplevelEnv(), NilCont())
-    except Done, e:
+    except Done as e:
         l = e.values # W_Linklet
         return l
     raise Exception("do_compile_linklet didn't raised a Done exception")
@@ -256,12 +268,17 @@ def run_mod_defs(m, extra="",stdlib=False, srcloc=True):
     mod = run_mod(str, srcloc=srcloc)
     return mod
 
-def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False):
+def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False, expect_to_fail=False):
     # this (let () e) wrapping is needed if e is `(begin (define x 1) x)`, for example
     # FIXME: this should get moved into a language
     expr = "(let () %s)"%e if wrap else e
     defn = "(define #%%pycket-expr %s)"%expr
-    mod = run_mod_defs(defn, stdlib=stdlib, extra=extra, srcloc=srcloc)
+    try:
+        mod = run_mod_defs(defn, stdlib=stdlib, extra=extra, srcloc=srcloc)
+    except SchemeException as e:
+        if expect_to_fail:
+            return
+        raise e
     ov = mod.defs[values.W_Symbol.make("#%pycket-expr")]
     if v:
         assert ov.equal(v)
@@ -290,7 +307,7 @@ def run_flo(p, v=None, stdlib=False, extra=""):
 def run(p, v=None, stdlib=False, extra="", expect_to_fail=False):
     if pytest.config.new_pycket:
         return run_expr_result(p, expect_to_fail=expect_to_fail, v=v)
-    return run_mod_expr(p,v=v,stdlib=stdlib, extra=extra)
+    return run_mod_expr(p,v=v,stdlib=stdlib, extra=extra, expect_to_fail=expect_to_fail)
 
 def run_top(p, v=None, stdlib=False, extra=""):
     return run_mod_expr(p,v=v,stdlib=stdlib, wrap=True, extra=extra)
@@ -355,7 +372,7 @@ def check_all(*snippets_returning_true, **kwargs):
         tail.append("  " * (i + 1) + "%s)" % i)
     code.append("  " * (i + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
-    print code
+    print(code)
     res = execute(code, extra=kwargs.get("extra", ""))
     if res is not values.w_true:
         assert 0, "%s returned a non-true value" % snippets_returning_true[res.value]
@@ -368,7 +385,7 @@ def check_none(*snippets_returning_false, **kwargs):
         tail.append("  " * (i + 1) + ")")
     code.append("  " * (i + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
-    print code
+    print(code)
     res = execute(code, extra=kwargs.get("extra", ""))
     if res is not values.w_true:
         assert 0, "%s returned a true value" % snippets_returning_false[res.value]
@@ -396,9 +413,9 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
     code.append("  " * (ind + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     try:
-        print code
+        print(code)
     except UnicodeEncodeError:
-        print code.encode("ascii", 'replace')
+        print(code.encode("ascii", 'replace'))
 
     extra = kwargs.get("extra", "")
     res = execute(code, extra=extra)
@@ -413,11 +430,11 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
 
 def dumb_repl():
     import sys
-    print "Simple repl. One expression per line. Run inside an empty linklet."
+    print("Simple repl. One expression per line. Run inside an empty linklet.")
     while True:
-        print "linklet> ",
+        print("linklet> ",)
         line = sys.stdin.readline()
         if not line:
             break
         result = run_sexp(line, just_return=True)
-        print result.tostring()
+        print(result.tostring())

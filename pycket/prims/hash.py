@@ -9,7 +9,7 @@ from pycket.hash.simple  import (
     W_EqvImmutableHashTable, W_EqImmutableHashTable,
     make_simple_mutable_table, make_simple_mutable_table_assocs,
     make_simple_immutable_table, make_simple_immutable_table_assocs)
-from pycket.hash.equal   import W_EqualHashTable
+from pycket.hash.equal   import W_EqualHashTable, W_EqualAlwaysHashTable
 from pycket.impersonators.baseline import W_ImpHashTable, W_ChpHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
@@ -39,8 +39,8 @@ def hash_iterate_first(ht):
 def hash_iterate_next(ht, pos):
     return ht.hash_iterate_next(pos)
 
-@objectmodel.specialize.arg(4)
-def hash_iter_ref(ht, n, env, cont, returns):
+@objectmodel.specialize.arg(5)
+def hash_iter_ref(ht, n, bad_index_v, env, cont, returns):
     from pycket.interpreter import return_value, return_multi_vals
     try:
         w_key, w_val = ht.get_item(n)
@@ -55,30 +55,30 @@ def hash_iter_ref(ht, n, env, cont, returns):
             vals = values.W_Cons.make(w_key, w_val)
             return return_value(vals, env, cont)
         assert False, "unknown return code"
-    except KeyError:
-        raise SchemeException("hash-iterate-key: invalid position")
-    except IndexError:
+    except (KeyError, IndexError):
+        if bad_index_v is not None:
+            return return_value(bad_index_v, env, cont)
         raise SchemeException("hash-iterate-key: invalid position")
 
 @expose(prefix_hash_names("hash-iterate-key"),
-        [W_HashTable, values.W_Fixnum], simple=False)
-def hash_iterate_key(ht, pos, env, cont):
-    return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY)
+        [W_HashTable, values.W_Fixnum, default(values.W_Object, None)], simple=False)
+def hash_iterate_key(ht, pos, bad_index_v, env, cont):
+    return hash_iter_ref(ht, pos.value, bad_index_v, env, cont, returns=_KEY)
 
 @expose(prefix_hash_names("hash-iterate-value"),
-        [W_HashTable, values.W_Fixnum], simple=False)
-def hash_iterate_value(ht, pos, env, cont):
-    return hash_iter_ref(ht, pos.value, env, cont, returns=_VALUE)
+        [W_HashTable, values.W_Fixnum, default(values.W_Object, None)], simple=False)
+def hash_iterate_value(ht, pos, bad_index_v, env, cont):
+    return hash_iter_ref(ht, pos.value, bad_index_v, env, cont, returns=_VALUE)
 
 @expose(prefix_hash_names("hash-iterate-key+value"),
-        [W_HashTable, values.W_Fixnum], simple=False)
-def hash_iterate_key_value(ht, pos, env, cont):
-    return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY_AND_VALUE)
+        [W_HashTable, values.W_Fixnum, default(values.W_Object, None)], simple=False)
+def hash_iterate_key_value(ht, pos, bad_index_v, env, cont):
+    return hash_iter_ref(ht, pos.value, bad_index_v, env, cont, returns=_KEY_AND_VALUE)
 
 @expose(prefix_hash_names("hash-iterate-pair"),
-        [W_HashTable, values.W_Fixnum], simple=False)
-def hash_iterate_pair(ht, pos, env, cont):
-    return hash_iter_ref(ht, pos.value, env, cont, returns=_PAIR)
+        [W_HashTable, values.W_Fixnum, default(values.W_Object, None)], simple=False)
+def hash_iterate_pair(ht, pos, bad_index_v, env, cont):
+    return hash_iter_ref(ht, pos.value, bad_index_v, env, cont, returns=_PAIR)
 
 @expose("hash-for-each", [W_HashTable, procedure, default(values.W_Object, values.w_false)], simple=False)
 def hash_for_each(ht, f, try_order, env, cont):
@@ -147,26 +147,37 @@ def from_assocs(assocs, fname):
         vals.append(val.cdr())
     return keys[:], vals[:]
 
-@expose("make-weak-hasheq", [default(values.W_List, values.w_null)])
+@expose(["make-weak-hasheq", "make-ephemeron-hasheq"], [default(values.W_List, values.w_null)])
 def make_weak_hasheq(assocs):
     # FIXME: not actually weak
     return make_simple_mutable_table_assocs(W_EqMutableHashTable, assocs, "make-weak-hasheq")
 
-@expose("make-weak-hasheqv", [default(values.W_List, values.w_null)])
+@expose(["make-weak-hasheqv", "make-ephemeron-hasheqv"], [default(values.W_List, values.w_null)])
 def make_weak_hasheqv(assocs):
     # FIXME: not actually weak
     return make_simple_mutable_table_assocs(W_EqvMutableHashTable, assocs, "make-weak-hasheqv")
 
-@expose(["make-weak-hash", "make-late-weak-hasheq"], [default(values.W_List, None)])
+@expose(["make-weak-hash", "make-late-weak-hasheq", "make-ephemeron-hash"], [default(values.W_List, None)])
 def make_weak_hash(assocs):
     if assocs is None:
         return W_EqualHashTable([], [], immutable=False)
     return W_EqualHashTable(*from_assocs(assocs, "make-weak-hash"), immutable=False)
 
+@expose(["make-weak-hashalw", "make-ephemeron-hashalw"], [default(values.W_List, None)])
+def make_weak_hash(assocs):
+    if assocs is None:
+        return W_EqualAlwaysHashTable([], [], immutable=False)
+    return W_EqualAlwaysHashTable(*from_assocs(assocs, "make-weak-hashalw"), immutable=False)
+
 @expose("make-immutable-hash", [default(values.W_List, values.w_null)])
 def make_immutable_hash(assocs):
     keys, vals = from_assocs(assocs, "make-immutable-hash")
     return W_EqualHashTable(keys, vals, immutable=True)
+
+@expose("make-immutable-hashalw", [default(values.W_List, values.w_null)])
+def make_immutable_hash(assocs):
+    keys, vals = from_assocs(assocs, "make-immutable-hash")
+    return W_EqualAlwaysHashTable(keys, vals, immutable=True)
 
 @expose("make-immutable-hasheq", [default(values.W_List, values.w_null)])
 def make_immutable_hasheq(assocs):
@@ -183,6 +194,14 @@ def hash(args):
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
     return W_EqualHashTable(keys, vals, immutable=True)
+
+@expose("hashalw")
+def hash(args):
+    if len(args) % 2 != 0:
+        raise SchemeException("hashalw: key does not have a corresponding value")
+    keys = [args[i] for i in range(0, len(args), 2)]
+    vals = [args[i] for i in range(1, len(args), 2)]
+    return W_EqualAlwaysHashTable(keys, vals, immutable=True)
 
 @expose("hasheq")
 def hasheq(args):
@@ -203,6 +222,10 @@ def hasheqv(args):
 @expose("make-hash", [default(values.W_List, values.w_null)])
 def make_hash(pairs):
     return W_EqualHashTable(*from_assocs(pairs, "make-hash"))
+
+@expose("make-hashalw", [default(values.W_List, values.w_null)])
+def make_hash(pairs):
+    return W_EqualAlwaysHashTable(*from_assocs(pairs, "make-hashalw"))
 
 @expose("make-hasheq", [default(values.W_List, values.w_null)])
 def make_hasheq(pairs):
@@ -328,10 +351,16 @@ def uses_same_eq_comparison(hash_1, hash_2):
     if hash_2.is_impersonator() or hash_2.is_chaperone():
         h_2 = hash_2.get_proxied()
 
+    # equal?
     if isinstance(h_1, W_EqualHashTable):
         return isinstance(h_2, W_EqualHashTable)
+    # equal-always?
+    if isinstance(h_1, W_EqualAlwaysHashTable):
+        return isinstance(h_2, W_EqualAlwaysHashTable)
+    # eq?
     elif isinstance(h_1, W_EqMutableHashTable) or isinstance(h_1, W_EqImmutableHashTable):
         return isinstance(h_2, W_EqMutableHashTable) or isinstance(h_2, W_EqImmutableHashTable)
+    # eqv?
     elif isinstance(h_1, W_EqvMutableHashTable) or isinstance(h_1, W_EqvImmutableHashTable):
         return isinstance(h_2, W_EqvMutableHashTable) or isinstance(h_2, W_EqvImmutableHashTable)
     else:
@@ -342,6 +371,27 @@ def hash_keys_subset_huh(hash_1, hash_2, env, cont):
     if not uses_same_eq_comparison(hash_1, hash_2):
         raise SchemeException("hash-keys-subset?: given hash tables do not use the same key comparison -- first table : %s - second table: %s" % (hash_1.tostring(), hash_2.tostring()))
     return hash_keys_subset_huh_loop(hash_1.hash_items(), hash_2, 0, env, cont)
+
+@continuation
+def hash_ref_key_cont(default, key, env, cont, _vals):
+    """Continuation used in hash-ref-key
+    Returns the key (as opposed to hash-ref returning the value).
+    """
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    if val is not w_missing:
+        return return_value(key, env, cont)
+    if default is None:
+        raise SchemeException("key %s not found"%key.tostring())
+    if default.iscallable():
+        return default.call([], env, cont)
+    return return_value(default, env, cont)
+
+@expose("hash-ref-key", [W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
+def hash_ref_key(ht, key, default, env, cont):
+    """Returns the key held by ht that is equivalent to key according to ht's key-comparison function.
+    """
+    return ht.hash_ref(key, env, hash_ref_key_cont(default, key, env, cont))
 
 @continuation
 def hash_copy_ref_cont(keys, idx, src, new, env, cont, _vals):
@@ -375,7 +425,7 @@ def hash_copy(src, env, cont):
 expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
 
 # FIXME: not implemented
-@expose("equal-hash-code", [values.W_Object])
+@expose(["equal-hash-code", "equal-always-hash-code"], [values.W_Object])
 def equal_hash_code(v):
 
     # only for improper path cache entries

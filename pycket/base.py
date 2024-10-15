@@ -70,9 +70,9 @@ class W_Object(W_ProtoObject):
         try:
             ast, env, cont = self.call_with_extra_info(racket_vals, t_env, cont, None)
             return interpret_one(ast, env, cont)
-        except Done, e:
+        except Done as e:
             return e.values
-        except SchemeException, e:
+        except SchemeException as e:
             raise e
 
 

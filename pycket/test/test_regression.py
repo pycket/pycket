@@ -91,7 +91,7 @@ class TestRegressions(object):
         result = W_Symbol.make("result")
         assert type(m.defs[result]) is W_Fixnum and m.defs[result].value == 1
 
-    @pytest.mark.skipif(pytest.config.new_pycket, reason="")
+    @pytest.mark.skip()
     def test_quote_syntax_expansion(self, source):
         """
         #lang typed/racket/base

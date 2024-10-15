@@ -41,6 +41,11 @@ def scheme_extend_parameterization(args, env, cont):
     if argc < 2 or argc % 2 != 1: # or not isinstance(config, values_parameter.W_Parameterization):
         return return_value(config, env, cont)
 
+    # strip out the proxies from impersonated/chaperoned parameters
+    # as parameter-procedures can be proxied
+    for i in range(1, len(args)):
+        if args[i].is_impersonator() or args[i].is_chaperone():
+            args[i] = args[i].get_proxied()
 
     parser = ArgParser("extend-parameterization", args, start_at=1)
     params = [None]*((argc-1)/2)
@@ -102,6 +107,14 @@ expose_val("error-print-source-location", values_parameter.W_Parameter(values.w_
 
 expose_val("port-count-lines-enabled", values_parameter.W_Parameter(values.w_false))
 
+REALM = values.W_Symbol.make("pycket")
+
+expose_val("current-compile-realm", values_parameter.W_Parameter(REALM))
+
+# error-syntax->string-handler determines the error syntax conversion handler,
+# which is used to print a syntax form that is embedded in an error message
+expose_val("error-syntax->string-handler", values_parameter.W_Parameter(values.w_false))
+
 READ_TRUE_PARAMS = """
 read-accept-reader
 read-accept-lang
@@ -122,6 +135,7 @@ read-square-bracket-with-tag
 read-curly-brace-with-tag
 read-cdot
 read-single-flonum
+read-syntax-accept-graph
 """
 
 for name in READ_TRUE_PARAMS.split():

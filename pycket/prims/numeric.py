@@ -384,7 +384,7 @@ for args in [
         ("asin", "arith_asin", True),
         ("acos", "arith_acos", True),
         # ("tan", "arith_tan", True), down below
-        ("log", "arith_log", True),
+        # ("log", "arith_log", True),
         ("sub1", "arith_sub1"),
         ("inexact->exact", "arith_inexact_exact"),
         ("exact->inexact", "arith_exact_inexact"),
@@ -398,6 +398,21 @@ for args in [
         ("exp",     "arith_exp", True),
         ]:
     make_unary_arith(*args)
+
+def logfllog(n, b):
+    from rpython.rlib.longlong2float import float2longlong
+    if isinstance(b, values.W_Flonum):
+        r = float2longlong(b.value)
+    elif isinstance(b, values.W_Fixnum):
+        r = b.value
+    else:
+        raise SchemeException("unexpected base argument to log : %s" % b.tostring())
+
+    return n.arith_log(r)
+
+expose("log", [values.W_Number, default(values.W_Number, values.W_Flonum.ONE.arith_exp())], simple=True)(logfllog)
+
+expose("fllog", [values.W_Flonum, default(values.W_Number, values.W_Flonum.ONE.arith_exp())], simple=True)(logfllog)
 
 @expose("odd?", [values.W_Number])
 def oddp(n):
@@ -635,7 +650,7 @@ def float_bytes_to_real(bytes, signed):
             for i, v in enumerate(bytes):
                 val += rarithmetic.r_uint64(ord(v)) << (i * 8)
             return values.W_Flonum(pycket_longlong2float(val))
-    except OverflowError, e:
+    except OverflowError as e:
         # Uncomment the check below to run Pycket on the
         # interpreter with compiled (zo) files
         # (fasl makes a call that blows the longlong2float on rpython)
@@ -769,15 +784,15 @@ def integer_length(obj):
 
         if not bignum.tobool():
             return values.W_Fixnum.ZERO
-        elif bignum.sign != -1:
+        elif bignum.get_sign() != -1:
             negative_power_of_two = False
         else:
-            for i in range(bignum.size - 1):
+            for i in range(bignum.numdigits() - 1):
                 if bignum.udigit(i) != 0:
                     negative_power_of_two = False
                     break
 
-            msd = bignum.udigit(r_uint(bignum.size - 1))
+            msd = bignum.udigit(r_uint(bignum.numdigits() - 1))
             while msd:
                 if (msd & r_uint(0x1)) and msd != r_uint(1):
                     negative_power_of_two = False

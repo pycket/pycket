@@ -6,12 +6,146 @@ from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
 from pycket.util import console_log, LinkletPerf, linklet_perf, PerfRegion
 from pycket.prims.correlated import syntax_primitives
-from pycket.error import ExitException
+from pycket.error import ExitException, SchemeException
 from rpython.rlib.debug import debug_start, debug_stop, debug_print
+from pycket.error import BootstrapError
+
+class BootstrapLinklet():
+    DIR = "bootstrap-linklets"
+    ZO = ".linklet.zo"
+    FASL = ".linklet.fasl"
+    JSON = ".linklet.json"
+
+    def __init__(self, which_str):
+        self.which_str = which_str
+        self.file_path = ""
+        self.linkl = None
+        self.instance = None
+        self.load_from = None
+        self.is_expander = "expander" in which_str
+        self.is_exposed = False
+        self.version_sexp = None # w_s-exp
+
+    def locate(self):
+        if self.file_path:
+            return self.file_path
+
+        console_log("Locating the %s linklet..." % self.which_str)
+        possible_exts = [BootstrapLinklet.ZO, BootstrapLinklet.FASL, BootstrapLinklet.JSON]
+        for ext in possible_exts:
+            try:
+                self.file_path = locate_linklet("%s/%s%s" % (BootstrapLinklet.DIR, self.which_str, ext))
+                self.load_from = ext
+                break
+            except BootstrapError:
+                continue
+        if not self.file_path:
+            raise BootstrapError("unable to locate %s linklet" % self.which_str)
+        return self.file_path
+
+    # Loads the linklet from the file
+    def load_linklet(self):
+        if self.linkl:
+            return self.linkl
+
+        console_log("Loading the %s linklet..." % self.which_str)
+
+        if not self.file_path:
+            self.locate()
+
+        if self.load_from == BootstrapLinklet.ZO or self.load_from == BootstrapLinklet.FASL:
+            self.linkl, self.version_sexp = load_linklet_from_fasl(self.file_path, set_version=self.is_expander)
+        elif self.load_from == BootstrapLinklet.JSON:
+            self.linkl = load_linklet_from_json(self.file_path, set_version=self.is_expander)
+
+        if self.linkl is None:
+            raise BootstrapError("loading %s linklet file : %s" % (self.which_str, self.file_path))
+
+        return self.linkl
+
+    # Instantiates the linklet
+    def instantiate_linklet(self):
+        if self.instance:
+            return self.instance
+
+        # Make sure the linklet is loaded
+        if not self.linkl:
+            self.load_linklet()
+
+        self.instance = _instantiate_linklet(self.file_path, self.linkl)
+        return self.instance
+
+    # Exposes the vars to the primitive environment
+    def expose(self):
+        if self.is_exposed:
+            return
+
+        if not self.instance:
+            self.instantiate_linklet()
+
+        console_log("Exporting vars of %s linklet." % self.which_str)
+        self.instance.expose_vars_to_prim_env()
+        self.is_exposed = True
+
+    # Loads and instantiates the linklet, exposes its vars to the primitive
+    # environment
+    def load(self):
+        if self.is_exposed:
+            console_log("%s linklet already loaded." % self.which_str)
+            return 0
+
+        with PerfRegion("%s-linklet" % self.which_str):
+            # Locate the linklet file if needed
+            self.locate()
+
+            # Load the linklet from file
+            self.load_linklet()
+
+            # Instantiate the linklet
+            self.instantiate_linklet()
+
+            # Expose vars to the primitive environment
+            self.expose()
+
+            # Flag the expander as loaded if it's the expander linklet
+            if self.is_expander:
+                from pycket.env import w_global_config
+                w_global_config.set_config_val('expander_loaded', 1)
+
+            console_log("DONE loading the %s linklet." % self.which_str)
+            return 0
+
+    # Creates a .zo file for the linklet
+    def create_zo(self):
+        console_log("Creating .zo file for %s linklet." % self.which_str)
+        from pycket.ast_vs_sexp import ast_to_sexp
+        from pycket.values import W_Cons
+        from pycket.prims.input_output import open_outfile
+
+        # Make sure we have the fasl linklet loaded (for s-exp->fasl)
+        FASL_LINKLET.load()
+
+        # Make sure the linklet is loaded
+        linklet = self.load_linklet()
+        linklet_sexp = ast_to_sexp(linklet)
+
+        # s-exp->fasl the linklet into a .zo
+        sexp_to_fasl = get_primitive("s-exp->fasl")
+        out_port = open_outfile(W_Path("%s/%s" % (BootstrapLinklet.DIR, self.which_str + BootstrapLinklet.ZO)), "w", W_Symbol.make("replace"))
+
+        if self.is_expander:
+            sexp_to_fasl.call_interpret([W_Cons.make(self.version_sexp, linklet_sexp), out_port])
+        else:
+            sexp_to_fasl.call_interpret([linklet_sexp, out_port])
+        out_port.close()
+        console_log("DONE creating .zo file for %s linklet." % self.which_str)
+
+FASL_LINKLET = BootstrapLinklet('fasl')
+EXPANDER_LINKLET = BootstrapLinklet('expander')
+REGEXP_LINKLET = BootstrapLinklet('regexp')
 
 def locate_linklet(file_name):
     import os
-    from pycket.error import SchemeException
 
     env_vars = os.environ.keys()
     if "PYTHONPATH" not in env_vars:
@@ -33,49 +167,21 @@ def locate_linklet(file_name):
             file_path = up_file
             break
     else:
-        raise SchemeException("Can't locate the : %s" % file_name)
+        raise BootstrapError("locating linklet : %s" % file_name)
 
     return file_path
 
-def load_bootstrap_linklet(which_str, debug, is_it_expander=False, from_fasl=True):
-    from pycket.error import SchemeException
-
-    with PerfRegion("%s-linklet" % which_str):
-        console_log("Loading the %s linklet..." % which_str)
-        linklet_file_path = locate_linklet("%s.rktl.linklet" % which_str)
-        if from_fasl:
-            try:
-                linklet_file_path = locate_linklet("%s.zo" % which_str)
-            except SchemeException:
-                linklet_file_path = locate_linklet("%s.fasl" % which_str)
-
-        # load the linklet
-        _instance = load_inst_linklet(linklet_file_path, debug, set_version=is_it_expander, from_fasl=from_fasl)
-        _instance.expose_vars_to_prim_env(excludes=syntax_primitives)
-
-        if is_it_expander:
-            from pycket.env import w_global_config
-            w_global_config.set_config_val('expander_loaded', 1)
-
-        return 0
-
-def load_expander(debug):
-    load_bootstrap_linklet("expander", debug, is_it_expander=True)
-
-def load_fasl(debug=False):
-    load_bootstrap_linklet("fasl", debug, from_fasl=True)
-
-def load_regexp(debug=False):
-    load_bootstrap_linklet("regexp", debug)
-
-def load_bootstrap_linklets(debug=False, dont_load_regexp=False):
-
-    load_fasl(debug)
+def load_bootstrap_linklets(dont_load_regexp=False):
 
     if not dont_load_regexp:
-        load_regexp(debug)
+        # Load regexp linklet
+        REGEXP_LINKLET.load()
 
-    load_expander(debug)
+    # Load fasl linklet
+    FASL_LINKLET.load()
+
+    # Load expander linklet
+    EXPANDER_LINKLET.load()
 
     console_log("Bootstrap linklets are ready.")
     return 0
@@ -87,29 +193,24 @@ def load_linklet_from_json(file_name, set_version=False):
     debug_stop("loading-linklet")
     return linkl
 
-def make_zo_for(linklet_name):
-    from pycket.ast_vs_sexp import ast_to_sexp
-    from pycket.values import W_Cons
-    from pycket.prims.input_output import open_outfile
-
-    # load the linklet
-    linklet, version_sexp = load_linklet_from_fasl(linklet_name + ".fasl", set_version="expander" in linklet_name)
-
-    # s-exp->fasl the linklet into a .zo
-    sexp_to_fasl = get_primitive("s-exp->fasl")
-    out_port = open_outfile(W_Path(linklet_name + ".zo"), "w", W_Symbol.make("replace"))
-    linklet_sexp = ast_to_sexp(linklet)
-    if "expander" in linklet_name:
-        sexp_to_fasl.call_interpret([W_Cons.make(version_sexp, linklet_sexp), out_port])
-    else:
-        sexp_to_fasl.call_interpret([linklet_sexp, out_port])
-    out_port.close()
-
 def make_bootstrap_zos():
-    load_fasl()
-    make_zo_for("fasl")
-    make_zo_for("expander")
-    make_zo_for("regexp")
+    # Regexp linklet needs to be fully loaded here. There's a slightly annoying
+    # dependency between the regexp linklet and the others. E.g., primitives
+    # used within the expander such as  "regexp-match?" are "simple" application
+    # in RPython (no env, cont required), but not "simple" when used from the
+    # regexp linklet (they're Racket closures). So they're compiled differently.
+    # So if the expander is to use the regexp implementation from the regexp
+    # linklet then it needs to be compiled in an environment where the
+    # primitives like "regexp-match?" are not "simple" so the a-normalization
+    # let-bind those. (e.g. (if (regexp-match? ...) ...)). Therefore the regexp
+    # linklet needs to expose its functions before we load and compile the
+    # expander.
+    REGEXP_LINKLET.load()
+    REGEXP_LINKLET.create_zo()
+
+    FASL_LINKLET.create_zo()
+    EXPANDER_LINKLET.create_zo()
+
 
 def load_linklet_from_fasl(file_name, set_version=False):
     from pycket.fasl import Fasl
@@ -213,7 +314,7 @@ def create_linklet_json(rkt_file_name=""):
     pipe3.close()
 
 def dev_mode_metainterp():
-    load_fasl()
+    FASL_LINKLET.load()
     sexp_to_fasl = get_primitive("s-exp->fasl")
     fasl_to_sexp = get_primitive("fasl->s-exp")
     sexp = sample_sexp()
@@ -238,7 +339,7 @@ def dev_mode_dynamic_metainterp():
     function.call_interpret([inp])
 
 def dev_mode_metainterp_fasl_zo():
-    load_fasl()
+    FASL_LINKLET.load()
     from pycket.prims.input_output import open_infile, open_outfile
     from pycket.values import W_Path
     import os
@@ -260,7 +361,7 @@ def dev_mode_metainterp_fasl_zo():
 def racket_fasl_to_sexp(fasl_file):
     from pycket.prims.input_output import open_infile
     from rpython.rlib        import rtime
-    load_fasl()
+    FASL_LINKLET.load()
     fasl_to_sexp = get_primitive("fasl->s-exp")
     port = open_infile(W_Path(fasl_file), "r")
     start_time = rtime.time()
@@ -290,7 +391,7 @@ def dev_mode_entry_sexp(eval_sexp_str=None):
     linkl = None
     try:
         do_compile_linklet(linkl_sexp, W_Symbol.make("linkl"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
-    except Done, e:
+    except Done as e:
         linkl = e.values
 
     instantiate_linklet = get_primitive("instantiate-linklet")
@@ -312,7 +413,7 @@ def initiate_boot_sequence(command_line_arguments,
                            dont_load_regexp=False):
     from pycket.env import w_version
 
-    load_bootstrap_linklets(debug, dont_load_regexp=dont_load_regexp)
+    load_bootstrap_linklets(dont_load_regexp=dont_load_regexp)
 
     with PerfRegion("set-params"):
 
@@ -603,6 +704,10 @@ def racket_eval(sexp):
     eval_prim = get_primitive("eval")
     return eval_prim.call_interpret([sexp])
 
+def racket_read_eval(expr_str):
+    sexp = racket_read_str(expr_str)
+    return racket_eval(sexp)
+
 def racket_expand(sexp):
     ex = get_primitive("expand")
     return check_one_val(ex.call_interpret([sexp]))
@@ -624,13 +729,19 @@ def racket_print(results):
 
 def read_eval_print_string(expr_str, return_val=False, debug=False):
     # read
-    sexp = racket_read_str(expr_str)
+    try:
+        sexp = racket_read_str(expr_str)
+    except Exception as e:
+        raise SchemeException("Error (Racket) reading : %s\n%s\n" % (expr_str, e))
 
     # expand
-    #expanded = racket_expand(sexp)
+    expanded = racket_expand(sexp)
 
     # eval
-    results = racket_eval(sexp)
+    try:
+        results = racket_eval(sexp)
+    except Exception as e:
+        raise SchemeException("Error (Racket) evaluating : %s\n%s\n" % (expr_str, e))
 
     if return_val:
         return results

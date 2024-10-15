@@ -206,10 +206,7 @@ def rmpe(pat, input, inp_start, inp_end, output_port, prefix, count, env, cont):
 @expose("regexp-match?", [values.W_Object, values.W_Object])
 def regexp_matchp(w_r, w_o):
     result = match(w_r, w_o)
-    if result is not None:
-        return values.w_true
-    else:
-        return values.w_false
+    return values.W_Bool.make(result is not None)
 
 @expose("regexp-max-lookbehind", [values.W_Object])
 def regexp_max_lookbehind(obj):

@@ -88,7 +88,7 @@ def check_chaperone_results(args, env, cont, vals):
 @jit.unroll_safe
 def check_chaperone_results_loop(vals, args, idx, env, cont):
     from pycket.interpreter import return_multi_vals
-    from pycket.prims.equal import equal_func_unroll_n, EqualInfo
+    from pycket.prims.equal import equal_func_unroll_n, EqualInfo, EQUAL_HUH
     num_vals = args.num_values()
     while idx < num_vals and vals.get_value(idx) is None and args.get_value(idx) is None:
         idx += 1
@@ -98,8 +98,7 @@ def check_chaperone_results_loop(vals, args, idx, env, cont):
     # XXX it would be best to store the parameter on the toplevel env and make
     # it changeable via a cmdline parameter to pycket-c
     unroll_n_times = 2 # XXX needs tuning
-    return equal_func_unroll_n(vals.get_value(idx), args.get_value(idx), info, env,
-            catch_equal_cont(vals, args, idx, env, cont), unroll_n_times)
+    return equal_func_unroll_n(vals.get_value(idx), args.get_value(idx), info, EQUAL_HUH, env, catch_equal_cont(vals, args, idx, env, cont), unroll_n_times)
 
 @continuation
 def catch_equal_cont(vals, args, idx, env, cont, _vals):

@@ -20,18 +20,24 @@ def test_hash_equal(doctest):
     """
     > (hash-equal? (hash))
     #t
+    > (hash-equal? (hashalw))
+    #f
     > (hash-equal? (hasheq))
     #f
     > (hash-equal? (hasheqv))
     #f
     > (hash-equal? (make-hash))
     #t
+    > (hash-equal? (make-hashalw))
+    #f
     > (hash-equal? (make-hasheq))
     #f
     > (hash-equal? (make-hasheqv))
     #f
     > (hash-equal? #hash())
     #t
+    > (hash-equal? #hashalw())
+    #f
     > (hash-equal? #hasheq())
     #f
     > (hash-equal? #hasheqv())
@@ -48,9 +54,49 @@ def test_hash_equal(doctest):
     #f
     """
 
+def test_hash_equal_always(doctest):
+    """
+    > (hash-equal-always? (hash))
+    #f
+    > (hash-equal-always? (hashalw))
+    #t
+    > (hash-equal-always? (hasheq))
+    #f
+    > (hash-equal-always? (hasheqv))
+    #f
+    > (hash-equal-always? (make-hash))
+    #f
+    > (hash-equal-always? (make-hashalw))
+    #t
+    > (hash-equal-always? (make-hasheq))
+    #f
+    > (hash-equal-always? (make-hasheqv))
+    #f
+    > (hash-equal-always? #hash())
+    #f
+    > (hash-equal-always? #hashalw())
+    #t
+    > (hash-equal-always? #hasheq())
+    #f
+    > (hash-equal-always? #hasheqv())
+    #f
+    > (hash-equal-always? (impersonate-hash (make-hash) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #f
+    > (hash-equal-always? (chaperone-hash (hash) (lambda (x y) 1) (lambda (x y z) 2) (lambda (h a) 3) (lambda (h a) 4)))
+    #f
+    > (hash-equal-always? (make-weak-hash))
+    #f
+    > (hash-equal-always? (make-weak-hasheq))
+    #f
+    > (hash-equal-always? (make-weak-hasheqv))
+    #f
+    """
+
 def test_hash_eq(doctest):
     """
     > (hash-eq? (hash))
+    #f
+    > (hash-eq? (hashalw))
     #f
     > (hash-eq? (hasheq))
     #t
@@ -58,11 +104,15 @@ def test_hash_eq(doctest):
     #f
     > (hash-eq? (make-hash))
     #f
+    > (hash-eq? (make-hashalw))
+    #f
     > (hash-eq? (make-hasheq))
     #t
     > (hash-eq? (make-hasheqv))
     #f
     > (hash-eq? #hash())
+    #f
+    > (hash-eq? #hashalw())
     #f
     > (hash-eq? #hasheq())
     #t
@@ -84,17 +134,23 @@ def test_hash_eqv(doctest):
     """
     > (hash-eqv? (hash))
     #f
+    > (hash-eqv? (hashalw))
+    #f
     > (hash-eqv? (hasheq))
     #f
     > (hash-eqv? (hasheqv))
     #t
     > (hash-eqv? (make-hash))
     #f
+    > (hash-eqv? (make-hashalw))
+    #f
     > (hash-eqv? (make-hasheq))
     #f
     > (hash-eqv? (make-hasheqv))
     #t
     > (hash-eqv? #hash())
+    #f
+    > (hash-eqv? #hashalw())
     #f
     > (hash-eqv? #hasheq())
     #f
@@ -127,6 +183,22 @@ def test_hash_simple(doctest):
     2
     > (eq? (f) (f))
     #t
+    """
+
+def test_hash_ref_key(doctest):
+    """
+    ! (define original-key "hello")
+    ! (define key-copy (string-copy original-key))
+    ! (define table (make-hash))
+    ! (hash-set! table original-key 'value)
+    > (equal? original-key key-copy)
+    #t
+    > (eq? original-key key-copy)
+    #f
+    > (eq? (hash-ref-key table "hello") original-key)
+    #t
+    > (eq? (hash-ref-key table "hello") key-copy)
+    #f
     """
 
 def test_hash_immutable(doctest):

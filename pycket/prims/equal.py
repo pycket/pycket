@@ -10,6 +10,7 @@ from pycket.prims.expose import expose, procedure
 from rpython.rlib        import jit, objectmodel
 
 from pycket.hash.base   import W_HashTable
+from pycket.hash.equal import EQUAL_HUH, EQUAL_ALWAYS
 
 # All of my hate...
 # Configuration table for information about how to perform equality checks.
@@ -34,7 +35,7 @@ EqualInfo.IMPERSONATOR_SINGLETON = EqualInfo(EqualInfo.IMPERSONATOR)
 def equalp(a, b, env, cont):
     # FIXME: broken for cycles, etc
     info = EqualInfo.BASIC_SINGLETON
-    return equal_func_unroll_n(a, b, info, env, cont, n=5)
+    return equal_func_unroll_n(a, b, info, EQUAL_HUH, env, cont, n=5)
 
 @expose("equal?/recur", [values.W_Object, values.W_Object, procedure])
 def eqp_recur(v1, v2, recur_proc):
@@ -42,79 +43,79 @@ def eqp_recur(v1, v2, recur_proc):
     return values.w_void
 
 @continuation
-def equal_car_cont(a, b, info, env, cont, _vals):
+def equal_car_cont(a, b, info, mode, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     eq = check_one_val(_vals)
     if eq is values.w_false:
         return return_value(values.w_false, env, cont)
-    return equal_func(a, b, info, env, cont)
+    return equal_func(a, b, info, mode, env, cont)
 
 @continuation
-def equal_unbox_right_cont(r, info, env, cont, _vals):
+def equal_unbox_right_cont(r, info, mode, env, cont, _vals):
     from pycket.interpreter import check_one_val
     l = check_one_val(_vals)
-    return r.unbox(env, equal_unbox_done_cont(l, info, env, cont))
+    return r.unbox(env, equal_unbox_done_cont(l, info, mode, env, cont))
 
 @continuation
-def equal_unbox_done_cont(l, info, env, cont, _vals):
+def equal_unbox_done_cont(l, info, mode, env, cont, _vals):
     from pycket.interpreter import check_one_val
     r = check_one_val(_vals)
-    return equal_func(l, r, info, env, cont)
+    return equal_func(l, r, info, mode, env, cont)
 
 # This function assumes that a and b have the same length
 @loop_label
-def equal_vec_func(a, b, idx, info, env, cont):
+def equal_vec_func(a, b, idx, info, mode, env, cont):
     from pycket.interpreter import return_value
     if idx >= a.length():
         return return_value(values.w_true, env, cont)
-    return a.vector_ref(idx, env, equal_vec_left_cont(a, b, idx, info, env, cont))
+    return a.vector_ref(idx, env, equal_vec_left_cont(a, b, idx, info, mode, env, cont))
 
 # Receive the first value for a given index
 @continuation
-def equal_vec_left_cont(a, b, idx, info, env, cont, _vals):
+def equal_vec_left_cont(a, b, idx, info, mode, env, cont, _vals):
     from pycket.interpreter import check_one_val
     l = check_one_val(_vals)
     return b.vector_ref(idx, env,
-                equal_vec_right_cont(a, b, idx, l, info, env, cont))
+                equal_vec_right_cont(a, b, idx, l, info, mode, env, cont))
 
 # Receive the second value for a given index
 @continuation
-def equal_vec_right_cont(a, b, idx, l, info, env, cont, _vals):
+def equal_vec_right_cont(a, b, idx, l, info, mode, env, cont, _vals):
     from pycket.interpreter import check_one_val
     r = check_one_val(_vals)
-    return equal_func(l, r, info, env, equal_vec_done_cont(a, b, idx, info, env, cont))
+    return equal_func(l, r, info, mode, env, equal_vec_done_cont(a, b, idx, info, mode, env, cont))
 
 # Receive the comparison of the two elements and decide what to do
 @continuation
-def equal_vec_done_cont(a, b, idx, info, env, cont, _vals):
+def equal_vec_done_cont(a, b, idx, info, mode, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     eq = check_one_val(_vals)
     if eq is values.w_false:
         return return_value(values.w_false, env, cont)
     inc = idx + 1
-    return equal_vec_func(a, b, inc, info, env, cont)
+    return equal_vec_func(a, b, inc, info, mode, env, cont)
 
 @continuation
-def equal_ht_done_cont(hash_1_items, hash_2, idx, info, env, cont, _vals):
+def equal_ht_done_cont(hash_1_items, hash_2, idx, info, mode, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     eq = check_one_val(_vals)
     if eq is values.w_false:
         return return_value(values.w_false, env, cont)
     inc = idx + 1
-    return equal_ht_func(hash_1_items, hash_2, inc, info, env, cont)
+    return equal_ht_func(hash_1_items, hash_2, inc, info, mode, env, cont)
 
 @continuation
-def equal_ht_cont(hash_1_items, hash_2, idx, info, env, cont, _vals):
+def equal_ht_cont(hash_1_items, hash_2, idx, info, mode, env, cont, _vals):
     from pycket.interpreter import return_value, check_one_val
     hash_2_val = check_one_val(_vals)
     if hash_2_val is values.w_false:
         return return_value(values.w_false, env, cont)
     else:
-        return equal_func(hash_1_items[idx][1], hash_2_val, info, env,
-                          equal_ht_done_cont(hash_1_items, hash_2, idx, info, env, cont))
+        return equal_func(hash_1_items[idx][1], hash_2_val, info, mode, env,
+                          equal_ht_done_cont(hash_1_items, hash_2, idx, info, mode, env, cont))
 
 @loop_label
-def equal_ht_func(hash_1_items, hash_2, idx, info, env, cont):
+def equal_ht_func(hash_1_items, hash_2, idx, info, mode, env, cont):
     from pycket.interpreter import return_value
     from pycket.prims.hash import hash_ref
 
@@ -123,37 +124,40 @@ def equal_ht_func(hash_1_items, hash_2, idx, info, env, cont):
     else:
         return hash_ref([hash_2, hash_1_items[idx][0], values.w_false],
                         env,
-                        equal_ht_cont(hash_1_items, hash_2, idx, info, env, cont))
+                        equal_ht_cont(hash_1_items, hash_2, idx, info, mode, env, cont))
 
-def equal_func(a, b, info, env, cont):
-    return equal_func_loop(a, b, info, env, cont)
+def equal_func(a, b, info, mode, env, cont):
+    return equal_func_loop(a, b, info, mode, env, cont)
 
-def equal_func_unroll_n(a, b, info, env, cont, n):
+def equal_func_unroll_n(a, b, info, mode, env, cont, n):
     # n says how many times to call equal_func before going through loop label
     if n > 0:
         jit.promote(n)
-        return equal_func_impl(a, b, info, env, cont, n - 1)
-    return equal_func_loop(a, b, info, env, cont)
+        return equal_func_impl(a, b, info, mode, env, cont, n - 1)
+    return equal_func_loop(a, b, info, mode, env, cont)
 
 
 @loop_label
-def equal_func_loop(a, b, info, env, cont):
-    return equal_func_impl(a, b, info, env, cont, 0)
+def equal_func_loop(a, b, info, mode, env, cont):
+    return equal_func_impl(a, b, info, mode, env, cont, 0)
 
-def equal_func_impl(a, b, info, env, cont, n):
+def equal_func_impl(a, b, info, mode, env, cont, n):
     from pycket.interpreter import return_value
 
     if a.eqv(b):
         return return_value(values.w_true, env, cont)
 
+    if mode == EQUAL_ALWAYS and (not a.immutable() or not b.immutable()):
+        return return_value(values.w_false, env, cont)
+
     for_chaperone = jit.promote(info).for_chaperone
     if (for_chaperone >= EqualInfo.CHAPERONE and b.is_non_interposing_chaperone()):
-        return equal_func_unroll_n(a, b.get_proxied(), info, env, cont, n)
+        return equal_func_unroll_n(a, b.get_proxied(), info, mode, env, cont, n)
 
     # Enter into chaperones/impersonators if we have permission to do so
     if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
         (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
-        return equal_func_unroll_n(a.get_proxied(), b, info, env, cont, n)
+        return equal_func_unroll_n(a.get_proxied(), b, info, mode, env, cont, n)
 
     # If we are doing a chaperone/impersonator comparison, then we do not have
     # a chaperone-of/impersonator-of relation if `a` is not a proxy and
@@ -174,18 +178,18 @@ def equal_func_impl(a, b, info, env, cont, n):
         return return_value(values.W_Bool.make(a.equal(b)), env, cont)
 
     if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
-        cont = equal_car_cont(a.cdr(), b.cdr(), info, env, cont)
-        return equal_func_unroll_n(a.car(), b.car(), info, env, cont, n)
+        cont = equal_car_cont(a.cdr(), b.cdr(), info, mode, env, cont)
+        return equal_func_unroll_n(a.car(), b.car(), info, mode, env, cont, n)
 
     if isinstance(a, values.W_MCons) and isinstance(b, values.W_MCons):
-        cont = equal_car_cont(a.cdr(), b.cdr(), info, env, cont)
-        return equal_func_unroll_n(a.car(), b.car(), info, env, cont, n)
+        cont = equal_car_cont(a.cdr(), b.cdr(), info, mode, env, cont)
+        return equal_func_unroll_n(a.car(), b.car(), info, mode, env, cont, n)
 
     if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
         is_chaperone = for_chaperone == EqualInfo.CHAPERONE
         if is_chaperone and (not a.immutable() or not b.immutable()):
             return return_value(values.w_false, env, cont)
-        return a.unbox(env, equal_unbox_right_cont(b, info, env, cont))
+        return a.unbox(env, equal_unbox_right_cont(b, info, mode, env, cont))
 
     if isinstance(a, values.W_MVector) and isinstance(b, values.W_MVector):
         is_chaperone = for_chaperone == EqualInfo.CHAPERONE
@@ -193,12 +197,12 @@ def equal_func_impl(a, b, info, env, cont, n):
             return return_value(values.w_false, env, cont)
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
-        return equal_vec_func(a, b, 0, info, env, cont)
+        return equal_vec_func(a, b, 0, info, mode, env, cont)
 
     if isinstance(a, W_HashTable) and isinstance(b, W_HashTable):
         if len(a.hash_items()) != len(b.hash_items()):
             return return_value(values.w_false, env, cont)
-        return equal_ht_func(a.hash_items(), b, 0, info, env, cont)
+        return equal_ht_func(a.hash_items(), b, 0, info, mode, env, cont)
 
     if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
         a_type = a.struct_type()
@@ -220,10 +224,10 @@ def equal_func_impl(a, b, info, env, cont, n):
             b_imm = b_type.all_fields_immutable()
             a = values_struct.struct2vector(a, immutable=a_imm)
             b = values_struct.struct2vector(b, immutable=b_imm)
-            return equal_func_unroll_n(a, b, info, env, cont, n)
+            return equal_func_unroll_n(a, b, info, mode, env, cont, n)
 
     if for_chaperone == EqualInfo.BASIC and a.is_proxy() and b.is_proxy():
-        return equal_func_unroll_n(a.get_proxied(), b.get_proxied(), info, env, cont, n)
+        return equal_func_unroll_n(a.get_proxied(), b.get_proxied(), info, mode, env, cont, n)
 
     if a.equal(b):
         return return_value(values.w_true, env, cont)
@@ -297,3 +301,21 @@ def eqvp(a, b):
         assert a.hash_eqv() == b.hash_eqv()
     return values.W_Bool.make(res)
 
+@expose("equal-always?", [values.W_Object] * 2, simple=False)
+def equal_always_huh(v1, v2, env, cont):
+    """
+    Indicates whether v1 and v2 are equal and will always stay equal independent
+    of mutations.
+
+    Generally, for two values to be equal-always, corresponding immutable values
+    within v1 and v2 must be equal?, while corresponding mutable values within
+    them must be eq?.
+
+    For values that include no chaperones or other impersonators, v1 and v2 can
+    be considered equal-always if they are equal?, except that corresponding
+    mutable vectors, boxes, hash tables, strings, byte strings, mutable pairs,
+    and mutable structures within v1 and v2 must be eq?, and equality on
+    structures can be specialized for equal-always? through gen:equal-mode+hash.
+    """
+    info = EqualInfo.BASIC_SINGLETON
+    return equal_func_unroll_n(v1, v2, info, EQUAL_ALWAYS, env, cont, n=5)

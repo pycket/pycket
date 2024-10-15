@@ -104,8 +104,8 @@ top_level_config = W_Parameterization(RootParameterization(), ParameterizationHa
 def find_param_cell(cont, param):
     assert isinstance(cont, BaseCont)
     p = cont.get_mark_first(values.parameterization_key)
-    assert isinstance(p, W_Parameterization)
-    assert isinstance(param, W_Parameter)
+    assert isinstance(p, W_Parameterization), p.tostring()
+    assert isinstance(param, W_Parameter), param.tostring()
     v = p.get(param)
     assert isinstance(v, values.W_ThreadCell)
     return v

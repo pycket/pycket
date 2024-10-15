@@ -26,6 +26,7 @@ def test_constant_mod_val():
 def test_constant():
     run_fix("1", v=1)
 
+@pytest.mark.skipif(pytest.config.new_pycket, reason="test doesn't use the new pycket")
 def test_set_modvar():
     m = run_mod("""
 #lang pycket
@@ -42,6 +43,7 @@ def test_set_modvar():
     ov = m.defs[W_Symbol.make("sum")].get_val()
     assert ov.value == 100
 
+@pytest.mark.skipif(pytest.config.new_pycket, reason="test doesn't use the new pycket")
 def test_set_mod2():
     m = run_mod("""
 #lang pycket
@@ -52,7 +54,7 @@ def test_set_mod2():
     ov = m.defs[W_Symbol.make("table")]
     assert isinstance(ov, W_Cell)
 
-
+@pytest.mark.skipif(pytest.config.new_pycket, reason="test doesn't use the new pycket")
 def test_set_mod_other():
     m = run_mod("""
 #lang pycket
@@ -61,6 +63,7 @@ def test_set_mod_other():
 """)
     assert m.defs[W_Symbol.make("y")]
 
+@pytest.mark.skipif(pytest.config.new_pycket, reason="test doesn't use the new pycket")
 def test_use_before_definition():
     with pytest.raises(SchemeException):
         m = run_mod("""
@@ -77,6 +80,7 @@ def test_use_before_definition():
         (set! x 2)
     """)
 
+@pytest.mark.skipif(pytest.config.new_pycket, reason="test doesn't use the new pycket")
 def test_shadowing_macro():
     m = run_mod("""
 #lang pycket
@@ -91,6 +95,7 @@ def test_shadowing_macro():
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 6
 
+@pytest.mark.skipif(pytest.config.new_pycket, reason="test doesn't use the new pycket")
 def test_kw_submodule():
     # Just test to see if this runs.
     # It caused quite a few problems
@@ -102,6 +107,7 @@ def test_kw_submodule():
     procedure-arity-includes?
     """)
 
+@pytest.mark.skipif(pytest.config.new_pycket, reason="test doesn't use the new pycket")
 def test_submodule_operations():
     m = run_mod(
     """
@@ -126,6 +132,7 @@ def test_submodule_operations():
     assert isinstance(b, W_Integer) and b.value == 2
     assert isinstance(a, W_Integer) and a.value == 1
 
+@pytest.mark.skipif(pytest.config.new_pycket, reason="test doesn't use the new pycket")
 def test_module_star():
     m = run_mod(
     """

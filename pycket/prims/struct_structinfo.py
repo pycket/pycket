@@ -100,7 +100,7 @@ def do_make_struct_type(w_name, w_super_type, w_init_field_count,
     if w_inspector is None:
         w_inspector = values_struct.current_inspector_param.get(cont)
 
-    if (w_constructor_name is not values.w_false and 
+    if (w_constructor_name is not values.w_false and
         not isinstance(w_constructor_name, values.W_Symbol)):
         raise SchemeException("make-struct-type: constructor name mustbe be symbol? or #f")
 
@@ -136,12 +136,14 @@ def do_is_struct_accessor_procedure(v):
 
 @expose("make-struct-field-accessor", [values_struct.W_StructAccessor,
     values.W_Fixnum, default(values.W_Object, values.w_false)])
-def do_make_struct_field_accessor(accessor, field, field_name):
-    if field_name is values.w_false:
-        return values_struct.W_StructFieldAccessor(accessor, field.value, None)
-    if not isinstance(field_name, values.W_Symbol):
-        raise SchemeException("make-struct-field-accessor: expected symbol or #f as argument 2")
-    return values_struct.W_StructFieldAccessor(accessor, field.value, field_name)
+def do_make_struct_field_accessor(accessor, field_pos, _field_name):
+    field_name = None
+    if _field_name is not values.w_false:
+        if not isinstance(_field_name, values.W_Symbol):
+            raise SchemeException("make-struct-field-accessor: expected symbol or #f as argument 2")
+        field_name = _field_name
+
+    return values_struct.W_StructFieldAccessor(accessor, field_pos.value, field_name)
 
 @expose("struct-mutator-procedure?", [values.W_Object])
 def do_is_struct_mutator_procedure(v):

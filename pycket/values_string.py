@@ -4,7 +4,7 @@ from pycket import config
 
 from rpython.rlib import rerased, jit
 from rpython.rlib.objectmodel import compute_hash, we_are_translated
-from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
+from rpython.rlib.unicodedata import unicodedb_9_0_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
 
 @jit.unroll_safe

@@ -14,10 +14,10 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 		translate-no-strategies translate-no-type-size-specialization \
 		translate-jit-linklets
 
-PYFILES := $(shell find . -name '*.py' -type f -maxdepth 1) $(shell find pycket  -name '*.py' -type f)
+PYFILES := $(shell find .  -maxdepth 1 -name '*.py' -type f) $(shell find pycket  -name '*.py' -type f)
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets
-.PHONY: test coverage test-expander test-one test-one-expander test-mark test-mark-expander test-random
+.PHONY: test coverage test-random test test-old-single test-old-mark test-new-no-expander-single test-new-no-expander-mark test-new test-new-single test-new-mark
 .PHONY: expander regexp fasl setup-local-racket
 
 PYPY_EXECUTABLE := $(shell which pypy)
@@ -31,6 +31,7 @@ endif
 
 WITH_JIT = -Ojit --translation-jit_opencoder_model=big
 
+RACKET_INSTALLER_SCRIPT_NAME := racket-8.13.0.5-x86_64-linux-jammy-cs.sh
 
 translate-jit-all: $(TRANSLATE_TARGETS)
 all: translate-jit-all translate-no-jit
@@ -117,13 +118,16 @@ else
 	$(error Pycket binary does not exist)
 endif
 
-setup-local-racket:
-	$(info Downloading Racket)
-	$(shell wget http://www.cs.utah.edu/plt/snapshots/current/installers/racket-current-x86_64-linux-precise.sh)
+.PHONY: download-racket
+download-racket:
+	$(info Downloading Racket installer)
+	wget http://www.cs.utah.edu/plt/snapshots/current/installers/$(RACKET_INSTALLER_SCRIPT_NAME)
+
+setup-local-racket: download-racket
 	$(info Installing Racket)
-	chmod 755 racket-current-x86_64-linux-precise.sh
-	./racket-current-x86_64-linux-precise.sh --in-place --dest racket
-	rm -f racket-current-x86_64-linux-precise.sh
+	chmod 755 $(RACKET_INSTALLER_SCRIPT_NAME)
+	./$(RACKET_INSTALLER_SCRIPT_NAME) --in-place --dest racket
+	rm -f $(RACKET_INSTALLER_SCRIPT_NAME)
 	$(eval export PLTHOME=$(shell pwd)/racket)
 	$(eval export PLTCOLLECTS=$(shell pwd)/racket/collects)
 	$(info Telling Racket about Pycket)
@@ -137,70 +141,123 @@ setup-racket-for-old-pycket:
 	./racket/bin/raco pkg install -t dir pycket/pycket-lang/ || \
 	./racket/bin/raco pkg update --link pycket/pycket-lang
 
+PYPY_V=pypy2.7-v7.3.17-linux64
+PYPY_PAK=$(PYPY_V).tar.bz2
+
+setup-pypy:
+	wget https://downloads.python.org/pypy/$(PYPY_PAK)
+	tar xjf $(PYPY_PAK)
+	ln -s $(PYPY_V)/bin/pypy pypy-c
+	export PATH=$(PATH):$(PYPY_V)/bin
+
 clean-racket:
 	rm -rf racket
 
 clone-pypy:
-	hg clone https://foss.heptapod.net/pypy/pypy pypy
+	git clone https://github.com/pypy/pypy.git
 
 make-pypy:
 	$(MAKE) -C pypy
 	cp pypy/pypy/goal/pypy-c pypy/pypy/goal/pypy
 
-pull-pypy:
-	hg -R $(PYPYPATH) pull
-
-update-pypy: pull-pypy
-	hg -R $(PYPYPATH) update
-
 setup-old-pycket: setup-racket-for-old-pycket update-pypy
 
-bootstrap-linklets: expander fasl
+bootstrap-linklets: expander fasl regexp
 	@echo "ASSUMES: a built pycket-c-linklets binary"
 	./pycket-c-linklets --make-linklet-zos
 
-expander:
-	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	$(MAKE) -C linklet-extractor expander
+check_plthome:
+	@if [ -z "$(PLTHOME)" ]; then \
+		echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environment variable"; \
+	fi
 
-expander-json:
-	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	$(MAKE) -C linklet-extractor expander-json
+check_pycket_c_linklets:
+	@if ! command -v $(PYCKET_C_LINKLETS) > /dev/null; then \
+		echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"; \
+	fi
 
-regexp:
-	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	$(MAKE) -C linklet-extractor regexp
+BOOTSTRAP_LINKLET_DIR := $(CURDIR)/bootstrap-linklets
+
+EXPANDER_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/expander.linklet.fasl
+EXPANDER_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/expander.linklet.json
+
+expander: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor expander
+	@echo "Done. expander is at: $(EXPANDER_PATH_FASL)"
+
+expander-json: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor expander-json
+	@echo "Done. expander json is at: $(EXPANDER_PATH_JSON)"
+
+REGEXP_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.fasl
+REGEXP_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.json
+
+regexp: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor regexp
+	@echo "Done. regexp is at: $(REGEXP_PATH_FASL)"
+
+regexp-json: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor regexp-json
+	@echo "Done. regexp json is at: $(REGEXP_PATH_JSON)"
+
+FASL_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/fasl.linklet.fasl
+FASL_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/fasl.linklet.json
 
 fasl:
-	$(MAKE) -C linklet-extractor fasl
+	$(MAKE) -s -C linklet-extractor fasl
+	@echo "Done. fasl is at: $(FASL_PATH_FASL)"
 
 fasl-json:
-	$(MAKE) -C linklet-extractor fasl-json
+	$(MAKE) -s -C linklet-extractor fasl-json
+	@echo "Done. fasl json is at: $(FASL_PATH_JSON)"
 
-expander-bytecode:
-	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	$(MAKE) -C linklet-extractor expander-bytecode
+expander-bytecode: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor expander-bytecode
 
-regexp-bytecode:
-	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	@echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"
-	$(MAKE) -C linklet-extractor regexp-bytecode
+regexp-bytecode: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor regexp-bytecode
 
 fasl-bytecode:
-	$(MAKE) -C linklet-extractor fasl-bytecode
+	$(MAKE) -s -C linklet-extractor fasl-bytecode
 
-test:
+test-old:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py
+
+# To run a single test module
+# make test-old-single test_basic.py
+test-old-single:
+	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py -k $(filter-out $@,$(MAKECMDGOALS))
+
+# To run only the tests marked with a given mark
+# make test-old-mark my-mark
+test-old-mark:
+	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py -m $(filter-out $@,$(MAKECMDGOALS))
 
 test-new-no-expander:
 	$(RUNINTERP) $(PYTEST) pycket --new --ignore=pycket/test/test_old_entry_point.py
 
-test-new-with-expander:
+# To run a single test module
+# make test-new-no-expander-single test_basic.py
+test-new-no-expander-single:
+	$(RUNINTERP) $(PYTEST) pycket --new --ignore=pycket/test/test_old_entry_point.py -k $(filter-out $@,$(MAKECMDGOALS))
+
+# To run only the tests marked with a given mark
+# make test-new-no-expander-mark my-mark
+test-new-no-expander-mark:
+	$(RUNINTERP) $(PYTEST) pycket --new --ignore=pycket/test/test_old_entry_point.py -m $(filter-out $@,$(MAKECMDGOALS))
+
+test-new:
 	$(RUNINTERP) $(PYTEST) pycket --new --use-expander --ignore=pycket/test/test_old_entry_point.py
+
+# To run a single test module
+# make test-new-single test_basic.py
+test-new-single:
+	$(RUNINTERP) $(PYTEST) pycket --new --use-expander --ignore=pycket/test/test_old_entry_point.py -k $(filter-out $@,$(MAKECMDGOALS))
+
+# To run only the tests marked with a given mark
+# make test-new-mark my-mark
+test-new-mark:
+	$(RUNINTERP) $(PYTEST) pycket --new --use-expander --ignore=pycket/test/test_old_entry_point.py -m $(filter-out $@,$(MAKECMDGOALS))
 
 # test-random: #$(PYFILES)
 # 	@echo "Not yet implemented"
@@ -210,3 +267,7 @@ coverage: pycket/test/coverage_report .coverage
 pycket/test/coverage_report .coverage: $(PYFILES)
 	$(PYTEST) pycket --cov pycket \
 		--cov-report=term-missing --cov-report=html
+
+# Prevent make from trying to interpret arguments as targets
+%:
+	@:

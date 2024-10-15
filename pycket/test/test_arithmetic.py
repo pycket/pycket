@@ -11,7 +11,6 @@ def test_flonum_tostring():
     import math
     s = '3.141592653589793' # racket -e "pi"
     def float_tostring(x):
-        print W_Flonum(x).tostring()
         return s in W_Flonum(x).tostring()
     res = interpret(float_tostring, [math.pi])
     assert res
@@ -564,52 +563,54 @@ def random_bigint(max_size):
     return bignum.int_mul(sign)
 
 def test_gcd():
-    from pycket.arithmetic import gcd
+    # TODO (caner): this is only testing rlib's gcd, can be removed if passes
+    # (i.e. our old gcd implementation matches with rlib's gcd)
     from rpython.rlib.rbigint import rbigint
     def gcd_long(a, b):
-        return gcd(rbigint.fromlong(a), rbigint.fromlong(b)).tolong()
+        return rbigint.fromlong(a).gcd(rbigint.fromlong(b)).tolong()
 
     for a, b, r in [(5, 0, 5),
                     (2**1000, 0, 2**1000),
-                    (2**1000 + 1, 3, 1),
+                    (2**1000 + 1, 3, 1L),
                     (4, 2, 2),
                     (3*3*5*7*11*2**10, 2**7*3*7*11*13, 2**7*3*7*11)]:
         assert gcd_long(a, b) == r
         assert gcd_long(b, a) == r
         if b:
             assert gcd_long(a, -b) == r
-            assert gcd_long(-a, -b) == (-r if a else r)
+            assert gcd_long(-a, -b) == r
             assert gcd_long(a, b) == r
         else:
             assert gcd_long(-a, b) == r
         if a:
             assert gcd_long(b, -a) == r
-            assert gcd_long(-b, -a) == (-r if b else r)
+            assert gcd_long(-b, -a) == r
             assert gcd_long(-b, a) == r
         else:
             assert gcd_long(-b, a) == r
 
 def test_gcd_random():
-    from pycket.arithmetic import gcd
+    # TODO (caner): this is only testing rlib's gcd, can be removed if passes
+    # (i.e. our old gcd implementation matches with rlib's gcd)
     for _ in range(100):
         a = random_bigint(100)
         b = random_bigint(100)
         c = random_bigint(100)
 
         # Commutative
-        assert gcd(a, b) == gcd(b, a)
+        assert a.gcd(b) == b.gcd(a)
         # Idempotent
-        assert gcd(a, a) == a
-        assert gcd(b, b) == b
+        assert a.gcd(a) == a.abs()
+        assert b.gcd(b) == b.abs()
         # Associative
-        assert gcd(a, gcd(b, c)) == gcd(gcd(a, b), c)
+        assert a.gcd(b.gcd(c)) == a.gcd(b).gcd(c)
 
         a = a.abs()
         b = b.abs()
         if a.ge(b):
-            assert gcd(a, b) == gcd(a.sub(b), b)
+            assert a.gcd(b) == a.sub(b).gcd(b)
         else:
-            assert gcd(a, b) == gcd(a, b.sub(a))
+            assert a.gcd(b) == a.gcd(b.sub(a))
 
 def test_count_trailing_zeros():
     from rpython.rlib.rbigint import ONERBIGINT

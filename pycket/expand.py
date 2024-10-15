@@ -18,7 +18,7 @@ from pycket import values, values_string
 from pycket import values_regex
 from pycket import vector
 from pycket import values_struct
-from pycket.hash.equal import W_EqualHashTable
+from pycket.hash.equal import W_EqualHashTable, W_EqualAlwaysHashTable
 from pycket.hash.simple import (W_EqImmutableHashTable, W_EqvImmutableHashTable, make_simple_immutable_table)
 
 
@@ -81,7 +81,6 @@ def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=F
             #process.stdin.write(chr(4))
             process.stdin.write("\n\0\n")
             process.stdin.flush()
-            #import pdb; pdb.set_trace()
         data = process.stdout.readline()
     else:
         (data, err) = process.communicate(s)
@@ -171,16 +170,16 @@ def _expand_file_to_json(rkt_file, json_file, byte_flag=False, multi_flag=False)
         pass
 
     if multi_flag:
-        print "Complete expansion for %s into %s" % (rkt_file, json_file)
+        print("Complete expansion for %s into %s" % (rkt_file, json_file))
         cmd = "racket %s --complete-expansion --output \"%s\" \"%s\" 2>&1" % (lib, json_file, rkt_file)
     else:
         if byte_flag:
-            print "Transforming %s bytecode to %s" % (rkt_file, json_file)
+            print("Transforming %s bytecode to %s" % (rkt_file, json_file))
         else:
-            print "Expanding %s to %s" % (rkt_file, json_file)
-            
+            print("Expanding %s to %s" % (rkt_file, json_file))
+
         cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (lib, json_file, rkt_file)
-        
+
 
     # print cmd
     pipe = create_popen_file(cmd, "r")
@@ -273,7 +272,7 @@ def dbgprint(funcname, json, lib="", filename=""):
         else:
             # a list
             s = "[" + ", ".join([j.tostring() for j in json]) + "]"
-        print "Entering %s with: json - %s | lib - %s | filename - %s " % (funcname, s, lib, filename)
+        print("Entering %s with: json - %s | lib - %s | filename - %s " % (funcname, s, lib, filename))
 
 def get_lexical(x):
     assert x.is_object
@@ -446,7 +445,7 @@ class ModuleMap(object):
                              (mod_path, self.source_json))
 
         return pycket_json.JsonObject(getkey(self.mod_map.value_object(), mod_path, type='o'))
-    
+
 class JsonLoader(object):
 
     _immutable_fields_ = ["modtable", "bytecode_expand", "multiple_modules"]
@@ -805,6 +804,11 @@ def to_value(json):
             return values.W_Path(obj["path"].value_string())
         if "char" in obj:
             return values.W_Character.make(unichr(int(obj["char"].value_string())))
+        if "hasheqalw-keys" in obj and "hasheqalw-vals" in obj:
+            return W_EqualAlwaysHashTable(
+                    [to_value(i) for i in obj["hasheqalw-keys"].value_array()],
+                    [to_value(i) for i in obj["hasheqalw-vals"].value_array()],
+                    immutable=True)
         if "hash-keys" in obj and "hash-vals" in obj:
             return W_EqualHashTable(
                     [to_value(i) for i in obj["hash-keys"].value_array()],
@@ -849,4 +853,4 @@ def to_value(json):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        print parse_module(expand_file(sys.argv[1])).tostring()
+        print(parse_module(expand_file(sys.argv[1])).tostring())

@@ -240,6 +240,8 @@ def is_val_type(form, extra=[]):
     val_types = [values.W_Number,
                  values.W_Void,
                  values.W_Bool,
+                 values.W_Bytes,
+                 values_regex.W_AnyRegexp,
                  values_string.W_String,
                  values.W_ImmutableBytes,
                  values.W_Character] + extra
@@ -317,27 +319,27 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         known_mod_vars[form] = m_var
         return m_var
     elif isinstance(form, values.W_List):
-        c = form.car()
+        first_form = form.car()
         ### these are for the desearialization of the linklet body
-        if c in var_prim_syms:
+        if first_form in var_prim_syms:
             linklet_var_sym = form.cdr().car()
             rator, rands = None, None
-            if c is var_set_sym or c is var_set_check_undef_sym:
-                rator = var_set_mod_var if c is var_set_sym else var_set_check_undef_mod_var
+            if first_form is var_set_sym or first_form is var_set_check_undef_sym:
+                rator = var_set_mod_var if first_form is var_set_sym else var_set_check_undef_mod_var
                 linklet_var = interp.LinkletVar(linklet_var_sym)
                 new_val = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
                 mode = interp.Quote(values.w_false) # FIXME: possible optimization
                 rands = [linklet_var, new_val, mode]
                 return interp.App.make(rator, rands)
-            if c is var_ref_sym or c is var_ref_no_check_sym:
-                rator = var_ref_mod_var if c is var_ref_sym else var_ref_no_check_mod_var
+            if first_form is var_ref_sym or first_form is var_ref_no_check_sym:
+                rator = var_ref_mod_var if first_form is var_ref_sym else var_ref_no_check_mod_var
                 rands = [interp.LinkletVar(linklet_var_sym)]
             return interp.App.make(rator, rands)
         ###
-        if c is begin_sym:
+        if first_form is begin_sym:
             begin_exprs, ln = to_rpython_list(form.cdr())
             return interp.Begin.make([sexp_to_ast(f, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for f in begin_exprs])
-        elif c is begin0_sym:
+        elif first_form is begin0_sym:
             fst = sexp_to_ast(form.cdr().car(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
             rst_exprs, rest_len = to_rpython_list(form.cdr().cdr())
             rst = [sexp_to_ast(f, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for f in rst_exprs]
@@ -345,9 +347,9 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
                 return fst
             else:
                 return interp.Begin0.make(fst, rst)
-        elif c is def_val_sym:
+        elif first_form is def_val_sym:
             return def_vals_to_ast(form, exports, all_toplevels, linkl_importss, mutated_ids)
-        elif c is wcm_sym:
+        elif first_form is wcm_sym:
             from pycket.prims.general import elidable_length
             if elidable_length(form) != 4:
                 raise SchemeException("Unrecognized with-continuation-mark form : %s" % form.tostring())
@@ -355,7 +357,7 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             val = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
             body = sexp_to_ast(form.cdr().cdr().cdr().car(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
             return interp.WithContinuationMark(key, val, body)
-        elif c is variable_ref_sym:
+        elif first_form is variable_ref_sym:
             if form.cdr() is values.w_null: # (variable-reference)
                 return interp.VariableReference(None, None)
             elif form.cdr().cdr() is values.w_null: # (variable-reference id)
@@ -395,7 +397,7 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
 
                 return interp.VariableReference(var, path, mut)
 
-        elif c is caselam_sym:
+        elif first_form is caselam_sym:
             maybe_rec_sym_part = values.w_null
             if form.cdr() is not values.w_null:
                 maybe_rec_sym_part = form.cdr().car() # (recursive-sym <sym>)
@@ -414,13 +416,13 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             lams_expr, ln = to_rpython_list(lams_part)
             lams = [lam_to_ast(f, new_lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for f in lams_expr]
             return interp.CaseLambda(lams, rec_sym)
-        elif c is lam_sym:
+        elif first_form is lam_sym:
             return interp.CaseLambda([lam_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)])
-        elif c is let_sym:
+        elif first_form is let_sym:
             return let_like_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, False, cell_ref)
-        elif c is letrec_sym:
+        elif first_form is letrec_sym:
             return let_like_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, True, cell_ref)
-        elif c is set_bang_sym:
+        elif first_form is set_bang_sym:
             import_id = is_imported(form.cdr().car(), linkl_importss)
             if import_id:
                 raise SchemeException("cannot mutate imported variable : %s" % form.tostring())
@@ -440,11 +442,11 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             rhs = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
             assert isinstance(var, interp.Var)
             return interp.SetBang(var, rhs)
-        elif c is quote_sym:
+        elif first_form is quote_sym:
             if form.cdr() is values.w_null or form.cdr().cdr() is not values.w_null:
                 raise SchemeException("malformed quote form : %s" % form.tostring())
             return interp.Quote(form.cdr().car())
-        elif c is if_sym:
+        elif first_form is if_sym:
             tst_w = form.cdr().car()
             thn_w = form.cdr().cdr().car()
             els_w = form.cdr().cdr().cdr().car()
@@ -453,7 +455,7 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             els = sexp_to_ast(els_w, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
             return interp.If.make(tst, thn, els)
         else:
-            form_rator = sexp_to_ast(c, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref)
+            form_rator = sexp_to_ast(first_form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref)
 
             rands_ls, rands_len = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for r in rands_ls]
@@ -814,6 +816,17 @@ def deserialize_loop(sexp):
             i += 1
 
         return equal.W_EqualHashTable(keys, vals, immutable=True)
+    elif isinstance(sexp, equal.W_EqualAlwaysHashTable):
+        l = sexp.length()
+        keys = [None]*l
+        vals = [None]*l
+        i = 0
+        for k, v in sexp.hash_items():
+            keys[i] = k
+            vals[i] = deserialize_loop(v)
+            i += 1
+
+        return equal.W_EqualAlwaysHashTable(keys, vals, immutable=True)
     elif isinstance(sexp, vector.W_Vector):
         new = [None]*sexp.length()
         items = sexp.get_strategy().ref_all(sexp)

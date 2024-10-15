@@ -19,7 +19,7 @@ from pycket              import vector as values_vector
 from pycket.hash.simple  import W_EqvImmutableHashTable, W_EqMutableHashTable, W_EqvMutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
 from pycket.hash.base    import W_HashTable
 from pycket              import impersonators as imp
-from pycket.hash.equal   import W_EqualHashTable
+from pycket.hash.equal   import W_EqualHashTable, W_EqualAlwaysHashTable
 from pycket              import values_string
 from pycket.error        import SchemeException, FSException, ContractException, ArityException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
@@ -65,7 +65,7 @@ class SpecialToken(Token):
 class DelimToken(Token):
     _attrs_ = ['str']
 
-    def __init__(self, s):
+    def __init__(self, s=""):
         self.str = s
 
 class LParenToken(DelimToken):
@@ -78,6 +78,21 @@ class DotToken(DelimToken):
     _attrs_ = []
 
 class HashToken(DelimToken):
+    _attrs_ = []
+
+class HashToken(DelimToken):
+    _attrs_ = []
+
+class HashEqToken(DelimToken):
+    _attrs_ = []
+
+class HashEqvToken(DelimToken):
+    _attrs_ = []
+
+class HashAlwToken(DelimToken):
+    _attrs_ = []
+
+class NoToken(DelimToken):
     _attrs_ = []
 
 # Some prebuilt tokens
@@ -178,25 +193,24 @@ def is_hash_token(s):
     if s.read(1) == "a" and s.read(1) == "s" and s.read(1) == "h":
         # we're on to something
         if s.peek() == "(":
-            return True
+            return HashToken()
         e = s.read(1)
         q = s.read(1)
         v = s.read(1)
         if e == "e" and q == "q" and v == "(":
             s.seek(7)
-            return True
+            return HashEqToken()
         elif e == "e" and q == "q" and v == "v" and s.peek() == "(":
-            return True
+            return HashEqvToken()
+        elif e == "a" and q == "l" and v == "w" and s.peek() == "(":
+            return HashAlwToken()
         else:
-            s.seek(1)
-            return False
+            return NoToken()
     else:
-        s.seek(1)
-        return False
+        return NoToken()
 
-def read_hash(stream, end):
+def read_hash(stream, token):
     # cursor is at the start (
-    where_we_are = stream.tell()
     elements = read_stream(stream)
 
     keys = []
@@ -209,11 +223,13 @@ def read_hash(stream, end):
         vals.append(c.cdr())
         elements = elements.cdr()
 
-    if where_we_are == 5:
+    if isinstance(token, HashToken):
         return W_EqualHashTable(keys, vals, immutable=True)
-    elif where_we_are == 7:
+    elif isinstance(token, HashAlwToken):
+        return W_EqualAlwaysHashTable(keys, vals, immutable=True)
+    elif isinstance(token, HashEqToken):
         return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
-    elif where_we_are == 8:
+    elif isinstance(token, HashEqvToken):
         return make_simple_immutable_table(W_EqvImmutableHashTable, keys, vals)
     else:
         raise SchemeException("read: cannot read hash in string : %s" % stream.tostring())
@@ -260,8 +276,11 @@ def read_token(f):
                 if c3 == "(":
                     return LParenToken("#s(")
                 raise SchemeException("bad token in read: %s reading %s" % (c+c2+c3, f))
-            if c2 == "h" and is_hash_token(f):
-                return HashToken("dummy")
+            if c2 == "h":
+                token = is_hash_token(f)
+                if not isinstance(token, NoToken):
+                    return token
+                f.seek(1)
             if c2 == "'":
                 return syntax_token
             if c2 == "`":
@@ -340,7 +359,7 @@ def read_stream(stream):
         v = read_stream(stream)
         return next_token.finish(v)
     if isinstance(next_token, HashToken):
-        v = read_hash(stream, next_token.str)
+        v = read_hash(stream, next_token)
         return v
     if isinstance(next_token, DelimToken):
         if not isinstance(next_token, LParenToken):
@@ -650,12 +669,14 @@ w_truncate_replace_sym = values.W_Symbol.make("truncate/replace")
 
 @expose("open-output-file", [values.W_Object,
                              default(values.W_Symbol, w_binary_sym),
-                             default(values.W_Symbol, w_error_sym)])
-def open_output_file(path, mode, exists):
+                             default(values.W_Symbol, w_error_sym),
+                             default(values.W_Fixnum, values.W_Fixnum(0o666)),
+                             default(values.W_Bool, values.w_false)])
+def open_output_file(path, mode, exists, perms, replace_perms):
     if not isinstance(path, values_string.W_String) and not isinstance(path, values.W_Path):
         raise ContractException("open-input-file: expected path-string for argument 0")
     m = "w" if mode is w_text_sym else "wb"
-    return open_outfile(path, m, exists)
+    return open_outfile(path, m, exists, perms, replace_perms)
 
 @expose("close-input-port", [values.W_Object], simple=False)
 def close_input_port(port, env, cont):
@@ -677,7 +698,7 @@ def close_port_cont(env, cont, _vals):
         return port._call_close(env, custom_port_close_cont(port, env, cont))
     try:
         port.close()
-    except OSError, err:
+    except OSError as err:
         #import pdb; pdb.set_trace()
         raise FSException("close-*-port: cannot close port : %s %s" % (port,err.strerror))
     return return_void(env, cont)
@@ -1069,8 +1090,8 @@ def open_infile(w_str, mode):
 
     return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21), path=os.path.abspath(s))
 
-def open_outfile(w_str, mode, exists):
-    from pycket.prims.general import exn_fail_fs
+def open_outfile(w_str, mode, exists, w_perms=values.W_Fixnum(0o666), w_replace_perms=values.w_false):
+    # TODO (cderici-10-10-2024): w_perms and w_replace_perms are ignored
     s = extract_path(w_str)
     if exists is w_error_sym and os.path.exists(s):
         raise FSException("File exists : %s" % s)
@@ -1105,7 +1126,6 @@ def file_or_directory_type(path, must_exist):
 
 @expose("rename-file-or-directory", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)])
 def rename_file_or_directory(o, n, exists_ok):
-    from pycket.prims.general import exn_fail_fs
 
     old = extract_path(o)
     new = extract_path(n)
@@ -1160,9 +1180,11 @@ def call_with_input_file(s, proc, mode, env, cont):
 @expose("call-with-output-file", [values.W_Object,
                                   values.W_Object,
                                   default(values.W_Symbol, w_binary_sym),
-                                  default(values.W_Symbol, w_error_sym)],
+                                  default(values.W_Symbol, w_error_sym),
+                                  default(values.W_Fixnum, values.W_Fixnum(0o666)),
+                                  default(values.W_Bool, values.w_false)],
                                 simple=False)
-def call_with_output_file(s, proc, mode, exists, env, cont):
+def call_with_output_file(path, proc, mode, exists, perms, replace_perms, env, cont):
     m = ""
     if exists is w_append_sym:
         m += "a"
@@ -1172,7 +1194,7 @@ def call_with_output_file(s, proc, mode, exists, env, cont):
         raise SchemeException("mode not yet supported: %s" % exists.tostring())
     if mode is not w_text_sym:
         m += "b"
-    port = open_outfile(s, m, exists)
+    port = open_outfile(path, m, exists, perms, replace_perms)
     return proc.call([port], env, close_cont(port, env, cont))
 
 @expose("with-input-from-file", [values.W_Object, values.W_Object,
@@ -1188,12 +1210,14 @@ def with_input_from_file(s, proc, mode, env, cont):
 @expose("with-output-to-file",
         [values_string.W_String, values.W_Object,
          default(values.W_Object, None),
-         default(values.W_Object, None)], simple=False)
-def with_output_to_file(s, proc, mode, exists, env, cont):
+         default(values.W_Object, None),
+         default(values.W_Fixnum, values.W_Fixnum(0o666)),
+         default(values.W_Bool, values.w_false)], simple=False)
+def with_output_to_file(s, proc, mode, exists, perms, replace_perms, env, cont):
     # XXX mode and exists are currently ignored, they need to be translated into
     # the proper mode string.
     from pycket.prims.parameter import call_with_extended_paramz
-    port = open_outfile(s, "wb", exists)
+    port = open_outfile(s, "wb", exists, perms, replace_perms)
     return call_with_extended_paramz(proc, [], [current_out_param], [port],
                                      env, close_cont(port, env, cont))
 
@@ -1383,6 +1407,20 @@ def write_hash_table(v, port, env):
         port.write(")")
     elif isinstance(ht, W_EqualHashTable):
         port.write("#hash(")
+        for k, v in ht.hash_items():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            if is_bundle(v):
+                write_linklet_bundle(v, port, env)
+            elif is_directory(v):
+                write_linklet_directory(v, port, env)
+            else:
+                write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+    elif isinstance(ht, W_EqualAlwaysHashTable):
+        port.write("#hashalw(")
         for k, v in ht.hash_items():
             port.write("(")
             write_loop(k, port, env)
@@ -1737,8 +1775,13 @@ def port_count_lines_bang(p):
     return values.w_void
 
 # FIXME: implementation
-@expose("port-counts-lines?", [values.W_Port])
+@expose("port-counts-lines?", [values.W_Object])
 def port_count_lines_huh(p):
+    from pycket.prims.general import struct_port_huh
+    if not isinstance(p, values.W_Port) and \
+        (isinstance(p, values_struct.W_RootStruct) and not struct_port_huh(p)):
+        raise ContractException("port-counts-lines?: expected port, got : %s" % p.tostring())
+
     return values.w_true
 
 def is_path_string(path):

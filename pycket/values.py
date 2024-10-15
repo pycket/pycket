@@ -659,8 +659,7 @@ class W_Rational(W_Real):
 
     @staticmethod
     def frombigint(n, d=rbigint.fromint(1), need_to_check=True):
-        from pycket.arithmetic import gcd
-        g = gcd(n, d)
+        g = n.gcd(d)
         n = n.floordiv(g)
         d = d.floordiv(g)
         if need_to_check and d.eq(rbigint.fromint(1)):
@@ -843,7 +842,7 @@ class W_Bignum(W_Integer):
         try:
             floatval = bignum.tofloat()
         except OverflowError:
-            return W_Flonum.NEGINF if bignum.sign < 0 else W_Flonum.INF
+            return W_Flonum.NEGINF if bignum.numdigits() < 0 else W_Flonum.INF
         return W_Flonum(floatval)
 
     def equal(self, other):
@@ -898,6 +897,9 @@ class W_Character(W_Object):
 
     def get_value_utf8(self):
         return self.value.encode('utf-8')
+
+    def get_value_unicode(self):
+        return self.value
 
     def immutable(self):
         return True

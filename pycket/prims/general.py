@@ -14,7 +14,7 @@ from pycket import values_regex
 from pycket import vector as values_vector
 from pycket.error import SchemeException, UserException
 from pycket.foreign import W_CPointer, W_CType
-from pycket.hash.equal import W_EqualHashTable
+from pycket.hash.equal import W_EqualHashTable, W_EqualAlwaysHashTable
 from pycket.hash.base import W_HashTable
 from pycket.hash.simple import (W_EqImmutableHashTable, W_EqvImmutableHashTable, W_EqMutableHashTable, W_EqvMutableHashTable, make_simple_immutable_table)
 from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
@@ -163,6 +163,13 @@ def hash_eq(obj):
         inner = obj.get_proxied()
     return values.W_Bool.make(isinstance(inner, W_EqualHashTable))
 
+@expose("hash-equal-always?", [values.W_Object], simple=True)
+def hash_eq(obj):
+    inner = obj
+    if isinstance(obj, imp.W_ImpHashTable) or isinstance(obj, imp.W_ChpHashTable):
+        inner = obj.get_proxied()
+    return values.W_Bool.make(isinstance(inner, W_EqualAlwaysHashTable))
+
 @expose("hash-eq?", [values.W_Object], simple=True)
 def hash_eq(obj):
     inner = obj
@@ -220,39 +227,27 @@ def datum_intern_literal(v):
 
 @expose("byte?", [values.W_Object])
 def byte_huh(val):
-    if isinstance(val, values.W_Fixnum):
-        return values.W_Bool.make(0 <= val.value <= 255)
-    return values.w_false
+    return values.W_Bool.make(isinstance(val, values.W_Fixnum) and 0 <= val.value <= 255)
 
 @expose("regexp?", [values.W_Object])
 def regexp_huh(r):
-    if isinstance(r, values_regex.W_Regexp) or isinstance(r, values_regex.W_PRegexp):
-        return values.w_true
-    return values.w_false
+    return values.W_Bool.make(isinstance(r, values_regex.W_AnyRegexp))
 
 @expose("pregexp?", [values.W_Object])
 def pregexp_huh(r):
-    if isinstance(r, values_regex.W_PRegexp):
-        return values.w_true
-    return values.w_false
+    return values.W_Bool.make(isinstance(r, values_regex.W_PRegexp))
 
 @expose("byte-regexp?", [values.W_Object])
 def byte_regexp_huh(r):
-    if isinstance(r, values_regex.W_ByteRegexp) or isinstance(r, values_regex.W_BytePRegexp):
-        return values.w_true
-    return values.w_false
+    return values.W_Bool.make(isinstance(r, values_regex.W_ByteRegexp) or isinstance(r, values_regex.W_BytePRegexp))
 
 @expose("byte-pregexp?", [values.W_Object])
 def byte_pregexp_huh(r):
-    if isinstance(r, values_regex.W_BytePRegexp):
-        return values.w_true
-    return values.w_false
+    return values.W_Bool.make(isinstance(r, values_regex.W_BytePRegexp))
 
 @expose("true-object?", [values.W_Object])
 def true_object_huh(val):
-    if val is values.w_true:
-        return values.w_true
-    return values.w_false
+    return values.W_Bool.make(val is values.w_true)
 
 @expose("procedure?", [values.W_Object])
 def procedurep(n):
@@ -519,6 +514,22 @@ def object_name(v):
 
     elif isinstance(v, values_regex.W_AnyRegexp) or isinstance(v, values.W_Port):
         return v.obj_name()
+    elif isinstance(v, values_struct.W_Struct):
+        obj_name_prop = v.struct_type().read_property_precise(values_struct.w_prop_object_name)
+        if obj_name_prop:
+            if isinstance(obj_name_prop, values.W_Fixnum):
+                # Object name is one of the fields (indexed by obj_name_prop)
+                # TODO (cderici 10-13-2024): Check if we need to check the field
+                # range boundry
+                # Access the field value
+                return v._ref(obj_name_prop.value)
+            else:
+                # obj_name_prop has to be a procedure (assert that it is)
+                if not obj_name_prop.iscallable():
+                    raise SchemeException("prop:object-name of type %s is not callable, struct: %s" % (obj_name_prop, v.tostring()))
+                # Object name is the result of calling proc (with struct as
+                # argument)
+                return obj_name_prop.call_interpret([v])
 
     return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 
@@ -585,6 +596,10 @@ def sem_wait(s):
 @expose("procedure-rename", [procedure, values.W_Object])
 def procedure_rename(p, n):
     return p
+
+@expose("procedure-realm", [procedure])
+def procedure_rename(p):
+    return parameter.REALM
 
 @expose("procedure->method", [procedure])
 def procedure_to_method(proc):
@@ -728,8 +743,8 @@ def procedure_reduce_arity(proc, arity, e):
     #proc.set_arity(arity)
     return proc
 
-@expose("procedure-reduce-arity-mask", [procedure, values.W_Fixnum, default(values.W_Object, values.w_false)])
-def procedure_reduce_arity_mask(proc, mask, name):
+@expose("procedure-reduce-arity-mask", [procedure, values.W_Fixnum, default(values.W_Object, values.w_false), default(values.W_Symbol, values.W_Symbol.make("racket"))])
+def procedure_reduce_arity_mask(proc, mask, name, realm):
     import math
     return proc # FIXME: do this without mutation
 
@@ -1330,6 +1345,24 @@ def current_seconds():
 def curr_millis():
     return values.W_Flonum(time.time() * 1000.0)
 
+@expose("current-inexact-monotonic-milliseconds", [])
+def curr_monotonic_millis():
+    """
+        This is primarily used to measure elapsed time without worrying about system clock adjustments. So the exact value returned by this monotonic timer (elapsed time since unspecified start of a monotonic clock) is not relevant or meaningful.
+
+        Unfortunately we don't have the time.montonic() available in Python 2.
+    """
+    from rpython.rlib import rtime
+
+    with rtime.lltype.scoped_alloc(rtime.TIMESPEC) as a:
+        if rtime.c_clock_gettime(rtime.CLOCK_MONOTONIC_RAW, a) != 0:
+            raise OSError("unable to retrieve monotonic clock")
+        sec = float(rtime.rffi.getintfield(a, 'c_tv_sec'))
+        nsec = float(rtime.rffi.getintfield(a, 'c_tv_nsec'))
+
+        # seconds (* 1000.0 for milliseconds)
+        return values.W_Flonum((sec + nsec) * 0.000000001)
+
 @expose("seconds->date", [values.W_Fixnum])
 def seconds_to_date(s):
     # TODO: Proper implementation
@@ -1530,10 +1563,49 @@ def symbol_lt(args):
         head = t
     return values.w_true
 
-
 @expose("immutable?", [values.W_Object])
 def immutable(v):
     return values.W_Bool.make(v.immutable())
+
+@expose("immutable-string?", [values.W_Object])
+def immutable_string_huh(v):
+    return values.W_Bool.make(isinstance(v, values_string.W_ImmutableString))
+
+@expose("mutable-string?", [values.W_Object])
+def mutable_string_huh(v):
+    return values.W_Bool.make(isinstance(v, values_string.W_MutableString))
+
+@expose("mutable-hash?", [values.W_Object])
+def mutable_hash_huh(v):
+    return values.W_Bool.make(isinstance(v, W_HashTable) and not v.immutable())
+
+@expose("immutable-hash?", [values.W_Object])
+def immutable_hash_huh(v):
+    return values.W_Bool.make(isinstance(v, W_HashTable) and v.immutable())
+
+@expose("mutable-vector?", [values.W_Object])
+def mutable_vector_huh(v):
+    return values.W_Bool.make(isinstance(v, values_vector.W_Vector) and not v.immutable())
+
+@expose("immutable-vector?", [values.W_Object])
+def immutable_vector_huh(v):
+    return values.W_Bool.make(isinstance(v, values_vector.W_Vector) and v.immutable())
+
+@expose("mutable-box?", [values.W_Object])
+def mutable_box_huh(v):
+    return values.W_Bool.make(isinstance(v, values.W_MBox))
+
+@expose("immutable-box?", [values.W_Object])
+def immutable_box_huh(v):
+    return values.W_Bool.make(isinstance(v, values.W_IBox))
+
+@expose("mutable-bytes?", [values.W_Object])
+def mutable_bytes_huh(v):
+    return values.W_Bool.make(isinstance(v, values.W_MutableBytes))
+
+@expose("immutable-bytes?", [values.W_Object])
+def immutable_bytes_huh(v):
+    return values.W_Bool.make(isinstance(v, values.W_ImmutableBytes))
 
 @expose("make-thread-cell",
         [values.W_Object, default(values.W_Bool, values.w_false)])
@@ -1930,8 +2002,8 @@ def make_reader_graph(v):
         # setfield_gc(p29, p15, descr=<FieldP pycket.values.W_WrappedCons.inst__car 8 pure>)
         # setfield_gc(p29, ConstPtr(ptr32), descr=<FieldP pycket.values.W_WrappedCons.inst__cdr 16 pure>)
         if isinstance(v, values.W_WrappedCons):
-            print v._car.tostring()
-            print v._cdr.tostring()
+            print(v._car.tostring())
+            print(v._cdr.tostring())
     return builder.reader_graph_loop(v)
 
 @expose("procedure-specialize", [procedure])
@@ -1971,7 +2043,7 @@ def cache_configuration(index, proc, env, cont):
 
 @expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure], only_old=True)
 def make_readtable(parent, char, sym, proc):
-    print "making readtable", [parent, char, sym, proc]
+    print("making readtable", [parent, char, sym, proc])
     return values.W_ReadTable(parent, char, sym, proc)
 
 @expose("read/recursive", only_old=True)
@@ -1984,7 +2056,7 @@ def make_stub_predicates(names):
         @expose(name, [values.W_Object])
         def predicate(obj):
             if not objectmodel.we_are_translated():
-                print message
+                print(message)
             return values.w_false
         predicate.__name__ = "stub_predicate(%s)" % name
 
@@ -2024,7 +2096,7 @@ def __dummy__():
     from rpython.rlib.rbigint  import ONERBIGINT
     from rpython.rlib.runicode import str_decode_utf_8
     ex = ONERBIGINT.touint()
-    print ex
+    print(ex)
 
 
 @expose("primitive-table", [values.W_Object])
@@ -2165,3 +2237,7 @@ def make_channel():
 @expose("primitive-lookup", [values.W_Symbol], simple=True)
 def primitive_lookup(sym):
     return prim_env.get(sym, values.w_false)
+
+@expose("get-installation-name", [default(values.W_Object, None)])
+def get_installation_name(config):
+    return values_string.W_String.make("development")

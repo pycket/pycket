@@ -5,8 +5,10 @@ from pycket import values
 from pycket.values_string import W_String
 from pycket.error import SchemeException
 from pycket.prims.expose import default, expose, unsafe, subclass_unsafe
-from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
+from rpython.rlib.unicodedata import unicodedb_9_0_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
+from rpython.rlib.runicode  import str_decode_utf_8, unicode_encode_utf_8
+from rpython.rlib.rutf8     import check_utf8, CheckError, codepoints_in_utf8
 from rpython.rlib import jit
 
 
@@ -69,7 +71,7 @@ def _str2num(s, radix):
                 numb = float(f_parts[0])
                 prec = int(f_parts[1])
                 p = math.pow(10, prec)
-            except ValueError, e:
+            except ValueError:
                 return values.w_false
 
             return values.W_Flonum.make(numb*p, True)
@@ -83,7 +85,7 @@ def _str2num(s, radix):
                 num = float(e_parts[0])
                 exp = int(e_parts[1])
                 p = math.pow(10, exp)
-            except ValueError, e:
+            except ValueError:
                 return values.w_false
 
             return values.W_Flonum(num*p)
@@ -388,17 +390,23 @@ def string_utf8_length(w_str, w_start, w_end):
                                default(values.W_Fixnum, values.W_Fixnum.ZERO),
                                default(values.W_Fixnum, None)])
 def bytes_utf8_length(w_bstr, err_char, w_start, w_end):
-    assert err_char is values.w_false #:FIXME
     s_val = w_start.value
     e_val = w_end.value if w_end else w_bstr.length()
-    ls = w_bstr.as_str()
+
+    _utf_bstr = w_bstr.as_str()
+
     try:
-        decoded = ls.decode('utf-8')
-        assert s_val >= 0 and e_val <= w_bstr.length() and e_val >= 0
-        return values.W_Fixnum(len(decoded[s_val:e_val]))
-    except UnicodeDecodeError:
-        # FIXME : use err_char
-        return values.w_false
+        check_utf8(_utf_bstr, False)
+        utf_bstr = _utf_bstr
+    except CheckError:
+        if err_char is values.w_false:
+            raise SchemeException("bytes-utf-8-length: invalid utf-8 sequence")
+        # TODO (cderici - 09/14/2024): can we do this witout decoding/encoding?
+        decoded = str_decode_utf_8(_utf_bstr, len(_utf_bstr), 'replace')
+        decoded = decoded[0].replace(u'\ufffd', err_char.get_value_unicode())
+        utf_bstr = unicode_encode_utf_8(decoded, len(decoded), 'strict')
+
+    return values.W_Fixnum(codepoints_in_utf8(utf_bstr, s_val, e_val))
 
 @expose("string-copy", [W_String])
 def string_copy(s):
@@ -700,9 +708,20 @@ for a in [("bytes<?"  , op.lt) ,
                                   default(values.W_Object, values.w_false),
                                   default(values.W_Integer, values.W_Fixnum.ZERO),
                                   default(values.W_Integer, None)])
-def string_to_bytes_locale(bytes, errbyte, start, end):
+def bytes_to_string_locale(w_bytes, errbyte, w_start, w_end):
     # FIXME: This ignores the locale
-    return W_String.fromstr_utf8(bytes.as_str())
+
+    if w_start.toint() == 0 and w_end is None:
+        w_sub_str = w_bytes.as_str()
+    else:
+        s_val = w_start.toint()
+        e_val = w_end.toint() if w_end else w_bytes.length()
+        # FIXME: check the bounds
+        assert s_val >= 0 and e_val <= w_bytes.length() and e_val >= 0
+        sub_bytes = w_bytes.getslice(s_val, e_val)
+        w_sub_str = "".join(sub_bytes)
+
+    return W_String.fromstr_utf8(w_sub_str)
 
 @expose("bytes->immutable-bytes", [values.W_Bytes])
 def bytes_to_immutable_bytes(b):

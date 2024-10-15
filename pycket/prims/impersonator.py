@@ -6,7 +6,7 @@ from pycket.arity        import Arity
 from pycket.hash.base    import W_HashTable
 from pycket.error        import SchemeException
 from pycket.prims.expose import expose, expose_val
-from pycket.prims.equal  import equal_func, equal_func_unroll_n, EqualInfo
+from pycket.prims.equal  import equal_func, equal_func_unroll_n, EqualInfo, EQUAL_HUH
 from rpython.rlib        import jit
 
 expose_val("impersonator-prop:application-mark", imp.w_impersonator_prop_application_mark)
@@ -364,12 +364,12 @@ def cst(args):
 @expose("chaperone-of?", [values.W_Object, values.W_Object], simple=False)
 def chaperone_of(a, b, env, cont):
     info = EqualInfo.CHAPERONE_SINGLETON
-    return equal_func_unroll_n(a, b, info, env, cont, n=5)
+    return equal_func_unroll_n(a, b, info, EQUAL_HUH, env, cont, n=5)
 
 @expose("impersonator-of?", [values.W_Object, values.W_Object], simple=False)
 def impersonator_of(a, b, env, cont):
     info = EqualInfo.IMPERSONATOR_SINGLETON
-    return equal_func_unroll_n(a, b, info, env, cont, n=5)
+    return equal_func_unroll_n(a, b, info, EQUAL_HUH, env, cont, n=5)
 
 @expose("impersonator?", [values.W_Object])
 def impersonator(x):
