@@ -20,6 +20,7 @@ from pycket import vector
 from pycket import values_struct
 from pycket.hash.equal import W_EqualHashTable, W_EqualAlwaysHashTable
 from pycket.hash.simple import (W_EqImmutableHashTable, W_EqvImmutableHashTable, make_simple_immutable_table)
+from pycket.racket_paths import racket_sys_paths
 
 
 class ExpandException(SchemeException):
@@ -55,16 +56,18 @@ module_map = {}
 
 current_racket_proc = None
 
+_RACKET_BIN_PATH = racket_sys_paths.get_path(values.W_Symbol.make('exec-file')).path
+
 def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=False):
     "NON_RPYTHON"
     global current_racket_proc
     from subprocess import Popen, PIPE
 
     if not byte_option:
-        cmd = "racket %s --loop --stdin --stdout %s" % (_FN, "" if srcloc else "--omit-srcloc")
+        cmd = "%s %s --loop --stdin --stdout %s" % (_RACKET_BIN_PATH, _FN, "" if srcloc else "--omit-srcloc")
     else:
         tmp_module = tmp_file_name + '.rkt'
-        cmd = "racket -l pycket/zo-expand -- --test --stdout %s" % tmp_module
+        cmd = "%s -l pycket/zo-expand -- --test --stdout %s" % (_RACKET_BIN_PATH, tmp_module)
 
     if current_racket_proc and reuse and current_racket_proc.poll() is None:
         process = current_racket_proc

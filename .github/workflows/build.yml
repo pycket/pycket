@@ -1,6 +1,6 @@
 # Build workflow testing if the code compiles.
 
-name: Build
+name: Build / Translate
 
 on:
     pull_request:
@@ -10,7 +10,7 @@ on:
             - "master"
 jobs:
     build:
-        name: Build
+        name: Build / Translate
         runs-on: ubuntu-latest
         steps:
             - name: Check out code
@@ -22,12 +22,12 @@ jobs:
                 python-version: "pypy-2.7-v7.3.17"
 
             - name: Setup PyPy Code
-              run: cd pycket && git clone https://github.com/pypy/pypy.git
+              run: git clone https://github.com/pypy/pypy.git
 
             - name: install dependencies
               run: |
                   sudo apt install libffi-dev pkg-config zlib1g-dev libbz2-dev libsqlite3-dev libncurses5-dev libexpat1-dev libssl-dev libgdbm-dev tk-dev libgc-dev liblzma-dev libncursesw5-dev patchelf
-                  cd pycket/pypy && pypy -m pip install -r requirements.txt
+                  pypy -m pip install -r pypy/requirements.txt
 
-            - name: Compile Pycket
-              run: make pycket-c-linklets
+            - name: Compile/Translate Pycket
+              run: export PLTHOME=/home/runner/work/pycket/pycket && make pycket-c-linklets

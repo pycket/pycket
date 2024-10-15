@@ -6,14 +6,14 @@ on:
     push:
         branches:
             - "master"
-    workflow_run:
-        workflows: [Build]
-        types: [completed]
+env:
+  HOME: /home/runner/work/
+  PLTHOME: /home/runner/work/pycket/pycket
+
 jobs:
-    on-success:
-        name: Test with Linklets
+    test-new:
+        name: Test using bootstrap linklets
         runs-on: ubuntu-latest
-        if: ${{ github.event.workflow_run.conclusion == 'success' }}
         steps:
             - name: Check out code
               uses: actions/checkout@v4
@@ -24,17 +24,15 @@ jobs:
                 python-version: "pypy-2.7-v7.3.17"
 
             - name: Setup PyPy Code
-              run: cd pycket && git clone https://github.com/pypy/pypy.git
+              run: git clone https://github.com/pypy/pypy.git
 
             - name: install dependencies
               run: |
                     sudo apt install libffi-dev pkg-config zlib1g-dev libbz2-dev libsqlite3-dev libncurses5-dev libexpat1-dev libssl-dev libgdbm-dev tk-dev libgc-dev liblzma-dev libncursesw5-dev patchelf
-                    cd pycket/pypy && pypy -m pip install -r requirements.txt
+                    pypy -m pip install -r pypy/requirements.txt
+
+            - name: Setup Local Racket
+              run: make setup-local-racket
 
             - name: Run test
               run: make test-new
-    on-failure:
-        runs-on: ubuntu-latest
-        if: ${{ github.event.workflow_run.conclusion == 'failure' }}
-        steps:
-        - run: echo 'Pycket build failed.'
