@@ -30,4 +30,4 @@ jobs:
                   cd pycket/pypy && pypy -m pip install -r requirements.txt
 
             - name: Compile Pycket
-              run: cd pycket && pwd && make pycket-c-linklets
+              run: make pycket-c-linklets
