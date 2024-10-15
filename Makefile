@@ -146,7 +146,7 @@ PYPY_PAK=$(PYPY_V).tar.bz2
 
 setup-pypy:
 	wget https://downloads.python.org/pypy/$(PYPY_PAK)
-	tar xzf $(PYPY_PAK)
+	tar xjf $(PYPY_PAK)
 	ln -s $(PYPY_V)/bin/pypy pypy-c
 	export PATH=$(PATH):$(PYPY_V)/bin
 
