@@ -20,6 +20,7 @@ from pycket import vector
 from pycket import values_struct
 from pycket.hash.equal import W_EqualHashTable, W_EqualAlwaysHashTable
 from pycket.hash.simple import (W_EqImmutableHashTable, W_EqvImmutableHashTable, make_simple_immutable_table)
+from pycket.racket_paths import racket_sys_paths
 
 
 class ExpandException(SchemeException):
@@ -55,16 +56,18 @@ module_map = {}
 
 current_racket_proc = None
 
+_RACKET_BIN_PATH = racket_sys_paths.get_path(values.W_Symbol.make('exec-file')).path
+
 def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=False):
     "NON_RPYTHON"
     global current_racket_proc
     from subprocess import Popen, PIPE
 
     if not byte_option:
-        cmd = "racket %s --loop --stdin --stdout %s" % (_FN, "" if srcloc else "--omit-srcloc")
+        cmd = "%s %s --loop --stdin --stdout %s" % (_RACKET_BIN_PATH, _FN, "" if srcloc else "--omit-srcloc")
     else:
         tmp_module = tmp_file_name + '.rkt'
-        cmd = "racket -l pycket/zo-expand -- --test --stdout %s" % tmp_module
+        cmd = "%s -l pycket/zo-expand -- --test --stdout %s" % (_RACKET_BIN_PATH, tmp_module)
 
     if current_racket_proc and reuse and current_racket_proc.poll() is None:
         process = current_racket_proc
@@ -93,8 +96,7 @@ def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=F
 def expand_file(fname):
     "NON_RPYTHON"
     from subprocess import Popen, PIPE
-
-    cmd = "racket %s --stdout \"%s\"" % (_FN, fname)
+    cmd = "%s %s --stdout \"%s\"" % (_RACKET_BIN_PATH, _FN, fname)
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     data, err = process.communicate()
     if len(data) == 0:
@@ -107,7 +109,7 @@ def expand_file(fname):
 # intermediate (possibly cached) file.
 def expand_file_rpython(rkt_file, lib=_FN):
     from rpython.rlib.rfile import create_popen_file
-    cmd = "racket %s --stdout \"%s\" 2>&1" % (lib, rkt_file)
+    cmd = "%s %s --stdout \"%s\" 2>&1" % (_RACKET_BIN_PATH, lib, rkt_file)
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
     pipe = create_popen_file(cmd, "r")
@@ -171,14 +173,14 @@ def _expand_file_to_json(rkt_file, json_file, byte_flag=False, multi_flag=False)
 
     if multi_flag:
         print("Complete expansion for %s into %s" % (rkt_file, json_file))
-        cmd = "racket %s --complete-expansion --output \"%s\" \"%s\" 2>&1" % (lib, json_file, rkt_file)
+        cmd = "%s %s --complete-expansion --output \"%s\" \"%s\" 2>&1" % (_RACKET_BIN_PATH, lib, json_file, rkt_file)
     else:
         if byte_flag:
             print("Transforming %s bytecode to %s" % (rkt_file, json_file))
         else:
             print("Expanding %s to %s" % (rkt_file, json_file))
 
-        cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (lib, json_file, rkt_file)
+        cmd = "%s %s --output \"%s\" \"%s\" 2>&1" % (_RACKET_BIN_PATH, lib, json_file, rkt_file)
 
 
     # print cmd
@@ -197,7 +199,7 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
         pass
     except OSError:
         pass
-    cmd = "racket %s --output \"%s\" --stdin" % (_FN, json_file)
+    cmd = "%s %s --output \"%s\" --stdin" % (_RACKET_BIN_PATH, _FN, json_file)
     # print cmd
     pipe = create_popen_file(cmd, "w")
     pipe.write("#lang s-exp pycket%s" % (" #:stdlib" if stdlib else ""))

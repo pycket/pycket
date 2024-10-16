@@ -29,9 +29,9 @@ else
 RUNINTERP = $(PYPY_EXECUTABLE)
 endif
 
-WITH_JIT = -Ojit --translation-jit_opencoder_model=big
+WITH_JIT = -Ojit --translation-jit
 
-RACKET_INSTALLER_SCRIPT_NAME := racket-8.13.0.5-x86_64-linux-jammy-cs.sh
+RACKET_INSTALLER_SCRIPT_NAME := racket-8.15.0.1-x86_64-linux-jammy-cs.sh
 
 translate-jit-all: $(TRANSLATE_TARGETS)
 all: translate-jit-all translate-no-jit
@@ -124,13 +124,13 @@ download-racket:
 	wget http://www.cs.utah.edu/plt/snapshots/current/installers/$(RACKET_INSTALLER_SCRIPT_NAME)
 
 setup-local-racket: download-racket
-	$(info Installing Racket)
+	$(info Installing Racket in $(shell pwd)/racket)
 	chmod 755 $(RACKET_INSTALLER_SCRIPT_NAME)
 	./$(RACKET_INSTALLER_SCRIPT_NAME) --in-place --dest racket
 	rm -f $(RACKET_INSTALLER_SCRIPT_NAME)
-	$(eval export PLTHOME=$(shell pwd)/racket)
-	$(eval export PLTCOLLECTS=$(shell pwd)/racket/collects)
-	$(info Telling Racket about Pycket)
+	export PLTHOME=$(shell pwd) && \
+	export PLTCOLLECTS=$(shell pwd)/racket/collects && \
+	echo "Telling Racket about Pycket"
 	./racket/bin/raco pkg install -t dir pycket/pycket-lang/ || \
 	./racket/bin/raco pkg update --link pycket/pycket-lang
 	$(warning WARNING: PLTHOME needs to be manually set (I can not modify env variables I inherited from my parent process))
