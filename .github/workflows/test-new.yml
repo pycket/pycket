@@ -7,7 +7,7 @@ on:
         branches:
             - "master"
 env:
-  HOME: /home/runner/work/
+  HOME: /home/runner/work
   PLTHOME: /home/runner/work/pycket/pycket
 
 jobs:
@@ -35,4 +35,6 @@ jobs:
               run: make setup-local-racket
 
             - name: Run test
-              run: make test-new
+              run: |
+                mkdir -p $HOME/.config/racket
+                make test-new
