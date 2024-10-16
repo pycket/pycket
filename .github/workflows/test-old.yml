@@ -31,7 +31,9 @@ jobs:
                     pypy -m pip install -r pypy/requirements.txt
 
             - name: Setup Local Racket
-              run: make setup-local-racket
+              run: |
+                make setup-local-racket
+                rm pycket/pycket-lang/compiled/expand*
 
             - name: Run test
               run: |

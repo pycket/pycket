@@ -621,7 +621,6 @@ def test_struct_operations_arity(doctest):
     2
     """
 
-@pytest.mark.caner
 def test_struct_object_name_field(doctest):
     """
     ! (require racket/base)
