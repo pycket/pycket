@@ -1,4 +1,4 @@
-name: Test Pycket with Linklets
+name: Test New Pycket
 
 on:
     pull_request:
@@ -7,12 +7,11 @@ on:
         branches:
             - "master"
 env:
-  HOME: /home/runner/work
+  HOME: /home/runner
   PLTHOME: /home/runner/work/pycket/pycket
 
 jobs:
     test-new:
-        name: Test using bootstrap linklets
         runs-on: ubuntu-latest
         steps:
             - name: Check out code
