@@ -1,11 +1,15 @@
-[![Build Status](https://travis-ci.org/pycket/pycket.png?branch=master)](https://travis-ci.org/pycket/pycket) [![codecov.io](https://codecov.io/github/pycket/pycket/coverage.svg?branch=master) ](https://codecov.io/github/pycket/pycket?branch=master)
+[![Build Status](https://github.com/pycket/pycket/actions/workflows/build.yml/badge.svg)](https://github.com/pycket/pycket/actions/workflows/build.yml) 
+[![Tests with Racket Expander](https://github.com/pycket/pycket/actions/workflows/test-new.yml/badge.svg)](https://github.com/pycket/pycket/actions/workflows/test-new.yml)
+[![Tests with Pycket Expander](https://github.com/pycket/pycket/actions/workflows/test-old.yml/badge.svg)](https://github.com/pycket/pycket/actions/workflows/test-old.yml)
+
+[![codecov.io](https://codecov.io/github/pycket/pycket/coverage.svg?branch=master) ](https://codecov.io/github/pycket/pycket?branch=master)
 [![license](http://img.shields.io/badge/license-mit-blue.svg)](https://opensource.org/licenses/MIT) <img align="right" width="210" height="60" src="https://github.com/pycket/pycket/blob/master/pycket.png">
 
 [![Slack channel](https://img.shields.io/badge/slack-channel-orange.svg)](https://racket.slack.com/messages/pycket) [![IRC channel](https://img.shields.io/badge/IRC-channel-orange.svg)](irc://freenode/pycket)
 
 Pycket is a Racket/Scheme implementation that is generated using the [RPython framework](https://rpython.readthedocs.io/en/latest/). Given an interpreter written in RPython (in our case a CEK machine interpreter for Racket), RPython framework produces a fast binary for it. It can also add a tracing JIT.
 
-There are currently two different modes that we refer as `OLD` and `NEW`. The `NEW` Pycket uses `linklets` and bootstraps the Racket using the `expander` linklet exported by Racket (version 7+). The `OLD` Pycket, on the other hand, uses Racket's binary to fully expand the program and generates `json` asts and evaluates them.
+There are currently two different modes that we refer as `OLD` and `NEW`. The `NEW` Pycket uses `linklets` and bootstraps the Racket using the `expander` linklet exported by Racket (version 8+). The `OLD` Pycket, on the other hand, uses Racket's binary to fully expand the program and generates `json` asts and evaluates them.
 
 Note that both versions require an unmodified Racket installation. The `OLD` Pycket requires a Racket binary, and while the `NEW` Pycket doesn't require a Racket binary, it still requires the Racket packages
 and libraries to bootstrap.
@@ -39,7 +43,6 @@ To produce a Pycket executable, use one of the provided [make targets](#make-tar
 Assumes the mercurial binary `hg` to be in the environment.
 
  * `make clone-pypy` : clones the latest pypy into Pycket's directory
- * `make update-pypy` : pulls and updates the pypy
  * `make make-pypy` : builds pypy, assumes that pypy directory exists in Pycket's directory
 
 ### Building Pycket
