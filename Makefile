@@ -176,8 +176,6 @@ check_pycket_c_linklets:
 		echo "WARNING: also an already built pycket-c-linklets binary (to generate a serialized expander linklet)"; \
 	fi
 
-bootstrap-linklets: expander fasl regexp
-
 BOOTSTRAP_LINKLET_DIR := $(CURDIR)/bootstrap-linklets
 
 EXPANDER_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/expander.linklet.fasl
