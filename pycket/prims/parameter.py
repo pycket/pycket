@@ -114,6 +114,7 @@ expose_val("current-compile-realm", values_parameter.W_Parameter(REALM))
 # error-syntax->string-handler determines the error syntax conversion handler,
 # which is used to print a syntax form that is embedded in an error message
 expose_val("error-syntax->string-handler", values_parameter.W_Parameter(values.w_false))
+expose_val("error-syntax->name-handler", values_parameter.W_Parameter(values.w_false))
 
 READ_TRUE_PARAMS = """
 read-accept-reader

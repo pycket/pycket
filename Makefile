@@ -18,7 +18,7 @@ PYFILES := $(shell find .  -maxdepth 1 -name '*.py' -type f) $(shell find pycket
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit translate-jit-linklets
 .PHONY: test coverage test-random test test-old-single test-old-mark test-new-no-expander-single test-new-no-expander-mark test-new test-new-single test-new-mark
-.PHONY: expander regexp fasl setup-local-racket
+.PHONY: expander regexp fasl setup-local-racket bootstrap-linklets
 
 PYPY_EXECUTABLE := $(shell which pypy)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
@@ -31,7 +31,7 @@ endif
 
 WITH_JIT = -Ojit --translation-jit
 
-RACKET_INSTALLER_SCRIPT_NAME := racket-8.15.0.1-x86_64-linux-jammy-cs.sh
+RACKET_INSTALLER_SCRIPT_NAME := racket-8.15.0.2-x86_64-linux-jammy-cs.sh
 
 translate-jit-all: $(TRANSLATE_TARGETS)
 all: translate-jit-all translate-no-jit
@@ -180,8 +180,11 @@ BOOTSTRAP_LINKLET_DIR := $(CURDIR)/bootstrap-linklets
 
 EXPANDER_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/expander.linklet.fasl
 EXPANDER_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/expander.linklet.json
+EXPANDER_PATH_ZO := $(BOOTSTRAP_LINKLET_DIR)/expander.linklet.zo
 
 expander: check_pycket_c_linklets check_plthome
+	@echo "Cleaning up current expander code."
+	rm -f ${EXPANDER_PATH_FASL} ${EXPANDER_PATH_JSON} ${EXPANDER_PATH_ZO}
 	$(MAKE) -s -C linklet-extractor expander
 	@echo "Done. expander is at: $(EXPANDER_PATH_FASL)"
 
@@ -191,8 +194,11 @@ expander-json: check_pycket_c_linklets check_plthome
 
 REGEXP_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.fasl
 REGEXP_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.json
+REGEXP_PATH_ZO := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.zo
 
 regexp: check_pycket_c_linklets check_plthome
+	@echo "Cleaning up current regexp code."
+	rm -f ${REGEXP_PATH_FASL} ${REGEXP_PATH_JSON} ${REGEXP_PATH_ZO}
 	$(MAKE) -s -C linklet-extractor regexp
 	@echo "Done. regexp is at: $(REGEXP_PATH_FASL)"
 
@@ -202,8 +208,11 @@ regexp-json: check_pycket_c_linklets check_plthome
 
 FASL_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/fasl.linklet.fasl
 FASL_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/fasl.linklet.json
+FASL_PATH_ZO := $(BOOTSTRAP_LINKLET_DIR)/fasl.linklet.zo
 
 fasl:
+	@echo "Cleaning up current fasl code."
+	rm -f ${FASL_PATH_FASL} ${FASL_PATH_JSON} ${FASL_PATH_ZO}
 	$(MAKE) -s -C linklet-extractor fasl
 	@echo "Done. fasl is at: $(FASL_PATH_FASL)"
 
