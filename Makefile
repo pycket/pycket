@@ -144,7 +144,8 @@ setup-racket-for-old-pycket:
 PYPY_V=pypy2.7-v7.3.17-linux64
 PYPY_PAK=$(PYPY_V).tar.bz2
 
-setup-pypy:
+# Get pypy source, as well as a binary to work with
+setup-pypy: clone-pypy
 	wget https://downloads.python.org/pypy/$(PYPY_PAK)
 	tar xjf $(PYPY_PAK)
 	ln -s $(PYPY_V)/bin/pypy pypy-c
@@ -153,6 +154,7 @@ setup-pypy:
 clean-racket:
 	rm -rf racket
 
+# Get pypy source for rpython stuff
 clone-pypy:
 	git clone https://github.com/pypy/pypy.git
 
