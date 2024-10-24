@@ -90,6 +90,20 @@ debug-no-jit: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) --lldebug targetpycket.py
 	cp pycket-c pycket-c-debug-no-jit
 
+build-docker-image:
+	@if [ -z "$(username)" ]; then \
+		echo "Usage: make build username=<your-username>"; \
+		exit 1; \
+	fi
+	docker build -t $(username)/pycket:latest .
+
+push-docker-image:
+	@if [ -z "$(username)" ]; then \
+		echo "Usage: make push username=<your-username>"; \
+		exit 1; \
+	fi
+	docker push $(username)/pycket-benchmark:latest
+
 compile-file:
 ifneq (,$(wildcard ./pycket-c-linklets))
 	./pycket-c-linklets compile-file-pycket.rkt -- $(FILE)
