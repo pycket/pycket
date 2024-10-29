@@ -215,17 +215,17 @@ class RacketPaths(object):
 
         # FIXME : get argv[0] from target args
 
-        if PLTHOME:
-            # assume the binary is at $PLTHOME/racket/bin/racket
-            W_PATH_EXEC_FILE = os.path.join(PLTHOME, os.path.join("racket", os.path.join("bin", "racket")))
-        elif PLTEXECFILE:
+        if PLTEXECFILE:
             # expect PLTEXECFILE
             W_PATH_EXEC_FILE = PLTEXECFILE
+        elif PLTHOME:
+            # assume the binary is at $PLTHOME/racket/bin/racket
+            W_PATH_EXEC_FILE = os.path.join(PLTHOME, os.path.join("racket", os.path.join("bin", "racket")))
         else:
             # should we error?
             # set it to pycket-c for now
             W_PATH_EXEC_FILE = os.path.join(CURRENT_DIR, "pycket-c")
-        
+
         self.paths[path_exec_file] = values.W_Path(W_PATH_EXEC_FILE)
 
         #############
@@ -240,7 +240,7 @@ class RacketPaths(object):
         #############
         # COLLECTS-DIR
         #############
-        
+
         if PLTHOME:
             W_PATH_COLLECTS_DIR = os.path.join(PLTHOME, os.path.join("racket", "collects"))
         else:
