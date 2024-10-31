@@ -549,6 +549,7 @@ def dev_mode_entry(dev_mode, eval_sexp, run_rkt_as_linklet):
 def racket_entry(names, config, command_line_arguments):
     from pycket.prims.general import executable_yield_handler
     from pycket.values import W_Fixnum
+    from pycket.racket_paths import report_racket_paths
 
     if config['make-zos']:
         make_bootstrap_zos()
@@ -557,6 +558,8 @@ def racket_entry(names, config, command_line_arguments):
     linklet_perf.init()
 
     loads, startup_options, flags = get_options(names, config)
+
+    report_racket_paths()
 
     init_library     = startup_options['init_library'][0]
     set_run_file     = startup_options['set_run_file'][0]

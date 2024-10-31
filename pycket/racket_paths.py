@@ -46,6 +46,9 @@ class RacketPaths(object):
     def __init__(self):
         self.paths = {}
         self.initialized = False
+        self.plthome = ""
+        self.pltcollectsdir = ""
+        self.pltexecfile = ""
 
     def get_path(self, kind):
         if not self.initialized:
@@ -55,6 +58,9 @@ class RacketPaths(object):
             raise SchemeException("Path cannot be found for : %s" % kind.tostring())
 
         return self.paths[kind]
+
+    def get_path_str(self, kind):
+        return self.get_path(kind).raw_str()
 
     def set_path(self, kind, path):
         if kind not in path_kinds:
@@ -70,9 +76,9 @@ class RacketPaths(object):
         if not os_check_env_var("PLTHOME") and not os_check_env_var("PLTCOLLECTS"):
             raise SchemeException("In order to locate the Racket installation, Pycket requires a `PLTHOME` environment variable to point to Racket directory. If Racket is installed in Unix-style, then you can just set a `PLTCOLLECTS` variable to point to the Racket `collects`.")
 
-        PLTHOME = os_get_env_var("PLTHOME")
-        PLTCOLLECTS = os_get_env_var("PLTCOLLECTS")
-        PLTEXECFILE = os_get_env_var("PLTEXECFILE")
+        PLTHOME = self.plthome = os_get_env_var("PLTHOME")
+        PLTCOLLECTS = self.pltcollectsdir = os_get_env_var("PLTCOLLECTS")
+        PLTEXECFILE = self.pltexecfile = os_get_env_var("PLTEXECFILE")
         PLTUSERHOME = os_get_env_var("PLTUSERHOME")
         HOME = os_get_env_var("HOME")
         USER = os_get_env_var("USER")
@@ -241,10 +247,10 @@ class RacketPaths(object):
         # COLLECTS-DIR
         #############
 
-        if PLTHOME:
-            W_PATH_COLLECTS_DIR = os.path.join(PLTHOME, os.path.join("racket", "collects"))
-        else:
+        if PLTCOLLECTS:
             W_PATH_COLLECTS_DIR = PLTCOLLECTS
+        else:
+            W_PATH_COLLECTS_DIR = os.path.join(PLTHOME, os.path.join("racket", "collects"))
 
         if path_collects_dir not in self.paths:
             self.paths[path_collects_dir] = values.W_Path(W_PATH_COLLECTS_DIR)
@@ -268,3 +274,31 @@ class RacketPaths(object):
         self.initialized = True
 
 racket_sys_paths = RacketPaths()
+
+def report_racket_paths():
+    from pycket.util import console_log
+    log_str = """
+
+Racket Paths:
+
+ - collects-dir     : %s
+ - exec-file        : %s
+ - home-dir         : %s
+ - pref-dir         : %s
+ - orig-dir         : %s
+
+Env Vars:
+ - PLTHOME          : %s
+ - PLTCOLLECTS      : %s
+ - PLTEXECFILE      : %s
+""" % (racket_sys_paths.get_path_str(path_collects_dir),
+       racket_sys_paths.get_path_str(path_exec_file),
+       racket_sys_paths.get_path_str(path_home_dir),
+       racket_sys_paths.get_path_str(path_pref_dir),
+       racket_sys_paths.get_path_str(path_orig_dir),
+       racket_sys_paths.plthome,
+       racket_sys_paths.pltcollectsdir,
+       racket_sys_paths.pltexecfile
+       )
+
+    console_log(log_str, given_verbosity_level=4)
