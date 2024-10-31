@@ -969,6 +969,8 @@ class W_Path(W_Object):
     def write(self, port, env):
         port.write("(p+ %s)" % self.path)
 
+    def raw_str(self):
+        return self.path
     def tostring(self):
         return "#<path:%s>" % self.path
 

@@ -20,7 +20,7 @@ from pycket import vector
 from pycket import values_struct
 from pycket.hash.equal import W_EqualHashTable, W_EqualAlwaysHashTable
 from pycket.hash.simple import (W_EqImmutableHashTable, W_EqvImmutableHashTable, make_simple_immutable_table)
-from pycket.racket_paths import racket_sys_paths
+from pycket.racket_paths import racket_sys_paths, path_exec_file
 
 
 class ExpandException(SchemeException):
@@ -56,13 +56,12 @@ module_map = {}
 
 current_racket_proc = None
 
-_RACKET_BIN_PATH = racket_sys_paths.get_path(values.W_Symbol.make('exec-file')).path
-
 def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=False):
     "NON_RPYTHON"
     global current_racket_proc
     from subprocess import Popen, PIPE
 
+    _RACKET_BIN_PATH = racket_sys_paths.get_path(path_exec_file).raw_str()
     if not byte_option:
         cmd = "%s %s --loop --stdin --stdout %s" % (_RACKET_BIN_PATH, _FN, "" if srcloc else "--omit-srcloc")
     else:
@@ -96,6 +95,8 @@ def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=F
 def expand_file(fname):
     "NON_RPYTHON"
     from subprocess import Popen, PIPE
+
+    _RACKET_BIN_PATH = racket_sys_paths.get_path(path_exec_file).raw_str()
     cmd = "%s %s --stdout \"%s\"" % (_RACKET_BIN_PATH, _FN, fname)
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     data, err = process.communicate()
@@ -109,6 +110,8 @@ def expand_file(fname):
 # intermediate (possibly cached) file.
 def expand_file_rpython(rkt_file, lib=_FN):
     from rpython.rlib.rfile import create_popen_file
+
+    _RACKET_BIN_PATH = racket_sys_paths.get_path(path_exec_file).raw_str()
     cmd = "%s %s --stdout \"%s\" 2>&1" % (_RACKET_BIN_PATH, lib, rkt_file)
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
@@ -153,6 +156,7 @@ def expand_file_to_json(rkt_file, json_file, byte_flag=False):
 
 def _expand_file_to_json(rkt_file, json_file, byte_flag=False, multi_flag=False):
     lib = _BE if byte_flag else _FN
+    _RACKET_BIN_PATH = racket_sys_paths.get_path(path_exec_file).raw_str()
 
     assert not (byte_flag and multi_flag)
 
@@ -193,6 +197,9 @@ def _expand_file_to_json(rkt_file, json_file, byte_flag=False, multi_flag=False)
 
 def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
     from rpython.rlib.rfile import create_popen_file
+
+    _RACKET_BIN_PATH = racket_sys_paths.get_path(path_exec_file).raw_str()
+
     try:
         os.remove(json_file)
     except IOError:
