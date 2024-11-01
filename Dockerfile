@@ -7,14 +7,19 @@ FROM ubuntu:24.04
 COPY . /opt/pycket
 
 # Ensure the Pycket binaries are executable
+
 RUN chmod +x /opt/pycket/pycket-c-linklets
 RUN chmod +x /opt/pycket/pycket-c
 
 # Set the environment variables
-ENV PATH="/opt/pycket:${PATH}"
+ENV PATH="/opt/pycket:/opt/pycket/racket/bin:${PATH}"
 ENV PLTHOME="/opt/pycket"
 ENV PLTCOLLECTS="/opt/pycket/racket/collects"
 ENV PLTEXECFILE="/opt/pycket/racket/bin/racket"
-ENV PYTHONPATH="/opt/pycket/pypy"
+ENV PLTUSERHOME="/opt/pycket"
 
 WORKDIR /opt/pycket
+
+# Install pycket-lang for old pycket
+RUN /opt/pycket/racket/bin/raco pkg install --no-docs -t dir ./pycket-lang
+RUN /opt/pycket/racket/bin/raco pkg update --no-docs --link ./pycket-lang
