@@ -9,7 +9,6 @@ class W_ProtoObject(object):
     """ abstract base class of both actual values (W_Objects) and multiple
     return values (Values)"""
     _attrs_ = []
-    _settled_ = True
 
     def as_real_value(self):
         raise NotImplementedError("not a real value!")

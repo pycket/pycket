@@ -17,7 +17,6 @@ class W_HashTable(W_Object):
     errorname = "hash"
     _attrs_ = []
     _immutable_fields_ = []
-    _settled_ = True
 
     def hash_items(self):
         raise NotImplementedError("abstract method")
@@ -64,14 +63,12 @@ class W_HashTable(W_Object):
 class W_MutableHashTable(W_HashTable):
     _attrs_ = []
     _immutable_fields_ = []
-    _settled_ = True
     def immutable(self):
         return False
 
 class W_ImmutableHashTable(W_HashTable):
     _attrs_ = []
     _immutable_fields_ = []
-    _settled_ = True
     def immutable(self):
         return True
 

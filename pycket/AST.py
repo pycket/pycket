@@ -17,7 +17,6 @@ class AST(object):
 
     _attrs_ = ["should_enter", "surrounding_lambda", "_stringrepr"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda"]
-    _settled_ = True
 
     should_enter = False # default value
     _stringrepr = None # default value

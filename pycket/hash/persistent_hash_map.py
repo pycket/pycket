@@ -38,7 +38,6 @@ def validate_nodes(root):
 
 class Box(object):
     _attrs_ = ['_val']
-    _settled_ = True
 
     def __init__(self):
         self._val = False
@@ -98,7 +97,6 @@ def make_persistent_hash_type(
 
         _attrs_ = ['_size']
         _immutable_fields_ = ['_size']
-        _settled_ = True
 
         def __init__(self, size):
             self._size = size
@@ -130,7 +128,6 @@ def make_persistent_hash_type(
 
         _attrs_ = ['_bitmap', '_array']
         _immutable_fields_ = ['_bitmap', '_array[*]']
-        _settled_ = True
 
         def __init__(self, bitmap, array, size):
             INode.__init__(self, size)
@@ -291,7 +288,6 @@ def make_persistent_hash_type(
 
         _attrs_ = ['_cnt', '_array']
         _immutable_fields_ = ['_cnt', '_array[*]']
-        _settled_ = True
 
         def __init__(self, cnt, array, size):
             INode.__init__(self, size)
@@ -392,7 +388,6 @@ def make_persistent_hash_type(
 
         _attrs_ = ['_hash', '_array']
         _immutable_fields_ = ['_hash', '_array[*]']
-        _settled_ = True
 
         def __init__(self, hash, array, size):
             INode.__init__(self, size)
@@ -500,7 +495,6 @@ def make_persistent_hash_type(
 
         _attrs_ = ['_cnt', '_root']
         _immutable_fields_ = ['_cnt', '_root']
-        _settled_ = True
 
         def __init__(self, cnt, root):
             assert root is None or isinstance(root, INode)

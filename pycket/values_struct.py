@@ -635,7 +635,6 @@ class W_PrefabKey(values.W_Object):
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
     _attrs_ = []
-    _settled_ = True
 
     def __init__(self):
         raise NotImplementedError("abstract base class")
