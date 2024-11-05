@@ -26,7 +26,6 @@ def _is_ascii_elidable(s):
 class W_String(W_Object):
     errorname = "string"
     _attrs_ = []
-    _settled_ = True
 
     # factory methods
 
