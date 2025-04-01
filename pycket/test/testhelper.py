@@ -183,7 +183,7 @@ def get_val(inst, name_str):
     return inst.lookup_var_value(values.W_Symbol.make(name_str))
 
 def check_val(inst, var_str, val):
-    return inst.vars[W_Symbol.make(var_str)].val.value == val
+    return inst.vars[W_Symbol.make(var_str)].get_val().value == val
 
 def inst(linkl, imports=[], target=None):
     if not target:
@@ -196,7 +196,7 @@ def make_instance(vars):
     w_name = values.W_Symbol.make("test_linklet_instance")
     w_vars = {}
     for k,v in vars.iteritems():
-        w_vars[values.W_Symbol.make(k)] = W_LinkletVar(values.W_Fixnum(v), k, w_name, w_false)
+        w_vars[values.W_Symbol.make(k)] = W_Cell(values.W_Fixnum(v)) # linklet variable
 
     return W_LinkletInstance(w_name, w_vars)
 
