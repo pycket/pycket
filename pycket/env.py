@@ -278,8 +278,11 @@ class ToplevelEnv(Env):
     def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound" % sym.variable_name())
 
+    def get_linklet_variable(self, sym):
+        jit.promote(self)
+        return self._lookup(sym, jit.promote(self.version))
+
     def toplevel_lookup(self, sym):
-        from pycket.values import W_Cell
         jit.promote(self)
         return self._lookup(sym, jit.promote(self.version)).get_val()
 
@@ -289,6 +292,9 @@ class ToplevelEnv(Env):
             return self.bindings[sym]
         except KeyError:
             raise SchemeException("toplevel variable %s not found" % sym.variable_name())
+
+    def put_linklet_variable(self, sym, w_cell):
+        self.bindings[sym] = w_cell
 
     def toplevel_set(self, sym, w_val):
         from pycket.values import W_Cell
