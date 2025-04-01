@@ -95,7 +95,7 @@ build-docker-image:
 		echo "Usage: make build username=<your-username>"; \
 		exit 1; \
 	fi
-	docker build -t $(username)/pycket:latest .
+	docker build -t $(username)/pycket-benchmark:latest .
 
 push-docker-image:
 	@if [ -z "$(username)" ]; then \
