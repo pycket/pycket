@@ -61,7 +61,8 @@ flfxnum_str = [
     "flmax", "->fl", "fl->exact-integer", "flvector?",
     "flvector", "make-flvector", "shared-flvector", "make-shared-flvector",
     "flvector-length", "flvector-ref", "flvector-set!",
-    "flreal-part", "flimag-part", "make-flrectangular"
+    "flreal-part", "flimag-part", "make-flrectangular",
+    "flbit-field"
 ]
 
 extfl_str = [
