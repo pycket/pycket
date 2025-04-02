@@ -286,7 +286,6 @@ known_mod_vars = {} # cache for kernel primitive ModuleVars
 
 def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref=[], name=""):
 
-    #util.console_log("sexp->ast is called with form : %s" % form.tostring(), 8)
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name)
     elif is_val_type(form):
@@ -551,23 +550,6 @@ def get_exports_from_w_exports_sexp(w_exports):
             w_c_exp = Gensym.gensym(c_exp.tostring())
             exports[c_exp] = Export(w_c_exp, c_exp)
     return exports
-
-# collect the ids in define-values forms
-def create_toplevel_linklet_vars(forms_ls, linklet):
-    linkl_toplevels = {} # {W_Symbol:LinkletVar}
-    for form in forms_ls:
-        if isinstance(form, W_Correlated):
-            form = form.get_obj()
-        if isinstance(form, values.W_List) and form.car() is mksym("define-values"):
-            ids = form.cdr().car()
-            ids_ls, ids_len = to_rpython_list(ids, unwrap_correlated=True)
-            # create LinkletVar for each id
-            for id in ids_ls:
-                if id in linkl_toplevels:
-                    raise SchemeException("duplicate binding name : %s" % id.tostring())
-                linkl_toplevels[id] = interp.LinkletDefinedVar(id, defining_linklet=linklet)
-
-    return linkl_toplevels
 
 # collect the ids in define-values forms
 def get_toplevel_defined_ids(forms_ls):

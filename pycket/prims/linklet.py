@@ -41,16 +41,33 @@ class W_Uninitialized(W_Object):
 
 w_uninitialized = W_Uninitialized()
 
-class W_LinkletVar(W_Object):
-    errorname = "linklet-var"
-    _attrs_ = ["val", "name", "constance"]
-    _immutabe_fields_ = ["name"]
+"""
+Linklet Variables
 
-    def __init__(self, val, name, source_name, constance=w_false):
-        self.val = val
-        self.name = name
-        self.constance = constance
+A linklet variable is a logical variable that's represented by a W_Cell
+in the toplevel env and being reified to the linklet runtime via functions
+such as varible-ref, variable-set!.
 
+It's mainly used accross linklet instance boundaries. Any variable
+that's imported into another linklet is grabbed from the providing
+instance as a linklet variable. And any exported variable that's
+either mutated or not defined by the exporting linklet is also
+represented as a linklet variable.
+
+Internally, linklet variable is a W_Cell we put in the toplevel env and
+pass around.
+
+interpreter.LinkletVar is the AST node that evaluates to a W_Cell
+that represents it (as opposed to a ToplevelVar evaluating to the value
+inside the cell). It used to be a separate object W_LinkletVar, but
+implementing it as W_Cell has advantages, such as benefiting from the
+trace optimizer, indirectly enabling optimizations on the toplevel
+environment, also benefiting from strategies implemented on the W_Cells,
+etc.
+
+"""
+
+# W_LinkletInstance is a mapping from names to linklet variables.
 class W_LinkletInstance(W_Object):
     errorname = "linklet-instance"
     _attrs_ = ["name", "vars", "exports", "data"]
@@ -58,16 +75,16 @@ class W_LinkletInstance(W_Object):
 
     def __init__(self, name, vars, data=w_false):
         self.name = name # W_Symbol (for debugging)
-        self.vars = vars # {W_Symbol:W_LinkletVar}
+        self.vars = vars # {W_Symbol:W_Cell}
         self.data = data #
 
     def get_var(self, name):
-        return self.vars[name]
+        return self.vars[name] # W_Cell
 
     def expose_vars_to_prim_env(self, excludes=[]):
         for name, w_var in self.vars.iteritems():
             if name not in excludes:
-                prim_env[name] = w_var.val
+                prim_env[name] = w_var.get_val()
 
     def tostring(self):
         vars_str = " ".join(["(%s : %s)" % (name.tostring(), var.tostring()) for name, var in self.vars.iteritems()])
@@ -221,7 +238,9 @@ class W_Linklet(W_Object):
         for group_index, import_group in enumerate(self.importss):
             for imp in import_group:
                 w_imp_var = import_instances_ls[group_index].get_var(imp.ext_id)
-                env.toplevel_env().toplevel_set(imp.id, w_imp_var)
+                # Put a linklet variable (W_Cell) into the toplevel env
+                # w_imp_var is a linklet variable (a W_Cell)
+                env.toplevel_env().put_linklet_variable(imp.id, w_imp_var)
 
         return_val = True
         if not target:
@@ -233,12 +252,13 @@ class W_Linklet(W_Object):
 
         for exp_sym, exp_obj in self.exports.iteritems():
             if target and exp_obj.ext_id in target.vars:
-                var = target.vars[exp_obj.ext_id]
+                linklet_var = target.vars[exp_obj.ext_id]
             else:
-                var = W_LinkletVar(w_uninitialized, exp_obj.ext_id, w_false)
-                target.vars[exp_obj.ext_id] = var
+                linklet_var = W_Cell(w_uninitialized)
+                target.vars[exp_obj.ext_id] = linklet_var
 
-            env.toplevel_env().toplevel_set(exp_obj.int_id, var)
+            # linklet_var is a linklet variable (W_Cell)
+            env.toplevel_env().put_linklet_variable(exp_obj.int_id, linklet_var)
 
         if len(self.forms) == 0:
             # no need for any evaluation, just return the instance or the value
@@ -522,7 +542,7 @@ def make_instance(args): # name, data, *vars_vals
         for i in range(0, len(vars_vals), 2):
             n = vars_vals[i]
             v = vars_vals[i+1]
-            vars_vals_dict[n] = W_LinkletVar(v, n, mode)
+            vars_vals_dict[n] = W_Cell(v) # linklet variable
 
         return W_LinkletInstance(name, vars_vals_dict, data)
 
@@ -535,12 +555,12 @@ def recompile_linklet(linkl, name, import_keys, get_import, env, cont):
 
 @expose("instance-variable-value", [W_LinkletInstance, W_Symbol, default(W_Object, None)], simple=False)
 def instance_variable_value(instance, name, fail_k, env, cont):
-    if name not in instance.vars or instance.vars[name].val is w_uninitialized:
+    if name not in instance.vars or instance.vars[name].get_val() is w_uninitialized:
         if fail_k is not None and fail_k.iscallable():
             return fail_k.call([], env, cont)
         else:
             raise SchemeException("key %s not found in the instance %s" % (name.tostring(), instance.name.tostring()))
-    return return_value(instance.vars[name].val, env, cont)
+    return return_value(instance.vars[name].get_val(), env, cont)
 
 @expose("instance-describe-variable!", [W_LinkletInstance, W_Symbol, W_Object])
 def instance_describe_variable(inst, name, desc_v):
@@ -555,16 +575,20 @@ def eval_linklet(l):
     return l
 
 @expose("instance-set-variable-value!", [W_LinkletInstance, W_Symbol, W_Object, default(W_Object, w_false)])
-def instance_set_variable_value(instance, name, w_val, mode):
-    var = instance.vars.get(name, None)
-    if var:
-        if var.constance is not w_false:
-            raise SchemeException("Cannot mutate a constant : %s" % name.tostring())
-    else:
-        var = W_LinkletVar(w_val, name, mode)
-        instance.vars[name] = var
+def instance_set_variable_value(instance, name, w_val, _):
+    # INFO: mode (constance) is ignored
+    # and it's ok, because even if a linklet variable is constant,
+    # we always keep W_Cells in the toplevel env anyways.
+    # TODO: if we make a toplevel env that's always pure,
+    # then this constance can be implemented as just moving the
+    # value into that pure env.
 
-    var.val = w_val
+    cell = instance.vars.get(name, None)
+    if cell:
+        cell.set_val(w_val)
+    else:
+        instance.vars[name] = W_Cell(w_val)
+
     return w_void
 
 @expose("primitive->compiled-position", [W_Object])
@@ -656,34 +680,27 @@ def write_linklet_bundle_hash(ht, out_port, env, cont):
         return s_exp_to_fasl.call([bundle_s_exp, out_port, values.w_false], env,
                                   finish_perf_region_cont("s-exp->fasl", env, cont))
 
-@expose("variable-ref", [W_LinkletVar])
+@expose("variable-ref", [W_Cell])
 def variable_ref(w_var):
-    v = w_var.val
+    v = w_var.get_val()
     if v is w_uninitialized:
-        raise SchemeException("Reference to an uninitialized variable : %s" % w_var.name.tostring())
+        raise SchemeException("Reference to an uninitialized variable : %s" % w_var.tostring())
     return v
 
-@expose("variable-ref/no-check", [W_LinkletVar])
+@expose("variable-ref/no-check", [W_Cell])
 def variable_ref(w_var):
-    return w_var.val
+    return w_var.get_val()
 
-def do_var_set_bang(w_var, w_val, constance):
-    if w_var.constance is not w_false:
-        raise SchemeException("Cannot modify a constant %s" % w_var.name.tostring())
-    w_var.val = w_val
-    if constance is not w_false:
-        w_var.constance = constance
-
-@expose("variable-set!", [W_LinkletVar, W_Object, W_Object])
-def variable_set_bang(w_var, w_val, constance):
-    do_var_set_bang(w_var, w_val, constance)
+@expose("variable-set!", [W_Cell, W_Object, W_Object])
+def variable_set_bang(w_var, w_val, _):
+    w_var.set_val(w_val)
     return w_void
 
-@expose("variable-set!/check-undefined", [W_LinkletVar, W_Object, W_Object])
-def variable_set_bang(w_var, w_val, constance):
-    if w_var.val is w_uninitialized:
-        raise SchemeException("Reference to an uninitialized variable : %s" % w_var.name.tostring())
-    do_var_set_bang(w_var, w_val, constance)
+@expose("variable-set!/check-undefined", [W_Cell, W_Object, W_Object])
+def variable_set_bang(w_var, w_val, _):
+    if w_var.get_val() is w_uninitialized:
+        raise SchemeException("Reference to an uninitialized variable : %s" % w_var.tostring())
+    w_var.set_val(w_val)
     return w_void
 
 @expose("linklet-add-target-machine-info", [W_Linklet, W_Linklet])

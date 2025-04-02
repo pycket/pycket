@@ -209,13 +209,13 @@ def test_instantiate_basic_export():
 def test_instantiate_uninitialize_undefined_exports():
     l = make_linklet("(linklet () (x))")
     _, t = eval_fixnum(l, empty_target())
-    assert t.vars[W_Symbol.make("x")].val is w_uninitialized
+    assert t.vars[W_Symbol.make("x")].get_val() is w_uninitialized
 
     # don't touch if target has it
     l = make_linklet("(linklet () (x))")
     t = make_instance({'x':10})
     _, t = eval_fixnum(l, t)
-    assert t.vars[W_Symbol.make("x")].val is not w_uninitialized
+    assert t.vars[W_Symbol.make("x")].get_val() is not w_uninitialized
 
     # target exports the same var with another external name
     l = make_linklet("(linklet () (x2) (+ x2 x2))")

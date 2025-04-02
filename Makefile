@@ -31,7 +31,8 @@ endif
 
 WITH_JIT = -Ojit --translation-jit
 
-RACKET_INSTALLER_SCRIPT_NAME := racket-8.15.0.3-x86_64-linux-jammy-cs.sh
+RACKET_VERSION := 8.16.0.4
+RACKET_INSTALLER_SCRIPT_NAME := racket-$(RACKET_VERSION)-x86_64-linux-jammy-cs.sh
 
 translate-jit-all: $(TRANSLATE_TARGETS)
 all: translate-jit-all translate-no-jit
@@ -95,7 +96,7 @@ build-docker-image:
 		echo "Usage: make build username=<your-username>"; \
 		exit 1; \
 	fi
-	docker build -t $(username)/pycket:latest .
+	docker build -t $(username)/pycket-benchmark:latest .
 
 push-docker-image:
 	@if [ -z "$(username)" ]; then \

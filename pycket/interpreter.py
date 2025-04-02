@@ -1491,8 +1491,10 @@ class Gensym(object):
         count = counter.next_value()
         return values.W_Symbol(hint + str(count))
 
-# Same with ToplevelVar(is_free=False)
-# It's better to have LinkletVars only refer to W_LinkletVar
+# Similar to ToplevelVar(is_free=False)
+# Evaluates to a linklet variable, see prims/linklet.py
+# for how a linklet variable represented as a value.
+# (tldr, it's a W_Cell)
 class LinkletVar(Var):
     visitable = True
     _immutable_fields_ = ["sym"]
@@ -1514,7 +1516,7 @@ class LinkletVar(Var):
         env.toplevel_env().toplevel_set(self.sym, w_val)
 
     def _lookup(self, env):
-        return env.toplevel_env().toplevel_lookup(self.sym)
+        return env.toplevel_env().get_linklet_variable(self.sym)
 
 class LexicalVar(Var):
     visitable = True
