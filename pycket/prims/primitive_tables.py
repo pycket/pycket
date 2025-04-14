@@ -185,10 +185,10 @@ unsafe_str = [
     "unsafe-chaperone-vector", "unsafe-undefined", "check-not-unsafe-undefined",
     "check-not-unsafe-undefined/assign", "prop:chaperone-unsafe-undefined",
     "chaperone-struct-unsafe-undefined",
-    "unsafe-start-atomic", "unsafe-end-atomic", "unsafe-start-breakable-atomic",
+    "unsafe-start-breakable-atomic",
     "unsafe-end-breakable-atomic", "unsafe-in-atomic?", "unsafe-set-on-atomic-timeout!",
-    "unsafe-thread-at-root", "unsafe-make-custodian-at-root", "unsafe-custodian-register",
-    "unsafe-custodian-unregister", "unsafe-register-process-global", "unsafe-make-security-guard-at-root",
+    "unsafe-thread-at-root",
+    "unsafe-register-process-global", "unsafe-make-security-guard-at-root",
     "unsafe-abort-current-continuation/no-wind", "unsafe-call-with-composable-continuation/no-wind",
     "unsafe-poller", "unsafe-poll-fd",
     "unsafe-poll-ctx-fd-wakeup", "unsafe-poll-ctx-eventmask-wakeup", "unsafe-poll-ctx-milliseconds-wakeup",
@@ -220,7 +220,7 @@ kernel_str = [
     "quotient", "quotient/remainder", "remainder",
     "abort-current-continuation", "abs", "absolute-path?",
     "add1", "acos", "alarm-evt",
-    "always-evt", "andmap", "angle",
+    "andmap", "angle",
     "append", "apply", "arithmetic-shift",
     "asin", "assoc", "assq",
     "assv", "atan", "banner",
@@ -246,7 +246,7 @@ kernel_str = [
     "call-with-escape-continuation", "call-with-immediate-continuation-mark", "call-with-input-file",
     "call-with-output-file", "call-with-semaphore", "call-with-semaphore/enable-break",
     "call-with-values", "ceiling", "channel?",
-    "channel-put-evt", "channel-put-evt?", "chaperone?",
+    "channel-put-evt?", "chaperone?",
     "chaperone-of?", "chaperone-box", "chaperone-continuation-mark-key",
     "chaperone-channel", "chaperone-evt", "chaperone-hash",
     "chaperone-procedure", "chaperone-procedure*", "chaperone-prompt-tag",
@@ -261,7 +261,7 @@ kernel_str = [
     "char<?", "char=?", "char>=?",
     "char>?", "char?", "char-ci<=?",
     "char-ci<?", "char-ci=?", "char-ci>=?",
-    "char-ci>?", "checked-procedure-check-and-extract", "choice-evt",
+    "char-ci>?", "checked-procedure-check-and-extract",
     "cleanse-path", "close-input-port", "close-output-port",
     "collect-garbage", "complex?",
     "compile-allow-set!-undefined", "compile-enforce-module-constants", "compile-context-preservation-enabled",
@@ -271,21 +271,21 @@ kernel_str = [
     "continuation-prompt-tag?", "continuation?", "copy-file",
     "cos", "current-code-inspector", "current-command-line-arguments",
     "current-compile-realm",
-    "current-continuation-marks", "current-custodian", "current-directory",
+    "current-continuation-marks", "current-directory",
     "current-directory-for-user", "current-drive", "current-environment-variables",
     "current-error-port", "current-evt-pseudo-random-generator", "current-force-delete-permissions",
     "current-gc-milliseconds", "current-get-interaction-input-port", "current-inexact-milliseconds", "current-inexact-monotonic-milliseconds",
     "current-input-port", "current-inspector", "current-load-extension",
     "current-load-relative-directory", "current-locale", "current-logger",
     "current-memory-use", "current-milliseconds", "current-output-port",
-    "current-plumber", "current-preserved-thread-cell-values", "current-print",
+    "current-preserved-thread-cell-values", "current-print",
     "current-process-milliseconds", "current-prompt-read", "current-pseudo-random-generator",
     "current-read-interaction", "current-seconds", "current-security-guard",
-    "current-subprocess-custodian-mode", "current-thread", "current-thread-group",
+    "current-subprocess-custodian-mode", "current-thread-group",
     "current-thread-initial-stack-size", "current-write-relative-directory", "custodian?",
     "custodian-box?", "custodian-box-value", "custodian-limit-memory",
     "custodian-managed-list", "custodian-memory-accounting-available?", "custodian-require-memory",
-    "custodian-shutdown-all", "custodian-shut-down?", "custom-print-quotable?", "custom-print-quotable-accessor",
+    "custodian-shutdown-all", "custom-print-quotable?", "custom-print-quotable-accessor",
     "custom-write?", "custom-write-accessor", "datum-intern-literal",
     "default-continuation-prompt-tag", "delete-directory", "delete-file",
     "denominator", "directory-exists?", "directory-list",
@@ -299,7 +299,7 @@ kernel_str = [
     "eqv-hash-code", "error", "error-display-handler",
     "error-escape-handler", "error-print-context-length", "error-print-source-location",
     "error-print-width", "error-value->string-handler", "eval-jit-enabled",
-    "even?", "evt?", "exact-integer?",
+    "even?", "exact-integer?",
     "exact-nonnegative-integer?", "exact-positive-integer?", "exact?",
     "exact->inexact", "executable-yield-handler", "exit",
     "exit-handler", "exn-continuation-marks", "exn-message",
@@ -316,7 +316,7 @@ kernel_str = [
     "fprintf", "gcd", "gensym",
     "get-output-bytes", "get-output-string", "global-port-print-handler",
     "get-installation-name",
-    "handle-evt", "handle-evt?", "hash", "hashalw",
+    "handle-evt?", "hash", "hashalw",
     "hash-clear", "hash-clear!", "hash-copy",
     "hash-count", "hash-eq?", "hash-eqv?",
     "hash-equal?", "hash-equal-always?", "hash-for-each", "hash-iterate-first",
@@ -345,7 +345,7 @@ kernel_str = [
     "logger-name", "log-all-levels", "log-level?",
     "log-level-evt", "log-max-level", "log-message",
     "log-receiver?", "magnitude", "make-bytes",
-    "make-channel", "make-continuation-mark-key", "make-continuation-prompt-tag",
+    "make-continuation-mark-key", "make-continuation-prompt-tag",
     "make-custodian", "make-custodian-box", "make-derived-parameter",
     "make-directory", "make-environment-variables", "make-ephemeron",
     "make-ephemeron-hash", "make-ephemeron-hasheq", "make-ephemeron-hasheqv",
@@ -359,7 +359,7 @@ kernel_str = [
     "make-phantom-bytes", "make-pipe", "make-placeholder",
     "make-plumber", "make-polar", "make-prefab-struct",
     "make-pseudo-random-generator", "make-reader-graph", "make-rectangular",
-    "make-security-guard", "make-semaphore", "make-shared-bytes",
+    "make-security-guard", "make-shared-bytes",
     "make-sibling-inspector", "make-string", "make-struct-field-accessor",
     "make-struct-field-mutator", "make-struct-type", "make-struct-type-property",
     "make-thread-cell", "make-thread-group", "make-vector",
@@ -384,8 +384,8 @@ kernel_str = [
     "peek-bytes-avail!*", "peek-bytes-avail!/enable-break", "peek-char-or-special",
     "peek-char", "peek-string", "peek-string!",
     "phantom-bytes?", "pipe-content-length", "placeholder?",
-    "placeholder-get", "placeholder-set!", "plumber-add-flush!",
-    "plumber-flush-all", "plumber-flush-handle-remove!", "plumber-flush-handle?",
+    "placeholder-get", "placeholder-set!",
+    "plumber-flush-all", "plumber-flush-handle?",
     "plumber?", "poll-guard-evt", "port-closed?",
     "port-closed-evt", "port-commit-peeked", "port-count-lines!",
     "port-count-lines-enabled", "port-counts-lines?", "port-file-identity",
@@ -411,7 +411,7 @@ kernel_str = [
     "procedure?", "procedure-specialize", "procedure-struct-type?",
     "procedure-closure-contents-eq?", "progress-evt?", "prop:arity-string",
     "prop:authentic", "prop:checked-procedure", "prop:custom-print-quotable",
-    "prop:custom-write", "prop:equal+hash", "prop:evt",
+    "prop:custom-write", "prop:equal+hash",
     "prop:impersonator-of", "prop:incomplete-arity", "prop:method-arity-error",
     "prop:procedure", "prop:object-name", "prop:output-port",
     "prop:input-port", "prop:sealed", "pseudo-random-generator?", "pseudo-random-generator->vector",
@@ -432,8 +432,8 @@ kernel_str = [
     "regexp?", "relative-path?", "rename-file-or-directory",
     "replace-evt", "resolve-path", "reverse",
     "round", "seconds->date", "security-guard?",
-    "semaphore?", "semaphore-peek-evt", "semaphore-peek-evt?",
-    "semaphore-post", "semaphore-try-wait?", "semaphore-wait",
+    "semaphore?", "semaphore-peek-evt?",
+    "semaphore-try-wait?",
     "semaphore-wait/enable-break", "set-box!", "set-box*!", "set-phantom-bytes!",
     "shared-bytes", "shell-execute", "simplify-path",
     "sin", "single-flonum?", "sleep",
@@ -464,18 +464,18 @@ kernel_str = [
     "subprocess-pid", "subprocess-status", "subprocess-wait",
     "substring", "symbol->string", "symbol->immutable-string", "symbol-interned?",
     "symbol-unreadable?", "symbol<?", "symbol?",
-    "sync", "sync/timeout", "sync/enable-break",
+    "sync/enable-break",
     "sync/timeout/enable-break", "system-big-endian?", "system-idle-evt",
     "system-language+country", "system-library-subpath", "system-path-convention-type",
     "system-type", "tan", "terminal-port?",
-    "time-apply", "thread", "thread/suspend-to-kill",
+    "time-apply", "thread/suspend-to-kill",
     "thread?", "thread-cell?", "thread-cell-ref",
     "thread-cell-set!", "thread-cell-values?", "thread-dead?",
-    "thread-dead-evt", "thread-group?",
-    "thread-receive", "thread-receive-evt", "thread-resume",
+    "thread-group?",
+    "thread-receive", "thread-receive-evt",
     "thread-resume-evt", "thread-rewind-receive", "thread-running?",
     "thread-send", "thread-receive", "thread-suspend",
-    "thread-suspend-evt", "thread-try-receive", "thread-wait",
+    "thread-try-receive", "thread-wait",
     "true-object?", "truncate", "unbox", "unbox*",
     "uncaught-exception-handler", "unquoted-printing-string", "unquoted-printing-string?",
     "unquoted-printing-string-value", "values", "vector",
@@ -493,7 +493,7 @@ kernel_str = [
     "void", "void?", "weak-box?",
     "weak-box-value", "will-execute", "will-executor?",
     "will-register", "will-try-execute", "with-input-from-file",
-    "with-output-to-file", "wrap-evt", "write",
+    "with-output-to-file", "write",
     "write-byte", "write-bytes", "write-bytes-avail",
     "write-bytes-avail*", "write-bytes-avail/enable-break", "write-bytes-avail-evt",
     "write-char", "write-special", "write-special-avail*",
@@ -606,6 +606,62 @@ terminal_table = [
     "terminal-line-feed"
 ]
 
+
+thread_str = [
+    "thread",
+    "thread-suspend-evt",
+    "thread-dead-evt",
+    "current-thread",
+    "thread-resume",
+    "make-semaphore",
+    "semaphore-post",
+    "semaphore-post-all",
+    "semaphore-wait",
+    "semaphore-peek-evt",
+    "make-channel",
+    "channel-put-evt",
+    "wrap-evt",
+    "handle-evt",
+    "always-evt",
+    "choice-evt",
+    "sync",
+    "sync/timeout",
+    "evt?",
+    "sync-atomic-poll-evt?",
+    "prop:evt",
+    "prop:secondary-evt",
+    "poller",
+    "poller-evt",
+    "poll-ctx-poll?",
+    "poll-ctx-select-proc",
+    "poll-ctx-sched-info",
+    "set-poll-ctx-incomplete?!",
+    "control-state-evt",
+    "async-evt",
+    "current-sandman",
+    "schedule-info-current-exts",
+    "schedule-info-did-work!",
+    "unsafe-start-atomic",
+    "unsafe-end-atomic",
+    "start-atomic/no-interrupts",
+    "end-atomic/no-interrupts",
+    "in-atomic-mode?",
+    "current-custodian",
+    "custodian-shut-down?",
+    "current-plumber",
+    "plumber-add-flush!",
+    "plumber-flush-handle-remove!",
+    "unsafe-custodian-register",
+    "unsafe-custodian-unregister",
+    "unsafe-make-custodian-at-root",
+    "thread-push-kill-callback!",
+    "thread-pop-kill-callback!",
+    "unsafe-add-pre-poll-callback!",
+    "set-get-subprocesses-time!",
+    "prop:place-message",
+]
+
+
 pthread_str = [
     "make-pthread-parameter",
     "unsafe-make-place-local",
@@ -641,6 +697,7 @@ kernel = make_primitive_table(kernel_str)
 pycket = make_primitive_table(pycket_extra_str + schemify_hooks)
 terminal = make_primitive_table(terminal_table)
 pthread = make_primitive_table(pthread_str)
+thread = make_primitive_table(thread_str)
 
 select_prim_table = {
     W_Symbol.make("#%linklet"): linklet,
@@ -655,7 +712,8 @@ select_prim_table = {
     W_Symbol.make("#%pycket"): pycket,
     W_Symbol.make("#%network"): network,
     W_Symbol.make("#%terminal"): terminal,
-    W_Symbol.make("#%pthread"): pthread
+    W_Symbol.make("#%pthread"): pthread,
+    W_Symbol.make("#%thread"): thread
 }
 
 # Lists of actual functions indexed by the names above
@@ -674,10 +732,13 @@ ALL_PRIMS = linklet_str + \
     schemify_hooks + \
     network_str + \
     terminal_table + \
-    pthread_str
+    pthread_str + \
+    thread_str
 
 if DEBUG:
-    print("\n\nPriming all primitives in : linklet + kernel + paramz + unsafe + foreign + futures + place + flfxnum + extfl + network + terminal\n")
+    print("\n\nPriming all primitives in :\n")
+    for table_name, _ in select_prim_table.items():
+        print(table_name)
 
 for prim_name_str in ALL_PRIMS:
     define_nyi(prim_name_str)
@@ -696,9 +757,10 @@ def report_undefined_prims():
     network = get_undef_prims_in(network_str)
     terminal = get_undef_prims_in(terminal_table)
     pthread = get_undef_prims_in(pthread_str)
+    thread = get_undef_prims_in(thread_str)
 
     total = linklets + kernel + paramz + unsafe + foreign + \
-        futures + places + flfxnum + extfl + network + terminal + pthread
+        futures + places + flfxnum + extfl + network + terminal + pthread + thread
 
     report = """
     linklets   : %s -- %s
@@ -713,6 +775,7 @@ def report_undefined_prims():
     network    : %s -- %s
     terminal   : %s -- %s
     pthread    : %s -- %s
+    thread     : %s -- %s
     TOTAL      : %s
     """ % (len(linklets), linklets,
             len(kernel), kernel,
@@ -726,6 +789,7 @@ def report_undefined_prims():
             len(network), network,
             len(terminal), terminal,
             len(pthread), pthread,
+            len(thread), thread,
             len(total))
 
     print(report)
