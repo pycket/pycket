@@ -36,6 +36,19 @@ expander-json: expander-sexp
 expander-sexp:
 	$(ZUO) $(EXPANDER_DIR) expander-src
 
+IO_DIR := $(PLTHOME)/racket/src/io
+IO_FASL_FILENAME := io.linklet.fasl
+IO_JSON_FILENAME := io.linklet.json
+
+io: io-sexp
+	$(RACKET) linklet-sexp-to-fasl.rkt --output $(BOOTSTRAP_LINKLET_DIR)/$(IO_FASL_FILENAME) compiled/io.rktl
+
+io-json: io-sexp
+	$(RACKET) linklet-sexp-to-json.rkt --output $(BOOTSTRAP_LINKLET_DIR)/$(IO_JSON_FILENAME) compiled/io.rktl
+
+io-sexp:
+	$(ZUO) $(IO_DIR) io-src
+
 FASL_FASL_FILENAME := fasl.linklet.fasl
 FASL_JSON_FILENAME := fasl.linklet.json
 

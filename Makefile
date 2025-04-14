@@ -208,6 +208,18 @@ expander-json: check_pycket_c_linklets check_plthome
 	$(MAKE) -s -C linklet-extractor expander-json
 	@echo "Done. expander json is at: $(EXPANDER_PATH_JSON)"
 
+IO_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/io.linklet.fasl
+IO_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/io.linklet.json
+IO_PATH_ZO := $(BOOTSTRAP_LINKLET_DIR)/io.linklet.zo
+
+io: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor io
+	@echo "Done. io is at : $(IO_PATH_FASL)"
+
+io-json: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor io-json
+	@echo "Done. io json is at: $(IO_PATH_JSON)"
+
 REGEXP_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.fasl
 REGEXP_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.json
 REGEXP_PATH_ZO := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.zo
