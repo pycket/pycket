@@ -606,6 +606,23 @@ terminal_table = [
     "terminal-line-feed"
 ]
 
+pthread_str = [
+    "make-pthread-parameter",
+    "unsafe-make-place-local",
+    "unsafe-place-local-ref",
+    "unsafe-place-local-set!",
+    "unsafe-add-global-finalizer",
+    "unsafe-strip-impersonator",
+    "prop:unsafe-authentic-override",
+    "immobile-cell-ref",
+    "immobile-cell->address",
+    "address->immobile-cell",
+    "set-fs-change-properties!",
+    "unsafe-root-continuation-prompt-tag",
+    "break-enabled-key",
+    "engine-block"
+]
+
 
 # The reason for make_primitive_table is for turning these into list
 # of symbols (to avoid making new objects everytime we look things up)
@@ -623,24 +640,28 @@ unsafe = make_primitive_table(unsafe_str)
 kernel = make_primitive_table(kernel_str)
 pycket = make_primitive_table(pycket_extra_str + schemify_hooks)
 terminal = make_primitive_table(terminal_table)
+pthread = make_primitive_table(pthread_str)
 
-select_prim_table = {W_Symbol.make("#%linklet"): linklet,
-                     W_Symbol.make("#%kernel"): kernel,
-                     W_Symbol.make("#%paramz"): paramz,
-                     W_Symbol.make("#%unsafe"): unsafe,
-                     W_Symbol.make("#%foreign"): foreign,
-                     W_Symbol.make("#%futures"): futures,
-                     W_Symbol.make("#%place"): place,
-                     W_Symbol.make("#%flfxnum"): flfxnum,
-                     W_Symbol.make("#%extfl"): extfl,
-                     W_Symbol.make("#%pycket"): pycket,
-                     W_Symbol.make("#%network"): network,
-                     W_Symbol.make("#%terminal"): terminal}
+select_prim_table = {
+    W_Symbol.make("#%linklet"): linklet,
+    W_Symbol.make("#%kernel"): kernel,
+    W_Symbol.make("#%paramz"): paramz,
+    W_Symbol.make("#%unsafe"): unsafe,
+    W_Symbol.make("#%foreign"): foreign,
+    W_Symbol.make("#%futures"): futures,
+    W_Symbol.make("#%place"): place,
+    W_Symbol.make("#%flfxnum"): flfxnum,
+    W_Symbol.make("#%extfl"): extfl,
+    W_Symbol.make("#%pycket"): pycket,
+    W_Symbol.make("#%network"): network,
+    W_Symbol.make("#%terminal"): terminal,
+    W_Symbol.make("#%pthread"): pthread
+}
 
 # Lists of actual functions indexed by the names above
 prim_table_cache = {}
 
-all_prims = linklet_str + \
+ALL_PRIMS = linklet_str + \
     kernel_str + \
     paramz_str + \
     unsafe_str + \
@@ -652,12 +673,13 @@ all_prims = linklet_str + \
     pycket_extra_str + \
     schemify_hooks + \
     network_str + \
-    terminal_table
+    terminal_table + \
+    pthread_str
 
 if DEBUG:
     print("\n\nPriming all primitives in : linklet + kernel + paramz + unsafe + foreign + futures + place + flfxnum + extfl + network + terminal\n")
 
-for prim_name_str in all_prims:
+for prim_name_str in ALL_PRIMS:
     define_nyi(prim_name_str)
 
 
@@ -673,9 +695,10 @@ def report_undefined_prims():
     extfl = get_undef_prims_in(extfl_str)
     network = get_undef_prims_in(network_str)
     terminal = get_undef_prims_in(terminal_table)
+    pthread = get_undef_prims_in(pthread_str)
 
     total = linklets + kernel + paramz + unsafe + foreign + \
-        futures + places + flfxnum + extfl + network + terminal
+        futures + places + flfxnum + extfl + network + terminal + pthread
 
     report = """
     linklets   : %s -- %s
@@ -689,6 +712,7 @@ def report_undefined_prims():
     extfl      : %s -- %s
     network    : %s -- %s
     terminal   : %s -- %s
+    pthread    : %s -- %s
     TOTAL      : %s
     """ % (len(linklets), linklets,
             len(kernel), kernel,
@@ -701,6 +725,7 @@ def report_undefined_prims():
             len(extfl), extfl,
             len(network), network,
             len(terminal), terminal,
+            len(pthread), pthread,
             len(total))
 
     print(report)
