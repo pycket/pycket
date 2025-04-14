@@ -143,6 +143,7 @@ class BootstrapLinklet():
 FASL_LINKLET = BootstrapLinklet('fasl')
 EXPANDER_LINKLET = BootstrapLinklet('expander')
 REGEXP_LINKLET = BootstrapLinklet('regexp')
+IO_LINKLET = BootstrapLinklet('io')
 
 def locate_linklet(file_name):
     import os
@@ -176,6 +177,9 @@ def load_bootstrap_linklets(dont_load_regexp=False):
     if not dont_load_regexp:
         # Load regexp linklet
         REGEXP_LINKLET.load()
+
+    # Load io linklet
+    IO_LINKLET.load()
 
     # Load fasl linklet
     FASL_LINKLET.load()
