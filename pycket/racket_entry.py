@@ -10,6 +10,9 @@ from pycket.error import ExitException, SchemeException
 from rpython.rlib.debug import debug_start, debug_stop, debug_print
 from pycket.error import BootstrapError
 
+# Feature flag for loading io linklet
+FFLAG_IO = "io"
+
 class BootstrapLinklet():
     DIR = "bootstrap-linklets"
     ZO = ".linklet.zo"
@@ -172,14 +175,16 @@ def locate_linklet(file_name):
 
     return file_path
 
-def load_bootstrap_linklets(dont_load_regexp=False):
+def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
 
     if not dont_load_regexp:
         # Load regexp linklet
         REGEXP_LINKLET.load()
 
     # Load io linklet
-    IO_LINKLET.load()
+    # (currently only when the "io" feature flag is set)
+    if feature_flag == FFLAG_IO:
+        IO_LINKLET.load()
 
     # Load fasl linklet
     FASL_LINKLET.load()
@@ -413,11 +418,12 @@ def initiate_boot_sequence(command_line_arguments,
                            set_collects_dir="",
                            set_config_dir="",
                            set_addon_dir="",
+                           feature_flag="",
                            compile_any=False,
                            dont_load_regexp=False):
     from pycket.env import w_version
 
-    load_bootstrap_linklets(dont_load_regexp=dont_load_regexp)
+    load_bootstrap_linklets(dont_load_regexp=dont_load_regexp, feature_flag=feature_flag)
 
     with PerfRegion("set-params"):
 
@@ -575,6 +581,14 @@ def racket_entry(names, config, command_line_arguments):
     load_linklets    = startup_options['load_linklets']
     load_as_linklets = startup_options['load_as_linklets']
     fasl_file        = startup_options['fasl-file'][0]
+    feature_flag     = startup_options['feature-flag'][0]
+
+    # TODO: (cderici - 04-17-2025): The entire config handling in
+    # the frontend needs to be revisited. There should be local-global
+    # config that should be passed around, instead of these
+    # flags, startup_options, names, config...
+    # For instance, the verbosity_keywords are never used here,
+    # but it's passed around and accessed just for printing in get_options.
 
     is_repl          = flags['repl']
     no_lib           = flags['no-lib']
@@ -619,6 +633,7 @@ def racket_entry(names, config, command_line_arguments):
                                set_collects_dir,
                                set_config_dir,
                                set_addon_dir,
+                               feature_flag,
                                compile_any=c_a,
                                dont_load_regexp=dont_load_regexp)
 
@@ -772,33 +787,34 @@ def get_primitive(prim_name_str):
 
 def get_options(names, config):
 
-    is_repl = config['repl']
-    no_lib = config['no-lib']
-    just_kernel = config['just_kernel']
-    just_init = config['just-init']
-    use_compiled = config['use-compiled']
-    debug = config['verbose']
-    version = config['version']
-    compile_any = config['compile-machine-independent']
-    dont_load_regexp = config['no-regexp']
-    dev_mode = config['dev-mode']
-    racket_fasl      = config['racket-fasl']
-    rpython_fasl     = config['rpython-fasl']
+    is_repl = config.get('repl', False)
+    no_lib = config.get('no-lib', False)
+    just_kernel = config.get('just_kernel', False)
+    just_init = config.get('just-init', False)
+    use_compiled = config.get('use-compiled', False)
+    debug = config.get('verbose', False)
+    version = config.get('version', False)
+    compile_any = config.get('compile-machine-independent', False)
+    dont_load_regexp = config.get('no-regexp', False)
+    dev_mode = config.get('dev-mode', False)
+    racket_fasl      = config.get('racket-fasl', False)
+    rpython_fasl     = config.get('rpython-fasl', False)
 
-    load_rators = names['loads'] if 'loads' in names else []
-    load_rands = names['load_arguments'] if 'load_arguments' in names else []
-    set_run_file = names['set-run-file'] if 'set-run-file' in names else [""]
-    set_collects_dir = names['set-collects-dir'] if 'set-collects-dir' in names else [""]
-    set_config_dir = names['set-config-dir'] if 'set-config-dir' in names else [""]
-    set_addon_dir = names['set-addon-dir'] if 'set-addon-dir' in names else [""]
-    init_library = names['init-lib'] if 'init-lib' in names else ["racket/base"] # racket/init
+    load_rators = names.get('loads', [])
+    load_rands = names.get('load_arguments', [])
+    set_run_file = names.get('set-run-file', [""])
+    set_collects_dir = names.get('set-collects-dir', [""])
+    set_config_dir = names.get('set-config-dir', [""])
+    set_addon_dir = names.get('set-addon-dir', [""])
+    init_library = names.get('init-lib', ["racket/base"]) # racket/init
     verbosity_lvl = int(names['verbosity_level'][0]) if debug else -1
-    verbosity_keywords = names['verbosity_keywords'] if 'verbosity_keywords' in names else []
-    eval_sexp = names['eval-sexp'] if 'eval-sexp' in names else [""]
-    run_as_linklet = names['run-as-linklet'] if 'run-as-linklet' in names else [""]
-    load_linklets = names['load-linklets'] if 'load-linklets' in names else []
-    load_as_linklets = names['load-as-linklets'] if 'load-as-linklets' in names else []
-    fasl_file = names['fasl-file'] if 'fasl-file' in names else [""]
+    verbosity_keywords = names.get('verbosity_keywords', [])
+    feature_flag = names.get('feature_flag', [""])
+    eval_sexp = names.get('eval-sexp', [""])
+    run_as_linklet = names.get('run-as-linklet', [""])
+    load_linklets = names.get('load-linklets', [])
+    load_as_linklets = names.get('load-as-linklets', [])
+    fasl_file = names.get('fasl-file', [""])
 
     loads_print_str = []
     loads = []
@@ -828,6 +844,7 @@ use-compiled       : %s
 verbosity-level    : %s
 verbosity-keywords : %s
 dev-mode           : %s
+feature-flag       : %s
 """ % (loads_print_str,
        init_library[0],
        set_run_file[0],
@@ -846,7 +863,8 @@ dev-mode           : %s
        use_compiled,
        verbosity_lvl,
        verbosity_keywords,
-       dev_mode
+       dev_mode,
+       feature_flag[0]
        )
 
     console_log(log_str, debug=debug)
@@ -861,7 +879,8 @@ dev-mode           : %s
         'run_as_linklet'   : run_as_linklet,
         'load_linklets'    : load_linklets,
         'load_as_linklets' : load_as_linklets,
-        'fasl-file'        : fasl_file
+        'fasl-file'        : fasl_file,
+        'feature-flag'     : feature_flag,
     }
 
     return loads, startup_options, config
