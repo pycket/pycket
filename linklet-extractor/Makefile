@@ -2,6 +2,7 @@
 
 ZUO := zuo
 RACKET := $(PLTHOME)/racket/bin/racket
+PYCKET_DIR := ..
 
 # Target to check if zuo is installed
 .PHONY: check_zuo_installed
@@ -48,6 +49,16 @@ io-json: io-sexp
 
 io-sexp:
 	$(ZUO) $(IO_DIR) io-src
+
+RKTIO_DIR := $(PLTHOME)/racket/src/rktio
+RKTIO_LOCAL_DIR := $(PYCKET_DIR)/pycket/rktio
+
+.PHONY: librktio.a
+librktio.a:
+	@echo "Generating librktio.a"
+	cd $(RKTIO_DIR) && $(ZUO) ./build.zuo default_rktio
+	@echo "Copying everything we need into $(RKTIO_LOCAL_DIR)"
+	cp $(RKTIO_DIR)/*.a $(RKTIO_DIR)/*.h $(RKTIO_DIR)/rktio.rktl $(RKTIO_LOCAL_DIR)
 
 FASL_FASL_FILENAME := fasl.linklet.fasl
 FASL_JSON_FILENAME := fasl.linklet.json
