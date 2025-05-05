@@ -23,11 +23,28 @@ Pycket runtime (@expose_with_rffi) to call these.
 """
 
 
+import os
 
 from pycket import values, values_string
+from pycket.prims.expose import expose
 from pycket.rktio.types import *
-from rpython.rtyper.lltypesystem import rffi
 from pycket.foreign import make_w_pointer_class
+
+from rpython.rtyper.lltypesystem import rffi
+from rpython.translator.tool.cbuild import ExternalCompilationInfo
+
+# Load the librktio.a
+# TODO: make this absolute (pycket/rktio), instead of "this file"
+RKTIO_DIR = os.path.dirname(os.path.abspath(__file__))
+librktio_a = ExternalCompilationInfo(
+    includes=['rktio.h'],
+    include_dirs=[RKTIO_DIR],
+    libraries=['rktio'],
+    library_dirs=[RKTIO_DIR],
+)
+
+R_PTR = rffi.COpaquePtr("_pointer")
+W_R_PTR = make_w_pointer_class("_pointer")
 
 
 # Constants 
@@ -287,235 +304,1392 @@ RKTIO_DIRECTORY_LIST_T_PTR = rffi.COpaquePtr("rktio_directory_list_t")
 W_RKTIO_DIRECTORY_LIST_T_PTR = make_w_pointer_class("rktio_directory_list_t")
 
 
-DEFINE_FUNCTION = [
+c_rktio_get_error_string = rffi.llexternal('rktio_get_error_string', [R_PTR, INT, INT], CCHARP, compilation_info=librktio_a)
 
-    ((CCHARP, values_string.W_String), "rktio_get_error_string", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(INT, values.W_Fixnum, "kind"),(INT, values.W_Fixnum, "errid")]),
-    ((CCHARP, values_string.W_String), "rktio_get_last_error_string", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_remap_last_error", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_set_last_error_step", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(INT, values.W_Fixnum, "step")]),
-    ((VOID, values.w_void), "rktio_set_last_error", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(INT, values.W_Fixnum, "kind"),(INT, values.W_Fixnum, "errid")]),
-    ((INT, values.W_Fixnum), "rktio_get_last_error_step", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((INT, values.W_Fixnum), "rktio_get_last_error", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((INT, values.W_Fixnum), "rktio_get_last_error_kind", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_set_dll_procs", [(DLL_OPEN_PROC_PTR, W_DLL_OPEN_PROC_PTR, "dll_open"),(DLL_FIND_OBJECT_PROC_PTR, W_DLL_FIND_OBJECT_PROC_PTR, "dll_find_object"),(DLL_CLOSE_PROC_PTR, W_DLL_CLOSE_PROC_PTR, "dll_close")]),
-    ((VOID, values.w_void), "rktio_sha2_final", [(RKTIO_SHA2_CTX_T_PTR, W_RKTIO_SHA2_CTX_T_PTR, "ctx"),(UNSIGNED_8, values.W_Fixnum, "digest")]),
-    ((VOID, values.w_void), "rktio_sha2_update", [(RKTIO_SHA2_CTX_T_PTR, W_RKTIO_SHA2_CTX_T_PTR, "ctx"),(UNSIGNED_8, values.W_Fixnum, "data"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "end")]),
-    ((VOID, values.w_void), "rktio_sha2_init", [(RKTIO_SHA2_CTX_T_PTR, W_RKTIO_SHA2_CTX_T_PTR, "ctx"),(RKTIO_BOOL_T, values.W_Fixnum, "is224")]),
-    ((VOID, values.w_void), "rktio_sha1_final", [(RKTIO_SHA1_CTX_T_PTR, W_RKTIO_SHA1_CTX_T_PTR, "context"),(UNSIGNED_8, values.W_Fixnum, "digest")]),
-    ((VOID, values.w_void), "rktio_sha1_update", [(RKTIO_SHA1_CTX_T_PTR, W_RKTIO_SHA1_CTX_T_PTR, "context"),(UNSIGNED_8, values.W_Fixnum, "data"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "end")]),
-    ((VOID, values.w_void), "rktio_sha1_init", [(RKTIO_SHA1_CTX_T_PTR, W_RKTIO_SHA1_CTX_T_PTR, "context")]),
-    ((VOID, values.w_void), "rktio_pop_c_numeric_locale", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(VOID, values.w_void, "prev")]),
-    ((VOID, values.w_void), "rktio_push_c_numeric_locale", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_set_default_locale", [(RKTIO_CONST_STRING_T, values_string.W_String, "name")]),
-    ((VOID, values.w_void), "rktio_set_locale", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "name")]),
-    ((INT, values.W_Fixnum), "rktio_strcoll_utf16", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CHAR16_T, values.W_Fixnum, "s1"),(INTPTR_T, values.W_Fixnum, "l1"),(RKTIO_CHAR16_T, values.W_Fixnum, "s2"),(INTPTR_T, values.W_Fixnum, "l2"),(RKTIO_BOOL_T, values.W_Fixnum, "cvt_case")]),
-    ((INT, values.W_Fixnum), "rktio_locale_strcoll", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "s1"),(RKTIO_CONST_STRING_T, values_string.W_String, "s2")]),
-    ((RKTIO_CHAR16_T, values.W_Fixnum), "rktio_recase_utf16", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_BOOL_T, values.W_Fixnum, "to_up"),(RKTIO_CHAR16_T, values.W_Fixnum, "s1"),(INTPTR_T, values.W_Fixnum, "len"),(INTPTR_T, values.W_Fixnum, "olen")]),
-    ((CCHARP, values_string.W_String), "rktio_locale_recase", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_BOOL_T, values.W_Fixnum, "to_up"),(RKTIO_CONST_STRING_T, values_string.W_String, "in")]),
-    ((VOID, values.w_void), "rktio_convert_reset", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONVERTER_T_PTR, W_RKTIO_CONVERTER_T_PTR, "cvt")]),
-    ((VOID, values.w_void), "rktio_converter_close", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONVERTER_T_PTR, W_RKTIO_CONVERTER_T_PTR, "cvt")]),
-    ((INT, values.W_Fixnum), "rktio_convert_properties", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((INT, values.W_Fixnum), "rktio_processor_count", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((CCHARP, values_string.W_String), "rktio_wide_path_to_path", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CHAR16_T, values.W_Fixnum, "wp")]),
-    ((RKTIO_TIMESTAMP_T, values.W_Fixnum), "rktio_get_seconds", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((UINTPTR_T, values.W_Fixnum), "rktio_get_process_children_milliseconds", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((UINTPTR_T, values.W_Fixnum), "rktio_get_process_milliseconds", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((DOUBLE, values.W_Fixnum), "rktio_get_inexact_monotonic_milliseconds", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((DOUBLE, values.W_Fixnum), "rktio_get_inexact_milliseconds", []),
-    ((UINTPTR_T, values.W_Fixnum), "rktio_get_milliseconds", []),
-    ((VOID, values.w_void), "rktio_will_modify_os_signal_handler", [(INT, values.W_Fixnum, "sig_id")]),
-    ((INT, values.W_Fixnum), "rktio_poll_os_signal", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_install_os_signal_handler", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_flush_signals_received", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_wait_until_signal_received", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_signal_received", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_signal_received_at", [(RKTIO_SIGNAL_HANDLE_T_PTR, W_RKTIO_SIGNAL_HANDLE_T_PTR, "h")]),
-    ((RKTIO_SIGNAL_HANDLE_T_PTR, W_RKTIO_SIGNAL_HANDLE_T_PTR), "rktio_get_signal_handle", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((CCHARP, values_string.W_String), "rktio_uname", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_copy_file_stop", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FILE_COPY_T_PTR, W_RKTIO_FILE_COPY_T_PTR, "fc")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_copy_file_is_done", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FILE_COPY_T_PTR, W_RKTIO_FILE_COPY_T_PTR, "fc")]),
-    ((VOID, values.w_void), "rktio_directory_list_stop", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_DIRECTORY_LIST_T_PTR, W_RKTIO_DIRECTORY_LIST_T_PTR, "dl")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_is_regular_file", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_link_exists", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_directory_exists", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "dirname")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_file_exists", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
-    ((VOID, values.w_void), "rktio_end_sleep", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_sleep", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(FLOAT, values.W_Flonum, "nsecs"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds"),(RKTIO_LTPS_T_PTR, W_RKTIO_LTPS_T_PTR, "lt")]),
-    ((VOID, values.w_void), "rktio_ltps_handle_set_auto", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LTPS_HANDLE_T_PTR, W_RKTIO_LTPS_HANDLE_T_PTR, "lth"),(INT, values.W_Fixnum, "auto_mode")]),
-    ((VOID, values.w_void), "rktio_ltps_remove_all", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LTPS_T_PTR, W_RKTIO_LTPS_T_PTR, "lt")]),
-    ((VOID, values.w_void), "rktio_ltps_handle_get_data", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LTPS_HANDLE_T_PTR, W_RKTIO_LTPS_HANDLE_T_PTR, "h")]),
-    ((VOID, values.w_void), "rktio_ltps_handle_set_data", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LTPS_HANDLE_T_PTR, W_RKTIO_LTPS_HANDLE_T_PTR, "h"),(VOID, values.w_void, "data")]),
-    ((VOID, values.w_void), "rktio_ltps_close", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LTPS_T_PTR, W_RKTIO_LTPS_T_PTR, "lt")]),
-    ((VOID, values.w_void), "rkio_reset_sleep_backoff", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_poll_set_add_eventmask", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds"),(INT, values.W_Fixnum, "mask")]),
-    ((VOID, values.w_void), "rktio_poll_set_add_handle", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(INTPTR_T, values.W_Fixnum, "h"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds"),(INT, values.W_Fixnum, "repost")]),
-    ((VOID, values.w_void), "rktio_poll_set_add_nosleep", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds")]),
-    ((VOID, values.w_void), "rktio_poll_add_fs_change", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FS_CHANGE_T_PTR, W_RKTIO_FS_CHANGE_T_PTR, "fc"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds")]),
-    ((VOID, values.w_void), "rktio_poll_add_process", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_PROCESS_T_PTR, W_RKTIO_PROCESS_T_PTR, "sp"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds")]),
-    ((VOID, values.w_void), "rktio_poll_add_addrinfo_lookup", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ADDRINFO_LOOKUP_T_PTR, W_RKTIO_ADDRINFO_LOOKUP_T_PTR, "lookup"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds")]),
-    ((VOID, values.w_void), "rktio_poll_add_connect", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONNECT_T_PTR, W_RKTIO_CONNECT_T_PTR, "conn"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds")]),
-    ((VOID, values.w_void), "rktio_poll_add_accept", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LISTENER_T_PTR, W_RKTIO_LISTENER_T_PTR, "listener"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds")]),
-    ((VOID, values.w_void), "rktio_poll_add", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds"),(INT, values.W_Fixnum, "modes")]),
-    ((VOID, values.w_void), "rktio_poll_set_forget", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds")]),
-    ((VOID, values.w_void), "rktio_fs_change_forget", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FS_CHANGE_T_PTR, W_RKTIO_FS_CHANGE_T_PTR, "fc")]),
-    ((INT, values.W_Fixnum), "rktio_fs_change_properties", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_reap_processes", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_process_forget", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_PROCESS_T_PTR, W_RKTIO_PROCESS_T_PTR, "sp")]),
-    ((INT, values.W_Fixnum), "rktio_process_pid", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_PROCESS_T_PTR, W_RKTIO_PROCESS_T_PTR, "sp")]),
-    ((INT, values.W_Fixnum), "rktio_process_allowed_flags", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((INTPTR_T, values.W_Fixnum), "rktio_envvars_count", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR, "envvars")]),
-    ((VOID, values.w_void), "rktio_envvars_set", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR, "envvars"),(RKTIO_CONST_STRING_T, values_string.W_String, "name"),(RKTIO_CONST_STRING_T, values_string.W_String, "value")]),
-    ((VOID, values.w_void), "rktio_envvars_free", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR, "envvars")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_are_envvar_names_case_insensitive", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_is_ok_envvar_name", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "name")]),
-    ((VOID, values.w_void), "rktio_connect_stop", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONNECT_T_PTR, W_RKTIO_CONNECT_T_PTR, "conn")]),
-    ((VOID, values.w_void), "rktio_listen_stop", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LISTENER_T_PTR, W_RKTIO_LISTENER_T_PTR, "l")]),
-    ((VOID, values.w_void), "rktio_addrinfo_free", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "a")]),
-    ((VOID, values.w_void), "rktio_addrinfo_lookup_stop", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ADDRINFO_LOOKUP_T_PTR, W_RKTIO_ADDRINFO_LOOKUP_T_PTR, "lookup")]),
-    ((INT, values.W_Fixnum), "rktio_get_ipv4_family", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((VOID, values.w_void), "rktio_fd_close_transfer", [(RKTIO_FD_TRANSFER_T_PTR, W_RKTIO_FD_TRANSFER_T_PTR, "rfdt")]),
-    ((RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR), "rktio_fd_attach", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_TRANSFER_T_PTR, W_RKTIO_FD_TRANSFER_T_PTR, "rfdt")]),
-    ((RKTIO_FD_TRANSFER_T_PTR, W_RKTIO_FD_TRANSFER_T_PTR), "rktio_fd_detach", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    ((INTPTR_T, values.W_Fixnum), "rktio_buffered_byte_count", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd")]),
-    ((VOID, values.w_void), "rktio_create_console", []),
-    ((VOID, values.w_void), "rktio_forget", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd")]),
-    ((VOID, values.w_void), "rktio_close_noerr", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd")]),
-    ((INT, values.W_Fixnum), "rktio_fd_modes", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_fd_is_pending_open", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_fd_is_text_converted", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_fd_is_terminal", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_fd_is_udp", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_fd_is_socket", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_fd_is_directory", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    ((RKTIO_BOOL_T, values.W_Fixnum), "rktio_fd_is_regular_file", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    ((INTPTR_T, values.W_Fixnum), "rktio_fd_system_fd", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    ((VOID, values.w_void), "rktio_set_dll_path", [(RKTIO_CHAR16_T, values.W_Fixnum, "p")]),
-    ((VOID, values.w_void), "rktio_free", [(VOID, values.w_void, "p")]),
-    ((VOID, values.w_void), "rktio_destroy", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    ((RKTIO_T_PTR, W_RKTIO_T_PTR), "rktio_init", [])
-]
+@expose("rktio_get_error_string", [W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
+def rktio_get_error_string(w_rktio, w_kind, w_errid):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_kind = rffi.cast(rffi.INT, w_kind.value)
+	r_errid = rffi.cast(rffi.INT, w_errid.value)
+	res = c_rktio_get_error_string(r_rktio, r_kind, r_errid)
+
+	# returns CCHARP
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_last_error_string = rffi.llexternal('rktio_get_last_error_string', [R_PTR], CCHARP, compilation_info=librktio_a)
+
+@expose("rktio_get_last_error_string", [W_R_PTR], simple=True)
+def rktio_get_last_error_string(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_get_last_error_string(r_rktio)
+
+	# returns CCHARP
+	return values.W_Fixnum(res)
+
+
+c_rktio_remap_last_error = rffi.llexternal('rktio_remap_last_error', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_remap_last_error", [W_R_PTR], simple=True)
+def rktio_remap_last_error(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_remap_last_error(r_rktio)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_set_last_error_step = rffi.llexternal('rktio_set_last_error_step', [R_PTR, INT], VOID, compilation_info=librktio_a)
+
+@expose("rktio_set_last_error_step", [W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_set_last_error_step(w_rktio, w_step):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_step = rffi.cast(rffi.INT, w_step.value)
+	res = c_rktio_set_last_error_step(r_rktio, r_step)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_set_last_error = rffi.llexternal('rktio_set_last_error', [R_PTR, INT, INT], VOID, compilation_info=librktio_a)
+
+@expose("rktio_set_last_error", [W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
+def rktio_set_last_error(w_rktio, w_kind, w_errid):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_kind = rffi.cast(rffi.INT, w_kind.value)
+	r_errid = rffi.cast(rffi.INT, w_errid.value)
+	res = c_rktio_set_last_error(r_rktio, r_kind, r_errid)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_last_error_step = rffi.llexternal('rktio_get_last_error_step', [R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_get_last_error_step", [W_R_PTR], simple=True)
+def rktio_get_last_error_step(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_get_last_error_step(r_rktio)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_last_error = rffi.llexternal('rktio_get_last_error', [R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_get_last_error", [W_R_PTR], simple=True)
+def rktio_get_last_error(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_get_last_error(r_rktio)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_last_error_kind = rffi.llexternal('rktio_get_last_error_kind', [R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_get_last_error_kind", [W_R_PTR], simple=True)
+def rktio_get_last_error_kind(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_get_last_error_kind(r_rktio)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_set_dll_procs = rffi.llexternal('rktio_set_dll_procs', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_set_dll_procs", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
+def rktio_set_dll_procs(w_dll_open, w_dll_find_object, w_dll_close):
+	r_dll_open = rffi.cast(R_PTR, w_dll_open.to_rffi())
+	r_dll_find_object = rffi.cast(R_PTR, w_dll_find_object.to_rffi())
+	r_dll_close = rffi.cast(R_PTR, w_dll_close.to_rffi())
+	res = c_rktio_set_dll_procs(r_dll_open, r_dll_find_object, r_dll_close)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_sha2_final = rffi.llexternal('rktio_sha2_final', [R_PTR, UNSIGNED_8], VOID, compilation_info=librktio_a)
+
+@expose("rktio_sha2_final", [W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_sha2_final(w_ctx, w_digest):
+	r_ctx = rffi.cast(R_PTR, w_ctx.to_rffi())
+	r_digest = rffi.cast(rffi.UINT, w_digest.value)
+	res = c_rktio_sha2_final(r_ctx, r_digest)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_sha2_update = rffi.llexternal('rktio_sha2_update', [R_PTR, UNSIGNED_8, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
+
+@expose("rktio_sha2_update", [W_R_PTR, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
+def rktio_sha2_update(w_ctx, w_data, w_start, w_end):
+	r_ctx = rffi.cast(R_PTR, w_ctx.to_rffi())
+	r_data = rffi.cast(rffi.UINT, w_data.value)
+	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
+	r_end = rffi.cast(rffi.SSIZE_T, w_end.value)
+	res = c_rktio_sha2_update(r_ctx, r_data, r_start, r_end)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_sha2_init = rffi.llexternal('rktio_sha2_init', [R_PTR, RKTIO_BOOL_T], VOID, compilation_info=librktio_a)
+
+@expose("rktio_sha2_init", [W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_sha2_init(w_ctx, w_is224):
+	r_ctx = rffi.cast(R_PTR, w_ctx.to_rffi())
+	r_is224 = rffi.cast(rffi.INT, 1 if w_is224 is values.w_true else 0)
+	res = c_rktio_sha2_init(r_ctx, r_is224)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_sha1_final = rffi.llexternal('rktio_sha1_final', [R_PTR, UNSIGNED_8], VOID, compilation_info=librktio_a)
+
+@expose("rktio_sha1_final", [W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_sha1_final(w_context, w_digest):
+	r_context = rffi.cast(R_PTR, w_context.to_rffi())
+	r_digest = rffi.cast(rffi.UINT, w_digest.value)
+	res = c_rktio_sha1_final(r_context, r_digest)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_sha1_update = rffi.llexternal('rktio_sha1_update', [R_PTR, UNSIGNED_8, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
+
+@expose("rktio_sha1_update", [W_R_PTR, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
+def rktio_sha1_update(w_context, w_data, w_start, w_end):
+	r_context = rffi.cast(R_PTR, w_context.to_rffi())
+	r_data = rffi.cast(rffi.UINT, w_data.value)
+	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
+	r_end = rffi.cast(rffi.SSIZE_T, w_end.value)
+	res = c_rktio_sha1_update(r_context, r_data, r_start, r_end)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_sha1_init = rffi.llexternal('rktio_sha1_init', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_sha1_init", [W_R_PTR], simple=True)
+def rktio_sha1_init(w_context):
+	r_context = rffi.cast(R_PTR, w_context.to_rffi())
+	res = c_rktio_sha1_init(r_context)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_pop_c_numeric_locale = rffi.llexternal('rktio_pop_c_numeric_locale', [R_PTR, VOID], VOID, compilation_info=librktio_a)
+
+@expose("rktio_pop_c_numeric_locale", [W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_pop_c_numeric_locale(w_rktio, w_prev):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_prev = rffi.cast(rffi.VOIDP, w_prev.value)
+	res = c_rktio_pop_c_numeric_locale(r_rktio, r_prev)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_push_c_numeric_locale = rffi.llexternal('rktio_push_c_numeric_locale', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_push_c_numeric_locale", [W_R_PTR], simple=True)
+def rktio_push_c_numeric_locale(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_push_c_numeric_locale(r_rktio)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_set_default_locale = rffi.llexternal('rktio_set_default_locale', [RKTIO_CONST_STRING_T], VOID, compilation_info=librktio_a)
+
+@expose("rktio_set_default_locale", [values_string.W_String], simple=True)
+def rktio_set_default_locale(w_name):
+	_p_str = w_name.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_name = rffi.str2charp(p_str)
+	res = c_rktio_set_default_locale(r_name)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_set_locale = rffi.llexternal('rktio_set_locale', [R_PTR, RKTIO_CONST_STRING_T], VOID, compilation_info=librktio_a)
+
+@expose("rktio_set_locale", [W_R_PTR, values_string.W_String], simple=True)
+def rktio_set_locale(w_rktio, w_name):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	_p_str = w_name.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_name = rffi.str2charp(p_str)
+	res = c_rktio_set_locale(r_rktio, r_name)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_strcoll_utf16 = rffi.llexternal('rktio_strcoll_utf16', [R_PTR, RKTIO_CHAR16_T, INTPTR_T, RKTIO_CHAR16_T, INTPTR_T, RKTIO_BOOL_T], INT, compilation_info=librktio_a)
+
+@expose("rktio_strcoll_utf16", [W_R_PTR, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
+def rktio_strcoll_utf16(w_rktio, w_s1, w_l1, w_s2, w_l2, w_cvt_case):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_s1 = rffi.cast(rffi.INT, w_s1.value)
+	r_l1 = rffi.cast(rffi.SSIZE_T, w_l1.value)
+	r_s2 = rffi.cast(rffi.INT, w_s2.value)
+	r_l2 = rffi.cast(rffi.SSIZE_T, w_l2.value)
+	r_cvt_case = rffi.cast(rffi.INT, 1 if w_cvt_case is values.w_true else 0)
+	res = c_rktio_strcoll_utf16(r_rktio, r_s1, r_l1, r_s2, r_l2, r_cvt_case)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_locale_strcoll = rffi.llexternal('rktio_locale_strcoll', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T], INT, compilation_info=librktio_a)
+
+@expose("rktio_locale_strcoll", [W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
+def rktio_locale_strcoll(w_rktio, w_s1, w_s2):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	_p_str = w_s1.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_s1 = rffi.str2charp(p_str)
+	_p_str = w_s2.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_s2 = rffi.str2charp(p_str)
+	res = c_rktio_locale_strcoll(r_rktio, r_s1, r_s2)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_recase_utf16 = rffi.llexternal('rktio_recase_utf16', [R_PTR, RKTIO_BOOL_T, RKTIO_CHAR16_T, INTPTR_T, INTPTR_T], RKTIO_CHAR16_T, compilation_info=librktio_a)
+
+@expose("rktio_recase_utf16", [W_R_PTR, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
+def rktio_recase_utf16(w_rktio, w_to_up, w_s1, w_len, w_olen):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_to_up = rffi.cast(rffi.INT, 1 if w_to_up is values.w_true else 0)
+	r_s1 = rffi.cast(rffi.INT, w_s1.value)
+	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
+	r_olen = rffi.cast(rffi.SSIZE_T, w_olen.value)
+	res = c_rktio_recase_utf16(r_rktio, r_to_up, r_s1, r_len, r_olen)
+
+	# returns RKTIO_CHAR16_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_locale_recase = rffi.llexternal('rktio_locale_recase', [R_PTR, RKTIO_BOOL_T, RKTIO_CONST_STRING_T], CCHARP, compilation_info=librktio_a)
+
+@expose("rktio_locale_recase", [W_R_PTR, values.W_Fixnum, values_string.W_String], simple=True)
+def rktio_locale_recase(w_rktio, w_to_up, w_in):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_to_up = rffi.cast(rffi.INT, 1 if w_to_up is values.w_true else 0)
+	_p_str = w_in.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_in = rffi.str2charp(p_str)
+	res = c_rktio_locale_recase(r_rktio, r_to_up, r_in)
+
+	# returns CCHARP
+	return values.W_Fixnum(res)
+
+
+c_rktio_convert_reset = rffi.llexternal('rktio_convert_reset', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_convert_reset", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_convert_reset(w_rktio, w_cvt):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_cvt = rffi.cast(R_PTR, w_cvt.to_rffi())
+	res = c_rktio_convert_reset(r_rktio, r_cvt)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_converter_close = rffi.llexternal('rktio_converter_close', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_converter_close", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_converter_close(w_rktio, w_cvt):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_cvt = rffi.cast(R_PTR, w_cvt.to_rffi())
+	res = c_rktio_converter_close(r_rktio, r_cvt)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_convert_properties = rffi.llexternal('rktio_convert_properties', [R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_convert_properties", [W_R_PTR], simple=True)
+def rktio_convert_properties(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_convert_properties(r_rktio)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_processor_count = rffi.llexternal('rktio_processor_count', [R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_processor_count", [W_R_PTR], simple=True)
+def rktio_processor_count(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_processor_count(r_rktio)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_wide_path_to_path = rffi.llexternal('rktio_wide_path_to_path', [R_PTR, RKTIO_CHAR16_T], CCHARP, compilation_info=librktio_a)
+
+@expose("rktio_wide_path_to_path", [W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_wide_path_to_path(w_rktio, w_wp):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_wp = rffi.cast(rffi.INT, w_wp.value)
+	res = c_rktio_wide_path_to_path(r_rktio, r_wp)
+
+	# returns CCHARP
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_seconds = rffi.llexternal('rktio_get_seconds', [R_PTR], RKTIO_TIMESTAMP_T, compilation_info=librktio_a)
+
+@expose("rktio_get_seconds", [W_R_PTR], simple=True)
+def rktio_get_seconds(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_get_seconds(r_rktio)
+
+	# returns RKTIO_TIMESTAMP_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_process_children_milliseconds = rffi.llexternal('rktio_get_process_children_milliseconds', [R_PTR], UINTPTR_T, compilation_info=librktio_a)
+
+@expose("rktio_get_process_children_milliseconds", [W_R_PTR], simple=True)
+def rktio_get_process_children_milliseconds(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_get_process_children_milliseconds(r_rktio)
+
+	# returns UINTPTR_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_process_milliseconds = rffi.llexternal('rktio_get_process_milliseconds', [R_PTR], UINTPTR_T, compilation_info=librktio_a)
+
+@expose("rktio_get_process_milliseconds", [W_R_PTR], simple=True)
+def rktio_get_process_milliseconds(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_get_process_milliseconds(r_rktio)
+
+	# returns UINTPTR_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_inexact_monotonic_milliseconds = rffi.llexternal('rktio_get_inexact_monotonic_milliseconds', [R_PTR], DOUBLE, compilation_info=librktio_a)
+
+@expose("rktio_get_inexact_monotonic_milliseconds", [W_R_PTR], simple=True)
+def rktio_get_inexact_monotonic_milliseconds(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_get_inexact_monotonic_milliseconds(r_rktio)
+
+	# returns DOUBLE
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_inexact_milliseconds = rffi.llexternal('rktio_get_inexact_milliseconds', [], DOUBLE, compilation_info=librktio_a)
+
+@expose("rktio_get_inexact_milliseconds", [], simple=True)
+def rktio_get_inexact_milliseconds():
+
+	res = c_rktio_get_inexact_milliseconds()
+
+	# returns DOUBLE
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_milliseconds = rffi.llexternal('rktio_get_milliseconds', [], UINTPTR_T, compilation_info=librktio_a)
+
+@expose("rktio_get_milliseconds", [], simple=True)
+def rktio_get_milliseconds():
+
+	res = c_rktio_get_milliseconds()
+
+	# returns UINTPTR_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_will_modify_os_signal_handler = rffi.llexternal('rktio_will_modify_os_signal_handler', [INT], VOID, compilation_info=librktio_a)
+
+@expose("rktio_will_modify_os_signal_handler", [values.W_Fixnum], simple=True)
+def rktio_will_modify_os_signal_handler(w_sig_id):
+	r_sig_id = rffi.cast(rffi.INT, w_sig_id.value)
+	res = c_rktio_will_modify_os_signal_handler(r_sig_id)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_os_signal = rffi.llexternal('rktio_poll_os_signal', [R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_poll_os_signal", [W_R_PTR], simple=True)
+def rktio_poll_os_signal(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_poll_os_signal(r_rktio)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_install_os_signal_handler = rffi.llexternal('rktio_install_os_signal_handler', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_install_os_signal_handler", [W_R_PTR], simple=True)
+def rktio_install_os_signal_handler(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_install_os_signal_handler(r_rktio)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_flush_signals_received = rffi.llexternal('rktio_flush_signals_received', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_flush_signals_received", [W_R_PTR], simple=True)
+def rktio_flush_signals_received(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_flush_signals_received(r_rktio)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_wait_until_signal_received = rffi.llexternal('rktio_wait_until_signal_received', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_wait_until_signal_received", [W_R_PTR], simple=True)
+def rktio_wait_until_signal_received(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_wait_until_signal_received(r_rktio)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_signal_received = rffi.llexternal('rktio_signal_received', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_signal_received", [W_R_PTR], simple=True)
+def rktio_signal_received(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_signal_received(r_rktio)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_signal_received_at = rffi.llexternal('rktio_signal_received_at', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_signal_received_at", [W_R_PTR], simple=True)
+def rktio_signal_received_at(w_h):
+	r_h = rffi.cast(R_PTR, w_h.to_rffi())
+	res = c_rktio_signal_received_at(r_h)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_signal_handle = rffi.llexternal('rktio_get_signal_handle', [R_PTR], R_PTR, compilation_info=librktio_a)
+
+@expose("rktio_get_signal_handle", [W_R_PTR], simple=True)
+def rktio_get_signal_handle(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_get_signal_handle(r_rktio)
+
+	# returns R_PTR
+	return W_R_PTR(res)
+
+
+c_rktio_uname = rffi.llexternal('rktio_uname', [R_PTR], CCHARP, compilation_info=librktio_a)
+
+@expose("rktio_uname", [W_R_PTR], simple=True)
+def rktio_uname(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_uname(r_rktio)
+
+	# returns CCHARP
+	return values.W_Fixnum(res)
+
+
+c_rktio_copy_file_stop = rffi.llexternal('rktio_copy_file_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_copy_file_stop", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_copy_file_stop(w_rktio, w_fc):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_fc = rffi.cast(R_PTR, w_fc.to_rffi())
+	res = c_rktio_copy_file_stop(r_rktio, r_fc)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_copy_file_is_done = rffi.llexternal('rktio_copy_file_is_done', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_copy_file_is_done", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_copy_file_is_done(w_rktio, w_fc):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_fc = rffi.cast(R_PTR, w_fc.to_rffi())
+	res = c_rktio_copy_file_is_done(r_rktio, r_fc)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_directory_list_stop = rffi.llexternal('rktio_directory_list_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_directory_list_stop", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_directory_list_stop(w_rktio, w_dl):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_dl = rffi.cast(R_PTR, w_dl.to_rffi())
+	res = c_rktio_directory_list_stop(r_rktio, r_dl)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_is_regular_file = rffi.llexternal('rktio_is_regular_file', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_is_regular_file", [W_R_PTR, values_string.W_String], simple=True)
+def rktio_is_regular_file(w_rktio, w_filename):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	_p_str = w_filename.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_filename = rffi.str2charp(p_str)
+	res = c_rktio_is_regular_file(r_rktio, r_filename)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_link_exists = rffi.llexternal('rktio_link_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_link_exists", [W_R_PTR, values_string.W_String], simple=True)
+def rktio_link_exists(w_rktio, w_filename):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	_p_str = w_filename.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_filename = rffi.str2charp(p_str)
+	res = c_rktio_link_exists(r_rktio, r_filename)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_directory_exists = rffi.llexternal('rktio_directory_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_directory_exists", [W_R_PTR, values_string.W_String], simple=True)
+def rktio_directory_exists(w_rktio, w_dirname):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	_p_str = w_dirname.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_dirname = rffi.str2charp(p_str)
+	res = c_rktio_directory_exists(r_rktio, r_dirname)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_file_exists = rffi.llexternal('rktio_file_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_file_exists", [W_R_PTR, values_string.W_String], simple=True)
+def rktio_file_exists(w_rktio, w_filename):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	_p_str = w_filename.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_filename = rffi.str2charp(p_str)
+	res = c_rktio_file_exists(r_rktio, r_filename)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_end_sleep = rffi.llexternal('rktio_end_sleep', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_end_sleep", [W_R_PTR], simple=True)
+def rktio_end_sleep(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_end_sleep(r_rktio)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_sleep = rffi.llexternal('rktio_sleep', [R_PTR, FLOAT, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_sleep", [W_R_PTR, values.W_Flonum, W_R_PTR, W_R_PTR], simple=True)
+def rktio_sleep(w_rktio, w_nsecs, w_fds, w_lt):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_nsecs = rffi.cast(rffi.FLOAT, w_nsecs.value)
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	r_lt = rffi.cast(R_PTR, w_lt.to_rffi())
+	res = c_rktio_sleep(r_rktio, r_nsecs, r_fds, r_lt)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_ltps_handle_set_auto = rffi.llexternal('rktio_ltps_handle_set_auto', [R_PTR, R_PTR, INT], VOID, compilation_info=librktio_a)
+
+@expose("rktio_ltps_handle_set_auto", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_ltps_handle_set_auto(w_rktio, w_lth, w_auto_mode):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_lth = rffi.cast(R_PTR, w_lth.to_rffi())
+	r_auto_mode = rffi.cast(rffi.INT, w_auto_mode.value)
+	res = c_rktio_ltps_handle_set_auto(r_rktio, r_lth, r_auto_mode)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_ltps_remove_all = rffi.llexternal('rktio_ltps_remove_all', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_ltps_remove_all", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_ltps_remove_all(w_rktio, w_lt):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_lt = rffi.cast(R_PTR, w_lt.to_rffi())
+	res = c_rktio_ltps_remove_all(r_rktio, r_lt)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_ltps_handle_get_data = rffi.llexternal('rktio_ltps_handle_get_data', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_ltps_handle_get_data", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_ltps_handle_get_data(w_rktio, w_h):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_h = rffi.cast(R_PTR, w_h.to_rffi())
+	res = c_rktio_ltps_handle_get_data(r_rktio, r_h)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_ltps_handle_set_data = rffi.llexternal('rktio_ltps_handle_set_data', [R_PTR, R_PTR, VOID], VOID, compilation_info=librktio_a)
+
+@expose("rktio_ltps_handle_set_data", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_ltps_handle_set_data(w_rktio, w_h, w_data):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_h = rffi.cast(R_PTR, w_h.to_rffi())
+	r_data = rffi.cast(rffi.VOIDP, w_data.value)
+	res = c_rktio_ltps_handle_set_data(r_rktio, r_h, r_data)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_ltps_close = rffi.llexternal('rktio_ltps_close', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_ltps_close", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_ltps_close(w_rktio, w_lt):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_lt = rffi.cast(R_PTR, w_lt.to_rffi())
+	res = c_rktio_ltps_close(r_rktio, r_lt)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rkio_reset_sleep_backoff = rffi.llexternal('rkio_reset_sleep_backoff', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rkio_reset_sleep_backoff", [W_R_PTR], simple=True)
+def rkio_reset_sleep_backoff(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rkio_reset_sleep_backoff(r_rktio)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_set_add_eventmask = rffi.llexternal('rktio_poll_set_add_eventmask', [R_PTR, R_PTR, INT], VOID, compilation_info=librktio_a)
+
+@expose("rktio_poll_set_add_eventmask", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_poll_set_add_eventmask(w_rktio, w_fds, w_mask):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	r_mask = rffi.cast(rffi.INT, w_mask.value)
+	res = c_rktio_poll_set_add_eventmask(r_rktio, r_fds, r_mask)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_set_add_handle = rffi.llexternal('rktio_poll_set_add_handle', [R_PTR, INTPTR_T, R_PTR, INT], VOID, compilation_info=librktio_a)
+
+@expose("rktio_poll_set_add_handle", [W_R_PTR, values.W_Fixnum, W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_poll_set_add_handle(w_rktio, w_h, w_fds, w_repost):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_h = rffi.cast(rffi.SSIZE_T, w_h.value)
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	r_repost = rffi.cast(rffi.INT, w_repost.value)
+	res = c_rktio_poll_set_add_handle(r_rktio, r_h, r_fds, r_repost)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_set_add_nosleep = rffi.llexternal('rktio_poll_set_add_nosleep', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_poll_set_add_nosleep", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_poll_set_add_nosleep(w_rktio, w_fds):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	res = c_rktio_poll_set_add_nosleep(r_rktio, r_fds)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_add_fs_change = rffi.llexternal('rktio_poll_add_fs_change', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_poll_add_fs_change", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
+def rktio_poll_add_fs_change(w_rktio, w_fc, w_fds):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_fc = rffi.cast(R_PTR, w_fc.to_rffi())
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	res = c_rktio_poll_add_fs_change(r_rktio, r_fc, r_fds)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_add_process = rffi.llexternal('rktio_poll_add_process', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_poll_add_process", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
+def rktio_poll_add_process(w_rktio, w_sp, w_fds):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_sp = rffi.cast(R_PTR, w_sp.to_rffi())
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	res = c_rktio_poll_add_process(r_rktio, r_sp, r_fds)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_add_addrinfo_lookup = rffi.llexternal('rktio_poll_add_addrinfo_lookup', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_poll_add_addrinfo_lookup", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
+def rktio_poll_add_addrinfo_lookup(w_rktio, w_lookup, w_fds):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_lookup = rffi.cast(R_PTR, w_lookup.to_rffi())
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	res = c_rktio_poll_add_addrinfo_lookup(r_rktio, r_lookup, r_fds)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_add_connect = rffi.llexternal('rktio_poll_add_connect', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_poll_add_connect", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
+def rktio_poll_add_connect(w_rktio, w_conn, w_fds):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_conn = rffi.cast(R_PTR, w_conn.to_rffi())
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	res = c_rktio_poll_add_connect(r_rktio, r_conn, r_fds)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_add_accept = rffi.llexternal('rktio_poll_add_accept', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_poll_add_accept", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
+def rktio_poll_add_accept(w_rktio, w_listener, w_fds):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_listener = rffi.cast(R_PTR, w_listener.to_rffi())
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	res = c_rktio_poll_add_accept(r_rktio, r_listener, r_fds)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_add = rffi.llexternal('rktio_poll_add', [R_PTR, R_PTR, R_PTR, INT], VOID, compilation_info=librktio_a)
+
+@expose("rktio_poll_add", [W_R_PTR, W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_poll_add(w_rktio, w_rfd, w_fds, w_modes):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	r_modes = rffi.cast(rffi.INT, w_modes.value)
+	res = c_rktio_poll_add(r_rktio, r_rfd, r_fds, r_modes)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_poll_set_forget = rffi.llexternal('rktio_poll_set_forget', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_poll_set_forget", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_poll_set_forget(w_rktio, w_fds):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_fds = rffi.cast(R_PTR, w_fds.to_rffi())
+	res = c_rktio_poll_set_forget(r_rktio, r_fds)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_fs_change_forget = rffi.llexternal('rktio_fs_change_forget', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_fs_change_forget", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fs_change_forget(w_rktio, w_fc):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_fc = rffi.cast(R_PTR, w_fc.to_rffi())
+	res = c_rktio_fs_change_forget(r_rktio, r_fc)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_fs_change_properties = rffi.llexternal('rktio_fs_change_properties', [R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_fs_change_properties", [W_R_PTR], simple=True)
+def rktio_fs_change_properties(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_fs_change_properties(r_rktio)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_reap_processes = rffi.llexternal('rktio_reap_processes', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_reap_processes", [W_R_PTR], simple=True)
+def rktio_reap_processes(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_reap_processes(r_rktio)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_process_forget = rffi.llexternal('rktio_process_forget', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_process_forget", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_process_forget(w_rktio, w_sp):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_sp = rffi.cast(R_PTR, w_sp.to_rffi())
+	res = c_rktio_process_forget(r_rktio, r_sp)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_process_pid = rffi.llexternal('rktio_process_pid', [R_PTR, R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_process_pid", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_process_pid(w_rktio, w_sp):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_sp = rffi.cast(R_PTR, w_sp.to_rffi())
+	res = c_rktio_process_pid(r_rktio, r_sp)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_process_allowed_flags = rffi.llexternal('rktio_process_allowed_flags', [R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_process_allowed_flags", [W_R_PTR], simple=True)
+def rktio_process_allowed_flags(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_process_allowed_flags(r_rktio)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_envvars_count = rffi.llexternal('rktio_envvars_count', [R_PTR, R_PTR], INTPTR_T, compilation_info=librktio_a)
+
+@expose("rktio_envvars_count", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_envvars_count(w_rktio, w_envvars):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_envvars = rffi.cast(R_PTR, w_envvars.to_rffi())
+	res = c_rktio_envvars_count(r_rktio, r_envvars)
+
+	# returns INTPTR_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_envvars_set = rffi.llexternal('rktio_envvars_set', [R_PTR, R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T], VOID, compilation_info=librktio_a)
+
+@expose("rktio_envvars_set", [W_R_PTR, W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
+def rktio_envvars_set(w_rktio, w_envvars, w_name, w_value):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_envvars = rffi.cast(R_PTR, w_envvars.to_rffi())
+	_p_str = w_name.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_name = rffi.str2charp(p_str)
+	_p_str = w_value.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_value = rffi.str2charp(p_str)
+	res = c_rktio_envvars_set(r_rktio, r_envvars, r_name, r_value)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_envvars_free = rffi.llexternal('rktio_envvars_free', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_envvars_free", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_envvars_free(w_rktio, w_envvars):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_envvars = rffi.cast(R_PTR, w_envvars.to_rffi())
+	res = c_rktio_envvars_free(r_rktio, r_envvars)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_are_envvar_names_case_insensitive = rffi.llexternal('rktio_are_envvar_names_case_insensitive', [R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_are_envvar_names_case_insensitive", [W_R_PTR], simple=True)
+def rktio_are_envvar_names_case_insensitive(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_are_envvar_names_case_insensitive(r_rktio)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_is_ok_envvar_name = rffi.llexternal('rktio_is_ok_envvar_name', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_is_ok_envvar_name", [W_R_PTR, values_string.W_String], simple=True)
+def rktio_is_ok_envvar_name(w_rktio, w_name):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	_p_str = w_name.as_str_utf8()
+	p_str = _p_str if _p_str else ""
+	r_name = rffi.str2charp(p_str)
+	res = c_rktio_is_ok_envvar_name(r_rktio, r_name)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_connect_stop = rffi.llexternal('rktio_connect_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_connect_stop", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_connect_stop(w_rktio, w_conn):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_conn = rffi.cast(R_PTR, w_conn.to_rffi())
+	res = c_rktio_connect_stop(r_rktio, r_conn)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_listen_stop = rffi.llexternal('rktio_listen_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_listen_stop", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_listen_stop(w_rktio, w_l):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_l = rffi.cast(R_PTR, w_l.to_rffi())
+	res = c_rktio_listen_stop(r_rktio, r_l)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_addrinfo_free = rffi.llexternal('rktio_addrinfo_free', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_addrinfo_free", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_addrinfo_free(w_rktio, w_a):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_a = rffi.cast(R_PTR, w_a.to_rffi())
+	res = c_rktio_addrinfo_free(r_rktio, r_a)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_addrinfo_lookup_stop = rffi.llexternal('rktio_addrinfo_lookup_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_addrinfo_lookup_stop", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_addrinfo_lookup_stop(w_rktio, w_lookup):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_lookup = rffi.cast(R_PTR, w_lookup.to_rffi())
+	res = c_rktio_addrinfo_lookup_stop(r_rktio, r_lookup)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_get_ipv4_family = rffi.llexternal('rktio_get_ipv4_family', [R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_get_ipv4_family", [W_R_PTR], simple=True)
+def rktio_get_ipv4_family(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_get_ipv4_family(r_rktio)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_close_transfer = rffi.llexternal('rktio_fd_close_transfer', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_fd_close_transfer", [W_R_PTR], simple=True)
+def rktio_fd_close_transfer(w_rfdt):
+	r_rfdt = rffi.cast(R_PTR, w_rfdt.to_rffi())
+	res = c_rktio_fd_close_transfer(r_rfdt)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_attach = rffi.llexternal('rktio_fd_attach', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
+
+@expose("rktio_fd_attach", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_attach(w_rktio, w_rfdt):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfdt = rffi.cast(R_PTR, w_rfdt.to_rffi())
+	res = c_rktio_fd_attach(r_rktio, r_rfdt)
+
+	# returns R_PTR
+	return W_R_PTR(res)
+
+
+c_rktio_fd_detach = rffi.llexternal('rktio_fd_detach', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
+
+@expose("rktio_fd_detach", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_detach(w_rktio, w_rfd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	res = c_rktio_fd_detach(r_rktio, r_rfd)
+
+	# returns R_PTR
+	return W_R_PTR(res)
+
+
+c_rktio_buffered_byte_count = rffi.llexternal('rktio_buffered_byte_count', [R_PTR, R_PTR], INTPTR_T, compilation_info=librktio_a)
+
+@expose("rktio_buffered_byte_count", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_buffered_byte_count(w_rktio, w_fd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
+	res = c_rktio_buffered_byte_count(r_rktio, r_fd)
+
+	# returns INTPTR_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_create_console = rffi.llexternal('rktio_create_console', [], VOID, compilation_info=librktio_a)
+
+@expose("rktio_create_console", [], simple=True)
+def rktio_create_console():
+
+	res = c_rktio_create_console()
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_forget = rffi.llexternal('rktio_forget', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_forget", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_forget(w_rktio, w_fd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
+	res = c_rktio_forget(r_rktio, r_fd)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_close_noerr = rffi.llexternal('rktio_close_noerr', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_close_noerr", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_close_noerr(w_rktio, w_fd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
+	res = c_rktio_close_noerr(r_rktio, r_fd)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_modes = rffi.llexternal('rktio_fd_modes', [R_PTR, R_PTR], INT, compilation_info=librktio_a)
+
+@expose("rktio_fd_modes", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_modes(w_rktio, w_rfd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	res = c_rktio_fd_modes(r_rktio, r_rfd)
+
+	# returns INT
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_is_pending_open = rffi.llexternal('rktio_fd_is_pending_open', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_fd_is_pending_open", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_is_pending_open(w_rktio, w_rfd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	res = c_rktio_fd_is_pending_open(r_rktio, r_rfd)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_is_text_converted = rffi.llexternal('rktio_fd_is_text_converted', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_fd_is_text_converted", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_is_text_converted(w_rktio, w_rfd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	res = c_rktio_fd_is_text_converted(r_rktio, r_rfd)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_is_terminal = rffi.llexternal('rktio_fd_is_terminal', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_fd_is_terminal", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_is_terminal(w_rktio, w_rfd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	res = c_rktio_fd_is_terminal(r_rktio, r_rfd)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_is_udp = rffi.llexternal('rktio_fd_is_udp', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_fd_is_udp", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_is_udp(w_rktio, w_rfd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	res = c_rktio_fd_is_udp(r_rktio, r_rfd)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_is_socket = rffi.llexternal('rktio_fd_is_socket', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_fd_is_socket", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_is_socket(w_rktio, w_rfd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	res = c_rktio_fd_is_socket(r_rktio, r_rfd)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_is_directory = rffi.llexternal('rktio_fd_is_directory', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_fd_is_directory", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_is_directory(w_rktio, w_rfd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	res = c_rktio_fd_is_directory(r_rktio, r_rfd)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_is_regular_file = rffi.llexternal('rktio_fd_is_regular_file', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
+
+@expose("rktio_fd_is_regular_file", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_is_regular_file(w_rktio, w_rfd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	res = c_rktio_fd_is_regular_file(r_rktio, r_rfd)
+
+	# returns RKTIO_BOOL_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_fd_system_fd = rffi.llexternal('rktio_fd_system_fd', [R_PTR, R_PTR], INTPTR_T, compilation_info=librktio_a)
+
+@expose("rktio_fd_system_fd", [W_R_PTR, W_R_PTR], simple=True)
+def rktio_fd_system_fd(w_rktio, w_rfd):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+	res = c_rktio_fd_system_fd(r_rktio, r_rfd)
+
+	# returns INTPTR_T
+	return values.W_Fixnum(res)
+
+
+c_rktio_set_dll_path = rffi.llexternal('rktio_set_dll_path', [RKTIO_CHAR16_T], VOID, compilation_info=librktio_a)
+
+@expose("rktio_set_dll_path", [values.W_Fixnum], simple=True)
+def rktio_set_dll_path(w_p):
+	r_p = rffi.cast(rffi.INT, w_p.value)
+	res = c_rktio_set_dll_path(r_p)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_free = rffi.llexternal('rktio_free', [VOID], VOID, compilation_info=librktio_a)
+
+@expose("rktio_free", [values.W_Fixnum], simple=True)
+def rktio_free(w_p):
+	r_p = rffi.cast(rffi.VOIDP, w_p.value)
+	res = c_rktio_free(r_p)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_destroy = rffi.llexternal('rktio_destroy', [R_PTR], VOID, compilation_info=librktio_a)
+
+@expose("rktio_destroy", [W_R_PTR], simple=True)
+def rktio_destroy(w_rktio):
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+	res = c_rktio_destroy(r_rktio)
+
+	# returns VOID
+	return values.W_Fixnum(res)
+
+
+c_rktio_init = rffi.llexternal('rktio_init', [], R_PTR, compilation_info=librktio_a)
+
+@expose("rktio_init", [], simple=True)
+def rktio_init():
+
+	res = c_rktio_init()
+
+	# returns R_PTR
+	return W_R_PTR(res)
 
 DEFINE_FUNCTION_ERRNO = [
 
-    (NULL, (CCHARP, values_string.W_String), "rktio_dll_get_error", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_dll_close", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_DLL_T_PTR, W_RKTIO_DLL_T_PTR, "dll")]),
-    (NULL, (VOID, values.w_void), "rktio_dll_find_object", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_DLL_T_PTR, W_RKTIO_DLL_T_PTR, "dll"),(RKTIO_CONST_STRING_T, values_string.W_String, "name")]),
-    (NULL, (RKTIO_DLL_T_PTR, W_RKTIO_DLL_T_PTR), "rktio_dll_open", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "name"),(RKTIO_BOOL_T, values.W_Fixnum, "as_global")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_system_language_country", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_locale_encoding", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    (NULL, (RKTIO_CONVERT_RESULT_T_PTR, W_RKTIO_CONVERT_RESULT_T_PTR), "rktio_convert_in", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONVERTER_T_PTR, W_RKTIO_CONVERTER_T_PTR, "cvt"),(CCHARP, values_string.W_String, "in"),(INTPTR_T, values.W_Fixnum, "in_start"),(INTPTR_T, values.W_Fixnum, "in_end"),(CCHARP, values_string.W_String, "out"),(INTPTR_T, values.W_Fixnum, "out_start"),(INTPTR_T, values.W_Fixnum, "out_end")]),
-    (RKTIO_CONVERT_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_convert", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONVERTER_T_PTR, W_RKTIO_CONVERTER_T_PTR, "cvt"),(CCHARPP, values_string.W_String, "in"),(INTPTR_T, values.W_Fixnum, "in_left"),(CCHARPP, values_string.W_String, "out"),(INTPTR_T, values.W_Fixnum, "out_left")]),
-    (NULL, (RKTIO_CONVERTER_T_PTR, W_RKTIO_CONVERTER_T_PTR), "rktio_converter_open", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "to_enc"),(RKTIO_CONST_STRING_T, values_string.W_String, "from_enc")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_syslog", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(INT, values.W_Fixnum, "level"),(RKTIO_CONST_STRING_T, values_string.W_String, "name"),(RKTIO_CONST_STRING_T, values_string.W_String, "msg"),(RKTIO_CONST_STRING_T, values_string.W_String, "exec_name")]),
-    (NULL, (RKTIO_CHAR16_T, values.W_Fixnum), "rktio_path_to_wide_path", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "p")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_shell_execute", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "verb"),(RKTIO_CONST_STRING_T, values_string.W_String, "target"),(RKTIO_CONST_STRING_T, values_string.W_String, "arg"),(RKTIO_CONST_STRING_T, values_string.W_String, "dir"),(INT, values.W_Fixnum, "show_mode")]),
-    (NULL, (RKTIO_DATE_T_PTR, W_RKTIO_DATE_T_PTR), "rktio_seconds_to_date", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_TIMESTAMP_T, values.W_Fixnum, "seconds"),(INT, values.W_Fixnum, "nanoseconds"),(INT, values.W_Fixnum, "get_gmt")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_expand_user_tilde", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_system_path", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(INT, values.W_Fixnum, "which")]),
-    (NULL, (CCHARPP, values_string.W_String), "rktio_filesystem_roots", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_directory_list_step", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_DIRECTORY_LIST_T_PTR, W_RKTIO_DIRECTORY_LIST_T_PTR, "dl")]),
-    (NULL, (RKTIO_DIRECTORY_LIST_T_PTR, W_RKTIO_DIRECTORY_LIST_T_PTR), "rktio_directory_list_start", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "dirname")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_set_file_or_directory_permissions", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename"),(INT, values.W_Fixnum, "new_bits")]),
-    (RKTIO_PERMISSION_ERROR, (INT, values.W_Fixnum), "rktio_get_file_or_directory_permissions", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename"),(RKTIO_BOOL_T, values.W_Fixnum, "all_bits")]),
-    (NULL, (RKTIO_IDENTITY_T_PTR, W_RKTIO_IDENTITY_T_PTR), "rktio_path_identity", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "path"),(RKTIO_BOOL_T, values.W_Fixnum, "follow_links")]),
-    (NULL, (RKTIO_IDENTITY_T_PTR, W_RKTIO_IDENTITY_T_PTR), "rktio_fd_identity", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd")]),
-    (NULL, (RKTIO_STAT_T_PTR, W_RKTIO_STAT_T_PTR), "rktio_fd_stat", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd")]),
-    (NULL, (RKTIO_STAT_T_PTR, W_RKTIO_STAT_T_PTR), "rktio_file_or_directory_stat", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "path"),(RKTIO_BOOL_T, values.W_Fixnum, "follow_links")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_set_file_modify_seconds", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "file"),(RKTIO_TIMESTAMP_T, values.W_Fixnum, "secs")]),
-    (NULL, (RKTIO_TIMESTAMP_T, values.W_Fixnum), "rktio_get_file_modify_seconds", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "file")]),
-    (NULL, (RKTIO_FILESIZE_T, values.W_Fixnum), "rktio_file_size", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_make_link", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(RKTIO_CONST_STRING_T, values_string.W_String, "dest"),(RKTIO_BOOL_T, values.W_Fixnum, "dest_is_directory")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_readlink", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "fullfilename")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_delete_directory", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename"),(RKTIO_CONST_STRING_T, values_string.W_String, "current_directory"),(RKTIO_BOOL_T, values.W_Fixnum, "enable_write_on_fail")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_make_directory_with_permissions", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename"),(INT, values.W_Fixnum, "perm_bits")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_make_directory", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_set_current_directory", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "path")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_get_current_directory", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_rename_file", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "dest"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(RKTIO_BOOL_T, values.W_Fixnum, "exists_ok")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_delete_file", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "fn"),(RKTIO_BOOL_T, values.W_Fixnum, "enable_write_on_fail")]),
-    (RKTIO_FILE_TYPE_ERROR, (INT, values.W_Fixnum), "rktio_file_type", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_start_sleep", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(FLOAT, values.W_Flonum, "nsecs"),(RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR, "fds"),(RKTIO_LTPS_T_PTR, W_RKTIO_LTPS_T_PTR, "lt"),(INT, values.W_Fixnum, "woke_fd")]),
-    (NULL, (RKTIO_LTPS_HANDLE_T_PTR, W_RKTIO_LTPS_HANDLE_T_PTR), "rktio_ltps_get_signaled_handle", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LTPS_T_PTR, W_RKTIO_LTPS_T_PTR, "lt")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_ltps_poll", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LTPS_T_PTR, W_RKTIO_LTPS_T_PTR, "lt")]),
-    (NULL, (RKTIO_LTPS_HANDLE_T_PTR, W_RKTIO_LTPS_HANDLE_T_PTR), "rktio_ltps_add", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LTPS_T_PTR, W_RKTIO_LTPS_T_PTR, "lt"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(INT, values.W_Fixnum, "mode")]),
-    (NULL, (RKTIO_LTPS_T_PTR, W_RKTIO_LTPS_T_PTR), "rktio_ltps_open", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    (NULL, (RKTIO_POLL_SET_T_PTR, W_RKTIO_POLL_SET_T_PTR), "rktio_make_poll_set", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_fs_change_ready", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FS_CHANGE_T_PTR, W_RKTIO_FS_CHANGE_T_PTR, "fc")]),
-    (NULL, (RKTIO_FS_CHANGE_T_PTR, W_RKTIO_FS_CHANGE_T_PTR), "rktio_fs_change", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "path"),(RKTIO_LTPS_T_PTR, W_RKTIO_LTPS_T_PTR, "ltps")]),
-    (NULL, (RKTIO_STATUS_T_PTR, W_RKTIO_STATUS_T_PTR), "rktio_process_status", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_PROCESS_T_PTR, W_RKTIO_PROCESS_T_PTR, "sp")]),
-    (RKTIO_PROCESS_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_process_done", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_PROCESS_T_PTR, W_RKTIO_PROCESS_T_PTR, "sp")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_process_interrupt", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_PROCESS_T_PTR, W_RKTIO_PROCESS_T_PTR, "sp")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_process_kill", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_PROCESS_T_PTR, W_RKTIO_PROCESS_T_PTR, "sp")]),
-    (NULL, (RKTIO_PROCESS_RESULT_T_PTR, W_RKTIO_PROCESS_RESULT_T_PTR), "rktio_process", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "command"),(INT, values.W_Fixnum, "argc"),(RKTIO_CONST_STRING_T, values_string.W_String, "argv"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "stdout_fd"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "stdin_fd"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "stderr_fd"),(RKTIO_PROCESS_T_PTR, W_RKTIO_PROCESS_T_PTR, "group_proc"),(RKTIO_CONST_STRING_T, values_string.W_String, "current_directory"),(RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR, "envvars"),(INT, values.W_Fixnum, "flags")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_envvars_value_ref", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR, "envvars"),(INTPTR_T, values.W_Fixnum, "i")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_envvars_name_ref", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR, "envvars"),(INTPTR_T, values.W_Fixnum, "i")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_envvars_get", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR, "envvars"),(RKTIO_CONST_STRING_T, values_string.W_String, "name")]),
-    (NULL, (RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR), "rktio_envvars_copy", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR, "envvars")]),
-    (NULL, (RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR), "rktio_empty_envvars", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    (NULL, (RKTIO_ENVVARS_T_PTR, W_RKTIO_ENVVARS_T_PTR), "rktio_envvars", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_setenv", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "name"),(RKTIO_CONST_STRING_T, values_string.W_String, "val")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_getenv", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "name")]),
-    (NULL, (CCHARPP, values_string.W_String), "rktio_listener_address", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LISTENER_T_PTR, W_RKTIO_LISTENER_T_PTR, "lnr")]),
-    (NULL, (CCHARPP, values_string.W_String), "rktio_socket_peer_address", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (NULL, (CCHARPP, values_string.W_String), "rktio_socket_address", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_change_multicast_group", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "group_addr"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "intf_addr"),(INT, values.W_Fixnum, "action")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_set_multicast_interface", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "addr")]),
-    (NULL, (CCHARP, values_string.W_String), "rktio_udp_multicast_interface", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_set_multicast_ttl", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(INT, values.W_Fixnum, "ttl_val")]),
-    (RKTIO_PROP_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_udp_get_multicast_ttl", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_set_multicast_loopback", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_BOOL_T, values.W_Fixnum, "on")]),
-    (RKTIO_PROP_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_udp_get_multicast_loopback", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (RKTIO_PROP_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_udp_get_ttl", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_set_ttl", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(INT, values.W_Fixnum, "ttl_val")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_set_receive_buffer_size", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(INT, values.W_Fixnum, "size")]),
-    (NULL, (RKTIO_LENGTH_AND_ADDRINFO_T_PTR, W_RKTIO_LENGTH_AND_ADDRINFO_T_PTR), "rktio_udp_recvfrom_in", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(CCHARP, values_string.W_String, "buffer"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "end")]),
-    (NULL, (RKTIO_LENGTH_AND_ADDRINFO_T_PTR, W_RKTIO_LENGTH_AND_ADDRINFO_T_PTR), "rktio_udp_recvfrom", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(CCHARP, values_string.W_String, "buffer"),(INTPTR_T, values.W_Fixnum, "len")]),
-    (RKTIO_WRITE_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_udp_sendto_in", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "addr"),(CCHARP, values_string.W_String, "buffer"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "end")]),
-    (RKTIO_WRITE_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_udp_sendto", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "addr"),(CCHARP, values_string.W_String, "buffer"),(INTPTR_T, values.W_Fixnum, "len")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_connect", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "addr")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_bind", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "addr"),(RKTIO_BOOL_T, values.W_Fixnum, "reuse")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_disconnect", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (NULL, (RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR), "rktio_udp_open", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "addr"),(INT, values.W_Fixnum, "family")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_tcp_nodelay", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_BOOL_T, values.W_Fixnum, "enable")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_socket_shutdown", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(INT, values.W_Fixnum, "mode")]),
-    (NULL, (RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR), "rktio_connect_trying", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONNECT_T_PTR, W_RKTIO_CONNECT_T_PTR, "conn")]),
-    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_connect_ready", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONNECT_T_PTR, W_RKTIO_CONNECT_T_PTR, "conn")]),
-    (NULL, (RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR), "rktio_connect_finish", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONNECT_T_PTR, W_RKTIO_CONNECT_T_PTR, "conn")]),
-    (NULL, (RKTIO_CONNECT_T_PTR, W_RKTIO_CONNECT_T_PTR), "rktio_start_connect", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "remote"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "local")]),
-    (NULL, (RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR), "rktio_accept", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LISTENER_T_PTR, W_RKTIO_LISTENER_T_PTR, "listener")]),
-    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_accept_ready", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_LISTENER_T_PTR, W_RKTIO_LISTENER_T_PTR, "listener")]),
-    (NULL, (RKTIO_LISTENER_T_PTR, W_RKTIO_LISTENER_T_PTR), "rktio_listen", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR, "local"),(INT, values.W_Fixnum, "backlog"),(RKTIO_BOOL_T, values.W_Fixnum, "reuse")]),
-    (NULL, (RKTIO_ADDRINFO_T_PTR, W_RKTIO_ADDRINFO_T_PTR), "rktio_addrinfo_lookup_get", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ADDRINFO_LOOKUP_T_PTR, W_RKTIO_ADDRINFO_LOOKUP_T_PTR, "lookup")]),
-    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_addrinfo_lookup_ready", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_ADDRINFO_LOOKUP_T_PTR, W_RKTIO_ADDRINFO_LOOKUP_T_PTR, "lookup")]),
-    (NULL, (RKTIO_ADDRINFO_LOOKUP_T_PTR, W_RKTIO_ADDRINFO_LOOKUP_T_PTR), "rktio_start_addrinfo_lookup", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "hostname"),(INT, values.W_Fixnum, "portno"),(INT, values.W_Fixnum, "family"),(RKTIO_BOOL_T, values.W_Fixnum, "passive"),(RKTIO_BOOL_T, values.W_Fixnum, "tcp")]),
-    (NULL, (ARR_PTR(RKTIO_FD_T_PTR), W_ARR_PTR(RKTIO_FD_T_PTR)), "rktio_make_pipe", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(INT, values.W_Fixnum, "flags")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_set_file_size", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_FILESIZE_T, values.W_Fixnum, "sz")]),
-    (NULL, (RKTIO_FILESIZE_T, values.W_Fixnum), "rktio_get_file_position", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_set_file_position", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_FILESIZE_T, values.W_Fixnum, "pos"),(INT, values.W_Fixnum, "whence")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_file_unlock", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (RKTIO_LOCK_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_file_lock_try", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd"),(RKTIO_BOOL_T, values.W_Fixnum, "excl")]),
-    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_write_flushed", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_write_ready", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_read_ready", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (RKTIO_READ_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_read_converted_in", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd"),(CCHARP, values_string.W_String, "buffer"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "len"),(CCHARP, values_string.W_String, "is_converted"),(INTPTR_T, values.W_Fixnum, "converted_start")]),
-    (RKTIO_WRITE_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_write_in", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd"),(CCHARP, values_string.W_String, "buffer"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "end")]),
-    (RKTIO_READ_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_read_in", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd"),(CCHARP, values_string.W_String, "buffer"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "end")]),
-    (RKTIO_READ_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_read_converted", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd"),(CCHARP, values_string.W_String, "buffer"),(INTPTR_T, values.W_Fixnum, "len"),(CCHARP, values_string.W_String, "is_converted")]),
-    (RKTIO_WRITE_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_write", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd"),(CCHARP, values_string.W_String, "buffer"),(INTPTR_T, values.W_Fixnum, "len")]),
-    (RKTIO_READ_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_read", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd"),(CCHARP, values_string.W_String, "buffer"),(INTPTR_T, values.W_Fixnum, "len")]),
-    (NULL, (RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR), "rktio_std_fd", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(INT, values.W_Fixnum, "which")]),
-    (NULL, (RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR), "rktio_dup", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "rfd")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_close", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR, "fd")]),
-    (NULL, (RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR), "rktio_open_with_create_permissions", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(INT, values.W_Fixnum, "modes"),(INT, values.W_Fixnum, "perm_bits")]),
-    (NULL, (RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR), "rktio_open", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(INT, values.W_Fixnum, "modes")]),
-    (NULL, (RKTIO_FD_T_PTR, W_RKTIO_FD_T_PTR), "rktio_system_fd", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(INTPTR_T, values.W_Fixnum, "system_fd"),(INT, values.W_Fixnum, "modes")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_dll_get_error", [(R_PTR, W_R_PTR, "rktio")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_dll_close", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "dll")]),
+    (NULL, (VOID, values.W_Fixnum), "rktio_dll_find_object", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "dll"),(RKTIO_CONST_STRING_T, values_string.W_String, "name")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_dll_open", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "name"),(RKTIO_BOOL_T, values.W_Fixnum, "as_global")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_system_language_country", [(R_PTR, W_R_PTR, "rktio")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_locale_encoding", [(R_PTR, W_R_PTR, "rktio")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_convert_in", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "cvt"),(CCHARP, values.W_Fixnum, "in"),(INTPTR_T, values.W_Fixnum, "in_start"),(INTPTR_T, values.W_Fixnum, "in_end"),(CCHARP, values.W_Fixnum, "out"),(INTPTR_T, values.W_Fixnum, "out_start"),(INTPTR_T, values.W_Fixnum, "out_end")]),
+    (RKTIO_CONVERT_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_convert", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "cvt"),(CCHARPP, values.W_Fixnum, "in"),(INTPTR_T, values.W_Fixnum, "in_left"),(CCHARPP, values.W_Fixnum, "out"),(INTPTR_T, values.W_Fixnum, "out_left")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_converter_open", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "to_enc"),(RKTIO_CONST_STRING_T, values_string.W_String, "from_enc")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_syslog", [(R_PTR, W_R_PTR, "rktio"),(INT, values.W_Fixnum, "level"),(RKTIO_CONST_STRING_T, values_string.W_String, "name"),(RKTIO_CONST_STRING_T, values_string.W_String, "msg"),(RKTIO_CONST_STRING_T, values_string.W_String, "exec_name")]),
+    (NULL, (RKTIO_CHAR16_T, values.W_Fixnum), "rktio_path_to_wide_path", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "p")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_shell_execute", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "verb"),(RKTIO_CONST_STRING_T, values_string.W_String, "target"),(RKTIO_CONST_STRING_T, values_string.W_String, "arg"),(RKTIO_CONST_STRING_T, values_string.W_String, "dir"),(INT, values.W_Fixnum, "show_mode")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_seconds_to_date", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_TIMESTAMP_T, values.W_Fixnum, "seconds"),(INT, values.W_Fixnum, "nanoseconds"),(INT, values.W_Fixnum, "get_gmt")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_expand_user_tilde", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_system_path", [(R_PTR, W_R_PTR, "rktio"),(INT, values.W_Fixnum, "which")]),
+    (NULL, (CCHARPP, values.W_Fixnum), "rktio_filesystem_roots", [(R_PTR, W_R_PTR, "rktio")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_directory_list_step", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "dl")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_directory_list_start", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "dirname")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_set_file_or_directory_permissions", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename"),(INT, values.W_Fixnum, "new_bits")]),
+    (RKTIO_PERMISSION_ERROR, (INT, values.W_Fixnum), "rktio_get_file_or_directory_permissions", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename"),(RKTIO_BOOL_T, values.W_Fixnum, "all_bits")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_path_identity", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "path"),(RKTIO_BOOL_T, values.W_Fixnum, "follow_links")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_fd_identity", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fd")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_fd_stat", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fd")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_file_or_directory_stat", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "path"),(RKTIO_BOOL_T, values.W_Fixnum, "follow_links")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_set_file_modify_seconds", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "file"),(RKTIO_TIMESTAMP_T, values.W_Fixnum, "secs")]),
+    (NULL, (RKTIO_TIMESTAMP_T, values.W_Fixnum), "rktio_get_file_modify_seconds", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "file")]),
+    (NULL, (RKTIO_FILESIZE_T, values.W_Fixnum), "rktio_file_size", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_make_link", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(RKTIO_CONST_STRING_T, values_string.W_String, "dest"),(RKTIO_BOOL_T, values.W_Fixnum, "dest_is_directory")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_readlink", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "fullfilename")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_delete_directory", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename"),(RKTIO_CONST_STRING_T, values_string.W_String, "current_directory"),(RKTIO_BOOL_T, values.W_Fixnum, "enable_write_on_fail")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_make_directory_with_permissions", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename"),(INT, values.W_Fixnum, "perm_bits")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_make_directory", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_set_current_directory", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "path")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_get_current_directory", [(R_PTR, W_R_PTR, "rktio")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_rename_file", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "dest"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(RKTIO_BOOL_T, values.W_Fixnum, "exists_ok")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_delete_file", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "fn"),(RKTIO_BOOL_T, values.W_Fixnum, "enable_write_on_fail")]),
+    (RKTIO_FILE_TYPE_ERROR, (INT, values.W_Fixnum), "rktio_file_type", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "filename")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_start_sleep", [(R_PTR, W_R_PTR, "rktio"),(FLOAT, values.W_Flonum, "nsecs"),(R_PTR, W_R_PTR, "fds"),(R_PTR, W_R_PTR, "lt"),(INT, values.W_Fixnum, "woke_fd")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_ltps_get_signaled_handle", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "lt")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_ltps_poll", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "lt")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_ltps_add", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "lt"),(R_PTR, W_R_PTR, "rfd"),(INT, values.W_Fixnum, "mode")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_ltps_open", [(R_PTR, W_R_PTR, "rktio")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_make_poll_set", [(R_PTR, W_R_PTR, "rktio")]),
+    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_fs_change_ready", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fc")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_fs_change", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "path"),(R_PTR, W_R_PTR, "ltps")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_process_status", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "sp")]),
+    (RKTIO_PROCESS_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_process_done", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "sp")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_process_interrupt", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "sp")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_process_kill", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "sp")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_process", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "command"),(INT, values.W_Fixnum, "argc"),(RKTIO_CONST_STRING_T, values_string.W_String, "argv"),(R_PTR, W_R_PTR, "stdout_fd"),(R_PTR, W_R_PTR, "stdin_fd"),(R_PTR, W_R_PTR, "stderr_fd"),(R_PTR, W_R_PTR, "group_proc"),(RKTIO_CONST_STRING_T, values_string.W_String, "current_directory"),(R_PTR, W_R_PTR, "envvars"),(INT, values.W_Fixnum, "flags")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_envvars_value_ref", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "envvars"),(INTPTR_T, values.W_Fixnum, "i")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_envvars_name_ref", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "envvars"),(INTPTR_T, values.W_Fixnum, "i")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_envvars_get", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "envvars"),(RKTIO_CONST_STRING_T, values_string.W_String, "name")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_envvars_copy", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "envvars")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_empty_envvars", [(R_PTR, W_R_PTR, "rktio")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_envvars", [(R_PTR, W_R_PTR, "rktio")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_setenv", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "name"),(RKTIO_CONST_STRING_T, values_string.W_String, "val")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_getenv", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "name")]),
+    (NULL, (CCHARPP, values.W_Fixnum), "rktio_listener_address", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "lnr")]),
+    (NULL, (CCHARPP, values.W_Fixnum), "rktio_socket_peer_address", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (NULL, (CCHARPP, values.W_Fixnum), "rktio_socket_address", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_change_multicast_group", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(R_PTR, W_R_PTR, "group_addr"),(R_PTR, W_R_PTR, "intf_addr"),(INT, values.W_Fixnum, "action")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_set_multicast_interface", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(R_PTR, W_R_PTR, "addr")]),
+    (NULL, (CCHARP, values.W_Fixnum), "rktio_udp_multicast_interface", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_set_multicast_ttl", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(INT, values.W_Fixnum, "ttl_val")]),
+    (RKTIO_PROP_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_udp_get_multicast_ttl", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_set_multicast_loopback", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(RKTIO_BOOL_T, values.W_Fixnum, "on")]),
+    (RKTIO_PROP_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_udp_get_multicast_loopback", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (RKTIO_PROP_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_udp_get_ttl", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_set_ttl", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(INT, values.W_Fixnum, "ttl_val")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_set_receive_buffer_size", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(INT, values.W_Fixnum, "size")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_udp_recvfrom_in", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(CCHARP, values.W_Fixnum, "buffer"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "end")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_udp_recvfrom", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(CCHARP, values.W_Fixnum, "buffer"),(INTPTR_T, values.W_Fixnum, "len")]),
+    (RKTIO_WRITE_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_udp_sendto_in", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(R_PTR, W_R_PTR, "addr"),(CCHARP, values.W_Fixnum, "buffer"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "end")]),
+    (RKTIO_WRITE_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_udp_sendto", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(R_PTR, W_R_PTR, "addr"),(CCHARP, values.W_Fixnum, "buffer"),(INTPTR_T, values.W_Fixnum, "len")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_connect", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(R_PTR, W_R_PTR, "addr")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_bind", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(R_PTR, W_R_PTR, "addr"),(RKTIO_BOOL_T, values.W_Fixnum, "reuse")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_udp_disconnect", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_udp_open", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "addr"),(INT, values.W_Fixnum, "family")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_tcp_nodelay", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(RKTIO_BOOL_T, values.W_Fixnum, "enable")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_socket_shutdown", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(INT, values.W_Fixnum, "mode")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_connect_trying", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "conn")]),
+    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_connect_ready", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "conn")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_connect_finish", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "conn")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_start_connect", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "remote"),(R_PTR, W_R_PTR, "local")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_accept", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "listener")]),
+    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_accept_ready", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "listener")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_listen", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "local"),(INT, values.W_Fixnum, "backlog"),(RKTIO_BOOL_T, values.W_Fixnum, "reuse")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_addrinfo_lookup_get", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "lookup")]),
+    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_addrinfo_lookup_ready", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "lookup")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_start_addrinfo_lookup", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "hostname"),(INT, values.W_Fixnum, "portno"),(INT, values.W_Fixnum, "family"),(RKTIO_BOOL_T, values.W_Fixnum, "passive"),(RKTIO_BOOL_T, values.W_Fixnum, "tcp")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_make_pipe", [(R_PTR, W_R_PTR, "rktio"),(INT, values.W_Fixnum, "flags")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_set_file_size", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(RKTIO_FILESIZE_T, values.W_Fixnum, "sz")]),
+    (NULL, (RKTIO_FILESIZE_T, values.W_Fixnum), "rktio_get_file_position", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_set_file_position", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(RKTIO_FILESIZE_T, values.W_Fixnum, "pos"),(INT, values.W_Fixnum, "whence")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_file_unlock", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (RKTIO_LOCK_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_file_lock_try", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd"),(RKTIO_BOOL_T, values.W_Fixnum, "excl")]),
+    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_write_flushed", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_write_ready", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (RKTIO_POLL_ERROR, (RKTIO_TRI_T, values.W_Fixnum), "rktio_poll_read_ready", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (RKTIO_READ_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_read_converted_in", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fd"),(CCHARP, values.W_Fixnum, "buffer"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "len"),(CCHARP, values.W_Fixnum, "is_converted"),(INTPTR_T, values.W_Fixnum, "converted_start")]),
+    (RKTIO_WRITE_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_write_in", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fd"),(CCHARP, values.W_Fixnum, "buffer"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "end")]),
+    (RKTIO_READ_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_read_in", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fd"),(CCHARP, values.W_Fixnum, "buffer"),(INTPTR_T, values.W_Fixnum, "start"),(INTPTR_T, values.W_Fixnum, "end")]),
+    (RKTIO_READ_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_read_converted", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fd"),(CCHARP, values.W_Fixnum, "buffer"),(INTPTR_T, values.W_Fixnum, "len"),(CCHARP, values.W_Fixnum, "is_converted")]),
+    (RKTIO_WRITE_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_write", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fd"),(CCHARP, values.W_Fixnum, "buffer"),(INTPTR_T, values.W_Fixnum, "len")]),
+    (RKTIO_READ_ERROR, (INTPTR_T, values.W_Fixnum), "rktio_read", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fd"),(CCHARP, values.W_Fixnum, "buffer"),(INTPTR_T, values.W_Fixnum, "len")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_std_fd", [(R_PTR, W_R_PTR, "rktio"),(INT, values.W_Fixnum, "which")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_dup", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "rfd")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_close", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fd")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_open_with_create_permissions", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(INT, values.W_Fixnum, "modes"),(INT, values.W_Fixnum, "perm_bits")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_open", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(INT, values.W_Fixnum, "modes")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_system_fd", [(R_PTR, W_R_PTR, "rktio"),(INTPTR_T, values.W_Fixnum, "system_fd"),(INT, values.W_Fixnum, "modes")]),
     (NULL, (RKTIO_CHAR16_T, values.W_Fixnum), "rktio_get_dll_path", [(RKTIO_CHAR16_T, values.W_Fixnum, "p")])
 ]
 
 DEFINE_FUNCTION_ERRNO_STEP = [
 
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_copy_file_finish_permissions", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FILE_COPY_T_PTR, W_RKTIO_FILE_COPY_T_PTR, "fc")]),
-    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_copy_file_step", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_FILE_COPY_T_PTR, W_RKTIO_FILE_COPY_T_PTR, "fc")]),
-    (NULL, (RKTIO_FILE_COPY_T_PTR, W_RKTIO_FILE_COPY_T_PTR), "rktio_copy_file_start_permissions", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "dest"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(RKTIO_BOOL_T, values.W_Fixnum, "exists_ok"),(RKTIO_BOOL_T, values.W_Fixnum, "use_perm_bits"),(INT, values.W_Fixnum, "perm_bits"),(RKTIO_BOOL_T, values.W_Fixnum, "override_create_perms")]),
-    (NULL, (RKTIO_FILE_COPY_T_PTR, W_RKTIO_FILE_COPY_T_PTR), "rktio_copy_file_start", [(RKTIO_T_PTR, W_RKTIO_T_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "dest"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(RKTIO_BOOL_T, values.W_Fixnum, "exists_ok")])
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_copy_file_finish_permissions", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fc")]),
+    (W_FALSE, (RKTIO_OK_T, values.W_Fixnum), "rktio_copy_file_step", [(R_PTR, W_R_PTR, "rktio"),(R_PTR, W_R_PTR, "fc")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_copy_file_start_permissions", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "dest"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(RKTIO_BOOL_T, values.W_Fixnum, "exists_ok"),(RKTIO_BOOL_T, values.W_Fixnum, "use_perm_bits"),(INT, values.W_Fixnum, "perm_bits"),(RKTIO_BOOL_T, values.W_Fixnum, "override_create_perms")]),
+    (NULL, (R_PTR, W_R_PTR), "rktio_copy_file_start", [(R_PTR, W_R_PTR, "rktio"),(RKTIO_CONST_STRING_T, values_string.W_String, "dest"),(RKTIO_CONST_STRING_T, values_string.W_String, "src"),(RKTIO_BOOL_T, values.W_Fixnum, "exists_ok")])
 ]
