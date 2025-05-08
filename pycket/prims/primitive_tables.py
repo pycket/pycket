@@ -3,7 +3,8 @@ from pycket.prims.expose import define_nyi, prim_env, expose
 
 DEBUG = False
 
-
+# make_primitive_table takes a list of string
+# and turns that into a list of W_Symbol
 def make_primitive_table(ls_str):
     table = [None] * len(ls_str)
     for i, exposed_id in enumerate(ls_str):
@@ -567,7 +568,7 @@ kernel_str = [
     "immutable-string?", "immutable-bytes?", "immutable-vector?",
     "immutable-hash?", "immutable-box?",
     "mutable-string?", "mutable-bytes?", "mutable-vector?",
-    "mutable-hash?", "mutable-box?"
+    "mutable-hash?", "mutable-box?",
 ]
 
 pycket_extra_str = [
@@ -679,7 +680,6 @@ pthread_str = [
     "engine-block"
 ]
 
-
 # The reason for make_primitive_table is for turning these into list
 # of symbols (to avoid making new objects everytime we look things up)
 
@@ -713,7 +713,7 @@ select_prim_table = {
     W_Symbol.make("#%network"): network,
     W_Symbol.make("#%terminal"): terminal,
     W_Symbol.make("#%pthread"): pthread,
-    W_Symbol.make("#%thread"): thread
+    W_Symbol.make("#%thread"): thread,
 }
 
 # Lists of actual functions indexed by the names above
