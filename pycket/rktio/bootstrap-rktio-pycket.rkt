@@ -144,6 +144,12 @@
       (define llexternal-template
 	"c_~a = rffi.llexternal('~a', [~a], ~a, compilation_info=librktio_a)")
 
+      (define (llexternal-block name r_arg_types r_ret_type)
+	(format llexternal-template
+		name name
+		r_arg_types
+		r_ret_type))
+
       (define expose-py-fun-template
 	;; @expose(name, [W_Args...], simple=True)
 	;; def name(w_args ...):
@@ -158,7 +164,54 @@
 @expose(\"~a\", [~a], simple=True)
 def ~a(~a):
 ~a
-\tres = c_~a(~a)
+\n\tres = c_~a(~a)
+
+~a")
+
+      (define expose-py-fun-err-template
+	;; @expose(name, [W_Args...], simple=True)
+	;; def name(w_args ...):
+	;;   <convert w_args to r_args>
+	;;
+	;;   res = c_name(r_args...)
+	;;
+	;;   if res == <err_value>:
+	;;       elems = [
+	;;                values.W_Fixnum((c_rktio_get_last_error_kind name)),
+	;;                values.W_Fixnum((c_rktio_get_last_error name)),
+	;;                # values.W_Fixnum((c_rktio_get_last_error_step name)),
+	;;                ]
+	;;       return values_vector.W_Vector.fromelements(elems)
+	;;
+	;;   return <convert res to w_ret_type>
+	"
+~a
+
+@expose(\"~a\", [~a], simple=True)
+def ~a(~a):
+~a
+\n\tres = c_~a(~a)
+
+\tif res == ~a:
+\t\telems = [(c_rktio_get_last_error_kind ~a),(c_rktio_get_last_error ~a)]
+\t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
+
+~a")
+
+      (define expose-py-fun-err-step-template
+	;; Almost the same with above, it also calls the
+	;; c_rktio_get_last_error_step if an error is signalled
+	"
+~a
+
+@expose(\"~a\", [~a], simple=True)
+def ~a(~a):
+~a
+\n\tres = c_~a(~a)
+
+\tif res == ~a:
+\t\telems = [(c_rktio_get_last_error_kind ~a),(c_rktio_get_last_error ~a),(c_rktio_get_last_error_step ~a)]
+\t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 ~a")
 
@@ -170,25 +223,26 @@ def ~a(~a):
       ;; arg-w->r expresses the conversion logic for a single
       ;; w-arg -> r-arg in RPython
       (define (arg-w->r r_name r_type w_name w_type)
+	(let ([defn-rhs
 	(cond
 	  [(equal? r_type "R_PTR")
-	   (format "\t~a = rffi.cast(~a, ~a.to_rffi())"
+	   (format "~a = rffi.cast(~a, ~a.to_rffi())"
 		   r_name r_type w_name)]
 	  
 	  [(equal? r_type "RKTIO_BOOL_T")
-	   (format "\t~a = rffi.cast(rffi.INT, 1 if ~a is values.w_true else 0)"
+	   (format "~a = rffi.cast(rffi.INT, 1 if ~a is values.w_true else 0)"
 		   r_name w_name)]
 	  
 	  [(equal? r_type "RKTIO_CONST_STRING_T")
 	   (let*
-	     ([_p_str (format "\t_p_str = ~a.as_str_utf8()\n" w_name)]
+	     ([_p_str (format "_p_str = ~a.as_str_utf8()\n" w_name)]
 	      [p_str (format "\tp_str = _p_str if _p_str else \"\"\n")]
 	      [r_line (format "\t~a = rffi.str2charp(p_str)" r_name)])
 	     (string-append _p_str p_str r_line))]
 
 	  [(or (equal? r_type "RKTIO_CHAR16_T")
 	       (equal? r_type "RKTIO_FILESIZE_T"))
-	   (format "\t~a = rffi.cast(rffi.INT, ~a.value)"
+	   (format "~a = rffi.cast(rffi.INT, ~a.value)"
 		   r_name w_name)]
 
 	  [(or (equal? r_type "CCHARP") (equal? r_type "CCHARPP")
@@ -196,24 +250,26 @@ def ~a(~a):
 	       (equal? r_type "CHAR") (equal? r_type "DOUBLE")
 	       (equal? r_type "FLOAT")
 	       )
-	   (format "\t~a = rffi.cast(rffi.~a, ~a.value)"
+	   (format "~a = rffi.cast(rffi.~a, ~a.value)"
 		   r_name r_type w_name)]
 
-	  [(or (equal? r_type "INTPTR_T") (equal? r_type "UINTPTR_T"))
-	   (format "\t~a = rffi.cast(rffi.SSIZE_T, ~a.value)"
+	  [(or (equal? r_type "INTPTR_T") (equal? r_type "UINTPTR_T")
+	       (equal? r_type "RKTIO_TIMESTAMP_T"))
+	   (format "~a = rffi.cast(rffi.SSIZE_T, ~a.value)"
 		   r_name w_name)]
 
 	  [(equal? r_type "VOID")
-	   (format "\t~a = rffi.cast(rffi.VOIDP, ~a.value)"
+	   (format "~a = rffi.cast(rffi.VOIDP, ~a.value)"
 		   r_name w_name)]
 
 	  [(equal? r_type "UNSIGNED_8")
-	   (format "\t~a = rffi.cast(rffi.UINT, ~a.value)"
+	   (format "~a = rffi.cast(rffi.UINT, ~a.value)"
 		   r_name w_name)]
 
 	  [else (error 'arg-w->r (format "unhandled r_type : ~a" r_type))]
 
-	  ))
+	  )])
+	  (string-append "\n\t" defn-rhs)))
 
       ;; process-args emit a line for each argument that converts
       ;; the w-arg into an rffi arg
@@ -274,16 +330,53 @@ def ~a(~a):
 	  (let-values ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns)
 			(process-args (def-fun-args-list fn))])
 	    (let ([llexternal-lines
-		    (format llexternal-template
-			    name name
-			    r_arg_types
-			    r_ret_type)])
+		    (llexternal-block name r_arg_types r_ret_type)])
 	      (format expose-py-fun-template
 		      llexternal-lines
 		      name w_arg_types
 		      name w_arg_names
 		      r_arg_defns
 		      name r_arg_names
+		      w_ret_line)))))
+
+      (define (fn/err-to-py-expose fn)
+	(let ([name (def-fun-err-name fn)]
+	      [err-v (def-fun-err-err-v fn)]
+	      [w_ret_line (return-line (def-fun-err-w-ret-type fn)
+				       (def-fun-err-r-ret-type fn))]
+	      [r_ret_type (def-fun-err-r-ret-type fn)])
+	  (let-values
+	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns)
+	      (process-args (def-fun-err-args-list fn))])
+	    (let ([llexternal-lines
+		    (llexternal-block name r_arg_types r_ret_type)])
+	      (format expose-py-fun-err-template
+		      llexternal-lines
+		      name w_arg_types
+		      name w_arg_names
+		      r_arg_defns
+		      name r_arg_names
+		      err-v name name
+		      w_ret_line)))))
+
+      (define (fn/err/step-to-py-expose fn)
+	(let ([name (def-fun-err-name fn)]
+	      [err-v (def-fun-err-err-v fn)]
+	      [w_ret_line (return-line (def-fun-err-w-ret-type fn)
+				       (def-fun-err-r-ret-type fn))]
+	      [r_ret_type (def-fun-err-r-ret-type fn)])
+	  (let-values
+	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns)
+	      (process-args (def-fun-err-args-list fn))])
+	    (let ([llexternal-lines
+		    (llexternal-block name r_arg_types r_ret_type)])
+	      (format expose-py-fun-err-step-template
+		      llexternal-lines
+		      name w_arg_types
+		      name w_arg_names
+		      r_arg_defns
+		      name r_arg_names
+		      err-v name name name
 		      w_ret_line)))))
 
       (define (fn/err-to-tuple fn)
@@ -334,6 +427,8 @@ from pycket.foreign import make_w_pointer_class
 from rpython.rtyper.lltypesystem import rffi
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
 
+num = values.W_Fixnum
+
 # Load the librktio.a
 # TODO: make this absolute (pycket/rktio), instead of \"this file\"
 RKTIO_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -364,16 +459,22 @@ W_R_PTR = make_w_pointer_class(\"_pointer\")
 	  )
       )
 
-      
+      (define fun-sep "\n~a\n")
       ;; three lists (currently possibly empty)
-      (map (lambda (fdef) (emit "\n~a\n" (fn-to-py-expose fdef)))
+      (map (lambda (fdef) (emit fun-sep (fn-to-py-expose fdef)))
 	   (define-fn))
+
+      (map (lambda (fdef) (emit fun-sep (fn/err-to-py-expose fdef)))
+	   (define-fn-errno))
+
+      (map (lambda (fdef) (emit fun-sep (fn/err/step-to-py-expose fdef)))
+	   (define-fn-errno+step))
 
       #;(emit "\n\nDEFINE_FUNCTION = [\n~a\n]\n"
             (string-join (map fn-to-tuple (define-fn)) ","))
-      (emit "\nDEFINE_FUNCTION_ERRNO = [\n~a\n]\n"
+      #;(emit "\nDEFINE_FUNCTION_ERRNO = [\n~a\n]\n"
             (string-join (map fn/err-to-tuple (define-fn-errno)) ","))
-      (emit "\nDEFINE_FUNCTION_ERRNO_STEP = [\n~a\n]\n"
+      #;(emit "\nDEFINE_FUNCTION_ERRNO_STEP = [\n~a\n]\n"
 			(string-join (map fn/err-to-tuple (define-fn-errno+step)) ","))
 	  
 	  )))
