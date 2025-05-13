@@ -11,11 +11,15 @@
 (define define-fn-errno        (make-parameter '()))
 (define define-fn-errno+step   (make-parameter '()))
 
+;; Tight coupling with the Python code is inexorable here
+;; because of the nature of ffi, though we're certainly abusing
+;; it to the fullest.
+;; TODO: loosen the insane tight coupling with the Python rktio
+;; bootstrap layer.
+
 ;; Bootstrap needs to know how to map rktio types onto the rffi
-;; types we use over there in the rktio.py.
-;; (we do use a naming convention where we just capitalize rktio
-;; type name to make it rffi type name, but writing them explicitly
-;; here for the sake of clarity).
+;; types we use over there in the types.py, etc.
+;;
 (define type:rktio->rffi
   (hash
     'rktio_ok_t		      "RKTIO_OK_T"
@@ -36,29 +40,33 @@
     'function-pointer	      "INTPTR_T"
 ))
 
-;; These are mostly for the return types.
-;; It's convenient to get Pycket class/value
-;; for the return type of a rktio function
+(define w_fixnum "values.W_Fixnum")
+(define w_flonum "values.W_Flonum")
+(define w_string "values_string.W_String")
+(define w_void   "values.w_void")
+(define w_ccharp "W_CCHARP")
+(define w_ccharpp "W_CCHARPP")
+
 (define type:rffi->pycket
   (hash
-    "RKTIO_OK_T"	      "values.W_Fixnum"
-    "RKTIO_TRI_T"	      "values.W_Fixnum"
-    "RKTIO_BOOL_T"	      "values.W_Fixnum"
-    "RKTIO_CHAR16_T"	      "values.W_Fixnum"
-    "RKTIO_CONST_STRING_T"    "values_string.W_String"
-    "RKTIO_FILESIZE_T"	      "values.W_Fixnum"
-    "RKTIO_TIMESTAMP_T"	      "values.W_Fixnum"
-    "INT"		      "values.W_Fixnum"
-    "FLOAT"		      "values.W_Flonum"
-    "VOID"		      "values.W_Fixnum" ; pointer to anything
-    "DOUBLE"		      "values.W_Fixnum"
-    "INTPTR_T"		      "values.W_Fixnum"
-    "UINTPTR_T"		      "values.W_Fixnum"
-    "UNSIGNED"		      "values.W_Fixnum"
-    "UNSIGNED_8"	      "values.W_Fixnum"
-    "INTPTR_T"		      "values.W_Fixnum"
-    "CCHARP"		      "values.W_Fixnum" ; just a pointer
-    "CCHARPP"		      "values.W_Fixnum" ; just a pointer
+    "RKTIO_OK_T"	      w_fixnum
+    "RKTIO_TRI_T"	      w_fixnum
+    "RKTIO_BOOL_T"	      w_fixnum
+    "RKTIO_CHAR16_T"	      w_fixnum
+    "RKTIO_CONST_STRING_T"    w_string
+    "RKTIO_FILESIZE_T"	      w_fixnum
+    "RKTIO_TIMESTAMP_T"	      w_fixnum
+    "INT"		      w_fixnum
+    "FLOAT"		      w_flonum
+    "VOID"		      w_void ; actual value, not a type
+    "DOUBLE"		      w_flonum
+    "INTPTR_T"		      w_fixnum
+    "UINTPTR_T"		      w_fixnum
+    "UNSIGNED"		      w_fixnum
+    "UNSIGNED_8"	      w_fixnum
+    "INTPTR_T"		      w_fixnum
+    "CCHARP"		      w_ccharp
+    "CCHARPP"		      w_ccharpp
 ))
 
 ;; { rktio : rffi }
@@ -76,8 +84,10 @@
   (match rktio-type
 	[`(,(or 'ref '*ref) char) "CCHARP"]
 	[`(,(or 'ref '*ref) (,(or 'ref '*ref) char)) "CCHARPP"]
+	[`(,(or 'ref '*ref) ,t) "R_PTR"]
 	[`(,(or 'ref '*ref) (,(or 'ref '*ref) ,t)) "R_PTR" #;(format "ARR_PTR(~a)" (lower-type `(ref ,t)))]
-	[`(,(or 'ref '*ref) ,(or `(nullable ,struct-pointer) struct-pointer))
+	[`(,(or 'ref '*ref)
+	    ,(or struct-pointer `(nullable ,struct-pointer)))
 	  (or
 	      (hash-ref type:rktio->rffi struct-pointer #f)
 	      (and (hash-ref type:struct-ptrs struct-pointer #f) "R_PTR")
@@ -167,7 +177,7 @@ rktio_str.append(\"~a\")
 @expose(\"~a\", [~a], simple=True)
 def ~a(~a):
 ~a
-\n\tres = c_~a(~a)
+\n\t~a
 
 ~a")
 
@@ -197,8 +207,8 @@ def ~a(~a):
 ~a
 \n\tres = c_~a(~a)
 
-\tif res == ~a:
-\t\telems = [(c_rktio_get_last_error_kind ~a),(c_rktio_get_last_error ~a)]
+\tif ~a:
+\t\telems = [c_rktio_get_last_error_kind(~a), c_rktio_get_last_error(~a)]
 \t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 ~a")
@@ -216,11 +226,16 @@ def ~a(~a):
 ~a
 \n\tres = c_~a(~a)
 
-\tif res == ~a:
-\t\telems = [(c_rktio_get_last_error_kind ~a),(c_rktio_get_last_error ~a),(c_rktio_get_last_error_step ~a)]
+\tif ~a:
+\t\telems = [c_rktio_get_last_error_kind(~a), c_rktio_get_last_error(~a), c_rktio_get_last_error_step(~a)]
 \t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 ~a")
+
+      (define (err-val-check err-v)
+	(if (or (false? err-v) (equal? err-v 'NULL))
+	    "not res"
+	    (format "res == ~a" err-v)))
 
       ;; args-str is just a wrapper around string-join
       ;; used to Pythonize argument lists
@@ -232,7 +247,10 @@ def ~a(~a):
       (define (arg-w->r r_name r_type w_name w_type)
 	(let ([defn-rhs
 	(cond
-	  [(equal? r_type "R_PTR")
+	  [(or (equal? r_type "R_PTR")
+	       (equal? r_type "CCHARP")
+	       (equal? r_type "CCHARPP")
+	       )
 	   (format "~a = rffi.cast(~a, ~a.to_rffi())"
 		   r_name r_type w_name)]
 	  
@@ -252,8 +270,7 @@ def ~a(~a):
 	   (format "~a = rffi.cast(rffi.INT, ~a.value)"
 		   r_name w_name)]
 
-	  [(or (equal? r_type "CCHARP") (equal? r_type "CCHARPP")
-	       (equal? r_type "INT") (equal? r_type "UNSIGNED")
+	  [(or (equal? r_type "INT") (equal? r_type "UNSIGNED")
 	       (equal? r_type "CHAR") (equal? r_type "DOUBLE")
 	       (equal? r_type "FLOAT")
 	       )
@@ -293,12 +310,20 @@ def ~a(~a):
 	   [r_arg_names null]
 	   [r_arg_types null]
 	   [r_arg_defns null]
+	   ;; there's a convention used in rktio that first
+	   ;; always a pointer for the functions
+	   ;; that can return errors
+	   ;; so first_r_arg_name is passed to the librktio
+	   ;; functions to get the kind/error etc
+	   [first_r_arg_name ""]
 	   #:result (values
 		      (string-join (reverse w_arg_names) ", ")
 		      (string-join (reverse w_arg_types) ", ")
 		      (string-join (reverse r_arg_names) ", ")
 		      (string-join (reverse r_arg_types) ", ")
-		      (string-join (reverse r_arg_defns) "\n")))
+		      (string-join (reverse r_arg_defns) "\n")
+		      ;; FIXME: can we use something else to avoid all these reverses?
+		      (if (empty? r_arg_names) "" (first (reverse r_arg_names)))))
 	  ([a args-list])
 
 	  (let* ([rktio_name (arg-rktio-name a)]
@@ -313,20 +338,32 @@ def ~a(~a):
 	      (cons w_type w_arg_types)
 	      (cons r_name r_arg_names)
 	      (cons r_type r_arg_types)
-	      (cons arg-convert-lines r_arg_defns)))))
+	      (cons arg-convert-lines r_arg_defns) ""))))
+
+      (define (res=c-func-call name r_arg_names r_ret_type)
+	(if (equal? r_ret_type "VOID")
+	    (format "c_~a(~a)" name r_arg_names)
+	    (format "res = c_~a(~a)" name r_arg_names)))
 
       ;; return-line produces the "return" line that converts
       ;; the result of the rffi call back to a W_Object
       ;; assumes the result is in a variable called "res"
       (define (return-line w-ret-type r-ret-type)
 	(cond
-	  [(or (equal? w-ret-type "values.W_Fixnum")
-	       (equal? w-ret-type "values.W_Flonum")
-	       (equal? w-ret-type "W_R_PTR"))
+	  [(equal? r-ret-type "VOID") ; return w_void, value not type
+	   (format "\t# returns ~a\n\treturn ~a" r-ret-type w-ret-type)]
+	  [(or (equal? r-ret-type "UNSIGNED")
+	       (equal? r-ret-type "UNSIGNED_8")
+	       (equal? r-ret-type "UINTPTR_T"))
+	   (format "\t# returs ~a\n\treturn num(intmask(res))" r-ret-type)]
+	  [(or (equal? w-ret-type w_fixnum)
+	       (equal? w-ret-type w_flonum)
+	       (equal? w-ret-type "W_R_PTR")
+	       (equal? w-ret-type "W_CCHARP")
+	       (equal? w-ret-type "W_CCHARPP"))
 	   (format "\t# returns ~a\n\treturn ~a(res)" r-ret-type w-ret-type)]
-	  [else (error 'return-line (format 
-				      "unhandled w-ret-type: ~a"
-				      w-ret-type))]))
+	  [else (error 'return-line
+		       (format "unhandled w-ret-type: ~a" w-ret-type))]))
 
       (define (fn-to-py-expose fn)
 	(let (
@@ -334,17 +371,19 @@ def ~a(~a):
 	      [w_ret_line (return-line (def-fun-w-ret-type fn)
 				       (def-fun-r-ret-type fn))]
 	      [r_ret_type (def-fun-r-ret-type fn)])
-	  (let-values ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns)
+	  (let-values ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns _)
 			(process-args (def-fun-args-list fn))])
 	    (let ([llexternal-lines
-		    (llexternal-block name r_arg_types r_ret_type)])
+		    (llexternal-block name r_arg_types r_ret_type)]
+		  [res=line
+		    (res=c-func-call name r_arg_names r_ret_type)])
 	      (format expose-py-fun-template
 		      llexternal-lines
 		      name
 		      name w_arg_types
 		      name w_arg_names
 		      r_arg_defns
-		      name r_arg_names
+		      res=line ; res = c_rffifunc(r_args...)
 		      w_ret_line)))))
 
       (define (fn/err-to-py-expose fn)
@@ -354,7 +393,7 @@ def ~a(~a):
 				       (def-fun-err-r-ret-type fn))]
 	      [r_ret_type (def-fun-err-r-ret-type fn)])
 	  (let-values
-	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns)
+	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns first_r_arg_name)
 	      (process-args (def-fun-err-args-list fn))])
 	    (let ([llexternal-lines
 		    (llexternal-block name r_arg_types r_ret_type)])
@@ -365,7 +404,7 @@ def ~a(~a):
 		      name w_arg_names
 		      r_arg_defns
 		      name r_arg_names
-		      err-v name name
+		      (err-val-check err-v) first_r_arg_name first_r_arg_name
 		      w_ret_line)))))
 
       (define (fn/err/step-to-py-expose fn)
@@ -375,7 +414,7 @@ def ~a(~a):
 				       (def-fun-err-r-ret-type fn))]
 	      [r_ret_type (def-fun-err-r-ret-type fn)])
 	  (let-values
-	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns)
+	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns first_r_arg_name)
 	      (process-args (def-fun-err-args-list fn))])
 	    (let ([llexternal-lines
 		    (llexternal-block name r_arg_types r_ret_type)])
@@ -386,7 +425,7 @@ def ~a(~a):
 		      name w_arg_names
 		      r_arg_defns
 		      name r_arg_names
-		      err-v name name name
+		      (err-val-check err-v) first_r_arg_name first_r_arg_name first_r_arg_name
 		      w_ret_line)))))
 
       (define (fn/err-to-tuple fn)
@@ -415,31 +454,27 @@ def ~a(~a):
       (emit "
 \"\"\"
 
-Loads the librktio static library using rffi and provides #%rktio module
-in Pycket runtime.
+Loads the librktio static library using rffi and provides #%rktio module in Pycket runtime.
 
-Defines, registers, and exposes pycket wrappers for all the librktio
-primitives in rktio.rktl.
+Defines, registers, and exposes pycket wrappers for all the librktio primitives in rktio.rktl.
 
 Structs defined by define-struct-type are manually defined (see bootstrap_structs.py).
-They can also be autometed, although it's a bit tricky,
+They can also be autometed, although it's a bit tricky.
 I just happened to define them by hand when I started working on this.
-Pycket(actually rffi) needs to know the field layout because we'll expose
-some primitives that access those fields on the host (Pycket).
+Pycket (rffi) needs to know the field layout because we'll expose some primitives that access those fields on the host (Pycket).
 
-Uses opaque pointers for all the other structs that the rktio functions
-reference.
+Uses opaque pointers for all the other structs that the rktio functions reference.
 
 See bootstrap-rktio-pycket.rkt for type mappings: rktio -> Pycket.
 See types.py for type mappings between Pycket -> rffi.
 
-At the bottom it adds all the exposed functions to the #%rktio module
-in the select_prim_table, which is how Pycket loads the primitive tables.
+At the bottom it adds all the exposed functions to the #%rktio module in the select_prim_table, which is how Pycket loads the primitive tables.
 
 \"\"\"\n\n
 import os
 
 from pycket import values, values_string
+from pycket import vector as values_vector
 from pycket.prims.primitive_tables import select_prim_table, make_primitive_table
 from pycket.prims.expose import expose
 from pycket.rktio.types import *
@@ -447,8 +482,9 @@ from pycket.foreign import make_w_pointer_class
 
 from rpython.rtyper.lltypesystem import rffi
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
+from rpython.rlib.rarithmetic import intmask
 
-num = values.W_Fixnum
+num = values.W_Fixnum.make_or_interned
 sym = values.W_Symbol.make
 
 # Load the librktio.a
@@ -461,9 +497,15 @@ librktio_a = ExternalCompilationInfo(
     library_dirs=[RKTIO_DIR],
 )
 
-R_PTR = rffi.COpaquePtr(\"_pointer\")
-W_R_PTR = make_w_pointer_class(\"_pointer\")
+# We could make separate opaque pointers for every typedef
+# in the included h files, but that wouldn't give us extra
+# benefit as they will all be opaque to rffi anyways.
+# So we use a generic \"any\" pointer for all of them.
+R_PTR	= rffi.VOIDP # rffi.COpaquePtr('void *')
+W_R_PTR = make_w_pointer_class('voidp')
 
+# Names (str) of all primitives we expose here
+# Dynamically filled to be usef for primitive-table
 rktio_str = []
 
 ")

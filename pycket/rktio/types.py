@@ -16,7 +16,7 @@ FLOAT                   = rffi.FLOAT
 CCHARP			= rffi.CCHARP
 CCHARPP			= rffi.CCHARPP
 ARR_PTR			= rffi.CArrayPtr
-VOID                    = rffi.VOIDP
+VOID                    = lltype.Void
 NULL                    = rffi.NULL
 W_FALSE                 = 0
 RKTIO_OK_T              = rffi.INT
@@ -31,6 +31,10 @@ INTPTR_T                = rffi.SSIZE_T # pointer-sized signed int
 UINTPTR_T               = rffi.SIZE_T # unsigned
 RKTIO_TIMESTAMP_T       = INTPTR_T
 
+W_CCHARP                = make_w_pointer_class("ccharp")
+W_CCHARPP               = make_w_pointer_class("ccharpp")
+
+# TODO: delete me
 def bootstrap_struct_type(name, type_tuple):
     from rpython.rtyper.lltypesystem import rffi
     from pycket.foreign import make_w_pointer_class
