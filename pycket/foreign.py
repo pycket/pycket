@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import struct
 from pycket       import values
 from rpython.rlib import jit
 
@@ -104,13 +105,26 @@ class W_CStructType(W_CType):
         return alignment
 
 class W_CPointer(values.W_Object):
+    _attrs_ = []
 
     errorname = "cpointer"
 
     def __init__(self):
         pass
 
+def make_w_pointer_class(str_name):
 
+    class _W_Custom(W_CPointer):
+        _immutable_fields_ = _attrs_ = ["ptr"]
+
+        def __init__(self, ptr):
+            self.ptr = ptr
+
+        def to_rffi(self):
+            return self.ptr
+
+    _W_Custom.__name__ = "W_%s" % str_name
+    return _W_Custom
 
 class W_FFILib(values.W_Object):
     errorname = "ffi-lib"
