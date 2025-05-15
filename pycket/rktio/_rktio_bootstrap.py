@@ -221,19 +221,6 @@ RKTIO_LTPS_HANDLE_FREE = 2
 RKTIO_ERROR_ILL_FORMED_USER = 14
 RKTIO_SHUTDOWN_WRITE = 1
 
-
-# Struct pointers
-
-DLL_OPEN_PROC_PTR = rffi.COpaquePtr("dll_open_proc")
-W_DLL_OPEN_PROC_PTR = make_w_pointer_class("dll_open_proc")
-
-DLL_CLOSE_PROC_PTR = rffi.COpaquePtr("dll_close_proc")
-W_DLL_CLOSE_PROC_PTR = make_w_pointer_class("dll_close_proc")
-
-DLL_FIND_OBJECT_PROC_PTR = rffi.COpaquePtr("dll_find_object_proc")
-W_DLL_FIND_OBJECT_PROC_PTR = make_w_pointer_class("dll_find_object_proc")
-
-
 c_rktio_get_error_string = rffi.llexternal('rktio_get_error_string', [R_PTR, INT, INT], CCHARP, compilation_info=librktio_a)
 
 rktio_str.append("rktio_get_error_string")
