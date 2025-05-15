@@ -209,6 +209,29 @@ def rktio_seconds_to_date_star(w_rktio, w_seconds, w_nanosec, w_get_gmt, env, co
         zone_name_val,
         ], env, cont, None)
 
+# rktio_convert_result_to_vector
+@expose("rktio_convert_result_to_vector", [W_RKTIO_CONVERT_RESULT_PTR])
+def rktio_convert_result_to_vector(w_ptr):
+    ll_ptr = rffi.cast(RKTIO_CONVERT_RESULT_PTR, w_ptr.to_rffi())
+
+    elems = [
+        _wrap_int(ll_ptr.in_consumed),
+        _wrap_int(ll_ptr.out_produced),
+        _wrap_int(ll_ptr.converted),
+    ]
+
+    return values_vector.W_Vector.fromelements(elems)
+
+
+# rktio_to_bytes
+# rktio_to_bytes_list
+# rktio_to_shorts
+# rktio_from_bytes_list
+# rktio_free_bytes_list
+# rktio_make_sha1_ctx
+# rktio_make_sha2_ctx
+
+
 ###############################################
 ############## process_result #################
 
