@@ -1,4 +1,3 @@
-from pycket.values import w_false
 from pycket.foreign import make_w_pointer_class
 from rpython.rtyper.lltypesystem import rffi, lltype
 

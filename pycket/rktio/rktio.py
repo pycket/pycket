@@ -3,12 +3,12 @@ from pycket import vector as values_vector
 from pycket import values, values_string
 from pycket.prims.expose import expose, expose_val
 
+from rpython.rlib.rbigint import rbigint
 from rpython.rtyper.lltypesystem import rffi
 
 from pycket.rktio.types import *
 from pycket.rktio._rktio_bootstrap import *
 from pycket.rktio.bootstrap_structs import *
-
 
 ###############################################
 ############## connector layer ################
@@ -50,12 +50,18 @@ rktio_get_ctl_c_handler
 
 """
 
-def _wrap_int(val):
+def _wrap_int(raw):
     """Return the smallest Pycket integer that can hold *val*."""
+
+    val = rffi.cast(lltype.Signed, raw)
+
+    # fast path: fits in a fixnum?
     try:
-        return values.W_Fixnum(val)
+        return values.W_Fixnum(intmask(val))
     except OverflowError:
-        return values.W_Bignum.fromint(val)
+        # slow path: upgrade to big-int first, then wrap
+        big = rbigint.fromint(intmask(val))
+        return values.W_Bignum(big)
 
 expose_val("rktio_NULL", values.w_false)
 
@@ -159,43 +165,36 @@ def rktio_identity_to_vector(w_id_ptr):
 
     return values_vector.W_Vector.fromelements(elems)
 
-"""
 @expose(
     "rktio_seconds_to_date*",
-    [W_RKTIO_T_PTR, values.W_Integer, values.W_Integer, values.W_Integer],
+    [W_R_PTR, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=False
 )
-def rktio_seconds_to_date_star(w_rktio, w_seconds, w_nanosec, w_get_gmt):
-    rktio_ptr = rffi.cast(RKTIO_T_PTR, w_rktio.to_rffi())
+def rktio_seconds_to_date_star(w_rktio, w_seconds, w_nanosec, w_get_gmt, env, cont):
+    from pycket.interpreter import return_value
+    from pycket.prims.general import date_star_struct
 
-    seconds  = rffi.cast(RKTIO_TIMESTAMP_T, w_seconds.toint())
-    nanosec  = rffi.cast(rffi.INT,          w_nanosec.toint())
-    get_gmt  = rffi.cast(rffi.INT,          w_get_gmt.toint())
+    # TODO: seconds in date range check
 
-    date_p = c_rktio_seconds_to_date(rktio_ptr, seconds, nanosec, get_gmt)
+    p = w_rktio_seconds_to_date(w_rktio, w_seconds, w_nanosec, w_get_gmt)
 
-    # return #(errno symbol) when rktio_seconds_to_date fails
-    if not date_p:
-        err = rffi.get_saved_errno()
-        return values_vector.W_Vector.fromelements([
-            _wrap_int(err),
-            errno_code_to_symbol(err),            # returns a W_Symbol
-        ])
+    if isinstance(p, values_vector.W_Vector):
+        return return_value(p, env, cont)
+
+    assert isinstance(p, W_RKTIO_DATE_PTR)
+    d = rffi.cast(RKTIO_DATE_PTR, p.to_rffi())
 
     # success, build date*
-    d = date_p[0]
+    # d = date_p[0]
 
     zone_name_val = (
         values.w_false if not d.c_zone_name else
         values_string.W_String.fromstr_utf8(rffi.charp2str(d.c_zone_name))
     )
 
-    from pycket.prims.general import date_star_struct
-    # get and call the contstructor with these
-    # self.struct_type().constructor.call_with_extra_info(args...)
-    # will need env and cont to call this.
+    is_dst_signed = rffi.cast(lltype.Signed, d.c_is_dst)
 
-
-    result = make_date_star(
+    return date_star_struct.constructor.call_with_extra_info(
+        [
         _wrap_int(d.c_second),
         _wrap_int(d.c_minute),
         _wrap_int(d.c_hour),
@@ -204,17 +203,11 @@ def rktio_seconds_to_date_star(w_rktio, w_seconds, w_nanosec, w_get_gmt):
         _wrap_int(d.c_year),
         _wrap_int(d.c_nanosecond),
         _wrap_int(d.c_zone_offset),
-        values.w_true  if d.c_is_dst else values.w_false,
+        values.w_true  if is_dst_signed else values.w_false,
         _wrap_int(d.c_day_of_week),
         _wrap_int(d.c_day_of_year),
         zone_name_val,
-    )
-
-    # free allocation performed by C
-    c_rktio_free(rktio_ptr, rffi.cast(rffi.VOIDP, date_p))
-
-    return result
-"""
+        ], env, cont, None)
 
 ###############################################
 ############## process_result #################
@@ -226,8 +219,6 @@ def _wrap_process_null(addr):
         [W_RKTIO_PROCESS_RESULT_PTR])
 def rktio_process_result_stdin_fd(res_ptr):
     res_ll = rffi.cast(RKTIO_PROCESS_RESULT_PTR, res_ptr.to_rffi())
-
-    greet()  # prints: I am function greet!
 
     return _wrap_process_null(res_ll.c_stdin_fd)
 
