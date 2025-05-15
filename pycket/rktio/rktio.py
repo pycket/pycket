@@ -224,13 +224,66 @@ def rktio_convert_result_to_vector(w_ptr):
 
 
 # rktio_to_bytes
+@expose("rktio_to_bytes", [W_CCHARP])
+def rktio_to_bytes(w_ptr):
+    c_char_p = rffi.cast(CCHARP, w_ptr.to_rffi())
+
+    # copy the bytes up to the first NUL
+    py_bytes = rffi.charp2str(c_char_p) # -> python str
+    # py_bytes = py_bytes.encode("latin-1")
+
+    return values.W_Bytes.from_string(py_bytes)
+
 # rktio_to_bytes_list
+
 # rktio_to_shorts
+@expose("rktio_to_shorts", [W_R_PTR])
+def rktio_to_shorts(w_ptr):
+    from rpython.rlib.rstring import StringBuilder
+
+    """
+    Copy a NUL-terminated array of unsigned-16 values into a bytevector,
+    preserving little-endian order (two bytes per word).
+    """
+    c_char_p = rffi.cast(R_PTR, w_ptr.to_rffi())
+
+    sb      = StringBuilder()
+    offset  = 0
+    while True:
+        lo = ord(c_char_p[offset])
+        hi = ord(c_char_p[offset + 1])
+        if lo == 0 and hi == 0:          # 16-bit terminator
+            break
+        sb.append(chr(lo))               # low byte
+        sb.append(chr(hi))               # high byte
+        offset += 2
+
+    return values.W_Bytes.from_string(sb.build())
+
 # rktio_from_bytes_list
 # rktio_free_bytes_list
-# rktio_make_sha1_ctx
-# rktio_make_sha2_ctx
 
+# rktio_make_sha1_ctx
+@expose("rktio_make_sha1_ctx", [])
+def rktio_make_sha1_ctx():
+    """
+    Allocate a fresh, zero-initialised SHA-1 context and return it
+    as a Pycket bytevector (W_Bytes), exactly like Chez
+    (make-bytevector (ftype-sizeof rktio_sha1_ctx_t)).
+    """
+    size = rffi.sizeof(RKTIO_SHA1_CTX_T)
+    return values.W_Bytes.from_string("\x00" * size)
+
+# rktio_make_sha2_ctx
+@expose("rktio_make_sha2_ctx", [])
+def rktio_make_sha2_ctx():
+    """
+    Allocate a fresh, zero-initialised SHA-2 context and return it
+    as a Pycket bytevector (W_Bytes), exactly like Chez
+    (make-bytevector (ftype-sizeof rktio_sha2_ctx_t)).
+    """
+    size = rffi.sizeof(RKTIO_SHA2_CTX_T)
+    return values.W_Bytes.from_string("\x00" * size)
 
 ###############################################
 ############## process_result #################
