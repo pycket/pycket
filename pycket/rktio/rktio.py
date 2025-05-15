@@ -1,7 +1,7 @@
 from pycket import values
 from pycket import vector as values_vector
 from pycket import values, values_string
-from pycket.prims.expose import expose, expose_val
+from pycket.prims.expose import default, expose, expose_val
 
 from rpython.rlib.rbigint import rbigint
 from rpython.rtyper.lltypesystem import rffi
@@ -229,12 +229,30 @@ def rktio_to_bytes(w_ptr):
     c_char_p = rffi.cast(CCHARP, w_ptr.to_rffi())
 
     # copy the bytes up to the first NUL
-    py_bytes = rffi.charp2str(c_char_p) # -> python str
-    # py_bytes = py_bytes.encode("latin-1")
+    py_bytes = rffi.charp2str(c_char_p)
 
     return values.W_Bytes.from_string(py_bytes)
 
 # rktio_to_bytes_list
+@expose("rktio_to_bytes_list", [W_CCHARPP, default(values.W_Fixnum, values.W_Fixnum.ZERO)])
+def rktio_to_bytes_list(w_ptr, w_len):
+    length = w_len.value
+    ll_tbl = rffi.cast(rffi.CCHARPP, w_ptr.to_rffi())
+
+    if length == 0:
+        tmp = 0
+        while ll_tbl[tmp]:
+            tmp += 1
+        length = tmp
+
+    elems = [None] * length
+    for i in range(length):
+        c_str   = ll_tbl[i]
+        py_str  = rffi.charp2str(c_str)
+        elems[i] = values.W_Bytes.from_string(py_str)
+        rffi.free_charp(c_str)
+
+    return values.to_list(elems)
 
 # rktio_to_shorts
 @expose("rktio_to_shorts", [W_R_PTR])
@@ -252,10 +270,10 @@ def rktio_to_shorts(w_ptr):
     while True:
         lo = ord(c_char_p[offset])
         hi = ord(c_char_p[offset + 1])
-        if lo == 0 and hi == 0:          # 16-bit terminator
+        if lo == 0 and hi == 0:
             break
-        sb.append(chr(lo))               # low byte
-        sb.append(chr(hi))               # high byte
+        sb.append(chr(lo))
+        sb.append(chr(hi))
         offset += 2
 
     return values.W_Bytes.from_string(sb.build())
