@@ -31,8 +31,10 @@ from pycket import values, values_string
 from pycket import vector as values_vector
 from pycket.prims.primitive_tables import select_prim_table, make_primitive_table
 from pycket.prims.expose import expose
-from pycket.rktio.types import *
 from pycket.foreign import make_w_pointer_class
+
+from pycket.rktio.types import *
+from pycket.rktio.bootstrap_structs import *
 
 from rpython.rtyper.lltypesystem import rffi
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
@@ -50,13 +52,6 @@ librktio_a = ExternalCompilationInfo(
     libraries=['rktio'],
     library_dirs=[RKTIO_DIR],
 )
-
-# We could make separate opaque pointers for every typedef
-# in the included h files, but that wouldn't give us extra
-# benefit as they will all be opaque to rffi anyways.
-# So we use a generic "any" pointer for all of them.
-R_PTR	= rffi.VOIDP # rffi.COpaquePtr('void *')
-W_R_PTR = make_w_pointer_class('voidp')
 
 # Names (str) of all primitives we expose here
 # Dynamically filled to be usef for primitive-table
@@ -2325,12 +2320,11 @@ def rktio_shell_execute(w_rktio, w_verb, w_target, w_arg, w_dir, w_show_mode):
 	return values.W_Fixnum(res)
 
 
-c_rktio_seconds_to_date = rffi.llexternal('rktio_seconds_to_date', [R_PTR, RKTIO_TIMESTAMP_T, INT, INT], R_PTR, compilation_info=librktio_a)
+c_rktio_seconds_to_date = rffi.llexternal('rktio_seconds_to_date', [R_PTR, RKTIO_TIMESTAMP_T, INT, INT], RKTIO_DATE_PTR, compilation_info=librktio_a)
 
 rktio_str.append("rktio_seconds_to_date")
 
-@expose("rktio_seconds_to_date", [W_R_PTR, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
-def rktio_seconds_to_date(w_rktio, w_seconds, w_nanoseconds, w_get_gmt):
+def w_rktio_seconds_to_date(w_rktio, w_seconds, w_nanoseconds, w_get_gmt):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
@@ -2346,8 +2340,11 @@ def rktio_seconds_to_date(w_rktio, w_seconds, w_nanoseconds, w_get_gmt):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
-	return W_R_PTR(res)
+	# returns RKTIO_DATE_PTR
+	return W_RKTIO_DATE_PTR(res)
+
+expose("rktio_seconds_to_date", [W_R_PTR, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)(w_rktio_seconds_to_date)
+
 
 
 c_rktio_expand_user_tilde = rffi.llexternal('rktio_expand_user_tilde', [R_PTR, RKTIO_CONST_STRING_T], CCHARP, compilation_info=librktio_a)

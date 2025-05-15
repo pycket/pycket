@@ -3,6 +3,15 @@ from pycket.rktio._rktio_bootstrap import *
 
 from rpython.rtyper.lltypesystem import rffi
 
+# We could make separate opaque pointers for every typedef
+# in the included h files, but that wouldn't give us extra
+# benefit as they will all be opaque to rffi anyways.
+# So we use a generic \"any\" pointer for all of them as
+# much as we can.
+R_PTR	= rffi.VOIDP # rffi.COpaquePtr('void *')
+W_R_PTR = make_w_pointer_class('voidp')
+
+
 ###############################################
 ############## used struct-types ##############
 ###############################################
@@ -12,6 +21,12 @@ from rpython.rtyper.lltypesystem import rffi
 # rffi.CStruct for them, because it'll expose functions
 # (as part of the bootstrap layer) that dereference some
 # of the fields of these.
+
+RKTIO_PROCESS_T_PTR     = R_PTR
+W_RKTIO_PROCESS_T_PTR   = W_R_PTR
+RKTIO_FD_T_PTR          = R_PTR
+w_RKTIO_FD_T_PTR        = W_R_PTR
+
 
 # str: (struct_type, struct_ptr_type, w_struct_ptr_type)
 STRUCT_RFFI_TYPES = {}

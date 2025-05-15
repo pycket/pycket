@@ -67,6 +67,8 @@
     "INTPTR_T"		      w_fixnum
     "CCHARP"		      w_ccharp
     "CCHARPP"		      w_ccharpp
+
+    "RKTIO_DATE_PTR"	      "W_RKTIO_DATE_PTR"
 ))
 
 ;; { rktio : rffi }
@@ -77,13 +79,30 @@
 
 (define constants (make-hash))
 
+;; A set of function names to be explicitly exposed, i.e.
+;; not with @expose decorator, but with an explicit call
+;; to the expose function, because some other function
+;; somewhere in pycket wants to be able to call that
+;; internally (without worrying about passing env, cont, etc)
+(define EXPOSE-EXPLICIT
+  (set 'rktio_seconds_to_date))
+
 ;; Bootstrap needs to be able to convert ref/ref*
 ;; There are some specific items (e.g. (ref rktio_t) -> RKTIO_T_PTR
 ;; And there are stuff like (ref (ref char))
+;; FIXME: massive refactor needed
 (define (lower-type rktio-type)
   (match rktio-type
 	[`(,(or 'ref '*ref) char) "CCHARP"]
 	[`(,(or 'ref '*ref) (,(or 'ref '*ref) char)) "CCHARPP"]
+	;; We keep using a generic pointer (void *) on rffi
+	;; for most of the structures. However, some structs
+	;; require special treatment, as they're used (i.e.
+	;; casted back and forth) in primitives in the rktio
+	;; connector layer.
+	[`(,(or 'ref '*ref) rktio_date_t) "RKTIO_DATE_PTR"]
+
+	;; Generic pointer is R_PTR on rffi (and W_R_PTR on Pycket)
 	[`(,(or 'ref '*ref) ,t) "R_PTR"]
 	[`(,(or 'ref '*ref) (,(or 'ref '*ref) ,t)) "R_PTR" #;(format "ARR_PTR(~a)" (lower-type `(ref ,t)))]
 	[`(,(or 'ref '*ref)
@@ -181,6 +200,41 @@ def ~a(~a):
 
 ~a")
 
+      (define expose-explicit-py-fun-err-template
+	;; def w_name(w_args ...):
+	;;   <convert w_args to r_args>
+	;;
+	;;   res = c_name(r_args...)
+	;;
+	;;   if res == <err_value>:
+	;;       elems = [
+	;;                values.W_Fixnum((c_rktio_get_last_error_kind name)),
+	;;                values.W_Fixnum((c_rktio_get_last_error name)),
+	;;                # values.W_Fixnum((c_rktio_get_last_error_step name)),
+	;;                ]
+	;;       return values_vector.W_Vector.fromelements(elems)
+	;;
+	;;   return <convert res to w_ret_type>
+	;;
+	;;expose(name, [W_Args...], simple=True)(w_name)
+	"
+~a
+
+rktio_str.append(\"~a\")
+
+def w_~a(~a):
+~a
+\n\tres = c_~a(~a)
+
+\tif ~a:
+\t\telems = [c_rktio_get_last_error_kind(~a), c_rktio_get_last_error(~a)]
+\t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
+
+~a
+
+expose(\"~a\", [~a], simple=True)(w_~a)
+")
+
       (define expose-py-fun-err-template
 	;; @expose(name, [W_Args...], simple=True)
 	;; def name(w_args ...):
@@ -250,6 +304,7 @@ def ~a(~a):
 	  [(or (equal? r_type "R_PTR")
 	       (equal? r_type "CCHARP")
 	       (equal? r_type "CCHARPP")
+	       (equal? r_type "W_RKTIO_DATE_PTR")
 	       )
 	   (format "~a = rffi.cast(~a, ~a.to_rffi())"
 		   r_name r_type w_name)]
@@ -355,12 +410,13 @@ def ~a(~a):
 	  [(or (equal? r-ret-type "UNSIGNED")
 	       (equal? r-ret-type "UNSIGNED_8")
 	       (equal? r-ret-type "UINTPTR_T"))
-	   (format "\t# returs ~a\n\treturn num(intmask(res))" r-ret-type)]
+	   (format "\t# returns ~a\n\treturn num(intmask(res))" r-ret-type)]
 	  [(or (equal? w-ret-type w_fixnum)
 	       (equal? w-ret-type w_flonum)
 	       (equal? w-ret-type "W_R_PTR")
 	       (equal? w-ret-type "W_CCHARP")
-	       (equal? w-ret-type "W_CCHARPP"))
+	       (equal? w-ret-type "W_CCHARPP")
+	       (equal? w-ret-type "W_RKTIO_DATE_PTR"))
 	   (format "\t# returns ~a\n\treturn ~a(res)" r-ret-type w-ret-type)]
 	  [else (error 'return-line
 		       (format "unhandled w-ret-type: ~a" w-ret-type))]))
@@ -397,7 +453,18 @@ def ~a(~a):
 	      (process-args (def-fun-err-args-list fn))])
 	    (let ([llexternal-lines
 		    (llexternal-block name r_arg_types r_ret_type)])
-	      (format expose-py-fun-err-template
+	      (if (set-member? EXPOSE-EXPLICIT name)
+		  (format expose-explicit-py-fun-err-template
+			  llexternal-lines
+			  name
+			  name w_arg_names
+			  r_arg_defns
+			  name r_arg_names
+			  (err-val-check err-v) first_r_arg_name first_r_arg_name
+			  w_ret_line
+			  name w_arg_types name
+			  )
+		  (format expose-py-fun-err-template
 		      llexternal-lines
 		      name
 		      name w_arg_types
@@ -405,7 +472,7 @@ def ~a(~a):
 		      r_arg_defns
 		      name r_arg_names
 		      (err-val-check err-v) first_r_arg_name first_r_arg_name
-		      w_ret_line)))))
+		      w_ret_line))))))
 
       (define (fn/err/step-to-py-expose fn)
 	(let ([name (def-fun-err-name fn)]
@@ -477,8 +544,10 @@ from pycket import values, values_string
 from pycket import vector as values_vector
 from pycket.prims.primitive_tables import select_prim_table, make_primitive_table
 from pycket.prims.expose import expose
-from pycket.rktio.types import *
 from pycket.foreign import make_w_pointer_class
+
+from pycket.rktio.types import *
+from pycket.rktio.bootstrap_structs import *
 
 from rpython.rtyper.lltypesystem import rffi
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
@@ -497,13 +566,6 @@ librktio_a = ExternalCompilationInfo(
     library_dirs=[RKTIO_DIR],
 )
 
-# We could make separate opaque pointers for every typedef
-# in the included h files, but that wouldn't give us extra
-# benefit as they will all be opaque to rffi anyways.
-# So we use a generic \"any\" pointer for all of them.
-R_PTR	= rffi.VOIDP # rffi.COpaquePtr('void *')
-W_R_PTR = make_w_pointer_class('voidp')
-
 # Names (str) of all primitives we expose here
 # Dynamically filled to be usef for primitive-table
 rktio_str = []
@@ -516,8 +578,8 @@ rktio_str = []
 	  (emit "\n~a = ~a"
 		const-name const-val)))
 
-      (printf "\n\n\n# Struct pointers\n")
-      (hash-for-each
+      #;(printf "\n\n\n# Struct pointers\n")
+      #;(hash-for-each
 	type:struct-ptrs
 	(lambda (rktio-type rffi-type) 
 	  (emit "\n~a = rffi.COpaquePtr(\"~a\")\n" rffi-type rktio-type)
