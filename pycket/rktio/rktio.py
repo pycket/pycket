@@ -412,10 +412,16 @@ def rktio_pipe_results(w_res_ptr):
     return values.Values.make([w_fd0, w_fd1])
 
 # rktio_do_install_os_signal_handler
-@expose("rktio_do_install_os_signal_handler", [W_R_PTR], [])
+@expose("rktio_do_install_os_signal_handler", [W_R_PTR])
 def rktio_do_install_os_signal_handler(w_rktio):
     c_rktio_install_os_signal_handler(w_rktio.to_rffi())
     return values.w_void
 
 # rktio_get_ctl_c_handler
+@expose("rktio_get_ctl_c_handler", [])
+def rktio_get_ctl_c_handler():
+    """
+    This is how it's defined in src/io/host/bootstrap-rktio.rkt
+    """
+    return values.w_void
 
