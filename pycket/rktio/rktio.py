@@ -392,8 +392,30 @@ def rktio_status_result(w_stat_ptr):
     return _wrap_int(r_stat_ptr.result)
 
 # rktio_pipe_results
+@expose("rktio_pipe_results", [W_R_PTR])
+def rktio_pipe_results(w_res_ptr):
+    """
+    The only indication on what this does to me is
+    what I see in io.sls for Chez.
+    Looks like there're two (pointer) values back to back
+    in the pointer we dereference (I'm guessing file
+    descriptor pointers for in and out).
+
+    We return them as two values
+    (opaque file-descriptor pointers).
+    """
+    arr = rffi.cast(rffi.VOIDPP, w_res_ptr.to_rffi())
+
+    w_fd0 = W_RKTIO_FD_T_PTR(arr[0])
+    w_fd1 = W_RKTIO_FD_T_PTR(arr[1])
+
+    return values.Values.make([w_fd0, w_fd1])
 
 # rktio_do_install_os_signal_handler
+@expose("rktio_do_install_os_signal_handler", [W_R_PTR], [])
+def rktio_do_install_os_signal_handler(w_rktio):
+    c_rktio_install_os_signal_handler(w_rktio.to_rffi())
+    return values.w_void
 
 # rktio_get_ctl_c_handler
 
