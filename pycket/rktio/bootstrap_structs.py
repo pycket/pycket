@@ -25,7 +25,7 @@ W_R_PTR = make_w_pointer_class('voidp')
 RKTIO_PROCESS_T_PTR     = R_PTR
 W_RKTIO_PROCESS_T_PTR   = W_R_PTR
 RKTIO_FD_T_PTR          = R_PTR
-w_RKTIO_FD_T_PTR        = W_R_PTR
+W_RKTIO_FD_T_PTR        = W_R_PTR
 
 
 # str: (struct_type, struct_ptr_type, w_struct_ptr_type)

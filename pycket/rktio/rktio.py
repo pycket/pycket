@@ -378,6 +378,22 @@ def rktio_process_result_process(res_ptr):
 
 ###############################################
 ###############################################
-###############################################
 
+# rktio_status_running
+@expose("rktio_status_running", [W_RKTIO_STATUS_PTR])
+def rktio_status_running(w_stat_ptr):
+    r_stat_ptr = rffi.cast(RKTIO_STATUS_PTR, w_stat_ptr.to_rffi())
+    return values.W_Bool.make(r_stat_ptr.running == 1)
+
+# rktio_status_result
+@expose("rktio_status_result", [W_RKTIO_STATUS_PTR])
+def rktio_status_result(w_stat_ptr):
+    r_stat_ptr = rffi.cast(RKTIO_STATUS_PTR, w_stat_ptr.to_rffi())
+    return _wrap_int(r_stat_ptr.result)
+
+# rktio_pipe_results
+
+# rktio_do_install_os_signal_handler
+
+# rktio_get_ctl_c_handler
 
