@@ -66,17 +66,23 @@ COMPILER_SIZEOF = unroll.unrolling_iterable([
     (sym("wchar"  ) , rffi.sizeof(rffi.WCHAR_T))
     ])
 
-del sym
+CTYPES = {}
 
 def expose_ctype(name, size, alignment, *extra_names):
-    basetype = values.W_Symbol.make(name)
+    basetype = sym(name)
     ctype    = W_PrimitiveCType(basetype, size, alignment)
-    expose_val("_" + name, ctype)
+
+    exposed_name_str = "_" + name
+    CTYPES[exposed_name_str] = ctype
+
+    expose_val(exposed_name_str, ctype, check_alr_defined=False)
     for name in extra_names:
-        expose_val("_" + name, ctype)
+        expose_val(exposed_name_str, ctype, check_alr_defined=False)
 
 for spec in PRIMITIVE_CTYPES:
     expose_ctype(*spec)
+
+del sym
 
 @expose("make-ctype", [W_CType, values.W_Object, values.W_Object])
 def make_c_type(ctype, rtc, ctr):

@@ -375,7 +375,7 @@ def make_callable_label(argstypes=None, arity=None, name="<label>"):
     return wrapper
 
 
-def expose_val(name, w_v, only_old=False):
+def expose_val(name, w_v, only_old=False, check_alr_defined=True):
     from pycket import values
     from pycket.env import w_global_config as glob
 
@@ -383,8 +383,8 @@ def expose_val(name, w_v, only_old=False):
         return
 
     sym = values.W_Symbol.make(name)
-    if sym in prim_env and prim_env[sym].is_implemented():
-        raise Error("name %s already defined" % name)
+    if check_alr_defined and sym in prim_env and prim_env[sym].is_implemented():
+        raise SchemeException("name %s already defined" % name)
     prim_env[sym] = w_v
 
 def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):

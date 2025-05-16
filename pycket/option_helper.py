@@ -56,6 +56,7 @@ def print_help(argv):
 
 Dev options:
   --dev                              : Flag to be used in development, behavior unspecified
+  --feature-flag                     : Feature flag to use during development, requires argument.
   --load-linklets                    : loads the given .linklet files at boot and makes their functions ready at runtime
   --load-as-linklets                 : for every given .rkt file, creates a .linklet file and load it into the runtime
   --eval-linklet                     : puts the given expression in a linklet and evaluates over empty target
@@ -106,6 +107,7 @@ meta_opts = ["--make-linklet-zos",
              "--jit",
              "-h", "--help"]
 dev_opts = ["--dev",
+            "--feature-flag",
             "--load-linklets",
             "--load-as-linklets",
             "--eval-linklet",
@@ -132,6 +134,7 @@ config = {
     'verbose' : False,
     'just-init' : False,
     'dev-mode' : False,
+    'feature-flag': False,
     'use-compiled' : True,
     'compile-machine-independent' : False,
     'no-regexp' : False,
@@ -385,6 +388,12 @@ def parse_args(argv):
                     add_name(names, 'verbosity_keywords', vl)
                 else:
                     add_name(names, 'verbosity_level', vl, replace=True)
+                i += 1
+
+        elif argv[i] == "--feature-flag":
+            config['feature-flag'] = True
+            if to > 1 and argv[i+1] not in all_opts:
+                add_name(names, 'feature_flag', argv[i+1])
                 i += 1
 
         elif argv[i] == "--dev":
