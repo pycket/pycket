@@ -278,8 +278,49 @@ def rktio_to_shorts(w_ptr):
 
     return values.W_Bytes.from_string(sb.build())
 
+CCHARP_ARRAY = lltype.Array(rffi.CCHARP, hints={'nolength': True})
+
 # rktio_from_bytes_list
+@expose("rktio_from_bytes_list", [values.W_Object])
+def rktio_from_bytes_list(w_lst):
+    elems   = []
+    curr    = w_lst
+    while curr is not values.w_null:
+        elems.append(curr.car()) # each must be W_Bytes
+        curr = curr.cdr()
+
+    length = len(elems)
+
+    tbl = lltype.malloc(CCHARP_ARRAY, length, flavor='raw')
+
+    for i in range(length):
+        w_bstr = elems[i] # W_Bytes
+        py_str = w_bstr.as_str()
+        tbl[i] = rffi.str2charp(py_str)
+
+    # The caller must remember `length` and pass it to rktio_free_bytes_list.
+    return W_CCHARPP(rffi.cast(rffi.CCHARPP, tbl))
+
 # rktio_free_bytes_list
+@expose("rktio_free_bytes_list", [W_CCHARPP, values.W_Fixnum])
+def rktio_free_bytes_list(w_ptr, w_len):
+    """
+    Free a table previously created by `rktio_from_bytes_list`.
+    """
+    length = w_len.value
+    ll_tbl = rffi.cast(rffi.CCHARPP, w_ptr.to_rffi())
+
+    i = 0
+    while True:
+        if length and i >= length:
+            break
+        c_str = ll_tbl[i]
+        if not c_str:
+            break
+        rffi.free_charp(c_str)
+        i += 1
+
+    lltype.free(rffi.cast(R_PTR, ll_tbl), flavor='raw')
 
 # rktio_make_sha1_ctx
 @expose("rktio_make_sha1_ctx", [])
