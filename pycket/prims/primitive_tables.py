@@ -3,12 +3,14 @@ from pycket.prims.expose import define_nyi, prim_env, expose
 
 DEBUG = False
 
+sym = W_Symbol.make
+
 # make_primitive_table takes a list of string
 # and turns that into a list of W_Symbol
 def make_primitive_table(ls_str):
     table = [None] * len(ls_str)
     for i, exposed_id in enumerate(ls_str):
-        table[i] = W_Symbol.make(exposed_id)
+        table[i] = sym(exposed_id)
 
     return table
 
@@ -680,6 +682,36 @@ pthread_str = [
     "engine-block"
 ]
 
+rktio_str = [
+    "rktio_NULL",
+    "rktio_filesize_ref",
+    "rktio_timestamp_ref",
+    "rktio_is_timestamp",
+    "rktio_recv_length_ref",
+    "rktio_recv_address_ref",
+    "rktio_stat_to_vector",
+    "rktio_identity_to_vector",
+    "rktio_seconds_to_date*",
+    "rktio_convert_result_to_vector",
+    "rktio_to_bytes",
+    "rktio_to_bytes_list",
+    "rktio_to_shorts",
+    "rktio_from_bytes_list",
+    "rktio_free_bytes_list",
+    "rktio_make_sha1_ctx",
+    "rktio_make_sha2_ctx",
+    "rktio_process_result_stdin_fd",
+    "rktio_process_result_stdout_fd",
+    "rktio_process_result_stderr_fd",
+    "rktio_process_result_process",
+    "rktio_status_running",
+    "rktio_status_result",
+    "rktio_pipe_results",
+    "rktio_do_install_os_signal_handler",
+    "rktio_get_ctl_c_handler"
+]
+
+
 # The reason for make_primitive_table is for turning these into list
 # of symbols (to avoid making new objects everytime we look things up)
 
@@ -698,23 +730,31 @@ pycket = make_primitive_table(pycket_extra_str + schemify_hooks)
 terminal = make_primitive_table(terminal_table)
 pthread = make_primitive_table(pthread_str)
 thread = make_primitive_table(thread_str)
+rktio = make_primitive_table(rktio_str)
 
 select_prim_table = {
-    W_Symbol.make("#%linklet"): linklet,
-    W_Symbol.make("#%kernel"): kernel,
-    W_Symbol.make("#%paramz"): paramz,
-    W_Symbol.make("#%unsafe"): unsafe,
-    W_Symbol.make("#%foreign"): foreign,
-    W_Symbol.make("#%futures"): futures,
-    W_Symbol.make("#%place"): place,
-    W_Symbol.make("#%flfxnum"): flfxnum,
-    W_Symbol.make("#%extfl"): extfl,
-    W_Symbol.make("#%pycket"): pycket,
-    W_Symbol.make("#%network"): network,
-    W_Symbol.make("#%terminal"): terminal,
-    W_Symbol.make("#%pthread"): pthread,
-    W_Symbol.make("#%thread"): thread,
+    sym("#%linklet"): linklet,
+    sym("#%kernel"): kernel,
+    sym("#%paramz"): paramz,
+    sym("#%unsafe"): unsafe,
+    sym("#%foreign"): foreign,
+    sym("#%futures"): futures,
+    sym("#%place"): place,
+    sym("#%flfxnum"): flfxnum,
+    sym("#%extfl"): extfl,
+    sym("#%pycket"): pycket,
+    sym("#%network"): network,
+    sym("#%terminal"): terminal,
+    sym("#%pthread"): pthread,
+    sym("#%thread"): thread,
+    sym("#%rktio"): rktio,
 }
+
+def append_to_prim_table(table_name_str, prim_name_str):
+    select_prim_table[sym(table_name_str)].append(sym(prim_name_str))
+
+def add_prim_to_rktio(prim_name_str):
+    append_to_prim_table("#%rktio", prim_name_str)
 
 # Lists of actual functions indexed by the names above
 prim_table_cache = {}
@@ -733,7 +773,8 @@ ALL_PRIMS = linklet_str + \
     network_str + \
     terminal_table + \
     pthread_str + \
-    thread_str
+    thread_str + \
+    rktio_str
 
 if DEBUG:
     print("\n\nPriming all primitives in :\n")
@@ -801,7 +842,7 @@ def get_undef_prims_in(table):
     from pycket.values import W_Symbol, W_Prim
     ls = []
     for name in table:
-        p = prim_env[W_Symbol.make(name)]
+        p = prim_env[sym(name)]
         if isinstance(p, W_Prim) and not p.is_implemented():
             ls.append(name)
     return ls

@@ -6,7 +6,7 @@
 
 """
 
-Loads the librktio static library using rffi and provides #%rktio module in Pycket runtime.
+Loads the librktio static library using rffi and provides primitives saved in #%rktio module in Pycket runtime.
 
 Defines, registers, and exposes pycket wrappers for all the librktio primitives in rktio.rktl.
 
@@ -20,7 +20,7 @@ Uses opaque pointers for all the other structs that the rktio functions referenc
 See bootstrap-rktio-pycket.rkt for type mappings: rktio -> Pycket.
 See types.py for type mappings between Pycket -> rffi.
 
-At the bottom it adds all the exposed functions to the #%rktio module in the select_prim_table, which is how Pycket loads the primitive tables.
+At each primitive definition, it adds the exposed function to the #%rktio module in the select_prim_table, which is how Pycket loads the primitive tables.
 
 """
 
@@ -29,9 +29,8 @@ import os
 
 from pycket import values, values_string
 from pycket import vector as values_vector
-from pycket.prims.primitive_tables import select_prim_table, make_primitive_table
+from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
-from pycket.foreign import make_w_pointer_class
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *
@@ -52,10 +51,6 @@ librktio_a = ExternalCompilationInfo(
     libraries=['rktio'],
     library_dirs=[RKTIO_DIR],
 )
-
-# Names (str) of all primitives we expose here
-# Dynamically filled to be usef for primitive-table
-rktio_str = []
 
 
 # Constants 
@@ -223,7 +218,7 @@ RKTIO_SHUTDOWN_WRITE = 1
 
 c_rktio_get_error_string = rffi.llexternal('rktio_get_error_string', [R_PTR, INT, INT], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_error_string")
+add_prim_to_rktio("rktio_get_error_string")
 
 @expose("rktio_get_error_string", [W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_get_error_string(w_rktio, w_kind, w_errid):
@@ -242,7 +237,7 @@ def rktio_get_error_string(w_rktio, w_kind, w_errid):
 
 c_rktio_get_last_error_string = rffi.llexternal('rktio_get_last_error_string', [R_PTR], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_last_error_string")
+add_prim_to_rktio("rktio_get_last_error_string")
 
 @expose("rktio_get_last_error_string", [W_R_PTR], simple=True)
 def rktio_get_last_error_string(w_rktio):
@@ -257,7 +252,7 @@ def rktio_get_last_error_string(w_rktio):
 
 c_rktio_remap_last_error = rffi.llexternal('rktio_remap_last_error', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_remap_last_error")
+add_prim_to_rktio("rktio_remap_last_error")
 
 @expose("rktio_remap_last_error", [W_R_PTR], simple=True)
 def rktio_remap_last_error(w_rktio):
@@ -272,7 +267,7 @@ def rktio_remap_last_error(w_rktio):
 
 c_rktio_set_last_error_step = rffi.llexternal('rktio_set_last_error_step', [R_PTR, INT], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_last_error_step")
+add_prim_to_rktio("rktio_set_last_error_step")
 
 @expose("rktio_set_last_error_step", [W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_set_last_error_step(w_rktio, w_step):
@@ -289,7 +284,7 @@ def rktio_set_last_error_step(w_rktio, w_step):
 
 c_rktio_set_last_error = rffi.llexternal('rktio_set_last_error', [R_PTR, INT, INT], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_last_error")
+add_prim_to_rktio("rktio_set_last_error")
 
 @expose("rktio_set_last_error", [W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_set_last_error(w_rktio, w_kind, w_errid):
@@ -308,7 +303,7 @@ def rktio_set_last_error(w_rktio, w_kind, w_errid):
 
 c_rktio_get_last_error_step = rffi.llexternal('rktio_get_last_error_step', [R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_last_error_step")
+add_prim_to_rktio("rktio_get_last_error_step")
 
 @expose("rktio_get_last_error_step", [W_R_PTR], simple=True)
 def rktio_get_last_error_step(w_rktio):
@@ -323,7 +318,7 @@ def rktio_get_last_error_step(w_rktio):
 
 c_rktio_get_last_error = rffi.llexternal('rktio_get_last_error', [R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_last_error")
+add_prim_to_rktio("rktio_get_last_error")
 
 @expose("rktio_get_last_error", [W_R_PTR], simple=True)
 def rktio_get_last_error(w_rktio):
@@ -338,7 +333,7 @@ def rktio_get_last_error(w_rktio):
 
 c_rktio_get_last_error_kind = rffi.llexternal('rktio_get_last_error_kind', [R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_last_error_kind")
+add_prim_to_rktio("rktio_get_last_error_kind")
 
 @expose("rktio_get_last_error_kind", [W_R_PTR], simple=True)
 def rktio_get_last_error_kind(w_rktio):
@@ -353,7 +348,7 @@ def rktio_get_last_error_kind(w_rktio):
 
 c_rktio_set_dll_procs = rffi.llexternal('rktio_set_dll_procs', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_dll_procs")
+add_prim_to_rktio("rktio_set_dll_procs")
 
 @expose("rktio_set_dll_procs", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
 def rktio_set_dll_procs(w_dll_open, w_dll_find_object, w_dll_close):
@@ -372,7 +367,7 @@ def rktio_set_dll_procs(w_dll_open, w_dll_find_object, w_dll_close):
 
 c_rktio_sha2_final = rffi.llexternal('rktio_sha2_final', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_sha2_final")
+add_prim_to_rktio("rktio_sha2_final")
 
 @expose("rktio_sha2_final", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_sha2_final(w_ctx, w_digest):
@@ -389,7 +384,7 @@ def rktio_sha2_final(w_ctx, w_digest):
 
 c_rktio_sha2_update = rffi.llexternal('rktio_sha2_update', [R_PTR, R_PTR, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_sha2_update")
+add_prim_to_rktio("rktio_sha2_update")
 
 @expose("rktio_sha2_update", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_sha2_update(w_ctx, w_data, w_start, w_end):
@@ -410,7 +405,7 @@ def rktio_sha2_update(w_ctx, w_data, w_start, w_end):
 
 c_rktio_sha2_init = rffi.llexternal('rktio_sha2_init', [R_PTR, RKTIO_BOOL_T], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_sha2_init")
+add_prim_to_rktio("rktio_sha2_init")
 
 @expose("rktio_sha2_init", [W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_sha2_init(w_ctx, w_is224):
@@ -427,7 +422,7 @@ def rktio_sha2_init(w_ctx, w_is224):
 
 c_rktio_sha1_final = rffi.llexternal('rktio_sha1_final', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_sha1_final")
+add_prim_to_rktio("rktio_sha1_final")
 
 @expose("rktio_sha1_final", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_sha1_final(w_context, w_digest):
@@ -444,7 +439,7 @@ def rktio_sha1_final(w_context, w_digest):
 
 c_rktio_sha1_update = rffi.llexternal('rktio_sha1_update', [R_PTR, R_PTR, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_sha1_update")
+add_prim_to_rktio("rktio_sha1_update")
 
 @expose("rktio_sha1_update", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_sha1_update(w_context, w_data, w_start, w_end):
@@ -465,7 +460,7 @@ def rktio_sha1_update(w_context, w_data, w_start, w_end):
 
 c_rktio_sha1_init = rffi.llexternal('rktio_sha1_init', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_sha1_init")
+add_prim_to_rktio("rktio_sha1_init")
 
 @expose("rktio_sha1_init", [W_R_PTR], simple=True)
 def rktio_sha1_init(w_context):
@@ -480,7 +475,7 @@ def rktio_sha1_init(w_context):
 
 c_rktio_pop_c_numeric_locale = rffi.llexternal('rktio_pop_c_numeric_locale', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_pop_c_numeric_locale")
+add_prim_to_rktio("rktio_pop_c_numeric_locale")
 
 @expose("rktio_pop_c_numeric_locale", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_pop_c_numeric_locale(w_rktio, w_prev):
@@ -497,7 +492,7 @@ def rktio_pop_c_numeric_locale(w_rktio, w_prev):
 
 c_rktio_push_c_numeric_locale = rffi.llexternal('rktio_push_c_numeric_locale', [R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_push_c_numeric_locale")
+add_prim_to_rktio("rktio_push_c_numeric_locale")
 
 @expose("rktio_push_c_numeric_locale", [W_R_PTR], simple=True)
 def rktio_push_c_numeric_locale(w_rktio):
@@ -512,7 +507,7 @@ def rktio_push_c_numeric_locale(w_rktio):
 
 c_rktio_set_default_locale = rffi.llexternal('rktio_set_default_locale', [RKTIO_CONST_STRING_T], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_default_locale")
+add_prim_to_rktio("rktio_set_default_locale")
 
 @expose("rktio_set_default_locale", [values_string.W_String], simple=True)
 def rktio_set_default_locale(w_name):
@@ -529,7 +524,7 @@ def rktio_set_default_locale(w_name):
 
 c_rktio_set_locale = rffi.llexternal('rktio_set_locale', [R_PTR, RKTIO_CONST_STRING_T], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_locale")
+add_prim_to_rktio("rktio_set_locale")
 
 @expose("rktio_set_locale", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_set_locale(w_rktio, w_name):
@@ -548,7 +543,7 @@ def rktio_set_locale(w_rktio, w_name):
 
 c_rktio_strcoll_utf16 = rffi.llexternal('rktio_strcoll_utf16', [R_PTR, R_PTR, INTPTR_T, R_PTR, INTPTR_T, RKTIO_BOOL_T], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_strcoll_utf16")
+add_prim_to_rktio("rktio_strcoll_utf16")
 
 @expose("rktio_strcoll_utf16", [W_R_PTR, W_R_PTR, values.W_Fixnum, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_strcoll_utf16(w_rktio, w_s1, w_l1, w_s2, w_l2, w_cvt_case):
@@ -573,7 +568,7 @@ def rktio_strcoll_utf16(w_rktio, w_s1, w_l1, w_s2, w_l2, w_cvt_case):
 
 c_rktio_locale_strcoll = rffi.llexternal('rktio_locale_strcoll', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_locale_strcoll")
+add_prim_to_rktio("rktio_locale_strcoll")
 
 @expose("rktio_locale_strcoll", [W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
 def rktio_locale_strcoll(w_rktio, w_s1, w_s2):
@@ -596,7 +591,7 @@ def rktio_locale_strcoll(w_rktio, w_s1, w_s2):
 
 c_rktio_recase_utf16 = rffi.llexternal('rktio_recase_utf16', [R_PTR, RKTIO_BOOL_T, R_PTR, INTPTR_T, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_recase_utf16")
+add_prim_to_rktio("rktio_recase_utf16")
 
 @expose("rktio_recase_utf16", [W_R_PTR, values.W_Fixnum, W_R_PTR, values.W_Fixnum, W_R_PTR], simple=True)
 def rktio_recase_utf16(w_rktio, w_to_up, w_s1, w_len, w_olen):
@@ -619,7 +614,7 @@ def rktio_recase_utf16(w_rktio, w_to_up, w_s1, w_len, w_olen):
 
 c_rktio_locale_recase = rffi.llexternal('rktio_locale_recase', [R_PTR, RKTIO_BOOL_T, RKTIO_CONST_STRING_T], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_locale_recase")
+add_prim_to_rktio("rktio_locale_recase")
 
 @expose("rktio_locale_recase", [W_R_PTR, values.W_Fixnum, values_string.W_String], simple=True)
 def rktio_locale_recase(w_rktio, w_to_up, w_in):
@@ -640,7 +635,7 @@ def rktio_locale_recase(w_rktio, w_to_up, w_in):
 
 c_rktio_convert_reset = rffi.llexternal('rktio_convert_reset', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_convert_reset")
+add_prim_to_rktio("rktio_convert_reset")
 
 @expose("rktio_convert_reset", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_convert_reset(w_rktio, w_cvt):
@@ -657,7 +652,7 @@ def rktio_convert_reset(w_rktio, w_cvt):
 
 c_rktio_converter_close = rffi.llexternal('rktio_converter_close', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_converter_close")
+add_prim_to_rktio("rktio_converter_close")
 
 @expose("rktio_converter_close", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_converter_close(w_rktio, w_cvt):
@@ -674,7 +669,7 @@ def rktio_converter_close(w_rktio, w_cvt):
 
 c_rktio_convert_properties = rffi.llexternal('rktio_convert_properties', [R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_convert_properties")
+add_prim_to_rktio("rktio_convert_properties")
 
 @expose("rktio_convert_properties", [W_R_PTR], simple=True)
 def rktio_convert_properties(w_rktio):
@@ -689,7 +684,7 @@ def rktio_convert_properties(w_rktio):
 
 c_rktio_processor_count = rffi.llexternal('rktio_processor_count', [R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_processor_count")
+add_prim_to_rktio("rktio_processor_count")
 
 @expose("rktio_processor_count", [W_R_PTR], simple=True)
 def rktio_processor_count(w_rktio):
@@ -704,7 +699,7 @@ def rktio_processor_count(w_rktio):
 
 c_rktio_wide_path_to_path = rffi.llexternal('rktio_wide_path_to_path', [R_PTR, R_PTR], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_wide_path_to_path")
+add_prim_to_rktio("rktio_wide_path_to_path")
 
 @expose("rktio_wide_path_to_path", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_wide_path_to_path(w_rktio, w_wp):
@@ -721,7 +716,7 @@ def rktio_wide_path_to_path(w_rktio, w_wp):
 
 c_rktio_get_seconds = rffi.llexternal('rktio_get_seconds', [R_PTR], RKTIO_TIMESTAMP_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_seconds")
+add_prim_to_rktio("rktio_get_seconds")
 
 @expose("rktio_get_seconds", [W_R_PTR], simple=True)
 def rktio_get_seconds(w_rktio):
@@ -736,7 +731,7 @@ def rktio_get_seconds(w_rktio):
 
 c_rktio_get_process_children_milliseconds = rffi.llexternal('rktio_get_process_children_milliseconds', [R_PTR], UINTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_process_children_milliseconds")
+add_prim_to_rktio("rktio_get_process_children_milliseconds")
 
 @expose("rktio_get_process_children_milliseconds", [W_R_PTR], simple=True)
 def rktio_get_process_children_milliseconds(w_rktio):
@@ -751,7 +746,7 @@ def rktio_get_process_children_milliseconds(w_rktio):
 
 c_rktio_get_process_milliseconds = rffi.llexternal('rktio_get_process_milliseconds', [R_PTR], UINTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_process_milliseconds")
+add_prim_to_rktio("rktio_get_process_milliseconds")
 
 @expose("rktio_get_process_milliseconds", [W_R_PTR], simple=True)
 def rktio_get_process_milliseconds(w_rktio):
@@ -766,7 +761,7 @@ def rktio_get_process_milliseconds(w_rktio):
 
 c_rktio_get_inexact_monotonic_milliseconds = rffi.llexternal('rktio_get_inexact_monotonic_milliseconds', [R_PTR], DOUBLE, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_inexact_monotonic_milliseconds")
+add_prim_to_rktio("rktio_get_inexact_monotonic_milliseconds")
 
 @expose("rktio_get_inexact_monotonic_milliseconds", [W_R_PTR], simple=True)
 def rktio_get_inexact_monotonic_milliseconds(w_rktio):
@@ -781,7 +776,7 @@ def rktio_get_inexact_monotonic_milliseconds(w_rktio):
 
 c_rktio_get_inexact_milliseconds = rffi.llexternal('rktio_get_inexact_milliseconds', [], DOUBLE, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_inexact_milliseconds")
+add_prim_to_rktio("rktio_get_inexact_milliseconds")
 
 @expose("rktio_get_inexact_milliseconds", [], simple=True)
 def rktio_get_inexact_milliseconds():
@@ -795,7 +790,7 @@ def rktio_get_inexact_milliseconds():
 
 c_rktio_get_milliseconds = rffi.llexternal('rktio_get_milliseconds', [], UINTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_milliseconds")
+add_prim_to_rktio("rktio_get_milliseconds")
 
 @expose("rktio_get_milliseconds", [], simple=True)
 def rktio_get_milliseconds():
@@ -809,7 +804,7 @@ def rktio_get_milliseconds():
 
 c_rktio_will_modify_os_signal_handler = rffi.llexternal('rktio_will_modify_os_signal_handler', [INT], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_will_modify_os_signal_handler")
+add_prim_to_rktio("rktio_will_modify_os_signal_handler")
 
 @expose("rktio_will_modify_os_signal_handler", [values.W_Fixnum], simple=True)
 def rktio_will_modify_os_signal_handler(w_sig_id):
@@ -824,7 +819,7 @@ def rktio_will_modify_os_signal_handler(w_sig_id):
 
 c_rktio_poll_os_signal = rffi.llexternal('rktio_poll_os_signal', [R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_os_signal")
+add_prim_to_rktio("rktio_poll_os_signal")
 
 @expose("rktio_poll_os_signal", [W_R_PTR], simple=True)
 def rktio_poll_os_signal(w_rktio):
@@ -839,7 +834,7 @@ def rktio_poll_os_signal(w_rktio):
 
 c_rktio_install_os_signal_handler = rffi.llexternal('rktio_install_os_signal_handler', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_install_os_signal_handler")
+add_prim_to_rktio("rktio_install_os_signal_handler")
 
 @expose("rktio_install_os_signal_handler", [W_R_PTR], simple=True)
 def rktio_install_os_signal_handler(w_rktio):
@@ -854,7 +849,7 @@ def rktio_install_os_signal_handler(w_rktio):
 
 c_rktio_flush_signals_received = rffi.llexternal('rktio_flush_signals_received', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_flush_signals_received")
+add_prim_to_rktio("rktio_flush_signals_received")
 
 @expose("rktio_flush_signals_received", [W_R_PTR], simple=True)
 def rktio_flush_signals_received(w_rktio):
@@ -869,7 +864,7 @@ def rktio_flush_signals_received(w_rktio):
 
 c_rktio_wait_until_signal_received = rffi.llexternal('rktio_wait_until_signal_received', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_wait_until_signal_received")
+add_prim_to_rktio("rktio_wait_until_signal_received")
 
 @expose("rktio_wait_until_signal_received", [W_R_PTR], simple=True)
 def rktio_wait_until_signal_received(w_rktio):
@@ -884,7 +879,7 @@ def rktio_wait_until_signal_received(w_rktio):
 
 c_rktio_signal_received = rffi.llexternal('rktio_signal_received', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_signal_received")
+add_prim_to_rktio("rktio_signal_received")
 
 @expose("rktio_signal_received", [W_R_PTR], simple=True)
 def rktio_signal_received(w_rktio):
@@ -899,7 +894,7 @@ def rktio_signal_received(w_rktio):
 
 c_rktio_signal_received_at = rffi.llexternal('rktio_signal_received_at', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_signal_received_at")
+add_prim_to_rktio("rktio_signal_received_at")
 
 @expose("rktio_signal_received_at", [W_R_PTR], simple=True)
 def rktio_signal_received_at(w_h):
@@ -914,7 +909,7 @@ def rktio_signal_received_at(w_h):
 
 c_rktio_get_signal_handle = rffi.llexternal('rktio_get_signal_handle', [R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_signal_handle")
+add_prim_to_rktio("rktio_get_signal_handle")
 
 @expose("rktio_get_signal_handle", [W_R_PTR], simple=True)
 def rktio_get_signal_handle(w_rktio):
@@ -929,7 +924,7 @@ def rktio_get_signal_handle(w_rktio):
 
 c_rktio_uname = rffi.llexternal('rktio_uname', [R_PTR], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_uname")
+add_prim_to_rktio("rktio_uname")
 
 @expose("rktio_uname", [W_R_PTR], simple=True)
 def rktio_uname(w_rktio):
@@ -944,7 +939,7 @@ def rktio_uname(w_rktio):
 
 c_rktio_copy_file_stop = rffi.llexternal('rktio_copy_file_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_copy_file_stop")
+add_prim_to_rktio("rktio_copy_file_stop")
 
 @expose("rktio_copy_file_stop", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_copy_file_stop(w_rktio, w_fc):
@@ -961,7 +956,7 @@ def rktio_copy_file_stop(w_rktio, w_fc):
 
 c_rktio_copy_file_is_done = rffi.llexternal('rktio_copy_file_is_done', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_copy_file_is_done")
+add_prim_to_rktio("rktio_copy_file_is_done")
 
 @expose("rktio_copy_file_is_done", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_copy_file_is_done(w_rktio, w_fc):
@@ -978,7 +973,7 @@ def rktio_copy_file_is_done(w_rktio, w_fc):
 
 c_rktio_directory_list_stop = rffi.llexternal('rktio_directory_list_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_directory_list_stop")
+add_prim_to_rktio("rktio_directory_list_stop")
 
 @expose("rktio_directory_list_stop", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_directory_list_stop(w_rktio, w_dl):
@@ -995,7 +990,7 @@ def rktio_directory_list_stop(w_rktio, w_dl):
 
 c_rktio_is_regular_file = rffi.llexternal('rktio_is_regular_file', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_is_regular_file")
+add_prim_to_rktio("rktio_is_regular_file")
 
 @expose("rktio_is_regular_file", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_is_regular_file(w_rktio, w_filename):
@@ -1014,7 +1009,7 @@ def rktio_is_regular_file(w_rktio, w_filename):
 
 c_rktio_link_exists = rffi.llexternal('rktio_link_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_link_exists")
+add_prim_to_rktio("rktio_link_exists")
 
 @expose("rktio_link_exists", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_link_exists(w_rktio, w_filename):
@@ -1033,7 +1028,7 @@ def rktio_link_exists(w_rktio, w_filename):
 
 c_rktio_directory_exists = rffi.llexternal('rktio_directory_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_directory_exists")
+add_prim_to_rktio("rktio_directory_exists")
 
 @expose("rktio_directory_exists", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_directory_exists(w_rktio, w_dirname):
@@ -1052,7 +1047,7 @@ def rktio_directory_exists(w_rktio, w_dirname):
 
 c_rktio_file_exists = rffi.llexternal('rktio_file_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_file_exists")
+add_prim_to_rktio("rktio_file_exists")
 
 @expose("rktio_file_exists", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_file_exists(w_rktio, w_filename):
@@ -1071,7 +1066,7 @@ def rktio_file_exists(w_rktio, w_filename):
 
 c_rktio_end_sleep = rffi.llexternal('rktio_end_sleep', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_end_sleep")
+add_prim_to_rktio("rktio_end_sleep")
 
 @expose("rktio_end_sleep", [W_R_PTR], simple=True)
 def rktio_end_sleep(w_rktio):
@@ -1086,7 +1081,7 @@ def rktio_end_sleep(w_rktio):
 
 c_rktio_sleep = rffi.llexternal('rktio_sleep', [R_PTR, FLOAT, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_sleep")
+add_prim_to_rktio("rktio_sleep")
 
 @expose("rktio_sleep", [W_R_PTR, values.W_Flonum, W_R_PTR, W_R_PTR], simple=True)
 def rktio_sleep(w_rktio, w_nsecs, w_fds, w_lt):
@@ -1107,7 +1102,7 @@ def rktio_sleep(w_rktio, w_nsecs, w_fds, w_lt):
 
 c_rktio_ltps_handle_set_auto = rffi.llexternal('rktio_ltps_handle_set_auto', [R_PTR, R_PTR, INT], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_ltps_handle_set_auto")
+add_prim_to_rktio("rktio_ltps_handle_set_auto")
 
 @expose("rktio_ltps_handle_set_auto", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_ltps_handle_set_auto(w_rktio, w_lth, w_auto_mode):
@@ -1126,7 +1121,7 @@ def rktio_ltps_handle_set_auto(w_rktio, w_lth, w_auto_mode):
 
 c_rktio_ltps_remove_all = rffi.llexternal('rktio_ltps_remove_all', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_ltps_remove_all")
+add_prim_to_rktio("rktio_ltps_remove_all")
 
 @expose("rktio_ltps_remove_all", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_ltps_remove_all(w_rktio, w_lt):
@@ -1143,7 +1138,7 @@ def rktio_ltps_remove_all(w_rktio, w_lt):
 
 c_rktio_ltps_handle_get_data = rffi.llexternal('rktio_ltps_handle_get_data', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_ltps_handle_get_data")
+add_prim_to_rktio("rktio_ltps_handle_get_data")
 
 @expose("rktio_ltps_handle_get_data", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_ltps_handle_get_data(w_rktio, w_h):
@@ -1160,7 +1155,7 @@ def rktio_ltps_handle_get_data(w_rktio, w_h):
 
 c_rktio_ltps_handle_set_data = rffi.llexternal('rktio_ltps_handle_set_data', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_ltps_handle_set_data")
+add_prim_to_rktio("rktio_ltps_handle_set_data")
 
 @expose("rktio_ltps_handle_set_data", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
 def rktio_ltps_handle_set_data(w_rktio, w_h, w_data):
@@ -1179,7 +1174,7 @@ def rktio_ltps_handle_set_data(w_rktio, w_h, w_data):
 
 c_rktio_ltps_close = rffi.llexternal('rktio_ltps_close', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_ltps_close")
+add_prim_to_rktio("rktio_ltps_close")
 
 @expose("rktio_ltps_close", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_ltps_close(w_rktio, w_lt):
@@ -1196,7 +1191,7 @@ def rktio_ltps_close(w_rktio, w_lt):
 
 c_rkio_reset_sleep_backoff = rffi.llexternal('rkio_reset_sleep_backoff', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rkio_reset_sleep_backoff")
+add_prim_to_rktio("rkio_reset_sleep_backoff")
 
 @expose("rkio_reset_sleep_backoff", [W_R_PTR], simple=True)
 def rkio_reset_sleep_backoff(w_rktio):
@@ -1211,7 +1206,7 @@ def rkio_reset_sleep_backoff(w_rktio):
 
 c_rktio_poll_set_add_eventmask = rffi.llexternal('rktio_poll_set_add_eventmask', [R_PTR, R_PTR, INT], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_set_add_eventmask")
+add_prim_to_rktio("rktio_poll_set_add_eventmask")
 
 @expose("rktio_poll_set_add_eventmask", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_poll_set_add_eventmask(w_rktio, w_fds, w_mask):
@@ -1230,7 +1225,7 @@ def rktio_poll_set_add_eventmask(w_rktio, w_fds, w_mask):
 
 c_rktio_poll_set_add_handle = rffi.llexternal('rktio_poll_set_add_handle', [R_PTR, INTPTR_T, R_PTR, INT], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_set_add_handle")
+add_prim_to_rktio("rktio_poll_set_add_handle")
 
 @expose("rktio_poll_set_add_handle", [W_R_PTR, values.W_Fixnum, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_poll_set_add_handle(w_rktio, w_h, w_fds, w_repost):
@@ -1251,7 +1246,7 @@ def rktio_poll_set_add_handle(w_rktio, w_h, w_fds, w_repost):
 
 c_rktio_poll_set_add_nosleep = rffi.llexternal('rktio_poll_set_add_nosleep', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_set_add_nosleep")
+add_prim_to_rktio("rktio_poll_set_add_nosleep")
 
 @expose("rktio_poll_set_add_nosleep", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_set_add_nosleep(w_rktio, w_fds):
@@ -1268,7 +1263,7 @@ def rktio_poll_set_add_nosleep(w_rktio, w_fds):
 
 c_rktio_poll_add_fs_change = rffi.llexternal('rktio_poll_add_fs_change', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_add_fs_change")
+add_prim_to_rktio("rktio_poll_add_fs_change")
 
 @expose("rktio_poll_add_fs_change", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_add_fs_change(w_rktio, w_fc, w_fds):
@@ -1287,7 +1282,7 @@ def rktio_poll_add_fs_change(w_rktio, w_fc, w_fds):
 
 c_rktio_poll_add_process = rffi.llexternal('rktio_poll_add_process', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_add_process")
+add_prim_to_rktio("rktio_poll_add_process")
 
 @expose("rktio_poll_add_process", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_add_process(w_rktio, w_sp, w_fds):
@@ -1306,7 +1301,7 @@ def rktio_poll_add_process(w_rktio, w_sp, w_fds):
 
 c_rktio_poll_add_addrinfo_lookup = rffi.llexternal('rktio_poll_add_addrinfo_lookup', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_add_addrinfo_lookup")
+add_prim_to_rktio("rktio_poll_add_addrinfo_lookup")
 
 @expose("rktio_poll_add_addrinfo_lookup", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_add_addrinfo_lookup(w_rktio, w_lookup, w_fds):
@@ -1325,7 +1320,7 @@ def rktio_poll_add_addrinfo_lookup(w_rktio, w_lookup, w_fds):
 
 c_rktio_poll_add_connect = rffi.llexternal('rktio_poll_add_connect', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_add_connect")
+add_prim_to_rktio("rktio_poll_add_connect")
 
 @expose("rktio_poll_add_connect", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_add_connect(w_rktio, w_conn, w_fds):
@@ -1344,7 +1339,7 @@ def rktio_poll_add_connect(w_rktio, w_conn, w_fds):
 
 c_rktio_poll_add_accept = rffi.llexternal('rktio_poll_add_accept', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_add_accept")
+add_prim_to_rktio("rktio_poll_add_accept")
 
 @expose("rktio_poll_add_accept", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_add_accept(w_rktio, w_listener, w_fds):
@@ -1363,7 +1358,7 @@ def rktio_poll_add_accept(w_rktio, w_listener, w_fds):
 
 c_rktio_poll_add = rffi.llexternal('rktio_poll_add', [R_PTR, R_PTR, R_PTR, INT], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_add")
+add_prim_to_rktio("rktio_poll_add")
 
 @expose("rktio_poll_add", [W_R_PTR, W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_poll_add(w_rktio, w_rfd, w_fds, w_modes):
@@ -1384,7 +1379,7 @@ def rktio_poll_add(w_rktio, w_rfd, w_fds, w_modes):
 
 c_rktio_poll_set_forget = rffi.llexternal('rktio_poll_set_forget', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_set_forget")
+add_prim_to_rktio("rktio_poll_set_forget")
 
 @expose("rktio_poll_set_forget", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_set_forget(w_rktio, w_fds):
@@ -1401,7 +1396,7 @@ def rktio_poll_set_forget(w_rktio, w_fds):
 
 c_rktio_fs_change_forget = rffi.llexternal('rktio_fs_change_forget', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fs_change_forget")
+add_prim_to_rktio("rktio_fs_change_forget")
 
 @expose("rktio_fs_change_forget", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fs_change_forget(w_rktio, w_fc):
@@ -1418,7 +1413,7 @@ def rktio_fs_change_forget(w_rktio, w_fc):
 
 c_rktio_fs_change_properties = rffi.llexternal('rktio_fs_change_properties', [R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fs_change_properties")
+add_prim_to_rktio("rktio_fs_change_properties")
 
 @expose("rktio_fs_change_properties", [W_R_PTR], simple=True)
 def rktio_fs_change_properties(w_rktio):
@@ -1433,7 +1428,7 @@ def rktio_fs_change_properties(w_rktio):
 
 c_rktio_reap_processes = rffi.llexternal('rktio_reap_processes', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_reap_processes")
+add_prim_to_rktio("rktio_reap_processes")
 
 @expose("rktio_reap_processes", [W_R_PTR], simple=True)
 def rktio_reap_processes(w_rktio):
@@ -1448,7 +1443,7 @@ def rktio_reap_processes(w_rktio):
 
 c_rktio_process_forget = rffi.llexternal('rktio_process_forget', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_process_forget")
+add_prim_to_rktio("rktio_process_forget")
 
 @expose("rktio_process_forget", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_process_forget(w_rktio, w_sp):
@@ -1465,7 +1460,7 @@ def rktio_process_forget(w_rktio, w_sp):
 
 c_rktio_process_pid = rffi.llexternal('rktio_process_pid', [R_PTR, R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_process_pid")
+add_prim_to_rktio("rktio_process_pid")
 
 @expose("rktio_process_pid", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_process_pid(w_rktio, w_sp):
@@ -1482,7 +1477,7 @@ def rktio_process_pid(w_rktio, w_sp):
 
 c_rktio_process_allowed_flags = rffi.llexternal('rktio_process_allowed_flags', [R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_process_allowed_flags")
+add_prim_to_rktio("rktio_process_allowed_flags")
 
 @expose("rktio_process_allowed_flags", [W_R_PTR], simple=True)
 def rktio_process_allowed_flags(w_rktio):
@@ -1497,7 +1492,7 @@ def rktio_process_allowed_flags(w_rktio):
 
 c_rktio_envvars_count = rffi.llexternal('rktio_envvars_count', [R_PTR, R_PTR], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_envvars_count")
+add_prim_to_rktio("rktio_envvars_count")
 
 @expose("rktio_envvars_count", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_envvars_count(w_rktio, w_envvars):
@@ -1514,7 +1509,7 @@ def rktio_envvars_count(w_rktio, w_envvars):
 
 c_rktio_envvars_set = rffi.llexternal('rktio_envvars_set', [R_PTR, R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_envvars_set")
+add_prim_to_rktio("rktio_envvars_set")
 
 @expose("rktio_envvars_set", [W_R_PTR, W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
 def rktio_envvars_set(w_rktio, w_envvars, w_name, w_value):
@@ -1539,7 +1534,7 @@ def rktio_envvars_set(w_rktio, w_envvars, w_name, w_value):
 
 c_rktio_envvars_free = rffi.llexternal('rktio_envvars_free', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_envvars_free")
+add_prim_to_rktio("rktio_envvars_free")
 
 @expose("rktio_envvars_free", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_envvars_free(w_rktio, w_envvars):
@@ -1556,7 +1551,7 @@ def rktio_envvars_free(w_rktio, w_envvars):
 
 c_rktio_are_envvar_names_case_insensitive = rffi.llexternal('rktio_are_envvar_names_case_insensitive', [R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_are_envvar_names_case_insensitive")
+add_prim_to_rktio("rktio_are_envvar_names_case_insensitive")
 
 @expose("rktio_are_envvar_names_case_insensitive", [W_R_PTR], simple=True)
 def rktio_are_envvar_names_case_insensitive(w_rktio):
@@ -1571,7 +1566,7 @@ def rktio_are_envvar_names_case_insensitive(w_rktio):
 
 c_rktio_is_ok_envvar_name = rffi.llexternal('rktio_is_ok_envvar_name', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_is_ok_envvar_name")
+add_prim_to_rktio("rktio_is_ok_envvar_name")
 
 @expose("rktio_is_ok_envvar_name", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_is_ok_envvar_name(w_rktio, w_name):
@@ -1590,7 +1585,7 @@ def rktio_is_ok_envvar_name(w_rktio, w_name):
 
 c_rktio_connect_stop = rffi.llexternal('rktio_connect_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_connect_stop")
+add_prim_to_rktio("rktio_connect_stop")
 
 @expose("rktio_connect_stop", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_connect_stop(w_rktio, w_conn):
@@ -1607,7 +1602,7 @@ def rktio_connect_stop(w_rktio, w_conn):
 
 c_rktio_listen_stop = rffi.llexternal('rktio_listen_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_listen_stop")
+add_prim_to_rktio("rktio_listen_stop")
 
 @expose("rktio_listen_stop", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_listen_stop(w_rktio, w_l):
@@ -1624,7 +1619,7 @@ def rktio_listen_stop(w_rktio, w_l):
 
 c_rktio_addrinfo_free = rffi.llexternal('rktio_addrinfo_free', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_addrinfo_free")
+add_prim_to_rktio("rktio_addrinfo_free")
 
 @expose("rktio_addrinfo_free", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_addrinfo_free(w_rktio, w_a):
@@ -1641,7 +1636,7 @@ def rktio_addrinfo_free(w_rktio, w_a):
 
 c_rktio_addrinfo_lookup_stop = rffi.llexternal('rktio_addrinfo_lookup_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_addrinfo_lookup_stop")
+add_prim_to_rktio("rktio_addrinfo_lookup_stop")
 
 @expose("rktio_addrinfo_lookup_stop", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_addrinfo_lookup_stop(w_rktio, w_lookup):
@@ -1658,7 +1653,7 @@ def rktio_addrinfo_lookup_stop(w_rktio, w_lookup):
 
 c_rktio_get_ipv4_family = rffi.llexternal('rktio_get_ipv4_family', [R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_ipv4_family")
+add_prim_to_rktio("rktio_get_ipv4_family")
 
 @expose("rktio_get_ipv4_family", [W_R_PTR], simple=True)
 def rktio_get_ipv4_family(w_rktio):
@@ -1673,7 +1668,7 @@ def rktio_get_ipv4_family(w_rktio):
 
 c_rktio_fd_close_transfer = rffi.llexternal('rktio_fd_close_transfer', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_close_transfer")
+add_prim_to_rktio("rktio_fd_close_transfer")
 
 @expose("rktio_fd_close_transfer", [W_R_PTR], simple=True)
 def rktio_fd_close_transfer(w_rfdt):
@@ -1688,7 +1683,7 @@ def rktio_fd_close_transfer(w_rfdt):
 
 c_rktio_fd_attach = rffi.llexternal('rktio_fd_attach', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_attach")
+add_prim_to_rktio("rktio_fd_attach")
 
 @expose("rktio_fd_attach", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_attach(w_rktio, w_rfdt):
@@ -1705,7 +1700,7 @@ def rktio_fd_attach(w_rktio, w_rfdt):
 
 c_rktio_fd_detach = rffi.llexternal('rktio_fd_detach', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_detach")
+add_prim_to_rktio("rktio_fd_detach")
 
 @expose("rktio_fd_detach", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_detach(w_rktio, w_rfd):
@@ -1722,7 +1717,7 @@ def rktio_fd_detach(w_rktio, w_rfd):
 
 c_rktio_buffered_byte_count = rffi.llexternal('rktio_buffered_byte_count', [R_PTR, R_PTR], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_buffered_byte_count")
+add_prim_to_rktio("rktio_buffered_byte_count")
 
 @expose("rktio_buffered_byte_count", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_buffered_byte_count(w_rktio, w_fd):
@@ -1739,7 +1734,7 @@ def rktio_buffered_byte_count(w_rktio, w_fd):
 
 c_rktio_create_console = rffi.llexternal('rktio_create_console', [], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_create_console")
+add_prim_to_rktio("rktio_create_console")
 
 @expose("rktio_create_console", [], simple=True)
 def rktio_create_console():
@@ -1753,7 +1748,7 @@ def rktio_create_console():
 
 c_rktio_forget = rffi.llexternal('rktio_forget', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_forget")
+add_prim_to_rktio("rktio_forget")
 
 @expose("rktio_forget", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_forget(w_rktio, w_fd):
@@ -1770,7 +1765,7 @@ def rktio_forget(w_rktio, w_fd):
 
 c_rktio_close_noerr = rffi.llexternal('rktio_close_noerr', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_close_noerr")
+add_prim_to_rktio("rktio_close_noerr")
 
 @expose("rktio_close_noerr", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_close_noerr(w_rktio, w_fd):
@@ -1787,7 +1782,7 @@ def rktio_close_noerr(w_rktio, w_fd):
 
 c_rktio_fd_modes = rffi.llexternal('rktio_fd_modes', [R_PTR, R_PTR], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_modes")
+add_prim_to_rktio("rktio_fd_modes")
 
 @expose("rktio_fd_modes", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_modes(w_rktio, w_rfd):
@@ -1804,7 +1799,7 @@ def rktio_fd_modes(w_rktio, w_rfd):
 
 c_rktio_fd_is_pending_open = rffi.llexternal('rktio_fd_is_pending_open', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_is_pending_open")
+add_prim_to_rktio("rktio_fd_is_pending_open")
 
 @expose("rktio_fd_is_pending_open", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_is_pending_open(w_rktio, w_rfd):
@@ -1821,7 +1816,7 @@ def rktio_fd_is_pending_open(w_rktio, w_rfd):
 
 c_rktio_fd_is_text_converted = rffi.llexternal('rktio_fd_is_text_converted', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_is_text_converted")
+add_prim_to_rktio("rktio_fd_is_text_converted")
 
 @expose("rktio_fd_is_text_converted", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_is_text_converted(w_rktio, w_rfd):
@@ -1838,7 +1833,7 @@ def rktio_fd_is_text_converted(w_rktio, w_rfd):
 
 c_rktio_fd_is_terminal = rffi.llexternal('rktio_fd_is_terminal', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_is_terminal")
+add_prim_to_rktio("rktio_fd_is_terminal")
 
 @expose("rktio_fd_is_terminal", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_is_terminal(w_rktio, w_rfd):
@@ -1855,7 +1850,7 @@ def rktio_fd_is_terminal(w_rktio, w_rfd):
 
 c_rktio_fd_is_udp = rffi.llexternal('rktio_fd_is_udp', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_is_udp")
+add_prim_to_rktio("rktio_fd_is_udp")
 
 @expose("rktio_fd_is_udp", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_is_udp(w_rktio, w_rfd):
@@ -1872,7 +1867,7 @@ def rktio_fd_is_udp(w_rktio, w_rfd):
 
 c_rktio_fd_is_socket = rffi.llexternal('rktio_fd_is_socket', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_is_socket")
+add_prim_to_rktio("rktio_fd_is_socket")
 
 @expose("rktio_fd_is_socket", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_is_socket(w_rktio, w_rfd):
@@ -1889,7 +1884,7 @@ def rktio_fd_is_socket(w_rktio, w_rfd):
 
 c_rktio_fd_is_directory = rffi.llexternal('rktio_fd_is_directory', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_is_directory")
+add_prim_to_rktio("rktio_fd_is_directory")
 
 @expose("rktio_fd_is_directory", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_is_directory(w_rktio, w_rfd):
@@ -1906,7 +1901,7 @@ def rktio_fd_is_directory(w_rktio, w_rfd):
 
 c_rktio_fd_is_regular_file = rffi.llexternal('rktio_fd_is_regular_file', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_is_regular_file")
+add_prim_to_rktio("rktio_fd_is_regular_file")
 
 @expose("rktio_fd_is_regular_file", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_is_regular_file(w_rktio, w_rfd):
@@ -1923,7 +1918,7 @@ def rktio_fd_is_regular_file(w_rktio, w_rfd):
 
 c_rktio_fd_system_fd = rffi.llexternal('rktio_fd_system_fd', [R_PTR, R_PTR], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_system_fd")
+add_prim_to_rktio("rktio_fd_system_fd")
 
 @expose("rktio_fd_system_fd", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_system_fd(w_rktio, w_rfd):
@@ -1940,7 +1935,7 @@ def rktio_fd_system_fd(w_rktio, w_rfd):
 
 c_rktio_set_dll_path = rffi.llexternal('rktio_set_dll_path', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_dll_path")
+add_prim_to_rktio("rktio_set_dll_path")
 
 @expose("rktio_set_dll_path", [W_R_PTR], simple=True)
 def rktio_set_dll_path(w_p):
@@ -1955,7 +1950,7 @@ def rktio_set_dll_path(w_p):
 
 c_rktio_free = rffi.llexternal('rktio_free', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_free")
+add_prim_to_rktio("rktio_free")
 
 @expose("rktio_free", [W_R_PTR], simple=True)
 def rktio_free(w_p):
@@ -1970,7 +1965,7 @@ def rktio_free(w_p):
 
 c_rktio_destroy = rffi.llexternal('rktio_destroy', [R_PTR], VOID, compilation_info=librktio_a)
 
-rktio_str.append("rktio_destroy")
+add_prim_to_rktio("rktio_destroy")
 
 @expose("rktio_destroy", [W_R_PTR], simple=True)
 def rktio_destroy(w_rktio):
@@ -1985,7 +1980,7 @@ def rktio_destroy(w_rktio):
 
 c_rktio_init = rffi.llexternal('rktio_init', [], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_init")
+add_prim_to_rktio("rktio_init")
 
 @expose("rktio_init", [], simple=True)
 def rktio_init():
@@ -1999,7 +1994,7 @@ def rktio_init():
 
 c_rktio_dll_get_error = rffi.llexternal('rktio_dll_get_error', [R_PTR], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_dll_get_error")
+add_prim_to_rktio("rktio_dll_get_error")
 
 @expose("rktio_dll_get_error", [W_R_PTR], simple=True)
 def rktio_dll_get_error(w_rktio):
@@ -2018,7 +2013,7 @@ def rktio_dll_get_error(w_rktio):
 
 c_rktio_dll_close = rffi.llexternal('rktio_dll_close', [R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_dll_close")
+add_prim_to_rktio("rktio_dll_close")
 
 @expose("rktio_dll_close", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_dll_close(w_rktio, w_dll):
@@ -2039,7 +2034,7 @@ def rktio_dll_close(w_rktio, w_dll):
 
 c_rktio_dll_find_object = rffi.llexternal('rktio_dll_find_object', [R_PTR, R_PTR, RKTIO_CONST_STRING_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_dll_find_object")
+add_prim_to_rktio("rktio_dll_find_object")
 
 @expose("rktio_dll_find_object", [W_R_PTR, W_R_PTR, values_string.W_String], simple=True)
 def rktio_dll_find_object(w_rktio, w_dll, w_name):
@@ -2064,7 +2059,7 @@ def rktio_dll_find_object(w_rktio, w_dll, w_name):
 
 c_rktio_dll_open = rffi.llexternal('rktio_dll_open', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_BOOL_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_dll_open")
+add_prim_to_rktio("rktio_dll_open")
 
 @expose("rktio_dll_open", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_dll_open(w_rktio, w_name, w_as_global):
@@ -2089,7 +2084,7 @@ def rktio_dll_open(w_rktio, w_name, w_as_global):
 
 c_rktio_system_language_country = rffi.llexternal('rktio_system_language_country', [R_PTR], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_system_language_country")
+add_prim_to_rktio("rktio_system_language_country")
 
 @expose("rktio_system_language_country", [W_R_PTR], simple=True)
 def rktio_system_language_country(w_rktio):
@@ -2108,7 +2103,7 @@ def rktio_system_language_country(w_rktio):
 
 c_rktio_locale_encoding = rffi.llexternal('rktio_locale_encoding', [R_PTR], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_locale_encoding")
+add_prim_to_rktio("rktio_locale_encoding")
 
 @expose("rktio_locale_encoding", [W_R_PTR], simple=True)
 def rktio_locale_encoding(w_rktio):
@@ -2127,7 +2122,7 @@ def rktio_locale_encoding(w_rktio):
 
 c_rktio_convert_in = rffi.llexternal('rktio_convert_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T, CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_convert_in")
+add_prim_to_rktio("rktio_convert_in")
 
 @expose("rktio_convert_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_convert_in(w_rktio, w_cvt, w_in, w_in_start, w_in_end, w_out, w_out_start, w_out_end):
@@ -2160,7 +2155,7 @@ def rktio_convert_in(w_rktio, w_cvt, w_in, w_in_start, w_in_end, w_out, w_out_st
 
 c_rktio_convert = rffi.llexternal('rktio_convert', [R_PTR, R_PTR, CCHARPP, R_PTR, CCHARPP, R_PTR], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_convert")
+add_prim_to_rktio("rktio_convert")
 
 @expose("rktio_convert", [W_R_PTR, W_R_PTR, W_CCHARPP, W_R_PTR, W_CCHARPP, W_R_PTR], simple=True)
 def rktio_convert(w_rktio, w_cvt, w_in, w_in_left, w_out, w_out_left):
@@ -2189,7 +2184,7 @@ def rktio_convert(w_rktio, w_cvt, w_in, w_in_left, w_out, w_out_left):
 
 c_rktio_converter_open = rffi.llexternal('rktio_converter_open', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_converter_open")
+add_prim_to_rktio("rktio_converter_open")
 
 @expose("rktio_converter_open", [W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
 def rktio_converter_open(w_rktio, w_to_enc, w_from_enc):
@@ -2216,7 +2211,7 @@ def rktio_converter_open(w_rktio, w_to_enc, w_from_enc):
 
 c_rktio_syslog = rffi.llexternal('rktio_syslog', [R_PTR, INT, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_syslog")
+add_prim_to_rktio("rktio_syslog")
 
 @expose("rktio_syslog", [W_R_PTR, values.W_Fixnum, values_string.W_String, values_string.W_String, values_string.W_String], simple=True)
 def rktio_syslog(w_rktio, w_level, w_name, w_msg, w_exec_name):
@@ -2249,7 +2244,7 @@ def rktio_syslog(w_rktio, w_level, w_name, w_msg, w_exec_name):
 
 c_rktio_path_to_wide_path = rffi.llexternal('rktio_path_to_wide_path', [R_PTR, RKTIO_CONST_STRING_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_path_to_wide_path")
+add_prim_to_rktio("rktio_path_to_wide_path")
 
 @expose("rktio_path_to_wide_path", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_path_to_wide_path(w_rktio, w_p):
@@ -2272,7 +2267,7 @@ def rktio_path_to_wide_path(w_rktio, w_p):
 
 c_rktio_shell_execute = rffi.llexternal('rktio_shell_execute', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T, INT], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_shell_execute")
+add_prim_to_rktio("rktio_shell_execute")
 
 @expose("rktio_shell_execute", [W_R_PTR, values_string.W_String, values_string.W_String, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_shell_execute(w_rktio, w_verb, w_target, w_arg, w_dir, w_show_mode):
@@ -2309,7 +2304,7 @@ def rktio_shell_execute(w_rktio, w_verb, w_target, w_arg, w_dir, w_show_mode):
 
 c_rktio_seconds_to_date = rffi.llexternal('rktio_seconds_to_date', [R_PTR, RKTIO_TIMESTAMP_T, INT, INT], RKTIO_DATE_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_seconds_to_date")
+add_prim_to_rktio("rktio_seconds_to_date")
 
 def w_rktio_seconds_to_date(w_rktio, w_seconds, w_nanoseconds, w_get_gmt):
 
@@ -2336,7 +2331,7 @@ expose("rktio_seconds_to_date", [W_R_PTR, values.W_Fixnum, values.W_Fixnum, valu
 
 c_rktio_expand_user_tilde = rffi.llexternal('rktio_expand_user_tilde', [R_PTR, RKTIO_CONST_STRING_T], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_expand_user_tilde")
+add_prim_to_rktio("rktio_expand_user_tilde")
 
 @expose("rktio_expand_user_tilde", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_expand_user_tilde(w_rktio, w_filename):
@@ -2359,7 +2354,7 @@ def rktio_expand_user_tilde(w_rktio, w_filename):
 
 c_rktio_system_path = rffi.llexternal('rktio_system_path', [R_PTR, INT], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_system_path")
+add_prim_to_rktio("rktio_system_path")
 
 @expose("rktio_system_path", [W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_system_path(w_rktio, w_which):
@@ -2380,7 +2375,7 @@ def rktio_system_path(w_rktio, w_which):
 
 c_rktio_filesystem_roots = rffi.llexternal('rktio_filesystem_roots', [R_PTR], CCHARPP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_filesystem_roots")
+add_prim_to_rktio("rktio_filesystem_roots")
 
 @expose("rktio_filesystem_roots", [W_R_PTR], simple=True)
 def rktio_filesystem_roots(w_rktio):
@@ -2399,7 +2394,7 @@ def rktio_filesystem_roots(w_rktio):
 
 c_rktio_directory_list_step = rffi.llexternal('rktio_directory_list_step', [R_PTR, R_PTR], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_directory_list_step")
+add_prim_to_rktio("rktio_directory_list_step")
 
 @expose("rktio_directory_list_step", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_directory_list_step(w_rktio, w_dl):
@@ -2420,7 +2415,7 @@ def rktio_directory_list_step(w_rktio, w_dl):
 
 c_rktio_directory_list_start = rffi.llexternal('rktio_directory_list_start', [R_PTR, RKTIO_CONST_STRING_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_directory_list_start")
+add_prim_to_rktio("rktio_directory_list_start")
 
 @expose("rktio_directory_list_start", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_directory_list_start(w_rktio, w_dirname):
@@ -2443,7 +2438,7 @@ def rktio_directory_list_start(w_rktio, w_dirname):
 
 c_rktio_set_file_or_directory_permissions = rffi.llexternal('rktio_set_file_or_directory_permissions', [R_PTR, RKTIO_CONST_STRING_T, INT], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_file_or_directory_permissions")
+add_prim_to_rktio("rktio_set_file_or_directory_permissions")
 
 @expose("rktio_set_file_or_directory_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_set_file_or_directory_permissions(w_rktio, w_filename, w_new_bits):
@@ -2468,7 +2463,7 @@ def rktio_set_file_or_directory_permissions(w_rktio, w_filename, w_new_bits):
 
 c_rktio_get_file_or_directory_permissions = rffi.llexternal('rktio_get_file_or_directory_permissions', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_BOOL_T], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_file_or_directory_permissions")
+add_prim_to_rktio("rktio_get_file_or_directory_permissions")
 
 @expose("rktio_get_file_or_directory_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_get_file_or_directory_permissions(w_rktio, w_filename, w_all_bits):
@@ -2493,7 +2488,7 @@ def rktio_get_file_or_directory_permissions(w_rktio, w_filename, w_all_bits):
 
 c_rktio_path_identity = rffi.llexternal('rktio_path_identity', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_BOOL_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_path_identity")
+add_prim_to_rktio("rktio_path_identity")
 
 @expose("rktio_path_identity", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_path_identity(w_rktio, w_path, w_follow_links):
@@ -2518,7 +2513,7 @@ def rktio_path_identity(w_rktio, w_path, w_follow_links):
 
 c_rktio_fd_identity = rffi.llexternal('rktio_fd_identity', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_identity")
+add_prim_to_rktio("rktio_fd_identity")
 
 @expose("rktio_fd_identity", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_identity(w_rktio, w_fd):
@@ -2539,7 +2534,7 @@ def rktio_fd_identity(w_rktio, w_fd):
 
 c_rktio_fd_stat = rffi.llexternal('rktio_fd_stat', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fd_stat")
+add_prim_to_rktio("rktio_fd_stat")
 
 @expose("rktio_fd_stat", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_fd_stat(w_rktio, w_fd):
@@ -2560,7 +2555,7 @@ def rktio_fd_stat(w_rktio, w_fd):
 
 c_rktio_file_or_directory_stat = rffi.llexternal('rktio_file_or_directory_stat', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_BOOL_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_file_or_directory_stat")
+add_prim_to_rktio("rktio_file_or_directory_stat")
 
 @expose("rktio_file_or_directory_stat", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_file_or_directory_stat(w_rktio, w_path, w_follow_links):
@@ -2585,7 +2580,7 @@ def rktio_file_or_directory_stat(w_rktio, w_path, w_follow_links):
 
 c_rktio_set_file_modify_seconds = rffi.llexternal('rktio_set_file_modify_seconds', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_TIMESTAMP_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_file_modify_seconds")
+add_prim_to_rktio("rktio_set_file_modify_seconds")
 
 @expose("rktio_set_file_modify_seconds", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_set_file_modify_seconds(w_rktio, w_file, w_secs):
@@ -2610,7 +2605,7 @@ def rktio_set_file_modify_seconds(w_rktio, w_file, w_secs):
 
 c_rktio_get_file_modify_seconds = rffi.llexternal('rktio_get_file_modify_seconds', [R_PTR, RKTIO_CONST_STRING_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_file_modify_seconds")
+add_prim_to_rktio("rktio_get_file_modify_seconds")
 
 @expose("rktio_get_file_modify_seconds", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_get_file_modify_seconds(w_rktio, w_file):
@@ -2633,7 +2628,7 @@ def rktio_get_file_modify_seconds(w_rktio, w_file):
 
 c_rktio_file_size = rffi.llexternal('rktio_file_size', [R_PTR, RKTIO_CONST_STRING_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_file_size")
+add_prim_to_rktio("rktio_file_size")
 
 @expose("rktio_file_size", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_file_size(w_rktio, w_filename):
@@ -2656,7 +2651,7 @@ def rktio_file_size(w_rktio, w_filename):
 
 c_rktio_make_link = rffi.llexternal('rktio_make_link', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_make_link")
+add_prim_to_rktio("rktio_make_link")
 
 @expose("rktio_make_link", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_make_link(w_rktio, w_src, w_dest, w_dest_is_directory):
@@ -2685,7 +2680,7 @@ def rktio_make_link(w_rktio, w_src, w_dest, w_dest_is_directory):
 
 c_rktio_readlink = rffi.llexternal('rktio_readlink', [R_PTR, RKTIO_CONST_STRING_T], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_readlink")
+add_prim_to_rktio("rktio_readlink")
 
 @expose("rktio_readlink", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_readlink(w_rktio, w_fullfilename):
@@ -2708,7 +2703,7 @@ def rktio_readlink(w_rktio, w_fullfilename):
 
 c_rktio_delete_directory = rffi.llexternal('rktio_delete_directory', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_delete_directory")
+add_prim_to_rktio("rktio_delete_directory")
 
 @expose("rktio_delete_directory", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_delete_directory(w_rktio, w_filename, w_current_directory, w_enable_write_on_fail):
@@ -2737,7 +2732,7 @@ def rktio_delete_directory(w_rktio, w_filename, w_current_directory, w_enable_wr
 
 c_rktio_make_directory_with_permissions = rffi.llexternal('rktio_make_directory_with_permissions', [R_PTR, RKTIO_CONST_STRING_T, INT], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_make_directory_with_permissions")
+add_prim_to_rktio("rktio_make_directory_with_permissions")
 
 @expose("rktio_make_directory_with_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_make_directory_with_permissions(w_rktio, w_filename, w_perm_bits):
@@ -2762,7 +2757,7 @@ def rktio_make_directory_with_permissions(w_rktio, w_filename, w_perm_bits):
 
 c_rktio_make_directory = rffi.llexternal('rktio_make_directory', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_make_directory")
+add_prim_to_rktio("rktio_make_directory")
 
 @expose("rktio_make_directory", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_make_directory(w_rktio, w_filename):
@@ -2785,7 +2780,7 @@ def rktio_make_directory(w_rktio, w_filename):
 
 c_rktio_set_current_directory = rffi.llexternal('rktio_set_current_directory', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_current_directory")
+add_prim_to_rktio("rktio_set_current_directory")
 
 @expose("rktio_set_current_directory", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_set_current_directory(w_rktio, w_path):
@@ -2808,7 +2803,7 @@ def rktio_set_current_directory(w_rktio, w_path):
 
 c_rktio_get_current_directory = rffi.llexternal('rktio_get_current_directory', [R_PTR], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_current_directory")
+add_prim_to_rktio("rktio_get_current_directory")
 
 @expose("rktio_get_current_directory", [W_R_PTR], simple=True)
 def rktio_get_current_directory(w_rktio):
@@ -2827,7 +2822,7 @@ def rktio_get_current_directory(w_rktio):
 
 c_rktio_rename_file = rffi.llexternal('rktio_rename_file', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_rename_file")
+add_prim_to_rktio("rktio_rename_file")
 
 @expose("rktio_rename_file", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_rename_file(w_rktio, w_dest, w_src, w_exists_ok):
@@ -2856,7 +2851,7 @@ def rktio_rename_file(w_rktio, w_dest, w_src, w_exists_ok):
 
 c_rktio_delete_file = rffi.llexternal('rktio_delete_file', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_delete_file")
+add_prim_to_rktio("rktio_delete_file")
 
 @expose("rktio_delete_file", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_delete_file(w_rktio, w_fn, w_enable_write_on_fail):
@@ -2881,7 +2876,7 @@ def rktio_delete_file(w_rktio, w_fn, w_enable_write_on_fail):
 
 c_rktio_file_type = rffi.llexternal('rktio_file_type', [R_PTR, RKTIO_CONST_STRING_T], INT, compilation_info=librktio_a)
 
-rktio_str.append("rktio_file_type")
+add_prim_to_rktio("rktio_file_type")
 
 @expose("rktio_file_type", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_file_type(w_rktio, w_filename):
@@ -2904,7 +2899,7 @@ def rktio_file_type(w_rktio, w_filename):
 
 c_rktio_start_sleep = rffi.llexternal('rktio_start_sleep', [R_PTR, FLOAT, R_PTR, R_PTR, INT], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_start_sleep")
+add_prim_to_rktio("rktio_start_sleep")
 
 @expose("rktio_start_sleep", [W_R_PTR, values.W_Flonum, W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_start_sleep(w_rktio, w_nsecs, w_fds, w_lt, w_woke_fd):
@@ -2931,7 +2926,7 @@ def rktio_start_sleep(w_rktio, w_nsecs, w_fds, w_lt, w_woke_fd):
 
 c_rktio_ltps_get_signaled_handle = rffi.llexternal('rktio_ltps_get_signaled_handle', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_ltps_get_signaled_handle")
+add_prim_to_rktio("rktio_ltps_get_signaled_handle")
 
 @expose("rktio_ltps_get_signaled_handle", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_ltps_get_signaled_handle(w_rktio, w_lt):
@@ -2952,7 +2947,7 @@ def rktio_ltps_get_signaled_handle(w_rktio, w_lt):
 
 c_rktio_ltps_poll = rffi.llexternal('rktio_ltps_poll', [R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_ltps_poll")
+add_prim_to_rktio("rktio_ltps_poll")
 
 @expose("rktio_ltps_poll", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_ltps_poll(w_rktio, w_lt):
@@ -2973,7 +2968,7 @@ def rktio_ltps_poll(w_rktio, w_lt):
 
 c_rktio_ltps_add = rffi.llexternal('rktio_ltps_add', [R_PTR, R_PTR, R_PTR, INT], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_ltps_add")
+add_prim_to_rktio("rktio_ltps_add")
 
 @expose("rktio_ltps_add", [W_R_PTR, W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_ltps_add(w_rktio, w_lt, w_rfd, w_mode):
@@ -2998,7 +2993,7 @@ def rktio_ltps_add(w_rktio, w_lt, w_rfd, w_mode):
 
 c_rktio_ltps_open = rffi.llexternal('rktio_ltps_open', [R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_ltps_open")
+add_prim_to_rktio("rktio_ltps_open")
 
 @expose("rktio_ltps_open", [W_R_PTR], simple=True)
 def rktio_ltps_open(w_rktio):
@@ -3017,7 +3012,7 @@ def rktio_ltps_open(w_rktio):
 
 c_rktio_make_poll_set = rffi.llexternal('rktio_make_poll_set', [R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_make_poll_set")
+add_prim_to_rktio("rktio_make_poll_set")
 
 @expose("rktio_make_poll_set", [W_R_PTR], simple=True)
 def rktio_make_poll_set(w_rktio):
@@ -3036,7 +3031,7 @@ def rktio_make_poll_set(w_rktio):
 
 c_rktio_poll_fs_change_ready = rffi.llexternal('rktio_poll_fs_change_ready', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_fs_change_ready")
+add_prim_to_rktio("rktio_poll_fs_change_ready")
 
 @expose("rktio_poll_fs_change_ready", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_fs_change_ready(w_rktio, w_fc):
@@ -3057,7 +3052,7 @@ def rktio_poll_fs_change_ready(w_rktio, w_fc):
 
 c_rktio_fs_change = rffi.llexternal('rktio_fs_change', [R_PTR, RKTIO_CONST_STRING_T, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_fs_change")
+add_prim_to_rktio("rktio_fs_change")
 
 @expose("rktio_fs_change", [W_R_PTR, values_string.W_String, W_R_PTR], simple=True)
 def rktio_fs_change(w_rktio, w_path, w_ltps):
@@ -3082,7 +3077,7 @@ def rktio_fs_change(w_rktio, w_path, w_ltps):
 
 c_rktio_process_status = rffi.llexternal('rktio_process_status', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_process_status")
+add_prim_to_rktio("rktio_process_status")
 
 @expose("rktio_process_status", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_process_status(w_rktio, w_sp):
@@ -3103,7 +3098,7 @@ def rktio_process_status(w_rktio, w_sp):
 
 c_rktio_poll_process_done = rffi.llexternal('rktio_poll_process_done', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_process_done")
+add_prim_to_rktio("rktio_poll_process_done")
 
 @expose("rktio_poll_process_done", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_process_done(w_rktio, w_sp):
@@ -3124,7 +3119,7 @@ def rktio_poll_process_done(w_rktio, w_sp):
 
 c_rktio_process_interrupt = rffi.llexternal('rktio_process_interrupt', [R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_process_interrupt")
+add_prim_to_rktio("rktio_process_interrupt")
 
 @expose("rktio_process_interrupt", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_process_interrupt(w_rktio, w_sp):
@@ -3145,7 +3140,7 @@ def rktio_process_interrupt(w_rktio, w_sp):
 
 c_rktio_process_kill = rffi.llexternal('rktio_process_kill', [R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_process_kill")
+add_prim_to_rktio("rktio_process_kill")
 
 @expose("rktio_process_kill", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_process_kill(w_rktio, w_sp):
@@ -3166,7 +3161,7 @@ def rktio_process_kill(w_rktio, w_sp):
 
 c_rktio_process = rffi.llexternal('rktio_process', [R_PTR, RKTIO_CONST_STRING_T, INT, R_PTR, R_PTR, R_PTR, R_PTR, R_PTR, RKTIO_CONST_STRING_T, R_PTR, INT], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_process")
+add_prim_to_rktio("rktio_process")
 
 @expose("rktio_process", [W_R_PTR, values_string.W_String, values.W_Fixnum, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, values_string.W_String, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w_stderr_fd, w_group_proc, w_current_directory, w_envvars, w_flags):
@@ -3209,7 +3204,7 @@ def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w
 
 c_rktio_envvars_value_ref = rffi.llexternal('rktio_envvars_value_ref', [R_PTR, R_PTR, INTPTR_T], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_envvars_value_ref")
+add_prim_to_rktio("rktio_envvars_value_ref")
 
 @expose("rktio_envvars_value_ref", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_envvars_value_ref(w_rktio, w_envvars, w_i):
@@ -3232,7 +3227,7 @@ def rktio_envvars_value_ref(w_rktio, w_envvars, w_i):
 
 c_rktio_envvars_name_ref = rffi.llexternal('rktio_envvars_name_ref', [R_PTR, R_PTR, INTPTR_T], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_envvars_name_ref")
+add_prim_to_rktio("rktio_envvars_name_ref")
 
 @expose("rktio_envvars_name_ref", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_envvars_name_ref(w_rktio, w_envvars, w_i):
@@ -3255,7 +3250,7 @@ def rktio_envvars_name_ref(w_rktio, w_envvars, w_i):
 
 c_rktio_envvars_get = rffi.llexternal('rktio_envvars_get', [R_PTR, R_PTR, RKTIO_CONST_STRING_T], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_envvars_get")
+add_prim_to_rktio("rktio_envvars_get")
 
 @expose("rktio_envvars_get", [W_R_PTR, W_R_PTR, values_string.W_String], simple=True)
 def rktio_envvars_get(w_rktio, w_envvars, w_name):
@@ -3280,7 +3275,7 @@ def rktio_envvars_get(w_rktio, w_envvars, w_name):
 
 c_rktio_envvars_copy = rffi.llexternal('rktio_envvars_copy', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_envvars_copy")
+add_prim_to_rktio("rktio_envvars_copy")
 
 @expose("rktio_envvars_copy", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_envvars_copy(w_rktio, w_envvars):
@@ -3301,7 +3296,7 @@ def rktio_envvars_copy(w_rktio, w_envvars):
 
 c_rktio_empty_envvars = rffi.llexternal('rktio_empty_envvars', [R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_empty_envvars")
+add_prim_to_rktio("rktio_empty_envvars")
 
 @expose("rktio_empty_envvars", [W_R_PTR], simple=True)
 def rktio_empty_envvars(w_rktio):
@@ -3320,7 +3315,7 @@ def rktio_empty_envvars(w_rktio):
 
 c_rktio_envvars = rffi.llexternal('rktio_envvars', [R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_envvars")
+add_prim_to_rktio("rktio_envvars")
 
 @expose("rktio_envvars", [W_R_PTR], simple=True)
 def rktio_envvars(w_rktio):
@@ -3339,7 +3334,7 @@ def rktio_envvars(w_rktio):
 
 c_rktio_setenv = rffi.llexternal('rktio_setenv', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_setenv")
+add_prim_to_rktio("rktio_setenv")
 
 @expose("rktio_setenv", [W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
 def rktio_setenv(w_rktio, w_name, w_val):
@@ -3366,7 +3361,7 @@ def rktio_setenv(w_rktio, w_name, w_val):
 
 c_rktio_getenv = rffi.llexternal('rktio_getenv', [R_PTR, RKTIO_CONST_STRING_T], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_getenv")
+add_prim_to_rktio("rktio_getenv")
 
 @expose("rktio_getenv", [W_R_PTR, values_string.W_String], simple=True)
 def rktio_getenv(w_rktio, w_name):
@@ -3389,7 +3384,7 @@ def rktio_getenv(w_rktio, w_name):
 
 c_rktio_listener_address = rffi.llexternal('rktio_listener_address', [R_PTR, R_PTR], CCHARPP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_listener_address")
+add_prim_to_rktio("rktio_listener_address")
 
 @expose("rktio_listener_address", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_listener_address(w_rktio, w_lnr):
@@ -3410,7 +3405,7 @@ def rktio_listener_address(w_rktio, w_lnr):
 
 c_rktio_socket_peer_address = rffi.llexternal('rktio_socket_peer_address', [R_PTR, R_PTR], CCHARPP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_socket_peer_address")
+add_prim_to_rktio("rktio_socket_peer_address")
 
 @expose("rktio_socket_peer_address", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_socket_peer_address(w_rktio, w_rfd):
@@ -3431,7 +3426,7 @@ def rktio_socket_peer_address(w_rktio, w_rfd):
 
 c_rktio_socket_address = rffi.llexternal('rktio_socket_address', [R_PTR, R_PTR], CCHARPP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_socket_address")
+add_prim_to_rktio("rktio_socket_address")
 
 @expose("rktio_socket_address", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_socket_address(w_rktio, w_rfd):
@@ -3452,7 +3447,7 @@ def rktio_socket_address(w_rktio, w_rfd):
 
 c_rktio_udp_change_multicast_group = rffi.llexternal('rktio_udp_change_multicast_group', [R_PTR, R_PTR, R_PTR, R_PTR, INT], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_change_multicast_group")
+add_prim_to_rktio("rktio_udp_change_multicast_group")
 
 @expose("rktio_udp_change_multicast_group", [W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_udp_change_multicast_group(w_rktio, w_rfd, w_group_addr, w_intf_addr, w_action):
@@ -3479,7 +3474,7 @@ def rktio_udp_change_multicast_group(w_rktio, w_rfd, w_group_addr, w_intf_addr, 
 
 c_rktio_udp_set_multicast_interface = rffi.llexternal('rktio_udp_set_multicast_interface', [R_PTR, R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_set_multicast_interface")
+add_prim_to_rktio("rktio_udp_set_multicast_interface")
 
 @expose("rktio_udp_set_multicast_interface", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
 def rktio_udp_set_multicast_interface(w_rktio, w_rfd, w_addr):
@@ -3502,7 +3497,7 @@ def rktio_udp_set_multicast_interface(w_rktio, w_rfd, w_addr):
 
 c_rktio_udp_multicast_interface = rffi.llexternal('rktio_udp_multicast_interface', [R_PTR, R_PTR], CCHARP, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_multicast_interface")
+add_prim_to_rktio("rktio_udp_multicast_interface")
 
 @expose("rktio_udp_multicast_interface", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_udp_multicast_interface(w_rktio, w_rfd):
@@ -3523,7 +3518,7 @@ def rktio_udp_multicast_interface(w_rktio, w_rfd):
 
 c_rktio_udp_set_multicast_ttl = rffi.llexternal('rktio_udp_set_multicast_ttl', [R_PTR, R_PTR, INT], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_set_multicast_ttl")
+add_prim_to_rktio("rktio_udp_set_multicast_ttl")
 
 @expose("rktio_udp_set_multicast_ttl", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_udp_set_multicast_ttl(w_rktio, w_rfd, w_ttl_val):
@@ -3546,7 +3541,7 @@ def rktio_udp_set_multicast_ttl(w_rktio, w_rfd, w_ttl_val):
 
 c_rktio_udp_get_multicast_ttl = rffi.llexternal('rktio_udp_get_multicast_ttl', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_get_multicast_ttl")
+add_prim_to_rktio("rktio_udp_get_multicast_ttl")
 
 @expose("rktio_udp_get_multicast_ttl", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_udp_get_multicast_ttl(w_rktio, w_rfd):
@@ -3567,7 +3562,7 @@ def rktio_udp_get_multicast_ttl(w_rktio, w_rfd):
 
 c_rktio_udp_set_multicast_loopback = rffi.llexternal('rktio_udp_set_multicast_loopback', [R_PTR, R_PTR, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_set_multicast_loopback")
+add_prim_to_rktio("rktio_udp_set_multicast_loopback")
 
 @expose("rktio_udp_set_multicast_loopback", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_udp_set_multicast_loopback(w_rktio, w_rfd, w_on):
@@ -3590,7 +3585,7 @@ def rktio_udp_set_multicast_loopback(w_rktio, w_rfd, w_on):
 
 c_rktio_udp_get_multicast_loopback = rffi.llexternal('rktio_udp_get_multicast_loopback', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_get_multicast_loopback")
+add_prim_to_rktio("rktio_udp_get_multicast_loopback")
 
 @expose("rktio_udp_get_multicast_loopback", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_udp_get_multicast_loopback(w_rktio, w_rfd):
@@ -3611,7 +3606,7 @@ def rktio_udp_get_multicast_loopback(w_rktio, w_rfd):
 
 c_rktio_udp_get_ttl = rffi.llexternal('rktio_udp_get_ttl', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_get_ttl")
+add_prim_to_rktio("rktio_udp_get_ttl")
 
 @expose("rktio_udp_get_ttl", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_udp_get_ttl(w_rktio, w_rfd):
@@ -3632,7 +3627,7 @@ def rktio_udp_get_ttl(w_rktio, w_rfd):
 
 c_rktio_udp_set_ttl = rffi.llexternal('rktio_udp_set_ttl', [R_PTR, R_PTR, INT], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_set_ttl")
+add_prim_to_rktio("rktio_udp_set_ttl")
 
 @expose("rktio_udp_set_ttl", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_udp_set_ttl(w_rktio, w_rfd, w_ttl_val):
@@ -3655,7 +3650,7 @@ def rktio_udp_set_ttl(w_rktio, w_rfd, w_ttl_val):
 
 c_rktio_udp_set_receive_buffer_size = rffi.llexternal('rktio_udp_set_receive_buffer_size', [R_PTR, R_PTR, INT], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_set_receive_buffer_size")
+add_prim_to_rktio("rktio_udp_set_receive_buffer_size")
 
 @expose("rktio_udp_set_receive_buffer_size", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_udp_set_receive_buffer_size(w_rktio, w_rfd, w_size):
@@ -3678,7 +3673,7 @@ def rktio_udp_set_receive_buffer_size(w_rktio, w_rfd, w_size):
 
 c_rktio_udp_recvfrom_in = rffi.llexternal('rktio_udp_recvfrom_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_recvfrom_in")
+add_prim_to_rktio("rktio_udp_recvfrom_in")
 
 @expose("rktio_udp_recvfrom_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_udp_recvfrom_in(w_rktio, w_rfd, w_buffer, w_start, w_end):
@@ -3705,7 +3700,7 @@ def rktio_udp_recvfrom_in(w_rktio, w_rfd, w_buffer, w_start, w_end):
 
 c_rktio_udp_recvfrom = rffi.llexternal('rktio_udp_recvfrom', [R_PTR, R_PTR, CCHARP, INTPTR_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_recvfrom")
+add_prim_to_rktio("rktio_udp_recvfrom")
 
 @expose("rktio_udp_recvfrom", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
 def rktio_udp_recvfrom(w_rktio, w_rfd, w_buffer, w_len):
@@ -3730,7 +3725,7 @@ def rktio_udp_recvfrom(w_rktio, w_rfd, w_buffer, w_len):
 
 c_rktio_udp_sendto_in = rffi.llexternal('rktio_udp_sendto_in', [R_PTR, R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_sendto_in")
+add_prim_to_rktio("rktio_udp_sendto_in")
 
 @expose("rktio_udp_sendto_in", [W_R_PTR, W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_udp_sendto_in(w_rktio, w_rfd, w_addr, w_buffer, w_start, w_end):
@@ -3759,7 +3754,7 @@ def rktio_udp_sendto_in(w_rktio, w_rfd, w_addr, w_buffer, w_start, w_end):
 
 c_rktio_udp_sendto = rffi.llexternal('rktio_udp_sendto', [R_PTR, R_PTR, R_PTR, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_sendto")
+add_prim_to_rktio("rktio_udp_sendto")
 
 @expose("rktio_udp_sendto", [W_R_PTR, W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
 def rktio_udp_sendto(w_rktio, w_rfd, w_addr, w_buffer, w_len):
@@ -3786,7 +3781,7 @@ def rktio_udp_sendto(w_rktio, w_rfd, w_addr, w_buffer, w_len):
 
 c_rktio_udp_connect = rffi.llexternal('rktio_udp_connect', [R_PTR, R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_connect")
+add_prim_to_rktio("rktio_udp_connect")
 
 @expose("rktio_udp_connect", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
 def rktio_udp_connect(w_rktio, w_rfd, w_addr):
@@ -3809,7 +3804,7 @@ def rktio_udp_connect(w_rktio, w_rfd, w_addr):
 
 c_rktio_udp_bind = rffi.llexternal('rktio_udp_bind', [R_PTR, R_PTR, R_PTR, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_bind")
+add_prim_to_rktio("rktio_udp_bind")
 
 @expose("rktio_udp_bind", [W_R_PTR, W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_udp_bind(w_rktio, w_rfd, w_addr, w_reuse):
@@ -3834,7 +3829,7 @@ def rktio_udp_bind(w_rktio, w_rfd, w_addr, w_reuse):
 
 c_rktio_udp_disconnect = rffi.llexternal('rktio_udp_disconnect', [R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_disconnect")
+add_prim_to_rktio("rktio_udp_disconnect")
 
 @expose("rktio_udp_disconnect", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_udp_disconnect(w_rktio, w_rfd):
@@ -3855,7 +3850,7 @@ def rktio_udp_disconnect(w_rktio, w_rfd):
 
 c_rktio_udp_open = rffi.llexternal('rktio_udp_open', [R_PTR, R_PTR, INT], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_udp_open")
+add_prim_to_rktio("rktio_udp_open")
 
 @expose("rktio_udp_open", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_udp_open(w_rktio, w_addr, w_family):
@@ -3878,7 +3873,7 @@ def rktio_udp_open(w_rktio, w_addr, w_family):
 
 c_rktio_tcp_nodelay = rffi.llexternal('rktio_tcp_nodelay', [R_PTR, R_PTR, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_tcp_nodelay")
+add_prim_to_rktio("rktio_tcp_nodelay")
 
 @expose("rktio_tcp_nodelay", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_tcp_nodelay(w_rktio, w_rfd, w_enable):
@@ -3901,7 +3896,7 @@ def rktio_tcp_nodelay(w_rktio, w_rfd, w_enable):
 
 c_rktio_socket_shutdown = rffi.llexternal('rktio_socket_shutdown', [R_PTR, R_PTR, INT], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_socket_shutdown")
+add_prim_to_rktio("rktio_socket_shutdown")
 
 @expose("rktio_socket_shutdown", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_socket_shutdown(w_rktio, w_rfd, w_mode):
@@ -3924,7 +3919,7 @@ def rktio_socket_shutdown(w_rktio, w_rfd, w_mode):
 
 c_rktio_connect_trying = rffi.llexternal('rktio_connect_trying', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_connect_trying")
+add_prim_to_rktio("rktio_connect_trying")
 
 @expose("rktio_connect_trying", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_connect_trying(w_rktio, w_conn):
@@ -3945,7 +3940,7 @@ def rktio_connect_trying(w_rktio, w_conn):
 
 c_rktio_poll_connect_ready = rffi.llexternal('rktio_poll_connect_ready', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_connect_ready")
+add_prim_to_rktio("rktio_poll_connect_ready")
 
 @expose("rktio_poll_connect_ready", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_connect_ready(w_rktio, w_conn):
@@ -3966,7 +3961,7 @@ def rktio_poll_connect_ready(w_rktio, w_conn):
 
 c_rktio_connect_finish = rffi.llexternal('rktio_connect_finish', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_connect_finish")
+add_prim_to_rktio("rktio_connect_finish")
 
 @expose("rktio_connect_finish", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_connect_finish(w_rktio, w_conn):
@@ -3987,7 +3982,7 @@ def rktio_connect_finish(w_rktio, w_conn):
 
 c_rktio_start_connect = rffi.llexternal('rktio_start_connect', [R_PTR, R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_start_connect")
+add_prim_to_rktio("rktio_start_connect")
 
 @expose("rktio_start_connect", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
 def rktio_start_connect(w_rktio, w_remote, w_local):
@@ -4010,7 +4005,7 @@ def rktio_start_connect(w_rktio, w_remote, w_local):
 
 c_rktio_accept = rffi.llexternal('rktio_accept', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_accept")
+add_prim_to_rktio("rktio_accept")
 
 @expose("rktio_accept", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_accept(w_rktio, w_listener):
@@ -4031,7 +4026,7 @@ def rktio_accept(w_rktio, w_listener):
 
 c_rktio_poll_accept_ready = rffi.llexternal('rktio_poll_accept_ready', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_accept_ready")
+add_prim_to_rktio("rktio_poll_accept_ready")
 
 @expose("rktio_poll_accept_ready", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_accept_ready(w_rktio, w_listener):
@@ -4052,7 +4047,7 @@ def rktio_poll_accept_ready(w_rktio, w_listener):
 
 c_rktio_listen = rffi.llexternal('rktio_listen', [R_PTR, R_PTR, INT, RKTIO_BOOL_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_listen")
+add_prim_to_rktio("rktio_listen")
 
 @expose("rktio_listen", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_listen(w_rktio, w_local, w_backlog, w_reuse):
@@ -4077,7 +4072,7 @@ def rktio_listen(w_rktio, w_local, w_backlog, w_reuse):
 
 c_rktio_addrinfo_lookup_get = rffi.llexternal('rktio_addrinfo_lookup_get', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_addrinfo_lookup_get")
+add_prim_to_rktio("rktio_addrinfo_lookup_get")
 
 @expose("rktio_addrinfo_lookup_get", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_addrinfo_lookup_get(w_rktio, w_lookup):
@@ -4098,7 +4093,7 @@ def rktio_addrinfo_lookup_get(w_rktio, w_lookup):
 
 c_rktio_poll_addrinfo_lookup_ready = rffi.llexternal('rktio_poll_addrinfo_lookup_ready', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_addrinfo_lookup_ready")
+add_prim_to_rktio("rktio_poll_addrinfo_lookup_ready")
 
 @expose("rktio_poll_addrinfo_lookup_ready", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_addrinfo_lookup_ready(w_rktio, w_lookup):
@@ -4119,7 +4114,7 @@ def rktio_poll_addrinfo_lookup_ready(w_rktio, w_lookup):
 
 c_rktio_start_addrinfo_lookup = rffi.llexternal('rktio_start_addrinfo_lookup', [R_PTR, RKTIO_CONST_STRING_T, INT, INT, RKTIO_BOOL_T, RKTIO_BOOL_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_start_addrinfo_lookup")
+add_prim_to_rktio("rktio_start_addrinfo_lookup")
 
 @expose("rktio_start_addrinfo_lookup", [W_R_PTR, values_string.W_String, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_start_addrinfo_lookup(w_rktio, w_hostname, w_portno, w_family, w_passive, w_tcp):
@@ -4150,7 +4145,7 @@ def rktio_start_addrinfo_lookup(w_rktio, w_hostname, w_portno, w_family, w_passi
 
 c_rktio_make_pipe = rffi.llexternal('rktio_make_pipe', [R_PTR, INT], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_make_pipe")
+add_prim_to_rktio("rktio_make_pipe")
 
 @expose("rktio_make_pipe", [W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_make_pipe(w_rktio, w_flags):
@@ -4171,7 +4166,7 @@ def rktio_make_pipe(w_rktio, w_flags):
 
 c_rktio_set_file_size = rffi.llexternal('rktio_set_file_size', [R_PTR, R_PTR, RKTIO_FILESIZE_T], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_file_size")
+add_prim_to_rktio("rktio_set_file_size")
 
 @expose("rktio_set_file_size", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_set_file_size(w_rktio, w_rfd, w_sz):
@@ -4194,7 +4189,7 @@ def rktio_set_file_size(w_rktio, w_rfd, w_sz):
 
 c_rktio_get_file_position = rffi.llexternal('rktio_get_file_position', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_file_position")
+add_prim_to_rktio("rktio_get_file_position")
 
 @expose("rktio_get_file_position", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_get_file_position(w_rktio, w_rfd):
@@ -4215,7 +4210,7 @@ def rktio_get_file_position(w_rktio, w_rfd):
 
 c_rktio_set_file_position = rffi.llexternal('rktio_set_file_position', [R_PTR, R_PTR, RKTIO_FILESIZE_T, INT], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_set_file_position")
+add_prim_to_rktio("rktio_set_file_position")
 
 @expose("rktio_set_file_position", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_set_file_position(w_rktio, w_rfd, w_pos, w_whence):
@@ -4240,7 +4235,7 @@ def rktio_set_file_position(w_rktio, w_rfd, w_pos, w_whence):
 
 c_rktio_file_unlock = rffi.llexternal('rktio_file_unlock', [R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_file_unlock")
+add_prim_to_rktio("rktio_file_unlock")
 
 @expose("rktio_file_unlock", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_file_unlock(w_rktio, w_rfd):
@@ -4261,7 +4256,7 @@ def rktio_file_unlock(w_rktio, w_rfd):
 
 c_rktio_file_lock_try = rffi.llexternal('rktio_file_lock_try', [R_PTR, R_PTR, RKTIO_BOOL_T], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_file_lock_try")
+add_prim_to_rktio("rktio_file_lock_try")
 
 @expose("rktio_file_lock_try", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_file_lock_try(w_rktio, w_rfd, w_excl):
@@ -4284,7 +4279,7 @@ def rktio_file_lock_try(w_rktio, w_rfd, w_excl):
 
 c_rktio_poll_write_flushed = rffi.llexternal('rktio_poll_write_flushed', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_write_flushed")
+add_prim_to_rktio("rktio_poll_write_flushed")
 
 @expose("rktio_poll_write_flushed", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_write_flushed(w_rktio, w_rfd):
@@ -4305,7 +4300,7 @@ def rktio_poll_write_flushed(w_rktio, w_rfd):
 
 c_rktio_poll_write_ready = rffi.llexternal('rktio_poll_write_ready', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_write_ready")
+add_prim_to_rktio("rktio_poll_write_ready")
 
 @expose("rktio_poll_write_ready", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_write_ready(w_rktio, w_rfd):
@@ -4326,7 +4321,7 @@ def rktio_poll_write_ready(w_rktio, w_rfd):
 
 c_rktio_poll_read_ready = rffi.llexternal('rktio_poll_read_ready', [R_PTR, R_PTR], RKTIO_TRI_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_poll_read_ready")
+add_prim_to_rktio("rktio_poll_read_ready")
 
 @expose("rktio_poll_read_ready", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_poll_read_ready(w_rktio, w_rfd):
@@ -4347,7 +4342,7 @@ def rktio_poll_read_ready(w_rktio, w_rfd):
 
 c_rktio_read_converted_in = rffi.llexternal('rktio_read_converted_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_read_converted_in")
+add_prim_to_rktio("rktio_read_converted_in")
 
 @expose("rktio_read_converted_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum, W_CCHARP, values.W_Fixnum], simple=True)
 def rktio_read_converted_in(w_rktio, w_fd, w_buffer, w_start, w_len, w_is_converted, w_converted_start):
@@ -4378,7 +4373,7 @@ def rktio_read_converted_in(w_rktio, w_fd, w_buffer, w_start, w_len, w_is_conver
 
 c_rktio_write_in = rffi.llexternal('rktio_write_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_write_in")
+add_prim_to_rktio("rktio_write_in")
 
 @expose("rktio_write_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_write_in(w_rktio, w_fd, w_buffer, w_start, w_end):
@@ -4405,7 +4400,7 @@ def rktio_write_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 c_rktio_read_in = rffi.llexternal('rktio_read_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_read_in")
+add_prim_to_rktio("rktio_read_in")
 
 @expose("rktio_read_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_read_in(w_rktio, w_fd, w_buffer, w_start, w_end):
@@ -4432,7 +4427,7 @@ def rktio_read_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 c_rktio_read_converted = rffi.llexternal('rktio_read_converted', [R_PTR, R_PTR, CCHARP, INTPTR_T, CCHARP], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_read_converted")
+add_prim_to_rktio("rktio_read_converted")
 
 @expose("rktio_read_converted", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, W_CCHARP], simple=True)
 def rktio_read_converted(w_rktio, w_fd, w_buffer, w_len, w_is_converted):
@@ -4459,7 +4454,7 @@ def rktio_read_converted(w_rktio, w_fd, w_buffer, w_len, w_is_converted):
 
 c_rktio_write = rffi.llexternal('rktio_write', [R_PTR, R_PTR, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_write")
+add_prim_to_rktio("rktio_write")
 
 @expose("rktio_write", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
 def rktio_write(w_rktio, w_fd, w_buffer, w_len):
@@ -4484,7 +4479,7 @@ def rktio_write(w_rktio, w_fd, w_buffer, w_len):
 
 c_rktio_read = rffi.llexternal('rktio_read', [R_PTR, R_PTR, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_read")
+add_prim_to_rktio("rktio_read")
 
 @expose("rktio_read", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
 def rktio_read(w_rktio, w_fd, w_buffer, w_len):
@@ -4509,7 +4504,7 @@ def rktio_read(w_rktio, w_fd, w_buffer, w_len):
 
 c_rktio_std_fd = rffi.llexternal('rktio_std_fd', [R_PTR, INT], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_std_fd")
+add_prim_to_rktio("rktio_std_fd")
 
 @expose("rktio_std_fd", [W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_std_fd(w_rktio, w_which):
@@ -4530,7 +4525,7 @@ def rktio_std_fd(w_rktio, w_which):
 
 c_rktio_dup = rffi.llexternal('rktio_dup', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_dup")
+add_prim_to_rktio("rktio_dup")
 
 @expose("rktio_dup", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_dup(w_rktio, w_rfd):
@@ -4551,7 +4546,7 @@ def rktio_dup(w_rktio, w_rfd):
 
 c_rktio_close = rffi.llexternal('rktio_close', [R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_close")
+add_prim_to_rktio("rktio_close")
 
 @expose("rktio_close", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_close(w_rktio, w_fd):
@@ -4572,7 +4567,7 @@ def rktio_close(w_rktio, w_fd):
 
 c_rktio_open_with_create_permissions = rffi.llexternal('rktio_open_with_create_permissions', [R_PTR, RKTIO_CONST_STRING_T, INT, INT], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_open_with_create_permissions")
+add_prim_to_rktio("rktio_open_with_create_permissions")
 
 @expose("rktio_open_with_create_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_open_with_create_permissions(w_rktio, w_src, w_modes, w_perm_bits):
@@ -4599,7 +4594,7 @@ def rktio_open_with_create_permissions(w_rktio, w_src, w_modes, w_perm_bits):
 
 c_rktio_open = rffi.llexternal('rktio_open', [R_PTR, RKTIO_CONST_STRING_T, INT], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_open")
+add_prim_to_rktio("rktio_open")
 
 @expose("rktio_open", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_open(w_rktio, w_src, w_modes):
@@ -4624,7 +4619,7 @@ def rktio_open(w_rktio, w_src, w_modes):
 
 c_rktio_system_fd = rffi.llexternal('rktio_system_fd', [R_PTR, INTPTR_T, INT], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_system_fd")
+add_prim_to_rktio("rktio_system_fd")
 
 @expose("rktio_system_fd", [W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_system_fd(w_rktio, w_system_fd, w_modes):
@@ -4647,7 +4642,7 @@ def rktio_system_fd(w_rktio, w_system_fd, w_modes):
 
 c_rktio_get_dll_path = rffi.llexternal('rktio_get_dll_path', [R_PTR], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_get_dll_path")
+add_prim_to_rktio("rktio_get_dll_path")
 
 @expose("rktio_get_dll_path", [W_R_PTR], simple=True)
 def rktio_get_dll_path(w_p):
@@ -4666,7 +4661,7 @@ def rktio_get_dll_path(w_p):
 
 c_rktio_copy_file_finish_permissions = rffi.llexternal('rktio_copy_file_finish_permissions', [R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_copy_file_finish_permissions")
+add_prim_to_rktio("rktio_copy_file_finish_permissions")
 
 @expose("rktio_copy_file_finish_permissions", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_copy_file_finish_permissions(w_rktio, w_fc):
@@ -4687,7 +4682,7 @@ def rktio_copy_file_finish_permissions(w_rktio, w_fc):
 
 c_rktio_copy_file_step = rffi.llexternal('rktio_copy_file_step', [R_PTR, R_PTR], RKTIO_OK_T, compilation_info=librktio_a)
 
-rktio_str.append("rktio_copy_file_step")
+add_prim_to_rktio("rktio_copy_file_step")
 
 @expose("rktio_copy_file_step", [W_R_PTR, W_R_PTR], simple=True)
 def rktio_copy_file_step(w_rktio, w_fc):
@@ -4708,7 +4703,7 @@ def rktio_copy_file_step(w_rktio, w_fc):
 
 c_rktio_copy_file_start_permissions = rffi.llexternal('rktio_copy_file_start_permissions', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T, RKTIO_BOOL_T, RKTIO_BOOL_T, INT, RKTIO_BOOL_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_copy_file_start_permissions")
+add_prim_to_rktio("rktio_copy_file_start_permissions")
 
 @expose("rktio_copy_file_start_permissions", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_copy_file_start_permissions(w_rktio, w_dest, w_src, w_exists_ok, w_use_perm_bits, w_perm_bits, w_override_create_perms):
@@ -4743,7 +4738,7 @@ def rktio_copy_file_start_permissions(w_rktio, w_dest, w_src, w_exists_ok, w_use
 
 c_rktio_copy_file_start = rffi.llexternal('rktio_copy_file_start', [R_PTR, RKTIO_CONST_STRING_T, RKTIO_CONST_STRING_T, RKTIO_BOOL_T], R_PTR, compilation_info=librktio_a)
 
-rktio_str.append("rktio_copy_file_start")
+add_prim_to_rktio("rktio_copy_file_start")
 
 @expose("rktio_copy_file_start", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
 def rktio_copy_file_start(w_rktio, w_dest, w_src, w_exists_ok):
@@ -4768,11 +4763,5 @@ def rktio_copy_file_start(w_rktio, w_dest, w_src, w_exists_ok):
 
 	# returns R_PTR
 	return W_R_PTR(res)
-
-
-# Expose #%rktio module
-
-rktio = make_primitive_table(rktio_str)
-select_prim_table[sym("#%rktio")] = rktio
 
 

@@ -191,7 +191,7 @@
 	"
 ~a
 
-rktio_str.append(\"~a\")
+add_prim_to_rktio(\"~a\")
 
 @expose(\"~a\", [~a], simple=True)
 def ~a(~a):
@@ -220,7 +220,7 @@ def ~a(~a):
 	"
 ~a
 
-rktio_str.append(\"~a\")
+add_prim_to_rktio(\"~a\")
 
 def w_~a(~a):
 ~a
@@ -254,7 +254,7 @@ expose(\"~a\", [~a], simple=True)(w_~a)
 	"
 ~a
 
-rktio_str.append(\"~a\")
+add_prim_to_rktio(\"~a\")
 
 @expose(\"~a\", [~a], simple=True)
 def ~a(~a):
@@ -273,7 +273,7 @@ def ~a(~a):
 	"
 ~a
 
-rktio_str.append(\"~a\")
+add_prim_to_rktio(\"~a\")
 
 @expose(\"~a\", [~a], simple=True)
 def ~a(~a):
@@ -521,7 +521,7 @@ def ~a(~a):
       (emit "
 \"\"\"
 
-Loads the librktio static library using rffi and provides #%rktio module in Pycket runtime.
+Loads the librktio static library using rffi and provides primitives saved in #%rktio module in Pycket runtime.
 
 Defines, registers, and exposes pycket wrappers for all the librktio primitives in rktio.rktl.
 
@@ -535,16 +535,15 @@ Uses opaque pointers for all the other structs that the rktio functions referenc
 See bootstrap-rktio-pycket.rkt for type mappings: rktio -> Pycket.
 See types.py for type mappings between Pycket -> rffi.
 
-At the bottom it adds all the exposed functions to the #%rktio module in the select_prim_table, which is how Pycket loads the primitive tables.
+At each primitive definition, it adds the exposed function to the #%rktio module in the select_prim_table, which is how Pycket loads the primitive tables.
 
 \"\"\"\n\n
 import os
 
 from pycket import values, values_string
 from pycket import vector as values_vector
-from pycket.prims.primitive_tables import select_prim_table, make_primitive_table
+from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
-from pycket.foreign import make_w_pointer_class
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *
@@ -566,12 +565,8 @@ librktio_a = ExternalCompilationInfo(
     library_dirs=[RKTIO_DIR],
 )
 
-# Names (str) of all primitives we expose here
-# Dynamically filled to be usef for primitive-table
-rktio_str = []
-
 ")
-      (printf "\n# Constants \n")
+      (printf "\n# Constants\n")
       (hash-for-each
 	constants
 	(lambda (const-name const-val)
@@ -598,13 +593,6 @@ rktio_str = []
       (map (lambda (fdef) (emit fun-sep (fn/err/step-to-py-expose fdef)))
 	   (define-fn-errno+step))
 
-      (emit "
-
-# Expose #%rktio module
-
-rktio = make_primitive_table(rktio_str)
-select_prim_table[sym(\"#%rktio\")] = rktio
-")
       (emit "\n\n")
 
 )))
