@@ -4,7 +4,6 @@ from the Racket source.
 pycket/rktio/
 ├── bootstrap-rktio-pycket.rkt
 ├── bootstrap_structs.py
-├── bootstrap_primitives.py
 ├── librktio.a
 ├── _rktio_bootstrap.py
 ├── rktio_config.h
