@@ -1859,6 +1859,12 @@ def system_type(w_what):
 
 expose("system-type", [default(values.W_Symbol, w_os_sym)])(system_type)
 
+_endian = sys.byteorder
+
+@expose("system-big-endian?", [])
+def system_big_endian():
+    return values.W_Bool.make(_endian == "big")
+
 def system_path_convention_type():
     if w_system_sym is w_windows_sym:
         return w_windows_sym
