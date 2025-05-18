@@ -133,7 +133,8 @@ linklet_str = [
     "primitive-table", "variable-reference-from-unsafe?",
     "compiled-position->primitive", "linklet-virtual-machine-bytes",
     "read-linklet-bundle-hash", "write-linklet-bundle-hash", "instance-describe-variable!",
-    "primitive-lookup"
+    "primitive-lookup", "linklet-summarize-target-machine-info",
+    "linklet-cross-machine-type",
 ]
 
 unsafe_str = [
@@ -609,8 +610,9 @@ terminal_table = [
     "terminal-line-feed"
 ]
 
+thread_str = []
 
-thread_str = [
+kernel_str += [
     "thread",
     "thread-suspend-evt",
     "thread-dead-evt",
@@ -664,6 +666,7 @@ thread_str = [
     "prop:place-message",
 ]
 
+engine_str = []
 
 pthread_str = [
     "make-pthread-parameter",
@@ -731,6 +734,7 @@ terminal = make_primitive_table(terminal_table)
 pthread = make_primitive_table(pthread_str)
 thread = make_primitive_table(thread_str)
 rktio = make_primitive_table(rktio_str)
+engine = make_primitive_table(engine_str)
 
 select_prim_table = {
     sym("#%linklet"): linklet,
@@ -748,6 +752,7 @@ select_prim_table = {
     sym("#%pthread"): pthread,
     sym("#%thread"): thread,
     sym("#%rktio"): rktio,
+    sym("#%engine"): engine,
 }
 
 def append_to_prim_table(table_name_str, prim_name_str):
@@ -774,7 +779,8 @@ ALL_PRIMS = linklet_str + \
     terminal_table + \
     pthread_str + \
     thread_str + \
-    rktio_str
+    rktio_str + \
+    engine_str
 
 if DEBUG:
     print("\n\nPriming all primitives in :\n")
