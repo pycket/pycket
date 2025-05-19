@@ -31,7 +31,7 @@ endif
 
 WITH_JIT = -Ojit --translation-jit
 
-RACKET_VERSION := 8.16.0.4
+RACKET_VERSION := 8.17.0.3
 RACKET_INSTALLER_SCRIPT_NAME := racket-$(RACKET_VERSION)-x86_64-linux-jammy-cs.sh
 
 translate-jit-all: $(TRANSLATE_TARGETS)
@@ -207,6 +207,26 @@ expander: check_pycket_c_linklets check_plthome
 expander-json: check_pycket_c_linklets check_plthome
 	$(MAKE) -s -C linklet-extractor expander-json
 	@echo "Done. expander json is at: $(EXPANDER_PATH_JSON)"
+
+IO_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/io.linklet.fasl
+IO_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/io.linklet.json
+IO_PATH_ZO := $(BOOTSTRAP_LINKLET_DIR)/io.linklet.zo
+
+io: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor io
+	@echo "Done. io is at : $(IO_PATH_FASL)"
+
+io-json: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor io-json
+	@echo "Done. io json is at: $(IO_PATH_JSON)"
+
+RACKET := $(PLTHOME)/racket/bin/racket
+
+# Prep everything to bootstrap rktio
+rktio: check_plthome
+	$(MAKE) -s -C linklet-extractor librktio.a
+	cd ./pycket/rktio && $(RACKET) ./bootstrap-rktio-pycket.rkt
+	@echo "Done. rktio is set : ./pycket/rktio"
 
 REGEXP_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.fasl
 REGEXP_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/regexp.linklet.json

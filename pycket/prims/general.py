@@ -46,6 +46,8 @@ from pycket.prims import struct_structinfo
 from pycket.prims import undefined
 from pycket.prims import vector
 
+from pycket.rktio.rktio import *
+
 from rpython.rlib import jit
 
 def make_pred(name, cls):
@@ -1857,6 +1859,12 @@ def system_type(w_what):
 
 expose("system-type", [default(values.W_Symbol, w_os_sym)])(system_type)
 
+_endian = sys.byteorder
+
+@expose("system-big-endian?", [])
+def system_big_endian():
+    return values.W_Bool.make(_endian == "big")
+
 def system_path_convention_type():
     if w_system_sym is w_windows_sym:
         return w_windows_sym
@@ -2112,10 +2120,12 @@ def primitive_table(v):
         if prim_name_sym in prim_env:
             expose_env[prim_name_sym] = prim_env[prim_name_sym]
 
+    # We output a Racket hash table {W_Symbol : W_Prim}
     table = make_simple_immutable_table(W_EqImmutableHashTable,
                                         expose_env.keys(),
                                         expose_env.values())
 
+    # Save Racket hash table in the cache and return
     prim_table_cache[v] = table
     return table
 
