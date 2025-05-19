@@ -610,9 +610,7 @@ terminal_table = [
     "terminal-line-feed"
 ]
 
-thread_str = []
-
-kernel_str += [
+thread_str = [
     "thread",
     "thread-suspend-evt",
     "thread-dead-evt",
@@ -666,7 +664,58 @@ kernel_str += [
     "prop:place-message",
 ]
 
-engine_str = []
+engine_str = [
+    "make-engine",
+    "engine-timeout",
+    "engine-return",
+    "engine-roots",
+    "call-with-engine-completion",
+    "current-process-milliseconds",
+    "set-ctl-c-handler!",
+    "set-break-enabled-transition-hook!",
+    "continuation-marks",
+    "poll-will-executors",
+    "make-will-executor",
+    "make-late-will-executor",
+    "will-executor?",
+    "will-register",
+    "will-try-execute",
+    "set-reachable-size-increments-callback!",
+    "set-custodian-memory-use-proc!",
+    "set-immediate-allocation-check-proc!",
+    "exn:break/non-engine",
+    "exn:break:hang-up/non-engine",
+    "exn:break:terminate/non-engine",
+    "poll-async-callbacks",
+    "disable-interrupts",
+    "enable-interrupts",
+    "sleep",
+    "get-wakeup-handle",
+    "wakeup",
+    "fork-place",
+    "place-get-inherit",
+    "start-place",
+    "exit",
+    "current-place-roots",
+    "get-initial-place",
+    "call-with-current-continuation-roots",
+    "fork-pthread",
+    "pthread?",
+    "get-thread-id",
+    "make-condition",
+    "condition-wait",
+    "condition-signal",
+    "condition-broadcast",
+    "make-mutex",
+    "mutex-acquire",
+    "mutex-release",
+    "threaded?",
+    "call-as-asynchronous-callback",
+    "post-as-asynchronous-callback",
+    "continuation-current-primitive",
+    "prop:unsafe-authentic-override",
+    "get-system-stats"
+]
 
 pthread_str = [
     "make-pthread-parameter",
@@ -674,14 +723,11 @@ pthread_str = [
     "unsafe-place-local-ref",
     "unsafe-place-local-set!",
     "unsafe-add-global-finalizer",
-    "unsafe-strip-impersonator",
-    "prop:unsafe-authentic-override",
+    # "unsafe-strip-impersonator",
     "immobile-cell-ref",
     "immobile-cell->address",
     "address->immobile-cell",
     "set-fs-change-properties!",
-    "unsafe-root-continuation-prompt-tag",
-    "break-enabled-key",
     "engine-block"
 ]
 
