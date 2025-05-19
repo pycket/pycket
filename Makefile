@@ -220,6 +220,18 @@ io-json: check_pycket_c_linklets check_plthome
 	$(MAKE) -s -C linklet-extractor io-json
 	@echo "Done. io json is at: $(IO_PATH_JSON)"
 
+THREAD_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/thread.linklet.fasl
+THREAD_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/thread.linklet.json
+THREAD_PATH_ZO := $(BOOTSTRAP_LINKLET_DIR)/thread.linklet.zo
+
+thread: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor thread
+	@echo "Done. thread is at : $(THREAD_PATH_FASL)"
+
+thread-json: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor thread-json
+	@echo "Done. thread json is at: $(THREAD_PATH_JSON)"
+
 RACKET := $(PLTHOME)/racket/bin/racket
 
 # Prep everything to bootstrap rktio

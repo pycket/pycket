@@ -50,6 +50,19 @@ io-json: io-sexp
 io-sexp:
 	$(ZUO) $(IO_DIR) io-src
 
+THREAD_DIR := $(PLTHOME)/racket/src/thread
+THREAD_FASL_FILENAME := thread.linklet.fasl
+THREAD_JSON_FILENAME := thread.linklet.json
+
+thread: thread-sexp
+	$(RACKET) linklet-sexp-to-fasl.rkt --output $(BOOTSTRAP_LINKLET_DIR)/$(THREAD_FASL_FILENAME) compiled/thread.rktl
+
+thread-json: thread-sexp
+	$(RACKET) linklet-sexp-to-json.rkt --output $(BOOTSTRAP_LINKLET_DIR)/$(THREAD_JSON_FILENAME) compiled/thread.rktl
+
+thread-sexp:
+	$(ZUO) $(THREAD_DIR) thread-src
+
 RKTIO_DIR := $(PLTHOME)/racket/src/rktio
 RKTIO_LOCAL_DIR := $(PYCKET_DIR)/pycket/rktio
 
