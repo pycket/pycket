@@ -12,6 +12,7 @@ from pycket.error import BootstrapError
 
 # Feature flag for loading io linklet
 FFLAG_IO = "io"
+FFLAG_THREAD = "thread"
 
 class BootstrapLinklet():
     DIR = "bootstrap-linklets"
@@ -147,6 +148,7 @@ FASL_LINKLET = BootstrapLinklet('fasl')
 EXPANDER_LINKLET = BootstrapLinklet('expander')
 REGEXP_LINKLET = BootstrapLinklet('regexp')
 IO_LINKLET = BootstrapLinklet('io')
+THREAD_LINKLET = BootstrapLinklet('thread')
 
 def locate_linklet(file_name):
     import os
@@ -182,9 +184,14 @@ def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
         REGEXP_LINKLET.load()
 
     # Load io linklet
-    # (currently only when the "io" feature flag is set)
+    # Feature Flag: io
     if feature_flag == FFLAG_IO:
         IO_LINKLET.load()
+
+    # Load thread linklet
+    # Feature Flag: thread
+    if feature_flag == FFLAG_THREAD:
+        THREAD_LINKLET.load()
 
     # Load fasl linklet
     FASL_LINKLET.load()
