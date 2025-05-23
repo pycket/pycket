@@ -4,16 +4,30 @@ from pycket.error           import SchemeException
 from pycket.prims.expose    import expose
 from pycket.cont            import Prompt, continuation
 
-
-current_engine_complete_or_expire_param = values_parameter.W_Parameter(values.w_false)
-
 """
-We ignore the w_ticks here (the _ argument) because
-Pycket currently doesn't care about preemption at the Racket
-level. So every TICK is considered infinite (i.e. we
-always have a non-zero remaining ticks)
+Engines in the rumble layer are so much more tightly coupled with the
+higher levels (i.e. thread linklet) than anything else in the general
+self-hosting setup.
+
+The protocols for invoking engines, as well as the mechanism in which
+they're controlled (in the control-flow sense) are all mandated by the
+design.
+
+For example, the only primitive that explicitly invokes an engine is the
+call-with-engine-completion. The procedure P that is passed to the
+call-with-engine-completion (at the Racket level) has to invoke an engine
+(which always means calling the engine like a function with three parameteres,
+so the host is forced to represent an engine as a callable entity).
+There are also implicit requirements for the arguments to the engine invocation.
+For instance, the complete-or-expire (the 3rd parameter) has to call P's argument
+in tail-position.
+
+All these need to be reverse engineered because these are internal
+stuff that don't have any user level documentation.
+
+See https://github.com/racket/racket/blob/master/racket/src/cs/rumble/engine.ss
+for engines in Racket CS's rumble layer.
 """
-current_engine_ticks_param = values_parameter.W_Parameter(values.W_Fixnum.MAX_INTERNED)
 
 
 """
@@ -30,16 +44,28 @@ in an engine call's `complete-or-expire` callback:
     the procedure provided by `call-with-engine-completion`
 
 """
+
+current_engine_complete_or_expire_param = values_parameter.W_Parameter(values.w_false)
+
+"""
+We ignore the w_ticks here (the _ argument) because
+Pycket currently doesn't care about preemption at the Racket
+level. So every TICK is considered infinite (i.e. we
+always have a non-zero remaining ticks)
+"""
+current_engine_ticks_param = values_parameter.W_Parameter(values.W_Fixnum.MAX_INTERNED)
+
+
 class W_Engine(values.W_Procedure):
     # TODO: we could derive it from W_PromotableClosure if
     # we keep it pure
     #
-    # Keeping it pure requires not putting dynamic stuff
-    # (e.g. complete-or-expire, or ticks) inside the object
-    # Which is why we keep Racket level parameters to keep track
-    # of the "current engine". (Also so that when the metacontinuations
-    # are introduced, the scaffolding--that weaves the engine through
-    # the continuation prompts--is ready)
+    # Keeping it pure requires refraining from putting dynamic stuff
+    # (e.g. complete-or-expire, or ticks) inside the object,
+    # which is why we keep some Racket level parameters for the
+    # "current engine". (Also so that when the metacontinuations
+    # are introduced here, the scaffolding--that weaves the engine through
+    # the continuation prompts--is ready to go)
 
     _attrs_ = _immutable_fields_ = ["w_thunk", "cell_state", "w_pmompt_tag", "w_abort_handler"]
     def __init__(self, w_thunk, w_prompt_tag, w_abort_handler, w_cell, w_empty_conf_huh):
@@ -122,17 +148,7 @@ Given:
     def tostring(self):
         return "#<engine>"
 
-"""
-(make-engine
-    proc_11
-    (default-continuation-prompt-tag)
-    #f
-    (if (let-values (((or-part_59) initial?_0))
-            (if or-part_59 or-part_59 at-root?_0))
-            break-enabled-default-cell
-        (current-break-enabled-cell))
-    at-root?_0)
-"""
+
 @expose("make-engine", 
         [values.W_Object,                   # thunk -- callable, can return any number of values 
          values.W_ContinuationPromptTag,    # prompt-tag -- prompt to wrap around call to 'thunk'
@@ -147,6 +163,36 @@ def make_engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cel
     assert w_abort_handler.iscallable()
 
     return W_Engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cell, w_empty_config_huh)
+
+# call-with-engine-completion: proc -> any
+# It's for capturing the current metacontinuation as an engine runner.
+# Calls the proc with a procedure to be tail-called from an engine's
+# complete-or-expire callback to return to the metacontinuation.
+#
+# The proc is a function that invokes an engine (grep thread.linklet to see
+# an actual call).
+#
+# The proc's argument is something like a postfix function, to be (tail-)called
+# within the complete-or-expire that the engine is given when it is invoked
+#
+# call-with-engine-completion calls the proc. So the proc's argument is
+# a functionn that does whatever the host needs. For Pycket, it can be identity
+# for now.
+@expose("call-with-engine-completion", [values.W_Object], simple=False)
+def call_with_engine_completion(w_proc, env, cont):
+    from pycket.racket_entry import get_primitive
+
+    assert w_proc.iscallable()
+
+    w_values = get_primitive("values")
+    # TODO: For future when metacontinuations are introduced:
+    # This call needs to be in a function that receives the current
+    # metacontinuation (i.e. call-with-current-metacontinuation arg)
+    # And instead of the primitive "values", we need a function that
+    # applies the values to that metacontinuation (i.e. apply-meta-continuation)
+    # See the racket/racket/src/cs/rumble/engine.ss
+    return w_proc.call([w_values], env, cont)
+
 
 # engine-timeout: -> T
 # Called *inside* the running engine when its time-slice expires.
