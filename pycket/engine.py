@@ -1,4 +1,4 @@
-from pycket                 import values, base, values_parameter
+from pycket                 import arity, values, base, values_parameter
 from pycket.argument_parser import ArgParser, EndOfInput
 from pycket.error           import SchemeException
 from pycket.prims.expose    import expose
@@ -166,4 +166,13 @@ def make_engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cel
 # Terminates the engine and delivers its final values to the scheduler.
 # (engine-return val ...)
 # engine.complete_or_expire(#f, results, remaining_ticks)
+def do_engine_return(results, env, cont):
+    # get the current_complette or expire
+    w_complete_or_expire = current_engine_complete_or_expire_param.get_cell(cont).get()
+    w_remaining_ticks = current_engine_ticks_param.get_cell(cont).get()
 
+    args = [values.w_false, results, w_remaining_ticks]
+
+    return w_complete_or_expire.call_with_extra_info(args, env, cont, None)
+
+expose("engine-return", simple=False, arity=arity.Arity.unknown)(do_engine_return)
