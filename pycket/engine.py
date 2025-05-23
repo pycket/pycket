@@ -55,6 +55,16 @@ always have a non-zero remaining ticks)
 """
 current_engine_ticks_param = values_parameter.W_Parameter(values.W_Fixnum.MAX_INTERNED)
 
+# HACK: At engine timeouts and bloks, we need to create a new engine
+# that'll continuae where we left off when invoked. In Pycket, engines
+# run to completion every time. In the case where engine-timeout or
+# engine-block is explicitly called (possibly with something like kill-thread),
+# we return the same engine that was running.
+# This parameter is to be able to find that engine in the continuation.
+# When we introduce metacontinuations, then we'll be able to use them
+# to actually continue
+current_engine_param = values_parameter.W_Parameter(values.w_false)
+
 
 class W_Engine(values.W_Procedure):
     # TODO: we could derive it from W_PromotableClosure if
@@ -67,13 +77,19 @@ class W_Engine(values.W_Procedure):
     # are introduced here, the scaffolding--that weaves the engine through
     # the continuation prompts--is ready to go)
 
-    _attrs_ = _immutable_fields_ = ["w_thunk", "cell_state", "w_pmompt_tag", "w_abort_handler"]
-    def __init__(self, w_thunk, w_prompt_tag, w_abort_handler, w_cell, w_empty_conf_huh):
+    _attrs_ = ["w_thunk", "cell_state", "w_pmompt_tag", "w_abort_handler", "w_cont"]
+    _immutable_fields_ = ["w_thunk", "cell_state", "w_pmompt_tag", "w_abort_handler"]
+
+    def __init__(self, w_thunk, w_prompt_tag, w_abort_handler, w_cell, w_empty_conf_huh, w_cont=values.w_false):
         self.w_thunk = w_thunk # callable
         self.w_prompt_tag = w_prompt_tag
         self.w_abort_handler = w_abort_handler
         self.cell_state = w_cell
         self.empty_conf_huh = w_empty_conf_huh
+        self.w_cont = w_cont
+
+    def inject_cont(self, new_cont):
+        self.w_cont = new_cont
 
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
@@ -139,6 +155,12 @@ Given:
         current_ticks_p_cell = current_engine_ticks_param.get_cell(cont)
         current_ticks_p_cell.set(w_ticks)
 
+        # Set current engine
+        current_engine_p_cell = current_engine_param.get_cell(cont)
+        current_engine_p_cell.set(self)
+
+        if self.w_cont is not values.w_false:
+            cont = self.w_cont
 
         cont = self.engine_invoke_prefix_cont(calling_app, env, cont)
 
@@ -161,6 +183,17 @@ def make_engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cel
 
     assert w_thunk.iscallable()
     assert w_abort_handler.iscallable()
+
+    # Returns a callable engine that when invoked with 3 parameters (ticks, prefix, complete-or-expire),
+    # calls the prefix first, continues with the thunk, and then continues with the complete-or-expire with
+    # the results from the thunk (continues in a continuation sense).
+
+    # In RacketCS's engines in the rumble layer, there's an additional 'create-engine' abstraction, that
+    # allows the host to provide a function that'll in turn call the prefix (that's given to the engine),
+    # after setting up that the engine applies the results (of complete-or-expire) to the metacontinuation.
+    # In Pycket, we can ignore all that for now because we don't worry about the metacontinuations just yet.
+    # So in our case, we treat the function that's supplied to the 'create-engine' as eta equivalent to
+    # prefix, so no need for the explicit 'create-engine'.
 
     return W_Engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cell, w_empty_config_huh)
 
@@ -199,13 +232,35 @@ def call_with_engine_completion(w_proc, env, cont):
 # Never returns, unwind to the caller of engine-run
 # (engine-timeout)
 # engine.complete_or_expire(new_engine, #f, 0)
-
+@expose("engine-timeout", [], simple=False)
+def engine_timeout(env, cont):
+    # This should never be called in Pycket.
+    return do_engine_return(True, env, cont)
 
 # engine-block: -> T
 # Called when the thread must wait on an external event.
 # Yield with blocking.
 # (engine-block)
 # engine.complete_or_expire(new_engine, #f, remaining_ticks)
+@expose("engine-block", [], simple=False):
+def engine_block(env, cont):
+    return do_engine_return(False, env, cont)
+
+
+def do_engine_block(with_timeout_huh, env, cont):
+     # get the current_complette or expire
+    w_complete_or_expire = current_engine_complete_or_expire_param.get_cell(cont).get()
+    w_remaining_ticks = current_engine_ticks_param.get_cell(cont).get()
+    w_current_engine = current_engine_param.get_cell(cont).get()
+
+    remaining_ticks = 0 if with_timeout_huh else w_remaining_ticks
+
+    w_current_engine.inject_cont(cont)
+    w_new_engine = w_current_engine
+
+    args = [w_new_engine, values.w_false, remaining_ticks]
+
+    return w_complete_or_expire.call_with_extra_info(args, env, cont, None)
 
 
 # engine-return: any ... -> T
