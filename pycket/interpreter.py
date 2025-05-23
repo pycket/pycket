@@ -24,6 +24,11 @@ from small_list               import inline_small_list
 import inspect
 import sys
 
+# FIXME: this is just a reference for the 
+# annotator flow into the engines during translation
+# Move this (or make a new reference) wherever is relevant
+from pycket.engine  import W_Engine
+
 # imported for side effects
 import pycket.prims.general
 
