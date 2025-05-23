@@ -142,12 +142,11 @@ Given:
          ],
         simple=False)
 def make_engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cell, w_empty_config_huh):
-    # Check thunk callable
 
-    # Actually starts a computation... by
-    #   -- calls the 
-    pass
+    assert w_thunk.iscallable()
+    assert w_abort_handler.iscallable()
 
+    return W_Engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cell, w_empty_config_huh)
 
 # engine-timeout: -> T
 # Called *inside* the running engine when its time-slice expires.
