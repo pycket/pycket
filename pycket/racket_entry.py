@@ -1,11 +1,10 @@
-from pycket.prims.linklet import W_Linklet, do_compile_linklet, W_LinkletInstance
+from pycket.prims.linklet import W_Linklet
 from pycket.interpreter import check_one_val, Done
-from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell, w_void
+from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell
 from pycket.values_string import W_String
 from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
-from pycket.util import console_log, LinkletPerf, linklet_perf, PerfRegion
-from pycket.prims.correlated import syntax_primitives
+from pycket.util import console_log, linklet_perf, PerfRegion
 from pycket.error import ExitException, SchemeException
 from rpython.rlib.debug import debug_start, debug_stop, debug_print
 from pycket.error import BootstrapError
