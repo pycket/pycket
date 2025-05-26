@@ -295,3 +295,6 @@ def mutex_acquire(m):
 def mutex_release(m):
     m.post()
 
+@expose("get-initial-place", [])
+def get_initial_place():
+    return values.w_false
