@@ -1312,6 +1312,7 @@ sym = values.W_Symbol.make
 
 w_prop_object_name = W_StructProperty(sym("prop:object-name"), values.w_false)
 w_prop_authentic = W_StructProperty(sym("prop:authentic"), values.w_false)
+w_prop_authentic_override = W_StructProperty(sym("prop:unsafe-authentic-override"), values.w_false)
 w_prop_sealed = W_StructProperty(sym("prop:sealed"), values.w_false)
 #FIXME: check if these propeties need guards or not
 w_prop_procedure = W_StructProperty(sym("prop:procedure"), values.w_false)

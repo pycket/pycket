@@ -295,6 +295,7 @@ for name in ["exn:srclocs",
 
 
 expose_val("prop:authentic", values_struct.w_prop_authentic)
+expose_val("prop:unsafe-authentic-override", values_struct.w_prop_authentic_override)
 expose_val("prop:sealed", values_struct.w_prop_sealed)
 expose_val("prop:object-name", values_struct.w_prop_object_name)
 
