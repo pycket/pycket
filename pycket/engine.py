@@ -4,6 +4,8 @@ from pycket.error           import SchemeException
 from pycket.prims.expose    import expose
 from pycket.cont            import Prompt, continuation
 
+from rpython.rlib           import rthread
+
 """
 Engines in the rumble layer are so much more tightly coupled with the
 higher levels (i.e. thread linklet) than anything else in the general
@@ -279,3 +281,17 @@ def do_engine_return(_results, env, cont):
     return w_complete_or_expire.call_with_extra_info(args, env, cont, None)
 
 expose("engine-return", simple=False, arity=arity.Arity.unknown)(do_engine_return)
+
+
+@expose("make-mutex", [])
+def make_mutex():
+    return values.W_Semaphore(1)
+
+@expose("mutex-acquire", [values.W_Semaphore])
+def mutex_acquire(m):
+    m.wait()
+
+@expose("mutex-release", [values.W_Semaphore])
+def mutex_release(m):
+    m.post()
+
