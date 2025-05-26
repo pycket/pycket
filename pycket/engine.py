@@ -298,3 +298,23 @@ def mutex_release(m):
 @expose("get-initial-place", [])
 def get_initial_place():
     return values.w_false
+
+@expose("set-reachable-size-increments-callback!", [values.W_Object])
+def set_reachable_size_increments_callback_bang(proc):
+    return values.w_void
+
+@expose("set-custodian-memory-use-proc!", [values.W_Object])
+def set_custodian_memory_use_proc_bang(proc):
+    return values.w_void
+
+@expose("set-immediate-allocation-check-proc!", [values.W_Object])
+def set_immediate_allocation_check_proc_bang(proc):
+    return values.w_void
+
+@expose("set-break-enabled-transition-hook!", [values.W_Object])
+def set_break_enabled_transition_hook_bang(proc):
+    return values.w_void
+
+
+
+
