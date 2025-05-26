@@ -16,7 +16,7 @@ def reparameterize(p):
 
 OBJ_SYM = values.W_Symbol.make(values_parameter.OBJ_NAME)
 
-@expose("make-parameter",
+@expose(["make-parameter","make-pthread-parameter"],
         [values.W_Object,
          default(values.W_Object, values.w_false),
          default(values.W_Symbol, OBJ_SYM)])
