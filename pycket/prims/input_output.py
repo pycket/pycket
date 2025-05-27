@@ -699,7 +699,6 @@ def close_port_cont(env, cont, _vals):
     try:
         port.close()
     except OSError as err:
-        #import pdb; pdb.set_trace()
         raise FSException("close-*-port: cannot close port : %s %s" % (port,err.strerror))
     return return_void(env, cont)
 

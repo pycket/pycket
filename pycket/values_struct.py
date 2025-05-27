@@ -946,7 +946,6 @@ class W_Struct(W_RootStruct):
         if w_type.isprefab:
             return self.tostring_prefab()
         elif w_type.all_opaque():
-            # import pdb;pdb.set_trace()
             # ret_str = "#<%s" % typename
             # for i in range(0, self._get_size_list()):
             #     ret_str += ":%s" % self._ref(i).tostring()

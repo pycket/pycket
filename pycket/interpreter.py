@@ -1,20 +1,19 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket                   import config
 from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
 from pycket.AST               import AST
 from pycket.arity             import Arity
-from pycket.cont              import Cont, NilCont, label, continuation
+from pycket.cont              import Cont, NilCont, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.error             import SchemeException
-from pycket.prims.expose      import prim_env, make_call_method
+from pycket.prims.expose      import prim_env
 from pycket.prims.control     import convert_runtime_exception, convert_os_error
 from pycket.prims.parameter   import current_cmd_args_param
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
-from rpython.rlib             import jit, debug, objectmodel
+from rpython.rlib             import jit, objectmodel
 from rpython.rlib.objectmodel import import_from_mixin
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
 from rpython.rlib.rarithmetic import r_uint
@@ -22,7 +21,6 @@ from rpython.tool.pairtype    import extendabletype
 from small_list               import inline_small_list
 
 import inspect
-import sys
 
 # FIXME: this is just a reference for the 
 # annotator flow into the engines during translation
@@ -178,7 +176,7 @@ class __extend__(Context):
         re-build the expression inside out, as the given expression is traversed
         from outside inward.
         The transformation is trampolined in order to overcome Python's
-        improverished call stack.
+        impoverished call stack.
         """
         try:
             while True:
