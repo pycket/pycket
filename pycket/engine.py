@@ -315,6 +315,9 @@ def set_immediate_allocation_check_proc_bang(proc):
 def set_break_enabled_transition_hook_bang(proc):
     return values.w_void
 
-
+@expose("set-ctl-c-handler!", [values.W_Object])
+def set_ctl_c_handler(proc):
+    # FIXME: integrate with either rpython or Racket exit
+    return values.w_void
 
 
