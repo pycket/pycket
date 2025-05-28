@@ -297,14 +297,16 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
             return interp.CellRef(form)
         if form in lex_env:
             return interp.LexicalVar(form)
-        if form in all_toplevels:
-            return interp.ToplevelVar(form, is_free=False)
 
         if form in exports and (form in mutated_ids or form not in all_toplevels):
             # dynamically find the W_LinkletVar for the exported variable
             # possible point of optimization
             rands = [interp.LinkletVar(exports[form].int_id)]
             return interp.App.make(var_ref_mod_var, rands)
+
+        if form in all_toplevels:
+            return interp.ToplevelVar(form, is_free=False)
+
 
         import_var_int_id = is_imported(form, linkl_importss)
         if import_var_int_id: # this is gensymed internal variable name
