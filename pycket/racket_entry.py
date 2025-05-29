@@ -11,7 +11,7 @@ from pycket.error import BootstrapError
 
 # Feature flag for loading io linklet
 FFLAG_IO = "io"
-FFLAG_THREAD = "thread"
+FFLAG_THREAD = "thread" # no longer used, kept for debugging
 
 class BootstrapLinklet():
     DIR = "bootstrap-linklets"
@@ -182,15 +182,14 @@ def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
         # Load regexp linklet
         REGEXP_LINKLET.load()
 
-    # Load io linklet
+     # Load thread linklet
+    # Feature Flag: thread
+    THREAD_LINKLET.load()
+
+   # Load io linklet
     # Feature Flag: io
     if feature_flag == FFLAG_IO:
         IO_LINKLET.load()
-
-    # Load thread linklet
-    # Feature Flag: thread
-    if feature_flag == FFLAG_THREAD:
-        THREAD_LINKLET.load()
 
     # Load fasl linklet
     FASL_LINKLET.load()

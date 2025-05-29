@@ -610,59 +610,60 @@ terminal_table = [
     "terminal-line-feed"
 ]
 
-# thread_str = [
-#     "thread",
-#     "thread-suspend-evt",
-#     "thread-dead-evt",
-#     "current-thread",
-#     "thread-resume",
-#     "make-semaphore",
-#     "semaphore-post",
-#     "semaphore-post-all",
-#     "semaphore-wait",
-#     "semaphore-peek-evt",
-#     "make-channel",
-#     "channel-put-evt",
-#     "wrap-evt",
-#     "handle-evt",
-#     "always-evt",
-#     "choice-evt",
-#     "sync",
-#     "sync/timeout",
-#     "evt?",
-#     "sync-atomic-poll-evt?",
-#     "prop:evt",
-#     "prop:secondary-evt",
-#     "poller",
-#     "poller-evt",
-#     "poll-ctx-poll?",
-#     "poll-ctx-select-proc",
-#     "poll-ctx-sched-info",
-#     "set-poll-ctx-incomplete?!",
-#     "control-state-evt",
-#     "async-evt",
-#     "current-sandman",
-#     "schedule-info-current-exts",
-#     "schedule-info-did-work!",
-#     "unsafe-start-atomic",
-#     "unsafe-end-atomic",
-#     "start-atomic/no-interrupts",
-#     "end-atomic/no-interrupts",
-#     "in-atomic-mode?",
-#     "current-custodian",
-#     "custodian-shut-down?",
-#     "current-plumber",
-#     "plumber-add-flush!",
-#     "plumber-flush-handle-remove!",
-#     "unsafe-custodian-register",
-#     "unsafe-custodian-unregister",
-#     "unsafe-make-custodian-at-root",
-#     "thread-push-kill-callback!",
-#     "thread-pop-kill-callback!",
-#     "unsafe-add-pre-poll-callback!",
-#     "set-get-subprocesses-time!",
-#     "prop:place-message",
-# ]
+thread_str = [
+    "thread",
+    "thread-suspend-evt",
+    "thread-dead-evt",
+    "current-thread",
+    "thread-resume",
+    "make-semaphore",
+    "semaphore-post",
+    "semaphore-post-all",
+    "semaphore-wait",
+    "semaphore-peek-evt",
+    "make-channel",
+    "channel-put-evt",
+    "wrap-evt",
+    "handle-evt",
+    "always-evt",
+    "choice-evt",
+    "sync",
+    "sync/timeout",
+    "evt?",
+    "sync-atomic-poll-evt?",
+    "prop:evt",
+    "prop:secondary-evt",
+    "poller",
+    "poller-evt",
+    "poll-ctx-poll?",
+    "poll-ctx-select-proc",
+    "poll-ctx-sched-info",
+    "set-poll-ctx-incomplete?!",
+    "control-state-evt",
+    "async-evt",
+    "current-sandman",
+    "schedule-info-current-exts",
+    "schedule-info-did-work!",
+    "unsafe-start-atomic",
+    "unsafe-end-atomic",
+    "start-atomic/no-interrupts",
+    "end-atomic/no-interrupts",
+    "in-atomic-mode?",
+    "current-custodian",
+    "custodian-shut-down?",
+    "current-plumber",
+    "plumber-add-flush!",
+    "plumber-flush-handle-remove!",
+    "unsafe-custodian-register",
+    "unsafe-custodian-unregister",
+    "unsafe-make-custodian-at-root",
+    "thread-push-kill-callback!",
+    "thread-pop-kill-callback!",
+    "unsafe-add-pre-poll-callback!",
+    "set-get-subprocesses-time!",
+    "prop:place-message",
+]
+kernel_str += thread_str
 
 engine_str = [
     "make-engine",
@@ -778,7 +779,7 @@ kernel = make_primitive_table(kernel_str)
 pycket = make_primitive_table(pycket_extra_str + schemify_hooks)
 terminal = make_primitive_table(terminal_table)
 pthread = make_primitive_table(pthread_str)
-# thread = make_primitive_table(thread_str)
+thread = make_primitive_table(thread_str)
 rktio = make_primitive_table(rktio_str)
 engine = make_primitive_table(engine_str)
 
@@ -796,7 +797,7 @@ select_prim_table = {
     sym("#%network"): network,
     sym("#%terminal"): terminal,
     sym("#%pthread"): pthread,
-    # sym("#%thread"): thread,
+    sym("#%thread"): thread,
     sym("#%rktio"): rktio,
     sym("#%engine"): engine,
 }
@@ -825,8 +826,8 @@ ALL_PRIMS = linklet_str + \
     terminal_table + \
     pthread_str + \
     rktio_str + \
-    engine_str
-    # thread_str + \
+    engine_str + \
+    thread_str
 
 if DEBUG:
     print("\n\nPriming all primitives in :\n")
@@ -850,7 +851,7 @@ def report_undefined_prims():
     network = get_undef_prims_in(network_str)
     terminal = get_undef_prims_in(terminal_table)
     pthread = get_undef_prims_in(pthread_str)
-    # thread = get_undef_prims_in(thread_str)
+    thread = get_undef_prims_in(thread_str)
 
     total = linklets + kernel + paramz + unsafe + foreign + \
         futures + places + flfxnum + extfl + network + terminal + pthread
