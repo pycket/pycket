@@ -2303,7 +2303,3 @@ class W_Impossible(W_Object):
     def __init__(self):
         pass
 
-class W_WillExecutor(W_Object):
-    errorname = "will-executor"
-    def __init__(self):
-        pass

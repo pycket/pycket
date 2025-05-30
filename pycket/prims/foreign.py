@@ -211,6 +211,3 @@ def ctype_scheme_to_c(ctype):
 def ctype_c_to_scheme(ctype):
     return ctype.c_to_scheme()
 
-@expose("make-late-will-executor")
-def make_will_exec(args):
-    return values.W_WillExecutor()

@@ -123,8 +123,6 @@ for args in [
         ("unquoted-printing-string?", values.W_UnquotedPrintingString),
         ("port?", values.W_Port),
         ("security-guard?", values.W_SecurityGuard),
-        # FIXME
-        ("will-executor?", values.W_WillExecutor),
         ("bytes-converter?", values.W_Impossible),
         ("fsemaphore?", values.W_Impossible),
         ("thread-group?", values.W_Impossible),
@@ -2216,23 +2214,7 @@ def lang_country():
 def add_post(p):
     return values.w_void
 
-
-@expose("make-will-executor", [])
-def make_will_exec():
-    return values.W_WillExecutor()
-
-@expose("will-register", [values.W_WillExecutor, values.W_Object, values.W_Object])
-def will_register(w, v, p):
-    return values.w_void
-
-@expose("will-execute", [values.W_WillExecutor])
-def will_exec(w):
-    return values.w_void
-
-@expose("will-try-execute", [values.W_WillExecutor, default(values.W_Object, values.w_false)])
-def will_exec(w, v):
-    return v
-
+# FIXME: deleteme
 @expose("thread", [values.W_Object])
 def thread(p):
     return values.W_Thread()

@@ -1,10 +1,10 @@
 from pycket                 import arity, values, base, values_parameter
 from pycket.argument_parser import ArgParser, EndOfInput
 from pycket.error           import SchemeException
-from pycket.prims.expose    import expose
+from pycket.prims.expose    import default, expose
 from pycket.cont            import Prompt, continuation
 
-from rpython.rlib           import rthread
+from rpython.rlib           import rgc
 
 """
 Engines in the rumble layer are so much more tightly coupled with the
@@ -327,3 +327,102 @@ def disable_enable_interrupts():
 @expose("poll-async-callbacks", [])
 def poll_async_callbacks():
     return values.w_null
+
+@expose("current-place-roots", [])
+def current_place_roots():
+    return values.w_null
+
+
+# rgc.FinalizerQueue is a queue that RPython GC drives
+# finalizer_trigger is called whenever a major collection
+# occurs that involves the registered objects (in our case W_Object)
+# We use this to flip the will procedure state in a will
+# executor registered for that value
+# see https://doc.pypy.org/en/stable/discussion/finalizer-order.html
+class WillFinalizerQueue(rgc.FinalizerQueue):
+
+    base_class = values.W_Object
+
+    def __init__(self, ready_set):
+        self.ready_set = ready_set
+
+    def finalizer_trigger(self):
+        w_obj = self.next_dead()
+        while w_obj:
+            self.ready_set[w_obj] = None
+            w_obj = self.next_dead()
+
+# If not translated, none of the values will ever be ready, so
+# this whole thing will be a big no-op
+class W_WillExecutor(values.W_Object):
+    errorname = "will-executor"
+
+    def __init__(self):
+        # W_Object in set means it's will is ready to be executed
+        self.ready_set = {} # w_val : None
+
+        self.will_procs = {} # W_Object: W_Object (callable)
+
+        self.queue = WillFinalizerQueue(self.ready_set)
+
+    def have_any_ready_will(self):
+        return len(self.ready_set) != 0
+
+    def register_proc(self, w_value, w_proc):
+        self.will_procs[w_value] = w_proc
+
+    def try_execute_will_for(self, w_value):
+        res = None
+        if w_value in self.ready_set:
+            res = self.will_procs[w_value].call_interpret([w_value])
+        res = res if res else values.w_false
+        return res
+
+    def execute_ready_wills(self):
+        results = []
+
+        # FIXME: I don't think anyone will call/cc in a will proc
+        # but the right way of doing this is threading through a
+        # continuation loop to invoke these procedures one after another
+        for w_val in self.ready_set:
+            # FIXME: check the order in which the procedures are executed
+            results.append(self.will_procs[w_val].call_interpret([w_val]))
+
+        return values.Values.make(results)
+
+WILL_EXECUTORS = []
+
+@expose("make-will-executor", [values.W_Object])
+def make_will_executor(notify):
+    e = W_WillExecutor()
+    WILL_EXECUTORS.append(e)
+    return e
+
+@expose("make-late-will-executor", [values.W_Object, default(values.W_Object, values.w_false)])
+def make_late_will_executor(notify, keep_huh):
+    e = W_WillExecutor()
+    WILL_EXECUTORS.append(e)
+    return e
+
+@expose("will-executor?", [values.W_Object])
+def will_executor(v):
+    return values.W_Bool.make(isinstance(v, W_WillExecutor))
+
+@expose("will-register", [W_WillExecutor, values.W_Object, values.W_Object])
+def will_register(w_executor, w_v, w_proc):
+    w_executor.register_proc(w_v, w_proc)
+
+@expose("will-try-execute", [W_WillExecutor, default(values.W_Object, values.w_false)])
+def will_try_execute(w_executor, w_v):
+    return w_executor.try_execute_will_for(w_v)
+
+@expose("poll-will-executors", [])
+def poll_will_executors():
+
+    done = False
+    while not done:
+        done = True
+        for executor in WILL_EXECUTORS:
+            if executor.have_any_ready_will():
+                executor.execute_ready_wills()
+                done = False
