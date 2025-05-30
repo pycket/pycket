@@ -116,7 +116,8 @@ class W_Engine(values.W_Procedure):
 
         # call engine's thunk with prompt tag and handler
         # (passed to the engine at make-engine)
-        cont = Prompt(self.w_prompt_tag, self.w_abort_handler, env, cont)
+        handler = self.w_abort_handler if self.w_abort_handler.iscallable() else None
+        cont = Prompt(self.w_prompt_tag, handler, env, cont)
 
         return self.w_thunk.call_with_extra_info([], env, cont, calling_app)
 
@@ -161,7 +162,7 @@ Given:
         current_engine_p_cell = current_engine_param.get_cell(cont)
         current_engine_p_cell.set(self)
 
-        if self.w_cont is not values.w_false:
+        if self.w_cont and self.w_cont is not values.w_false:
             cont = self.w_cont
 
         cont = self.engine_invoke_prefix_cont(calling_app, env, cont)
@@ -183,7 +184,6 @@ Given:
 def make_engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cell, w_empty_config_huh):
 
     assert w_thunk.iscallable()
-    assert w_abort_handler.iscallable()
 
     # Returns a callable engine that when invoked with 3 parameters (ticks, prefix, complete-or-expire),
     # calls the prefix first, continues with the thunk, and then continues with the complete-or-expire with
