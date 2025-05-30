@@ -1317,7 +1317,7 @@ class W_Symbol(W_Object):
 W_Symbol.all_symbols = {}
 W_Symbol.unreadable_symbols = {}
 
-break_enabled_key = W_Symbol("break-enabled-key")
+break_enabled_key = W_ContinuationMarkKey(W_Symbol("break-enabled-key"))
 exn_handler_key = W_Symbol("exnh")
 parameterization_key = W_Symbol("parameterization")
 

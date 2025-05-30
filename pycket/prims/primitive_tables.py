@@ -360,6 +360,7 @@ kernel_str = [
     "make-immutable-hasheqv", "make-impersonator-property",
     "make-inspector", "make-known-char-range-list", "make-logger",
     "make-log-receiver", "make-output-port", "make-parameter",
+    "make-pthread-parameter",
     "make-phantom-bytes", "make-pipe", "make-placeholder",
     "make-plumber", "make-polar", "make-prefab-struct",
     "make-pseudo-random-generator", "make-reader-graph", "make-rectangular",
