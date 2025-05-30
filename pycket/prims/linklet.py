@@ -710,3 +710,8 @@ def linklet_add_target_machine_info(linkl, from_linklet):
     A linklet implementation may support information for multiple target machines within a linklet (which we don't in Pycket, hence the no-op).
     """
     return linkl
+
+@expose("linklet-cross-machine-type", [values.W_Object])
+def linklet_cross_machine_type(ht):
+    return values.w_false
+
