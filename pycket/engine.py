@@ -320,4 +320,7 @@ def set_ctl_c_handler(proc):
     # FIXME: integrate with either rpython or Racket exit
     return values.w_void
 
+@expose(["disable-interrupts", "enable-interrupts"], [])
+def disable_enable_interrupts():
+    return values.w_void
 
