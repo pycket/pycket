@@ -4,7 +4,7 @@ from pycket.error           import SchemeException
 from pycket.prims.expose    import default, expose
 from pycket.cont            import Prompt, continuation
 
-from rpython.rlib           import rgc
+from rpython.rlib           import rgc, rtime
 
 """
 Engines in the rumble layer are so much more tightly coupled with the
@@ -332,6 +332,22 @@ def poll_async_callbacks():
 def current_place_roots():
     return values.w_null
 
+@expose("sleep", [default(values.W_Number, values.W_Fixnum(0))])
+def racket_sleep(w_secs):
+
+    if isinstance(w_secs, values.W_Flonum):
+        secs = w_secs.value
+    elif isinstance(w_secs, values.W_Fixnum):
+        secs = float(w_secs.value)
+    elif isinstance(w_secs, values.W_Bignum):
+        secs = w_secs.value.tofloat()
+    else:
+        raise SchemeException("expected real? in sleep, given:" % w_secs)
+
+    if secs < 0.0:
+        secs = 0.0
+
+    rtime.sleep(secs)
 
 # rgc.FinalizerQueue is a queue that RPython GC drives
 # finalizer_trigger is called whenever a major collection
