@@ -1,6 +1,6 @@
 from pycket.prims.linklet import W_Linklet
 from pycket.interpreter import check_one_val, Done
-from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell
+from pycket.values import W_Fixnum, W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell
 from pycket.values_string import W_String
 from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
@@ -120,6 +120,9 @@ class BootstrapLinklet():
 
     # Creates a .zo file for the linklet
     def create_zo(self):
+        if not self.is_exposed:
+            self.load()
+
         console_log("Creating .zo file for %s linklet." % self.which_str)
         from pycket.ast_vs_sexp import ast_to_sexp
         from pycket.values import W_Cons
@@ -184,7 +187,8 @@ def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
 
      # Load thread linklet
     # Feature Flag: thread
-    THREAD_LINKLET.load()
+    if feature_flag == FFLAG_THREAD:
+        THREAD_LINKLET.load()
 
    # Load io linklet
     # Feature Flag: io
@@ -219,11 +223,9 @@ def make_bootstrap_zos():
     # let-bind those. (e.g. (if (regexp-match? ...) ...)). Therefore the regexp
     # linklet needs to expose its functions before we load and compile the
     # expander.
-    REGEXP_LINKLET.load()
     REGEXP_LINKLET.create_zo()
-
+    THREAD_LINKLET.create_zo()
     FASL_LINKLET.create_zo()
-    EXPANDER_LINKLET.create_zo()
 
 
 def load_linklet_from_fasl(file_name, set_version=False):
@@ -685,6 +687,13 @@ def racket_entry(names, config, command_line_arguments):
 
     if is_repl: # -i
         put_newline = True
+
+    if THREAD_LINKLET.is_exposed:
+        repl_thunk = read_eval_print_string("(lambda () ((dynamic-require 'racket/repl 'read-eval-print-loop)))", return_val=True)
+        assert isinstance(repl_thunk, W_Object), "repl_thunk is %s -- %s" % (repl_thunk, type(repl_thunk))
+        call_in_main_thread = get_primitive("call-in-main-thread")
+        call_in_main_thread.call_interpret([repl_thunk])
+    else:
         dynamic_require = get_primitive("dynamic-require")
         repl = dynamic_require.call_interpret([W_Symbol.make("racket/repl"),
                                                W_Symbol.make("read-eval-print-loop")])
@@ -778,7 +787,7 @@ def read_eval_print_string(expr_str, return_val=False, debug=False):
 
     # FIXME
     console_log("(print (eval (read (open-input-string %s))))" % (expr_str))
-    return 0
+    return W_Fixnum.ZERO
 
 def get_primitive(prim_name_str):
     from pycket.prims.expose import prim_env
