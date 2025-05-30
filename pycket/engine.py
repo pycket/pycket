@@ -324,3 +324,6 @@ def set_ctl_c_handler(proc):
 def disable_enable_interrupts():
     return values.w_void
 
+@expose("poll-async-callbacks", [])
+def poll_async_callbacks():
+    return values.w_null
