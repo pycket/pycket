@@ -247,6 +247,8 @@ def engine_timeout(env, cont):
 def engine_block(env, cont):
     return do_engine_block(False, env, cont)
 
+WAKE_HANDLE = values.W_Symbol.make("pycket-wakeup-handle")
+wakeables = {}
 
 def do_engine_block(with_timeout_huh, env, cont):
      # get the current_complette or expire
@@ -256,6 +258,9 @@ def do_engine_block(with_timeout_huh, env, cont):
 
     remaining_ticks = values.W_Fixnum.ZERO if with_timeout_huh else w_remaining_ticks
 
+    # if not with_timeout_huh:
+    #     wakeables[WAKE_HANDLE] = w_current_engine
+    #
     w_current_engine.inject_cont(cont)
     w_new_engine = w_current_engine
 
@@ -263,6 +268,15 @@ def do_engine_block(with_timeout_huh, env, cont):
 
     return w_complete_or_expire.call_with_extra_info(args, env, cont, None)
 
+@expose("get-wakeup-handle", [], simple=True)
+def get_wakeup_handle():
+    return WAKE_HANDLE
+
+@expose("wakeup", [values.W_Object])
+def wakeup(_):
+    # TODO: put a semaphore in the wakeables in sleep,
+    # and post it here
+    return values.w_void
 
 # engine-return: any ... -> T
 # Terminates the engine and delivers its final values to the scheduler.
