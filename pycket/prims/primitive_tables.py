@@ -211,7 +211,13 @@ unsafe_str = [
     "unsafe-char<?", "unsafe-char<=?", "unsafe-char=?", "unsafe-char>=?", "unsafe-char>?",
     "unsafe-char->integer",
     "unsafe-add-global-finalizer", "unsafe-add-collect-callbacks",
-    "unsafe-remove-collect-callbacks"
+    "unsafe-remove-collect-callbacks",
+    "unsafe-custodian-register",
+    "unsafe-custodian-unregister",
+    "unsafe-make-custodian-at-root",
+    "unsafe-start-atomic",
+    "unsafe-end-atomic",
+
 ]
 
 # This table omits anything that the expander implements itself,
