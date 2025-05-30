@@ -1346,7 +1346,7 @@ def current_seconds():
 def curr_millis():
     return values.W_Flonum(time.time() * 1000.0)
 
-@expose("current-inexact-monotonic-milliseconds", [])
+@expose(["current-inexact-monotonic-milliseconds", "current-process-milliseconds"] , [])
 def curr_monotonic_millis():
     """
         This is primarily used to measure elapsed time without worrying about system clock adjustments. So the exact value returned by this monotonic timer (elapsed time since unspecified start of a monotonic clock) is not relevant or meaningful.
