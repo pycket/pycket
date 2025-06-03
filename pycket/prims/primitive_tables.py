@@ -652,8 +652,6 @@ thread_str = [
     "current-sandman",
     "schedule-info-current-exts",
     "schedule-info-did-work!",
-    "unsafe-start-atomic",
-    "unsafe-end-atomic",
     "start-atomic/no-interrupts",
     "end-atomic/no-interrupts",
     "in-atomic-mode?",
@@ -662,9 +660,6 @@ thread_str = [
     "current-plumber",
     "plumber-add-flush!",
     "plumber-flush-handle-remove!",
-    "unsafe-custodian-register",
-    "unsafe-custodian-unregister",
-    "unsafe-make-custodian-at-root",
     "thread-push-kill-callback!",
     "thread-pop-kill-callback!",
     "unsafe-add-pre-poll-callback!",
@@ -672,6 +667,7 @@ thread_str = [
     "prop:place-message",
 ]
 kernel_str += thread_str
+
 
 engine_str = [
     "make-engine",
