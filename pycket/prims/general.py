@@ -2108,6 +2108,16 @@ def __dummy__():
 
 @expose("primitive-table", [values.W_Object])
 def primitive_table(v):
+    sym = values.W_Symbol.make
+
+    # IO linklet wants the table (as #%thread)
+    # that the Thread linklet exposes as #%thread-instance
+    if v is sym("#%thread"):
+        thread_ins = sym("#%thread-instance")
+        if thread_ins not in prim_env:
+            return values.w_false
+        return prim_env[thread_ins]
+
     if v not in select_prim_table:
         return values.w_false
 
