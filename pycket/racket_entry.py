@@ -1,7 +1,7 @@
 from pycket                 import values, values_string
 from pycket.prims.linklet   import W_Linklet
 from pycket.interpreter     import check_one_val, Done
-from pycket.values          import W_Fixnum, W_WrappedConsProper, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell
+from pycket.values          import W_Fixnum, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell
 from pycket.vector          import W_Vector
 from pycket.expand          import JsonLoader
 from pycket.util            import console_log, linklet_perf, PerfRegion
@@ -12,6 +12,7 @@ from pycket.error           import BootstrapError
 
 sym = values.W_Symbol.make
 w_str = values_string.W_String.make
+lst = values.to_list
 
 
 # Feature flag for loading io linklet
@@ -490,7 +491,7 @@ def initiate_boot_sequence(command_line_arguments,
         ucfp = get_primitive("use-compiled-file-paths")
         if use_compiled:
             console_log("(use-compiled-file-paths %s)" % compiled_file_path)
-            ucfp.call_interpret([W_WrappedConsProper.make(w_str(compiled_file_path), w_null)])
+            ucfp.call_interpret([lst([w_str(compiled_file_path)])])
         else:
             ucfp.call_interpret([w_null])
             console_log("(use-compiled-file-paths null)")
@@ -521,9 +522,8 @@ def initiate_boot_sequence(command_line_arguments,
 def namespace_require_kernel():
 
     namespace_require = get_primitive("namespace-require")
+    kernel = lst([sym("quote"), sym("#%kernel")])
 
-    kernel = W_WrappedConsProper.make(sym("quote"),
-                                      W_WrappedConsProper.make(sym("#%kernel"), w_null))
     namespace_require.call_interpret([kernel])
 
 need_runtime_configure = [True]
@@ -532,9 +532,7 @@ def configure_runtime(m):
     dynamic_require = get_primitive("dynamic-require")
     module_declared = get_primitive("module-declared?")
     join = get_primitive("module-path-index-join")
-    submod = W_WrappedConsProper.make(sym("submod"),
-                                      W_WrappedConsProper.make(w_str("."),
-                                                               W_WrappedConsProper(sym("configure-runtime"), w_null)))
+    submod = lst([sym("submod"), w_str("."), sym("configure-runtime")])
 
     config_m = join.call_interpret([submod, m])
 
@@ -548,9 +546,8 @@ def namespace_require_plus(spec):
     module_declared = get_primitive("module-declared?")
     join = get_primitive("module-path-index-join")
     m = join.call_interpret([spec, w_false])
-    submod = W_WrappedConsProper.make(sym("submod"),
-                                      W_WrappedConsProper.make(w_str("."),
-                                                               W_WrappedConsProper(sym("main"), w_null)))
+    submod = lst([sym("submod"), w_str("."), sym("main")])
+
     # FIXME: configure-runtime
     if need_runtime_configure[0]:
         configure_runtime(m)
@@ -662,8 +659,7 @@ def racket_entry(names, config, command_line_arguments):
 
     if not no_lib:
         with PerfRegion("init-lib"):
-            init_lib = W_WrappedConsProper.make(sym("lib"),
-                                                W_WrappedConsProper.make(w_str(init_library), w_null))
+            init_lib = lst([sym("lib"), w_str(init_library)])
             console_log("(namespace-require %s) ..." % init_lib.tostring())
 
             namespace_require_plus(init_lib)
@@ -678,8 +674,7 @@ def racket_entry(names, config, command_line_arguments):
                 load.call_interpret([w_str(rand_str)])
             elif rator_str == "file" or rator_str == "lib":
                 # -t & -l
-                require_spec = W_WrappedConsProper.make(sym(rator_str),
-                                                        W_WrappedConsProper.make(w_str(rand_str), w_null))
+                require_spec = lst([sym(rator_str), w_str(rand_str)])
                 console_log("(namespace-require '(%s %s))" % (rator_str, rand_str))
                 namespace_require_plus(require_spec)
             elif rator_str == "eval":
