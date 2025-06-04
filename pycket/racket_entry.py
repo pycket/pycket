@@ -1,7 +1,7 @@
 from pycket                 import values, values_string
 from pycket.prims.linklet   import W_Linklet
 from pycket.interpreter     import check_one_val, Done
-from pycket.values          import W_Fixnum, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell
+from pycket.values          import W_Object, Values
 from pycket.vector          import W_Vector
 from pycket.expand          import JsonLoader
 from pycket.util            import console_log, linklet_perf, PerfRegion
@@ -13,6 +13,7 @@ from pycket.error           import BootstrapError
 sym = values.W_Symbol.make
 w_str = values_string.W_String.make
 lst = values.to_list
+cons = values.W_WrappedConsProper.make
 
 
 # Feature flag for loading io linklet
@@ -143,7 +144,7 @@ class BootstrapLinklet():
 
         # s-exp->fasl the linklet into a .zo
         sexp_to_fasl = get_primitive("s-exp->fasl")
-        out_port = open_outfile(W_Path("%s/%s" % (BootstrapLinklet.DIR, self.which_str + BootstrapLinklet.ZO)), "w", sym("replace"))
+        out_port = open_outfile(values.W_Path("%s/%s" % (BootstrapLinklet.DIR, self.which_str + BootstrapLinklet.ZO)), "w", sym("replace"))
 
         if self.is_expander:
             sexp_to_fasl.call_interpret([W_Cons.make(self.version_sexp, linklet_sexp), out_port])
@@ -255,7 +256,7 @@ def load_linklet_from_fasl(file_name, set_version=False):
     else:
         console_log("Run pycket with --make-linklet-zos to make the compiled zo files for bootstrap linklets", 1)
         compile_linklet = get_primitive("compile-linklet")
-        linklet = compile_linklet.call_interpret([linklet_sexp, sym("linkl"), w_false, w_false, w_false])
+        linklet = compile_linklet.call_interpret([linklet_sexp, sym("linkl"), values.w_false, values.w_false, values.w_false])
 
     if set_version:
         ver = version_sexp.as_str_ascii()
@@ -269,7 +270,7 @@ def _instantiate_linklet(file_name_for_log, linkl):
     debug_start("instantiating-linklet")
     debug_print("Instantiating : %s" % file_name_for_log)
     instantiate_linklet = get_primitive("instantiate-linklet")
-    linkl_instance = instantiate_linklet.call_interpret([linkl, w_null, w_false, w_false])
+    linkl_instance = instantiate_linklet.call_interpret([linkl, values.w_null, values.w_false, values.w_false])
     debug_print("DONE Instantiating %s ...."  % file_name_for_log)
     debug_stop("instantiating-linklet")
     return linkl_instance
@@ -299,7 +300,7 @@ def set_path(kind_str, path_str):
     if not os.path.exists(path_str):
         raise Exception("File not found : %s" % path_str)
 
-    racket_sys_paths.set_path(sym(kind_str), W_Path(path_str))
+    racket_sys_paths.set_path(sym(kind_str), values.W_Path(path_str))
 
 def sample_sexp():
     from pycket.expand import readfile_rpython, getkey
@@ -363,7 +364,6 @@ def dev_mode_dynamic_metainterp():
 def dev_mode_metainterp_fasl_zo():
     FASL_LINKLET.load()
     from pycket.prims.input_output import open_infile, open_outfile
-    from pycket.values import W_Path
     import os
 
     # Stuff for writing out the fasl
@@ -372,22 +372,22 @@ def dev_mode_metainterp_fasl_zo():
         sexp_to_fasl = get_primitive("s-exp->fasl")
         w_replace_sym = sym("replace")
         sexp = sample_sexp()
-        out_port = open_outfile(W_Path("sample.fasl"), "w", w_replace_sym)
+        out_port = open_outfile(values.W_Path("sample.fasl"), "w", w_replace_sym)
         sexp_to_fasl.call_interpret([sexp, out_port])
         out_port.close()
 
     fasl_to_sexp = get_primitive("fasl->s-exp")
-    port = open_infile(W_Path("sample.fasl"), "r")
-    r = fasl_to_sexp.call_interpret([port, w_true])
+    port = open_infile(values.W_Path("sample.fasl"), "r")
+    r = fasl_to_sexp.call_interpret([port, values.w_true])
 
 def racket_fasl_to_sexp(fasl_file):
     from pycket.prims.input_output import open_infile
     from rpython.rlib        import rtime
     FASL_LINKLET.load()
     fasl_to_sexp = get_primitive("fasl->s-exp")
-    port = open_infile(W_Path(fasl_file), "r")
+    port = open_infile(values.W_Path(fasl_file), "r")
     start_time = rtime.time()
-    sexp = fasl_to_sexp.call_interpret([port, w_true])
+    sexp = fasl_to_sexp.call_interpret([port, values.w_true])
     console_log("racket fasl->s-exp time : %s" % (rtime.time()-start_time), debug=True)
     console_log("%s" % sexp.tostring(), 1)
 
@@ -400,8 +400,6 @@ def rpython_fasl_to_sexp(fasl_file):
     console_log("%s" % sexp.tostring(), 1)
 
 def dev_mode_entry_sexp(eval_sexp_str=None):
-    from pycket.values import W_Fixnum
-    from pycket.util import console_log
     from pycket.prims.linklet import W_LinkletInstance
 
 
@@ -412,14 +410,14 @@ def dev_mode_entry_sexp(eval_sexp_str=None):
     linkl_sexp = racket_read_str(eval_sexp_str)
     linkl = None
     try:
-        do_compile_linklet(linkl_sexp, sym("linkl"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
+        do_compile_linklet(linkl_sexp, sym("linkl"), values.w_false, values.w_false, values.w_false, ToplevelEnv(), NilCont())
     except Done as e:
         linkl = e.values
 
     instantiate_linklet = get_primitive("instantiate-linklet")
     target = W_LinkletInstance(sym("target"), {})
 
-    res = instantiate_linklet.call_interpret([linkl, w_null, target, w_false])
+    res = instantiate_linklet.call_interpret([linkl, values.w_null, target, values.w_false])
     print("result : %s" % res.tostring())
     raise ExitException(linkl_sexp)
 
@@ -485,20 +483,21 @@ def initiate_boot_sequence(command_line_arguments,
 
         console_log("(read-accept-compiled true)")
         read_accept_compiled = get_primitive("read-accept-compiled")
-        read_accept_compiled.call_interpret([w_true])
+        read_accept_compiled.call_interpret([values.w_true])
 
         compiled_file_path = "compiled/pycket"
         ucfp = get_primitive("use-compiled-file-paths")
         if use_compiled:
             console_log("(use-compiled-file-paths %s)" % compiled_file_path)
-            ucfp.call_interpret([lst([w_str(compiled_file_path)])])
+            ucfp.call_interpret([
+                cons(w_str(compiled_file_path), values.w_null)])
         else:
-            ucfp.call_interpret([w_null])
+            ucfp.call_interpret([values.w_null])
             console_log("(use-compiled-file-paths null)")
 
         cctm = get_primitive("current-compile-target-machine")
         if compile_any:
-            cctm.call_interpret([w_false])
+            cctm.call_interpret([values.w_false])
 
         # set the current directory to the current directory
         import os
@@ -509,8 +508,8 @@ def initiate_boot_sequence(command_line_arguments,
         from pycket.values_parameter import top_level_config
         from pycket.prims.general import current_directory_param
         c = top_level_config.get(current_directory_param)
-        assert isinstance(c, W_ThreadCell)
-        c.set(W_Path(c_dir))
+        assert isinstance(c, values.W_ThreadCell)
+        c.set(values.W_Path(c_dir))
 
         console_log("...Boot Sequence Completed")
         from pycket.env import w_global_config as glob
@@ -522,7 +521,7 @@ def initiate_boot_sequence(command_line_arguments,
 def namespace_require_kernel():
 
     namespace_require = get_primitive("namespace-require")
-    kernel = lst([sym("quote"), sym("#%kernel")])
+    kernel = cons(sym("quote"), cons(sym("#%kernel"), values.w_null))
 
     namespace_require.call_interpret([kernel])
 
@@ -536,26 +535,29 @@ def configure_runtime(m):
 
     config_m = join.call_interpret([submod, m])
 
-    if module_declared.call_interpret([config_m, w_true]) is w_true:
-        dynamic_require.call_interpret([config_m, w_false])
+    if module_declared.call_interpret([config_m, values.w_true]) is values.w_true:
+        dynamic_require.call_interpret([config_m, values.w_false])
     # FIXME: doesn't do the old-style language-info stuff
 
 def namespace_require_plus(spec):
+    global RUNTIME_CONFIGURED
+
     namespace_require = get_primitive("namespace-require")
     dynamic_require = get_primitive("dynamic-require")
     module_declared = get_primitive("module-declared?")
     join = get_primitive("module-path-index-join")
-    m = join.call_interpret([spec, w_false])
+    m = join.call_interpret([spec, values.w_false])
     submod = lst([sym("submod"), w_str("."), sym("main")])
 
     # FIXME: configure-runtime
-    if need_runtime_configure[0]:
+    if not RUNTIME_CONFIGURED:
         configure_runtime(m)
-        need_runtime_configure[0] = False
+        RUNTIME_CONFIGURED = True
+
     namespace_require.call_interpret([m])
     main = join.call_interpret([submod, m])
-    if module_declared.call_interpret([main, w_true]) is w_true:
-        dynamic_require.call_interpret([main, w_false])
+    if module_declared.call_interpret([main, values.w_true]) is values.w_true:
+        dynamic_require.call_interpret([main, values.w_false])
 
 def dev_mode_entry(dev_mode, eval_sexp, run_rkt_as_linklet):
     if eval_sexp:
@@ -568,7 +570,6 @@ def dev_mode_entry(dev_mode, eval_sexp, run_rkt_as_linklet):
 
 def racket_entry(names, config, command_line_arguments):
     from pycket.prims.general import executable_yield_handler
-    from pycket.values import W_Fixnum
     from pycket.racket_paths import report_racket_paths
 
     if config['make-zos']:
@@ -650,7 +651,6 @@ def racket_entry(names, config, command_line_arguments):
     if just_init:
         return 0
 
-    namespace_require = get_primitive("namespace-require")
     load = get_primitive("load")
 
     if just_kernel:
@@ -710,7 +710,7 @@ def racket_entry(names, config, command_line_arguments):
 
     # we just want the global value anyway
     eyh = executable_yield_handler.call_interpret([])
-    eyh.call_interpret([W_Fixnum.ZERO])
+    eyh.call_interpret([values.W_Fixnum.ZERO])
 
     exit = get_primitive("exit")
     exit.call_interpret([])
@@ -788,7 +788,7 @@ def read_eval_print_string(expr_str, return_val=False, debug=False):
 
     # FIXME
     console_log("(print (eval (read (open-input-string %s))))" % (expr_str))
-    return W_Fixnum.ZERO
+    return values.W_Fixnum.ZERO
 
 def get_primitive(prim_name_str):
     from pycket.prims.expose import prim_env
