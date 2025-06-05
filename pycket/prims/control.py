@@ -337,7 +337,7 @@ def unsafe_root_configuraion_prompt_tag():
     return values.w_root_continuation_prompt_tag
 
 def abort_current_continuation(args, env, cont):
-    from pycket.interpreter import return_multi_vals
+
     if not args:
         raise SchemeException("abort-current-continuation: expected 1 or more args")
     tag, args = args[0], args[1:]

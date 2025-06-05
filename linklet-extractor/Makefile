@@ -66,6 +66,10 @@ thread-sexp:
 RKTIO_DIR := $(PLTHOME)/racket/src/rktio
 RKTIO_LOCAL_DIR := $(PYCKET_DIR)/pycket/rktio
 
+PYCKET_BOOT_FASL_FILENAME := pycket-boot.linklet.fasl
+pycket-boot:
+	$(RACKET) linklet-sexp-to-fasl.rkt --output $(BOOTSTRAP_LINKLET_DIR)/$(PYCKET_BOOT_FASL_FILENAME) pycket-boot.rktl
+
 .PHONY: librktio.a
 librktio.a:
 	@echo "Generating librktio.a"

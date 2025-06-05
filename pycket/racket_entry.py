@@ -159,6 +159,8 @@ REGEXP_LINKLET = BootstrapLinklet('regexp')
 IO_LINKLET = BootstrapLinklet('io')
 THREAD_LINKLET = BootstrapLinklet('thread')
 
+PYCKET_BOOT_LINKLET = BootstrapLinklet('pycket-boot')
+
 def locate_linklet(file_name):
     import os
 
@@ -192,12 +194,12 @@ def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
         # Load regexp linklet
         REGEXP_LINKLET.load()
 
-     # Load thread linklet
+    # Load thread linklet
     # Feature Flag: thread
     if feature_flag == FFLAG_THREAD:
         THREAD_LINKLET.load()
 
-   # Load io linklet
+    # Load io linklet
     # Feature Flag: io
     if feature_flag == FFLAG_IO:
         IO_LINKLET.load()
@@ -207,6 +209,14 @@ def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
 
     # Load expander linklet
     EXPANDER_LINKLET.load()
+
+    # pycket-boot linklet is a handmade linklet
+    # that has Pycket's runtime boot codes.
+    #
+    # Basically, anything after this point can be
+    # sucked into this linklet as Racket (#%kernel)
+    # code and be called with call_interpret.
+    PYCKET_BOOT_LINKLET.load()
 
     console_log("Bootstrap linklets are ready.")
     return 0
@@ -233,6 +243,8 @@ def make_bootstrap_zos():
     REGEXP_LINKLET.create_zo()
     THREAD_LINKLET.create_zo()
     FASL_LINKLET.create_zo()
+    PYCKET_BOOT_LINKLET.create_zo()
+    EXPANDER_LINKLET.create_zo()
 
 
 def load_linklet_from_fasl(file_name, set_version=False):
@@ -254,7 +266,7 @@ def load_linklet_from_fasl(file_name, set_version=False):
     if "zo" in file_name:
         linklet = deserialize_loop(linklet_sexp)
     else:
-        console_log("Run pycket with --make-linklet-zos to make the compiled zo files for bootstrap linklets", 1)
+        console_log("Run pycket with --make-linklet-zos to make the compiled zo files for %s" % file_name, 1)
         compile_linklet = get_primitive("compile-linklet")
         linklet = compile_linklet.call_interpret([linklet_sexp, sym("linkl"), values.w_false, values.w_false, values.w_false])
 
@@ -517,47 +529,14 @@ def initiate_boot_sequence(command_line_arguments,
 
     return 0
 
-# temporary
-def namespace_require_kernel():
+def pycket_namespace_require_kernel():
+    # pycket:<prim> primitives come from pycket-boot linklet
+    get_primitive("pycket:just-kernel").call_interpret([])
 
-    namespace_require = get_primitive("namespace-require")
-    kernel = cons(sym("quote"), cons(sym("#%kernel"), values.w_null))
-
-    namespace_require.call_interpret([kernel])
-
-need_runtime_configure = [True]
-
-def configure_runtime(m):
-    dynamic_require = get_primitive("dynamic-require")
-    module_declared = get_primitive("module-declared?")
-    join = get_primitive("module-path-index-join")
-    submod = lst([sym("submod"), w_str("."), sym("configure-runtime")])
-
-    config_m = join.call_interpret([submod, m])
-
-    if module_declared.call_interpret([config_m, values.w_true]) is values.w_true:
-        dynamic_require.call_interpret([config_m, values.w_false])
-    # FIXME: doesn't do the old-style language-info stuff
-
-def namespace_require_plus(spec):
-    global RUNTIME_CONFIGURED
-
-    namespace_require = get_primitive("namespace-require")
-    dynamic_require = get_primitive("dynamic-require")
-    module_declared = get_primitive("module-declared?")
-    join = get_primitive("module-path-index-join")
-    m = join.call_interpret([spec, values.w_false])
-    submod = lst([sym("submod"), w_str("."), sym("main")])
-
-    # FIXME: configure-runtime
-    if not RUNTIME_CONFIGURED:
-        configure_runtime(m)
-        RUNTIME_CONFIGURED = True
-
-    namespace_require.call_interpret([m])
-    main = join.call_interpret([submod, m])
-    if module_declared.call_interpret([main, values.w_true]) is values.w_true:
-        dynamic_require.call_interpret([main, values.w_false])
+def pycket_namespace_req_plus(lib, config_runtime_huh):
+    # pycket:<prim> primitives come from pycket-boot linklet
+    conf_runtime = values.W_Bool.make(config_runtime_huh)
+    get_primitive("pycket:namespace-require-plus").call_interpret([lib, conf_runtime])
 
 def dev_mode_entry(dev_mode, eval_sexp, run_rkt_as_linklet):
     if eval_sexp:
@@ -655,14 +634,15 @@ def racket_entry(names, config, command_line_arguments):
 
     if just_kernel:
         console_log("Running on just the #%kernel")
-        namespace_require_kernel()
+        pycket_namespace_require_kernel()
 
     if not no_lib:
         with PerfRegion("init-lib"):
-            init_lib = lst([sym("lib"), w_str(init_library)])
+
+            init_lib = racket_read_str("(lib \"%s\")" % init_library)
             console_log("(namespace-require %s) ..." % init_lib.tostring())
 
-            namespace_require_plus(init_lib)
+            pycket_namespace_req_plus(init_lib, True)
             console_log("Init lib : %s loaded..." % (init_library))
 
     put_newline = False
@@ -674,9 +654,9 @@ def racket_entry(names, config, command_line_arguments):
                 load.call_interpret([w_str(rand_str)])
             elif rator_str == "file" or rator_str == "lib":
                 # -t & -l
-                require_spec = lst([sym(rator_str), w_str(rand_str)])
+                require_spec = racket_read_str("(%s \"%s\")" % (rator_str, rand_str))
                 console_log("(namespace-require '(%s %s))" % (rator_str, rand_str))
-                namespace_require_plus(require_spec)
+                pycket_namespace_req_plus(require_spec, True)
             elif rator_str == "eval":
                 # -e
                 console_log("(eval (read (open-input-string %s)))" % rand_str)
@@ -689,18 +669,13 @@ def racket_entry(names, config, command_line_arguments):
     if is_repl: # -i
         put_newline = True
 
-    if THREAD_LINKLET.is_exposed:
-        repl_thunk = read_eval_print_string("(lambda () ((dynamic-require 'racket/repl 'read-eval-print-loop)))", return_val=True)
-        assert isinstance(repl_thunk, W_Object), "repl_thunk is %s -- %s" % (repl_thunk, type(repl_thunk))
-        call_in_main_thread = get_primitive("call-in-main-thread")
-        call_in_main_thread.call_interpret([repl_thunk])
+    # Load REPL (from the pycket-boot linklet)
+    if not THREAD_LINKLET.is_loaded:
+        # pycket:<prim> primitives come from pycket-boot linklet
+        get_primitive("pycket:no-thread:load-repl").call_interpret([])
     else:
-        dynamic_require = get_primitive("dynamic-require")
-        repl = dynamic_require.call_interpret([sym("racket/repl"),
-                                               sym("read-eval-print-loop")])
-        from pycket.env import w_global_config
-        w_global_config.set_config_val('repl_loaded', 1)
-        repl.call_interpret([])
+        # pycket:<prim> primitives come from pycket-boot linklet
+        get_primitive("pycket:load-repl").call_interpret([])
 
     if put_newline:
         print
