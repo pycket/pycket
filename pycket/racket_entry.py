@@ -659,6 +659,7 @@ def racket_entry(names, config, command_line_arguments):
                 pycket_namespace_req_plus(require_spec, True)
             elif rator_str == "eval":
                 # -e
+                # TODO: might need thread context here
                 console_log("(eval (read (open-input-string %s)))" % rand_str)
                 read_eval_print_string(rand_str, False, debug)
 
@@ -669,13 +670,13 @@ def racket_entry(names, config, command_line_arguments):
     if is_repl: # -i
         put_newline = True
 
-    # Load REPL (from the pycket-boot linklet)
-    if not THREAD_LINKLET.is_loaded:
-        # pycket:<prim> primitives come from pycket-boot linklet
-        get_primitive("pycket:no-thread:load-repl").call_interpret([])
-    else:
-        # pycket:<prim> primitives come from pycket-boot linklet
-        get_primitive("pycket:load-repl").call_interpret([])
+        # Load REPL (from the pycket-boot linklet)
+        if not THREAD_LINKLET.is_loaded:
+            # pycket:<prim> primitives come from pycket-boot linklet
+            get_primitive("pycket:no-thread:load-repl").call_interpret([])
+        else:
+            # pycket:<prim> primitives come from pycket-boot linklet
+            get_primitive("pycket:load-repl").call_interpret([])
 
     if put_newline:
         print

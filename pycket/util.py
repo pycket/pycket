@@ -86,7 +86,7 @@ class LinkletPerf(object):
         self.categories = {"read" : ["fasl->s-exp", "s-exp->ast", "assign-convert-deserialize"],
                            "run" : ["instantiate-linklet" "outer"],
                            "startup" : ["expander-linklet", "json-load", "json-to-ast",
-                                        "fasl-linklet", "set-params"],
+                                        "fasl-linklet", "thread-linklet", "regexp-linklet", "pycket-boot-linklet", "set-params"],
                            "compile" : ["compile-linklet", "compile-sexp-to-ast",
                                         "compile-normalize", "compile-assign-convert",
                            ]}
