@@ -261,7 +261,9 @@ def console_log(print_str, given_verbosity_level=0, debug=False, keyword=""):
         if decimal == 1:
             current_str += "0"
 
-        print("[%s] %s" % (current_str, print_str))
+        standout_str = "" if not debug else " -------------------------------- "
+
+        print("[%s] %s%s" % (current_str, standout_str, print_str))
 
 ##############################################
 # MISC

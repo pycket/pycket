@@ -1,10 +1,20 @@
 from pycket                 import arity, values, base, values_parameter
+from pycket.prims           import general as genprims
 from pycket.argument_parser import ArgParser, EndOfInput
 from pycket.error           import SchemeException
+from pycket.prims.control   import default_uncaught_exception_handler
 from pycket.prims.expose    import default, expose
 from pycket.cont            import Prompt, continuation
+from pycket.env             import w_global_config
 
 from rpython.rlib           import rgc, rtime
+
+from pycket.util            import console_log
+
+ENGINE_DEBUG = False
+
+get_current_mc = w_global_config.get_current_mc
+set_current_mc = w_global_config.set_current_mc
 
 """
 Engines in the rumble layer are so much more tightly coupled with the
@@ -21,18 +31,19 @@ call-with-engine-completion (at the Racket level) has to invoke an engine
 (which always means calling the engine like a function with three parameteres,
 so the host is forced to represent an engine as a callable entity).
 There are also implicit requirements for the arguments to the engine invocation.
-For instance, the complete-or-expire (the 3rd parameter) has to call P's argument
-in tail-position.
+For instance, the complete-or-expire (the 3rd parameter) has to call P's
+own argument in tail-position.
 
 All these need to be reverse engineered because these are internal
 stuff that don't have any user level documentation.
 
+"""
+
+
+"""
 See https://github.com/racket/racket/blob/master/racket/src/cs/rumble/engine.ss
 for engines in Racket CS's rumble layer.
-"""
 
-
-"""
 An engine is represented by a procedure that takes three arguments, where the
 procedure must be tail-called either within `call-with-engine-completion` or
 in an engine call's `complete-or-expire` callback:
@@ -45,6 +56,7 @@ in an engine call's `complete-or-expire` callback:
     where the callback must end by tail-calling another engine procedure or
     the procedure provided by `call-with-engine-completion`
 
+See comment in make-engine down below for Pycket's rendition of this.
 """
 
 current_engine_complete_or_expire_param = values_parameter.W_Parameter(values.w_false)
@@ -55,18 +67,17 @@ Pycket currently doesn't care about preemption at the Racket
 level. So every TICK is considered infinite (i.e. we
 always have a non-zero remaining ticks)
 """
-current_engine_ticks_param = values_parameter.W_Parameter(values.W_Fixnum.ONE)
+TICKS = 100000
+current_engine_ticks_param = values_parameter.W_Parameter(values.W_Fixnum(TICKS))
 
-# HACK: At engine timeouts and bloks, we need to create a new engine
-# that'll continuae where we left off when invoked. In Pycket, engines
-# run to completion every time. In the case where engine-timeout or
-# engine-block is explicitly called (possibly with something like kill-thread),
-# we return the same engine that was running.
-# This parameter is to be able to find that engine in the continuation.
-# When we introduce metacontinuations, then we'll be able to use them
-# to actually continue
+# This is actually to for getting the "current" w_complete_or_expire
 current_engine_param = values_parameter.W_Parameter(values.w_false)
 
+w_engine_default_cont_tag = values.W_ContinuationPromptTag("engine")
+
+def make_new_engine_prompt_tag():
+    from pycket.interpreter import Gensym
+    return values.W_ContinuationPromptTag(Gensym.gensym("engine-tag"))
 
 class W_Engine(values.W_Procedure):
     # TODO: we could derive it from W_PromotableClosure if
@@ -75,19 +86,18 @@ class W_Engine(values.W_Procedure):
     # Keeping it pure requires refraining from putting dynamic stuff
     # (e.g. complete-or-expire, or ticks) inside the object,
     # which is why we keep some Racket level parameters for the
-    # "current engine". (Also so that when the metacontinuations
-    # are introduced here, the scaffolding--that weaves the engine through
-    # the continuation prompts--is ready to go)
+    # "current engine".
 
-    _attrs_ = ["w_thunk", "w_prompt_tag", "w_abort_handler",  "cell_state", "empty_conf_huh", "w_cont"]
-    _immutable_fields_ = ["w_thunk", "w_prompt_tag", "w_abort_handler",  "cell_state", "empty_conf_huh"]
+    _attrs_ = ["saves", "w_thunk", "w_prompt_tag", "w_abort_handler",  "cell_state", "w_empty_conf_huh", "w_cont"]
+    _immutable_fields_ = ["saves", "w_thunk", "w_prompt_tag", "w_abort_handler",  "cell_state", "w_empty_conf_huh"]
 
-    def __init__(self, w_thunk, w_prompt_tag, w_abort_handler, w_cell, w_empty_conf_huh, w_cont=None):
+    def __init__(self, saves, w_thunk, w_prompt_tag, w_abort_handler, w_cell, w_empty_conf_huh, w_cont=None):
+        self.saves = saves # Python list - MetaContinuation captured at suspension
         self.w_thunk = w_thunk # callable
         self.w_prompt_tag = w_prompt_tag
         self.w_abort_handler = w_abort_handler
         self.cell_state = w_cell
-        self.empty_conf_huh = w_empty_conf_huh
+        self.w_empty_conf_huh = w_empty_conf_huh
         self.w_cont = w_cont
 
     def inject_cont(self, new_cont):
@@ -103,14 +113,14 @@ class W_Engine(values.W_Procedure):
         results = _vals.get_all_values()
         # get_all_values returns a python list of w_objects
 
+        console_log("calling engine %s return with _results: %s" % (self, [r.tostring() for r in results]), debug=ENGINE_DEBUG)
         return do_engine_return(results, env, cont)
 
     @continuation
-    def engine_invoke_prefix_cont(self, calling_app, env, cont, _):
+    def engine_initial_start_cont(self, calling_app, env, cont, _):
 
         # values produced by the thunk will be passed into the
         # engine-return, which will invoke the w_complete_or_expire
-        # with a possible new engine, possibly some results,
         # and the remaining ticks
         cont = self.engine_return_cont(env, cont)
 
@@ -119,6 +129,11 @@ class W_Engine(values.W_Procedure):
         handler = self.w_abort_handler if self.w_abort_handler.iscallable() else None
         cont = Prompt(self.w_prompt_tag, handler, env, cont)
 
+        cont.update_cm(values.exn_handler_key, default_uncaught_exception_handler)
+        # TODO: check self.w_empty_conf_huh:
+        cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+
+        console_log("engine %s invoking w_thunk" % self, debug=ENGINE_DEBUG)
         return self.w_thunk.call_with_extra_info([], env, cont, calling_app)
 
     def call_with_extra_info(self, args, env, cont, calling_app):
@@ -132,7 +147,7 @@ Given:
             raise SchemeException(ENGINE_ARG_EXPECT % args)
         parser = ArgParser("invoke engine", args)
 
-        w_ticks                 = values.W_Fixnum.ONE
+        w_ticks                 = values.W_Fixnum(TICKS)
         w_prefix                = values.w_false
         w_complete_or_expire    = values.w_false
 
@@ -147,10 +162,10 @@ Given:
         if not w_prefix.iscallable or not w_complete_or_expire.iscallable:
             raise SchemeException(ENGINE_ARG_EXPECT % args)
 
-        # we might also save here:
-        #   -- current_engine_cell_state
+        # restore the saved metacontinuation
+        set_current_mc(self.saves)
 
-        # Set the current complete_or_expire
+       # Set the current complete_or_expire
         complete_or_expire_p_cell = current_engine_complete_or_expire_param.get_cell(cont)
         complete_or_expire_p_cell.set(w_complete_or_expire)
 
@@ -162,20 +177,80 @@ Given:
         current_engine_p_cell = current_engine_param.get_cell(cont)
         current_engine_p_cell.set(self)
 
-        if self.w_cont and self.w_cont is not values.w_false:
-            cont = self.w_cont
+        # Two paths can invoke an engine:
+        #   - initial start: we create the engine, give it a thunk, and let it rip
+        #   - resumption: when suspending, we create a new engine, we don't give it a thunk,
+        #               we plug_reduce into the host resume_k within the metacont frame
+        #               saved when this engine is suspended
 
-        cont = self.engine_invoke_prefix_cont(calling_app, env, cont)
+        if self.w_thunk is not values.w_false:
+            # This is an initial start of an engine,
+            # i.e. not resuming from a suspend
 
-        # call prefix
+            cont.update_cm(values.exn_handler_key, default_uncaught_exception_handler)
+            # TODO: check self.w_empty_conf_huh:
+            cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+
+            console_log("engine %s is started" % self, debug=ENGINE_DEBUG)
+
+            cont = self.engine_initial_start_cont(calling_app, env, cont)
+        else:
+            # We're resuming
+            saves = self.saves
+            # Replace the current continuation with the one that we saved
+            # in the metacontinuation
+            cont = saves.pop().resume_k()
+            console_log("engine %s is resumed" % self, debug=ENGINE_DEBUG)
+
+         # call prefix
+        console_log("engine %s is calling prefix" % self, debug=ENGINE_DEBUG)
         return w_prefix.call_with_extra_info(args, env, cont, calling_app)
 
     def tostring(self):
         return "#<engine>"
 
+class W_MetaContFrame(values.W_Object):
+    """
+        https://github.com/racket/racket/blob/master/racket/src/cs/rumble/control.ss
+    """
+    _attrs_ = ["w_tag", "w_resume_k"]
+    _immutable_fields_ = _attrs_
 
-@expose("make-engine", 
-        [values.W_Object,                   # thunk -- callable, can return any number of values 
+    def __init__(self, w_tag, w_resume_k):
+        self.w_tag          = w_tag
+        # resume_k is cont captured by host's call/cc
+        self.w_resume_k     = w_resume_k
+
+        # self.w_handler      = w_handler
+        # self.w_marks        = w_marks
+        # self.w_winders      = w_winders
+        # self.w_mark_splice  = w_mark_splice
+        # self.w_mark_chain   = w_mark_chain
+        # self.w_traces       = w_traces
+        # self.w_cc_guard     = w_cc_guard
+        # self.w_avail_cache  = w_avail_cache
+
+    def resume_k(self):
+        return self.w_resume_k
+
+EMPTY_MC = []
+
+def current_mc_is_empty():
+    return get_current_mc() == []
+
+def pop_from_current_mc():
+    _current_mc = get_current_mc()
+    frame = _current_mc.pop()
+    set_current_mc(_current_mc)
+    return frame
+
+def push_to_current_mc(frame):
+    _current_mc = get_current_mc()
+    _current_mc.append(frame)
+    set_current_mc(_current_mc)
+
+@expose("make-engine",
+        [values.W_Object,                   # thunk -- callable, can return any number of values
          values.W_ContinuationPromptTag,    # prompt-tag -- prompt to wrap around call to 'thunk'
          values.W_Object,                   # abort-handler -- handler for that prompt
          values.W_ThreadCell,               # init-break-enabled-cell -- default break-enable cell
@@ -187,16 +262,25 @@ def make_engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cel
 
     # Returns a callable engine that when invoked with 3 parameters (ticks, prefix, complete-or-expire),
     # calls the prefix first, continues with the thunk, and then continues with the complete-or-expire with
-    # the results from the thunk (continues in a continuation sense).
+    # the results from the thunk (continues in a continuation sense). That's the initial start of an engine.
+
+    # Whenever an engine is suspended (via timeout or block), we make a new engine that's supposed to
+    # continue where it's left off whenever it's invoked with another 3 parameters. This time, we don't
+    # care about any thunks etc, we continue where we left off by calling the prefix, then plugging the
+    # result into the continuation that we saved when the previous version of this engine is suspended.
 
     # In RacketCS's engines in the rumble layer, there's an additional 'create-engine' abstraction, that
     # allows the host to provide a function that'll in turn call the prefix (that's given to the engine),
     # after setting up that the engine applies the results (of complete-or-expire) to the metacontinuation.
-    # In Pycket, we can ignore all that for now because we don't worry about the metacontinuations just yet.
+    # In Pycket, we can ignore all that for now because we don't operate with closures.
     # So in our case, we treat the function that's supplied to the 'create-engine' as eta equivalent to
     # prefix, so no need for the explicit 'create-engine'.
 
-    return W_Engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cell, w_empty_config_huh)
+    eng = W_Engine(EMPTY_MC, w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cell, w_empty_config_huh)
+
+    console_log("make-engine made %s" % eng, debug=ENGINE_DEBUG)
+    return eng
+
 
 # call-with-engine-completion: proc -> any
 # It's for capturing the current metacontinuation as an engine runner.
@@ -210,22 +294,55 @@ def make_engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cel
 # within the complete-or-expire that the engine is given when it is invoked
 #
 # call-with-engine-completion calls the proc. So the proc's argument is
-# a functionn that does whatever the host needs. For Pycket, it can be identity
-# for now.
+# a function that does whatever the host needs. For Pycket, the only extra thing
+# it does other than passing values through is that it reinstalls the metacont
+# that's captured at the time the call-with-engine-completion is called.
+
+class DoneGetBack(values.W_Procedure):
+
+    _attrs_ = _immutable_fields_ = ["w_cont", "captured_mc"]
+
+    def __init__(self, w_cont, captured_mc):
+        self.w_cont = w_cont
+        self.captured_mc = captured_mc
+
+    def call_with_extra_info(self, args, env, cont, _):
+        vals = values.Values.make(args)
+
+        # captured_mc can be empty
+        resume_k = self.captured_mc.pop().resume_k()
+
+        set_current_mc(self.captured_mc)
+
+        # maybe safe_return_multi_vals is better
+        return self.w_cont.plug_reduce(vals, env)
+
+        # import pdb;pdb.set_trace()
+
+        # return resume_k.plug_reduce(vals, env)
+
+
 @expose("call-with-engine-completion", [values.W_Object], simple=False)
 def call_with_engine_completion(w_proc, env, cont):
-    from pycket.racket_entry import get_primitive
 
     assert w_proc.iscallable()
 
-    w_values = get_primitive("values")
-    # TODO: For future when metacontinuations are introduced:
-    # This call needs to be in a function that receives the current
-    # metacontinuation (i.e. call-with-current-metacontinuation arg)
-    # And instead of the primitive "values", we need a function that
-    # applies the values to that metacontinuation (i.e. apply-meta-continuation)
-    # See the racket/racket/src/cs/rumble/engine.ss
-    return w_proc.call([w_values], env, cont)
+    # from pycket.racket_entry import get_primitive
+    # w_values = get_primitive("values")
+
+    # w_proc has the code that invokes an engine
+    # the result of that proc has to return to cont
+    # (actually the metacont)
+
+
+    saved = get_current_mc()
+
+    set_current_mc([])
+
+    done = DoneGetBack(cont, saved)
+
+    console_log("call-with-engine-completion", debug=ENGINE_DEBUG)
+    return w_proc.call([done], env, cont)
 
 
 # engine-timeout: -> T
@@ -236,6 +353,7 @@ def call_with_engine_completion(w_proc, env, cont):
 @expose("engine-timeout", [], simple=False)
 def engine_timeout(env, cont):
     # This should never be called in Pycket.
+    console_log("engine-timeout", debug=ENGINE_DEBUG)
     return do_engine_block(True, env, cont)
 
 # engine-block: -> T
@@ -245,24 +363,49 @@ def engine_timeout(env, cont):
 # engine.complete_or_expire(new_engine, #f, remaining_ticks)
 @expose("engine-block", [], simple=False)
 def engine_block(env, cont):
+    console_log("engine-block", debug=ENGINE_DEBUG)
     return do_engine_block(False, env, cont)
 
 WAKE_HANDLE = values.W_Symbol.make("pycket-wakeup-handle")
 wakeables = {}
 
 def do_engine_block(with_timeout_huh, env, cont):
+
+    from pycket.interpreter import Gensym
+
      # get the current_complette or expire
     w_complete_or_expire = current_engine_complete_or_expire_param.get_cell(cont).get()
     w_remaining_ticks = current_engine_ticks_param.get_cell(cont).get()
-    w_current_engine = current_engine_param.get_cell(cont).get()
+    w_ce = current_engine_param.get_cell(cont).get()
 
     remaining_ticks = values.W_Fixnum.ZERO if with_timeout_huh else w_remaining_ticks
 
-    # if not with_timeout_huh:
-    #     wakeables[WAKE_HANDLE] = w_current_engine
-    #
-    w_current_engine.inject_cont(cont)
-    w_new_engine = w_current_engine
+    """
+    Here we need to:
+        - get the _CURRENT_MC
+        - make a new W_MetaContFrame (resume_k <- cont)
+        - cons that onto _CURRENT_MT
+        - Put that into a new W_Engine as saves
+    """
+    # Capture the current meta-continuation
+    current_mc = get_current_mc()
+
+    # Add a new frame
+    new_tag = make_new_engine_prompt_tag()
+    new_mc_frame = W_MetaContFrame(new_tag, cont)
+    current_mc.append(new_mc_frame)
+
+    # Make a new engine
+    w_new_engine = W_Engine(current_mc,
+                            values.w_false, # thunk
+                            new_tag,
+                            genprims.do_void.w_prim,
+                            values.W_ThreadCell(values.w_false, False),
+                            values.w_true)
+
+    console_log("do_engine_block - current-engine: %s -- new-engine: %s" % (w_ce, w_new_engine), debug=ENGINE_DEBUG)
+
+    set_current_mc([])
 
     args = [w_new_engine, values.w_false, remaining_ticks]
 
@@ -276,6 +419,7 @@ def get_wakeup_handle():
 def wakeup(_):
     # TODO: put a semaphore in the wakeables in sleep,
     # and post it here
+    console_log("wakeup called", debug=ENGINE_DEBUG)
     return values.w_void
 
 # engine-return: any ... -> T
@@ -283,6 +427,7 @@ def wakeup(_):
 # (engine-return val ...)
 # engine.complete_or_expire(#f, results, remaining_ticks)
 def do_engine_return(_results, env, cont):
+
     # get the current_complette or expire
     w_complete_or_expire = current_engine_complete_or_expire_param.get_cell(cont).get()
     w_remaining_ticks = current_engine_ticks_param.get_cell(cont).get()
@@ -291,8 +436,10 @@ def do_engine_return(_results, env, cont):
     results = values.to_list(_results)
 
     args = [values.w_false, results, w_remaining_ticks]
+    set_current_mc([])
 
     return w_complete_or_expire.call_with_extra_info(args, env, cont, None)
+
 
 expose("engine-return", simple=False, arity=arity.Arity.unknown)(do_engine_return)
 
@@ -348,6 +495,7 @@ def current_place_roots():
 
 @expose("sleep", [default(values.W_Number, values.W_Fixnum(0))])
 def racket_sleep(w_secs):
+    console_log("sleep", debug=ENGINE_DEBUG)
 
     if isinstance(w_secs, values.W_Flonum):
         secs = w_secs.value
