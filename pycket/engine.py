@@ -167,18 +167,6 @@ Given:
         # restore the saved metacontinuation
         set_current_mc(self.saves)
 
-       # Set the current complete_or_expire
-        complete_or_expire_p_cell = current_engine_complete_or_expire_param.get_cell(cont)
-        complete_or_expire_p_cell.set(w_complete_or_expire)
-
-        # Set current ticks
-        current_ticks_p_cell = current_engine_ticks_param.get_cell(cont)
-        current_ticks_p_cell.set(w_ticks)
-
-        # Set current engine
-        current_engine_p_cell = current_engine_param.get_cell(cont)
-        current_engine_p_cell.set(self)
-
         # Two paths can invoke an engine:
         #   - initial start: we create the engine, give it a thunk, and let it rip
         #   - resumption: when suspending, we create a new engine, we don't give it a thunk,
@@ -188,6 +176,19 @@ Given:
         if self.w_thunk is not values.w_false:
             # This is an initial start of an engine,
             # i.e. not resuming from a suspend
+
+            # Set the current complete_or_expire
+            complete_or_expire_p_cell = current_engine_complete_or_expire_param.get_cell(cont)
+            complete_or_expire_p_cell.set(w_complete_or_expire)
+
+            # Set current ticks
+            current_ticks_p_cell = current_engine_ticks_param.get_cell(cont)
+            current_ticks_p_cell.set(w_ticks)
+
+            # Set current engine
+            current_engine_p_cell = current_engine_param.get_cell(cont)
+            current_engine_p_cell.set(self)
+
 
             cont.update_cm(values.exn_handler_key, default_uncaught_exception_handler)
             # TODO: check self.w_empty_conf_huh:
@@ -313,16 +314,9 @@ class DoneGetBack(values.W_Procedure):
 
         # captured_mc can be empty
         resume_k = self.captured_mc.pop().resume_k()
-
         set_current_mc(self.captured_mc)
 
-        # maybe safe_return_multi_vals is better
-        return self.w_cont.plug_reduce(vals, env)
-
-        # import pdb;pdb.set_trace()
-
-        # return resume_k.plug_reduce(vals, env)
-
+        return resume_k.plug_reduce(vals, env)
 
 @expose("call-with-engine-completion", [values.W_Object], simple=False)
 def call_with_engine_completion(w_proc, env, cont):
@@ -335,7 +329,6 @@ def call_with_engine_completion(w_proc, env, cont):
     # w_proc has the code that invokes an engine
     # the result of that proc has to return to cont
     # (actually the metacont)
-
     saved = get_current_mc()
     set_current_mc([])
 
@@ -362,17 +355,14 @@ def engine_timeout(env, cont):
 # engine.complete_or_expire(new_engine, #f, remaining_ticks)
 @expose("engine-block", [], simple=False)
 def engine_block(env, cont):
-    console_log("engine-block", debug=ENGINE_DEBUG)
+    console_log("engine-block", ENGINE_VERBOSITY, ENGINE_DEBUG)
     return do_engine_block(False, env, cont)
 
 WAKE_HANDLE = values.W_Symbol.make("pycket-wakeup-handle")
 wakeables = {}
 
 def do_engine_block(with_timeout_huh, env, cont):
-
-    from pycket.interpreter import Gensym
-
-     # get the current_complette or expire
+     # get the current_complete or expire
     w_complete_or_expire = current_engine_complete_or_expire_param.get_cell(cont).get()
     w_remaining_ticks = current_engine_ticks_param.get_cell(cont).get()
     w_ce = current_engine_param.get_cell(cont).get()
@@ -408,6 +398,15 @@ def do_engine_block(with_timeout_huh, env, cont):
 
     args = [w_new_engine, values.w_false, remaining_ticks]
 
+    # Block is called within an engine invocation, so this should
+    # probably abort to the nearest engine prompt and then call
+    # the complete_or_expire with the new engine.
+
+    from pycket.prims.control import find_continuation_prompt
+    # abort until nearest engine prompt
+    assert isinstance(w_ce, W_Engine)
+    cont = find_continuation_prompt(w_ce.w_prompt_tag, cont)
+
     return w_complete_or_expire.call_with_extra_info(args, env, cont, None)
 
 @expose("get-wakeup-handle", [], simple=True)
@@ -431,6 +430,8 @@ def do_engine_return(_results, env, cont):
     w_complete_or_expire = current_engine_complete_or_expire_param.get_cell(cont).get()
     w_remaining_ticks = current_engine_ticks_param.get_cell(cont).get()
 
+    w_ce = current_engine_param.get_cell(cont).get()
+    console_log("do_engine_return - current complete_or_expire belongs to engine: %s" % (w_ce), ENGINE_VERBOSITY, ENGINE_DEBUG)
     # results has to be a W_Cons of some sort
     results = values.to_list(_results)
 

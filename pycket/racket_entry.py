@@ -195,9 +195,7 @@ def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
         REGEXP_LINKLET.load()
 
     # Load thread linklet
-    # Feature Flag: thread
-    if feature_flag == FFLAG_THREAD:
-        THREAD_LINKLET.load()
+    THREAD_LINKLET.load()
 
     # Load io linklet
     # Feature Flag: io
@@ -670,13 +668,8 @@ def racket_entry(names, config, command_line_arguments):
     if is_repl: # -i
         put_newline = True
 
-        # Load REPL (from the pycket-boot linklet)
-        if not THREAD_LINKLET.is_loaded:
-            # pycket:<prim> primitives come from pycket-boot linklet
-            get_primitive("pycket:no-thread:load-repl").call_interpret([])
-        else:
-            # pycket:<prim> primitives come from pycket-boot linklet
-            get_primitive("pycket:load-repl").call_interpret([])
+        # pycket:<prim> primitives come from pycket-boot linklet
+        get_primitive("pycket:load-repl").call_interpret([])
 
     if put_newline:
         print
