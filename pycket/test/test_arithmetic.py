@@ -1,4 +1,5 @@
 import math
+import sys
 import pytest
 from pycket.interpreter import *
 from pycket.values import *
