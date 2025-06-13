@@ -31,7 +31,7 @@ endif
 
 WITH_JIT = -Ojit --translation-jit
 
-RACKET_VERSION := 8.17.0.3
+RACKET_VERSION := 8.17.0.4
 RACKET_INSTALLER_SCRIPT_NAME := racket-$(RACKET_VERSION)-x86_64-linux-jammy-cs.sh
 
 translate-jit-all: $(TRANSLATE_TARGETS)
