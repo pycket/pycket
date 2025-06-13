@@ -740,14 +740,18 @@ def read_eval_print_string(expr_str, return_val=False, debug=False):
     except Exception as e:
         raise SchemeException("Error (Racket) reading : %s\n%s\n" % (expr_str, e))
 
-    # expand
-    expanded = racket_expand(sexp)
-
     # eval
     try:
         results = racket_eval(sexp)
     except Exception as e:
         raise SchemeException("Error (Racket) evaluating : %s\n%s\n" % (expr_str, e))
+
+    # Tests rely on an exception to be raised
+    # But if we re-raise ExitException in call_interpret
+    # then we have to catch it everywhere we make a call_interpret
+    # call in the front-end
+    if results is None:
+        raise SchemeException("Error (Racket) evaluating : %s\n" % (expr_str))
 
     if return_val:
         return results
