@@ -453,7 +453,7 @@ def instance_name(l_inst):
 @expose("instantiate-linklet", [W_Linklet, W_List, default(W_Object, w_false), default(W_Object, w_true)], simple=False)
 def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, env, cont):
     from pycket.util import console_log
-    console_log("instantiating linklet : %s" % linkl.name.tostring(), 4)
+    console_log("instantiating linklet : %s" % linkl.name.tostring(), 5)
 
     prompt = False
     if use_prompt is not w_false: # use-prompt? : any/c = #t - what happens when it is 3 ?
@@ -524,7 +524,7 @@ def make_instance(args): # name, data, *vars_vals
         if "'" in name.tostring():
             console_log("making instance : %s" % name.tostring(), 3)
         else:
-            console_log("making instance : %s" % name.tostring(), 4)
+            console_log("making instance : %s" % name.tostring(), 5)
 
         if len(args) <= 2:
             data = args[1]

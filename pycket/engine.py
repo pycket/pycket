@@ -12,6 +12,7 @@ from rpython.rlib           import rgc, rtime
 from pycket.util            import console_log
 
 ENGINE_DEBUG = False
+ENGINE_VERBOSITY = 4
 
 get_current_mc = w_global_config.get_current_mc
 set_current_mc = w_global_config.set_current_mc
@@ -113,7 +114,8 @@ class W_Engine(values.W_Procedure):
         results = _vals.get_all_values()
         # get_all_values returns a python list of w_objects
 
-        console_log("calling engine %s return with _results: %s" % (self, [r.tostring() for r in results]), debug=ENGINE_DEBUG)
+        console_log("calling engine return with _results: %s -- %s" % ([r.tostring() for r in results], self), ENGINE_VERBOSITY, ENGINE_DEBUG)
+
         return do_engine_return(results, env, cont)
 
     @continuation
@@ -133,7 +135,7 @@ class W_Engine(values.W_Procedure):
         # TODO: check self.w_empty_conf_huh:
         cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
 
-        console_log("engine %s invoking w_thunk" % self, debug=ENGINE_DEBUG)
+        console_log("engine %s invoking w_thunk" % self, ENGINE_VERBOSITY, ENGINE_DEBUG)
         return self.w_thunk.call_with_extra_info([], env, cont, calling_app)
 
     def call_with_extra_info(self, args, env, cont, calling_app):
@@ -191,7 +193,7 @@ Given:
             # TODO: check self.w_empty_conf_huh:
             cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
 
-            console_log("engine %s is started" % self, debug=ENGINE_DEBUG)
+            console_log("engine %s is started" % self, ENGINE_VERBOSITY, ENGINE_DEBUG)
 
             cont = self.engine_initial_start_cont(calling_app, env, cont)
         else:
@@ -200,10 +202,10 @@ Given:
             # Replace the current continuation with the one that we saved
             # in the metacontinuation
             cont = saves.pop().resume_k()
-            console_log("engine %s is resumed" % self, debug=ENGINE_DEBUG)
+            console_log("engine %s is resumed" % self, ENGINE_VERBOSITY, ENGINE_DEBUG)
 
          # call prefix
-        console_log("engine %s is calling prefix" % self, debug=ENGINE_DEBUG)
+        console_log("engine %s is calling prefix" % self, ENGINE_VERBOSITY, ENGINE_DEBUG)
         return w_prefix.call_with_extra_info(args, env, cont, calling_app)
 
     def tostring(self):
@@ -278,7 +280,7 @@ def make_engine(w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cel
 
     eng = W_Engine(EMPTY_MC, w_thunk, w_prompt_tag, w_abort_handler, w_init_break_enabled_cell, w_empty_config_huh)
 
-    console_log("make-engine made %s" % eng, debug=ENGINE_DEBUG)
+    console_log("make-engine made %s" % eng, ENGINE_VERBOSITY, ENGINE_DEBUG)
     return eng
 
 
@@ -334,16 +336,13 @@ def call_with_engine_completion(w_proc, env, cont):
     # the result of that proc has to return to cont
     # (actually the metacont)
 
-
     saved = get_current_mc()
-
     set_current_mc([])
 
     done = DoneGetBack(cont, saved)
 
-    console_log("call-with-engine-completion", debug=ENGINE_DEBUG)
+    console_log("call-with-engine-completion", ENGINE_VERBOSITY, ENGINE_DEBUG)
     return w_proc.call([done], env, cont)
-
 
 # engine-timeout: -> T
 # Called *inside* the running engine when its time-slice expires.
@@ -353,7 +352,7 @@ def call_with_engine_completion(w_proc, env, cont):
 @expose("engine-timeout", [], simple=False)
 def engine_timeout(env, cont):
     # This should never be called in Pycket.
-    console_log("engine-timeout", debug=ENGINE_DEBUG)
+    console_log("engine-timeout", ENGINE_VERBOSITY, ENGINE_DEBUG)
     return do_engine_block(True, env, cont)
 
 # engine-block: -> T
@@ -403,7 +402,7 @@ def do_engine_block(with_timeout_huh, env, cont):
                             values.W_ThreadCell(values.w_false, False),
                             values.w_true)
 
-    console_log("do_engine_block - current-engine: %s -- new-engine: %s" % (w_ce, w_new_engine), debug=ENGINE_DEBUG)
+    console_log("do_engine_block - current-engine: %s -- new-engine: %s" % (w_ce, w_new_engine), ENGINE_VERBOSITY, ENGINE_DEBUG)
 
     set_current_mc([])
 
@@ -419,7 +418,7 @@ def get_wakeup_handle():
 def wakeup(_):
     # TODO: put a semaphore in the wakeables in sleep,
     # and post it here
-    console_log("wakeup called", debug=ENGINE_DEBUG)
+    console_log("wakeup called", ENGINE_VERBOSITY, ENGINE_DEBUG)
     return values.w_void
 
 # engine-return: any ... -> T
@@ -495,7 +494,7 @@ def current_place_roots():
 
 @expose("sleep", [default(values.W_Number, values.W_Fixnum(0))])
 def racket_sleep(w_secs):
-    console_log("sleep", debug=ENGINE_DEBUG)
+    console_log("sleep", ENGINE_VERBOSITY, ENGINE_DEBUG)
 
     if isinstance(w_secs, values.W_Flonum):
         secs = w_secs.value
