@@ -31,7 +31,7 @@ endif
 
 WITH_JIT = -Ojit --translation-jit
 
-RACKET_VERSION := 8.17.0.3
+RACKET_VERSION := 8.17.0.4
 RACKET_INSTALLER_SCRIPT_NAME := racket-$(RACKET_VERSION)-x86_64-linux-jammy-cs.sh
 
 translate-jit-all: $(TRANSLATE_TARGETS)
@@ -219,6 +219,21 @@ io: check_pycket_c_linklets check_plthome
 io-json: check_pycket_c_linklets check_plthome
 	$(MAKE) -s -C linklet-extractor io-json
 	@echo "Done. io json is at: $(IO_PATH_JSON)"
+
+THREAD_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/thread.linklet.fasl
+THREAD_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/thread.linklet.json
+THREAD_PATH_ZO := $(BOOTSTRAP_LINKLET_DIR)/thread.linklet.zo
+
+thread: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor thread
+	@echo "Done. thread is at : $(THREAD_PATH_FASL)"
+
+thread-json: check_pycket_c_linklets check_plthome
+	$(MAKE) -s -C linklet-extractor thread-json
+	@echo "Done. thread json is at: $(THREAD_PATH_JSON)"
+
+pycket-boot:
+	$(MAKE) -s -C linklet-extractor pycket-boot
 
 RACKET := $(PLTHOME)/racket/bin/racket
 

@@ -946,7 +946,6 @@ class W_Struct(W_RootStruct):
         if w_type.isprefab:
             return self.tostring_prefab()
         elif w_type.all_opaque():
-            # import pdb;pdb.set_trace()
             # ret_str = "#<%s" % typename
             # for i in range(0, self._get_size_list()):
             #     ret_str += ":%s" % self._ref(i).tostring()
@@ -1312,6 +1311,7 @@ sym = values.W_Symbol.make
 
 w_prop_object_name = W_StructProperty(sym("prop:object-name"), values.w_false)
 w_prop_authentic = W_StructProperty(sym("prop:authentic"), values.w_false)
+w_prop_authentic_override = W_StructProperty(sym("prop:unsafe-authentic-override"), values.w_false)
 w_prop_sealed = W_StructProperty(sym("prop:sealed"), values.w_false)
 #FIXME: check if these propeties need guards or not
 w_prop_procedure = W_StructProperty(sym("prop:procedure"), values.w_false)

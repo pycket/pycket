@@ -284,6 +284,7 @@ var_set_mod_var = interp.ModuleVar(var_set_sym, "#%kernel", var_set_sym, None)
 
 known_mod_vars = {} # cache for kernel primitive ModuleVars
 
+# mutated_ids are targets of set!, see find_mutated function
 def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref=[], name=""):
 
     if isinstance(form, W_Correlated):
@@ -291,17 +292,21 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
     elif is_val_type(form):
         return interp.Quote(form)
     elif isinstance(form, values.W_Symbol):
+
         if form in cell_ref:
             return interp.CellRef(form)
         if form in lex_env:
             return interp.LexicalVar(form)
+
         if form in exports and (form in mutated_ids or form not in all_toplevels):
             # dynamically find the W_LinkletVar for the exported variable
             # possible point of optimization
             rands = [interp.LinkletVar(exports[form].int_id)]
             return interp.App.make(var_ref_mod_var, rands)
+
         if form in all_toplevels:
             return interp.ToplevelVar(form, is_free=False)
+
 
         import_var_int_id = is_imported(form, linkl_importss)
         if import_var_int_id: # this is gensymed internal variable name
@@ -435,6 +440,8 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
                 mode = interp.Quote(values.w_false) # FIXME: possible optimization
                 rands = [interp.LinkletVar(exports[target].int_id), rhs, mode]
                 return interp.App.make(rator, rands)
+
+            # Emit a set! form
             if target in lex_env:
                 cr = [target] if not cr else [target] + cr
             var = sexp_to_ast(form.cdr().car(), lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref=cr, name=name)
@@ -456,7 +463,7 @@ def sexp_to_ast(form, lex_env, exports, all_toplevels, linkl_importss, mutated_i
         else:
             form_rator = sexp_to_ast(first_form, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref)
 
-            rands_ls, rands_len = to_rpython_list(form.cdr())
+            rands_ls, _ = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, all_toplevels, linkl_importss, mutated_ids, cell_ref, name) for r in rands_ls]
 
             return interp.App.make(form_rator, rands)
@@ -552,6 +559,7 @@ def get_exports_from_w_exports_sexp(w_exports):
     return exports
 
 # collect the ids in define-values forms
+# FIXME: merge with find_mutated
 def get_toplevel_defined_ids(forms_ls):
     linkl_toplevels = {} # {W_Symbol:None}
     for form in forms_ls:
@@ -579,6 +587,7 @@ def extend_dicts(list_of_dicts):
         a = extend_dict(a, d)
     return a
 
+# FIXME: merge with get_toplevel_defined_ids
 def find_mutated(form):
     if isinstance(form, W_Correlated):
         return find_mutated(form.get_obj())
@@ -709,7 +718,6 @@ def deserialize_exports(w_exports):
 
 def deserialize_loop(sexp):
     from pycket.prims.linklet import W_Linklet, W_LinkletBundle, W_LinkletDirectory
-    from pycket.env import w_global_config
 
     if isinstance(sexp, values.W_Cons):
         c = sexp.car()

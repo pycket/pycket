@@ -211,7 +211,13 @@ unsafe_str = [
     "unsafe-char<?", "unsafe-char<=?", "unsafe-char=?", "unsafe-char>=?", "unsafe-char>?",
     "unsafe-char->integer",
     "unsafe-add-global-finalizer", "unsafe-add-collect-callbacks",
-    "unsafe-remove-collect-callbacks"
+    "unsafe-remove-collect-callbacks",
+    "unsafe-custodian-register",
+    "unsafe-custodian-unregister",
+    "unsafe-make-custodian-at-root",
+    "unsafe-start-atomic",
+    "unsafe-end-atomic",
+
 ]
 
 # This table omits anything that the expander implements itself,
@@ -360,6 +366,7 @@ kernel_str = [
     "make-immutable-hasheqv", "make-impersonator-property",
     "make-inspector", "make-known-char-range-list", "make-logger",
     "make-log-receiver", "make-output-port", "make-parameter",
+    "make-pthread-parameter",
     "make-phantom-bytes", "make-pipe", "make-placeholder",
     "make-plumber", "make-polar", "make-prefab-struct",
     "make-pseudo-random-generator", "make-reader-graph", "make-rectangular",
@@ -586,8 +593,9 @@ schemify_hooks = [
     "variable-ref", "variable-ref/no-check",
     "variable-set!/check-undefined", "variable-set!"
 ]
+pycket_str = pycket_extra_str + schemify_hooks
 
-terminal_table = [
+terminal_str = [
     "terminal-init",
     "terminal-read-char",
     "terminal-write-char",
@@ -610,9 +618,7 @@ terminal_table = [
     "terminal-line-feed"
 ]
 
-thread_str = []
-
-kernel_str += [
+thread_str = [
     "thread",
     "thread-suspend-evt",
     "thread-dead-evt",
@@ -646,8 +652,6 @@ kernel_str += [
     "current-sandman",
     "schedule-info-current-exts",
     "schedule-info-did-work!",
-    "unsafe-start-atomic",
-    "unsafe-end-atomic",
     "start-atomic/no-interrupts",
     "end-atomic/no-interrupts",
     "in-atomic-mode?",
@@ -656,17 +660,67 @@ kernel_str += [
     "current-plumber",
     "plumber-add-flush!",
     "plumber-flush-handle-remove!",
-    "unsafe-custodian-register",
-    "unsafe-custodian-unregister",
-    "unsafe-make-custodian-at-root",
     "thread-push-kill-callback!",
     "thread-pop-kill-callback!",
     "unsafe-add-pre-poll-callback!",
     "set-get-subprocesses-time!",
     "prop:place-message",
 ]
+kernel_str += thread_str
 
-engine_str = []
+
+engine_str = [
+    "make-engine",
+    "engine-timeout",
+    "engine-return",
+    "engine-roots",
+    "call-with-engine-completion",
+    "current-process-milliseconds",
+    "set-ctl-c-handler!",
+    "set-break-enabled-transition-hook!",
+    "continuation-marks",
+    "poll-will-executors",
+    "make-will-executor",
+    "make-late-will-executor",
+    "will-executor?",
+    "will-register",
+    "will-try-execute",
+    "set-reachable-size-increments-callback!",
+    "set-custodian-memory-use-proc!",
+    "set-immediate-allocation-check-proc!",
+    "exn:break/non-engine",
+    "exn:break:hang-up/non-engine",
+    "exn:break:terminate/non-engine",
+    "poll-async-callbacks",
+    "disable-interrupts",
+    "enable-interrupts",
+    "sleep",
+    "get-wakeup-handle",
+    "wakeup",
+    "fork-place",
+    "place-get-inherit",
+    "start-place",
+    "exit",
+    "current-place-roots",
+    "get-initial-place",
+    "call-with-current-continuation-roots",
+    "fork-pthread",
+    "pthread?",
+    "get-thread-id",
+    "make-condition",
+    "condition-wait",
+    "condition-signal",
+    "condition-broadcast",
+    "make-mutex",
+    "mutex-acquire",
+    "mutex-release",
+    "threaded?",
+    "call-as-asynchronous-callback",
+    "post-as-asynchronous-callback",
+    "continuation-current-primitive",
+    "prop:unsafe-authentic-override",
+    "get-system-stats"
+]
 
 pthread_str = [
     "make-pthread-parameter",
@@ -674,14 +728,11 @@ pthread_str = [
     "unsafe-place-local-ref",
     "unsafe-place-local-set!",
     "unsafe-add-global-finalizer",
-    "unsafe-strip-impersonator",
-    "prop:unsafe-authentic-override",
+    # "unsafe-strip-impersonator",
     "immobile-cell-ref",
     "immobile-cell->address",
     "address->immobile-cell",
     "set-fs-change-properties!",
-    "unsafe-root-continuation-prompt-tag",
-    "break-enabled-key",
     "engine-block"
 ]
 
@@ -718,42 +769,57 @@ rktio_str = [
 # The reason for make_primitive_table is for turning these into list
 # of symbols (to avoid making new objects everytime we look things up)
 
-place = make_primitive_table(place_str)
-paramz = make_primitive_table(paramz_str)
-internal = make_primitive_table(internal_str)
-futures = make_primitive_table(futures_str)
-flfxnum = make_primitive_table(flfxnum_str)
-extfl = make_primitive_table(extfl_str)
-network = make_primitive_table(network_str)
-foreign = make_primitive_table(foreign_str)
-linklet = make_primitive_table(linklet_str)
-unsafe = make_primitive_table(unsafe_str)
-kernel = make_primitive_table(kernel_str)
-pycket = make_primitive_table(pycket_extra_str + schemify_hooks)
-terminal = make_primitive_table(terminal_table)
-pthread = make_primitive_table(pthread_str)
-thread = make_primitive_table(thread_str)
-rktio = make_primitive_table(rktio_str)
-engine = make_primitive_table(engine_str)
+PRIM_TABLES = [
+    (sym("#%place"),    make_primitive_table(place_str),     place_str),
+    (sym("#%paramz"),   make_primitive_table(paramz_str),    paramz_str),
+    (sym("#%internal"), make_primitive_table(internal_str),  internal_str),
+    (sym("#%futures"),  make_primitive_table(futures_str),   futures_str),
+    (sym("#%flfxnum"),  make_primitive_table(flfxnum_str),   flfxnum_str),
+    (sym("#%extfl"),    make_primitive_table(extfl_str),     extfl_str),
+    (sym("#%network"),  make_primitive_table(network_str),   network_str),
+    (sym("#%foreign"),  make_primitive_table(foreign_str),   foreign_str),
+    (sym("#%linklet"),  make_primitive_table(linklet_str),   linklet_str),
+    (sym("#%unsafe"),   make_primitive_table(unsafe_str),    unsafe_str),
+    (sym("#%kernel"),   make_primitive_table(kernel_str),    kernel_str),
+    (sym("#%pycket"),   make_primitive_table(pycket_str),    pycket_str),
+    (sym("#%terminal"), make_primitive_table(terminal_str),  terminal_str),
+    (sym("#%pthread"),  make_primitive_table(pthread_str),   pthread_str),
+    # (sym("#%thread"),   make_primitive_table(thread_str),    thread_str),
+    (sym("#%rktio"),    make_primitive_table(rktio_str),     rktio_str),
+    (sym("#%engine"),   make_primitive_table(engine_str),    engine_str),
+]
 
-select_prim_table = {
-    sym("#%linklet"): linklet,
-    sym("#%kernel"): kernel,
-    sym("#%paramz"): paramz,
-    sym("#%unsafe"): unsafe,
-    sym("#%foreign"): foreign,
-    sym("#%futures"): futures,
-    sym("#%place"): place,
-    sym("#%flfxnum"): flfxnum,
-    sym("#%extfl"): extfl,
-    sym("#%pycket"): pycket,
-    sym("#%network"): network,
-    sym("#%terminal"): terminal,
-    sym("#%pthread"): pthread,
-    sym("#%thread"): thread,
-    sym("#%rktio"): rktio,
-    sym("#%engine"): engine,
-}
+select_prim_table = {}
+undef_prims = {}
+
+def get_undef_prims_in(table):
+    from pycket.prims.expose import prim_env
+    from pycket.values import W_Prim
+
+    ls = []
+    for name in table:
+        p = prim_env[sym(name)]
+        if isinstance(p, W_Prim) and not p.is_implemented():
+            ls.append(name)
+    return ls
+
+
+for (w_name, w_table, str_table) in PRIM_TABLES:
+    select_prim_table[w_name] = w_table
+
+    for prim_name_str in str_table:
+        define_nyi(prim_name_str)
+
+    undef_prims[w_name.tostring()] = get_undef_prims_in(str_table)
+
+# Lists of actual functions indexed by the names above
+prim_table_cache = {}
+
+if DEBUG:
+    print("\n\nPriming all primitives in :\n")
+    for table_name, _ in select_prim_table.items():
+        print(table_name)
+
 
 def append_to_prim_table(table_name_str, prim_name_str):
     select_prim_table[sym(table_name_str)].append(sym(prim_name_str))
@@ -761,94 +827,16 @@ def append_to_prim_table(table_name_str, prim_name_str):
 def add_prim_to_rktio(prim_name_str):
     append_to_prim_table("#%rktio", prim_name_str)
 
-# Lists of actual functions indexed by the names above
-prim_table_cache = {}
-
-ALL_PRIMS = linklet_str + \
-    kernel_str + \
-    paramz_str + \
-    unsafe_str + \
-    foreign_str + \
-    futures_str + \
-    place_str + \
-    flfxnum_str + \
-    extfl_str + \
-    pycket_extra_str + \
-    schemify_hooks + \
-    network_str + \
-    terminal_table + \
-    pthread_str + \
-    thread_str + \
-    rktio_str + \
-    engine_str
-
-if DEBUG:
-    print("\n\nPriming all primitives in :\n")
-    for table_name, _ in select_prim_table.items():
-        print(table_name)
-
-for prim_name_str in ALL_PRIMS:
-    define_nyi(prim_name_str)
-
-
 def report_undefined_prims():
-    linklets = get_undef_prims_in(linklet_str)
-    kernel = get_undef_prims_in(kernel_str)
-    paramz = get_undef_prims_in(paramz_str)
-    unsafe = get_undef_prims_in(unsafe_str)
-    foreign = get_undef_prims_in(foreign_str)
-    futures = get_undef_prims_in(futures_str)
-    places = get_undef_prims_in(place_str)
-    flfxnum = get_undef_prims_in(flfxnum_str)
-    extfl = get_undef_prims_in(extfl_str)
-    network = get_undef_prims_in(network_str)
-    terminal = get_undef_prims_in(terminal_table)
-    pthread = get_undef_prims_in(pthread_str)
-    thread = get_undef_prims_in(thread_str)
+    total = 0
+    report = ""
 
-    total = linklets + kernel + paramz + unsafe + foreign + \
-        futures + places + flfxnum + extfl + network + terminal + pthread + thread
+    for undef_table_name, undefs in undef_prims.items():
+        l_undefs = len(undefs)
+        report += "\n%s\t: %s -- %s\n" % (undef_table_name, l_undefs, undefs)
+        total += l_undefs
 
-    report = """
-    linklets   : %s -- %s
-    kernel     : %s -- %s
-    paramz     : %s -- %s
-    unsafe     : %s -- %s
-    foreign    : %s -- %s
-    futures    : %s -- %s
-    places     : %s -- %s
-    flfxnum    : %s -- %s
-    extfl      : %s -- %s
-    network    : %s -- %s
-    terminal   : %s -- %s
-    pthread    : %s -- %s
-    thread     : %s -- %s
-    TOTAL      : %s
-    """ % (len(linklets), linklets,
-            len(kernel), kernel,
-            len(paramz), paramz,
-            len(unsafe), unsafe,
-            len(foreign), foreign,
-            len(futures), futures,
-            len(places), places,
-            len(flfxnum), flfxnum,
-            len(extfl), extfl,
-            len(network), network,
-            len(terminal), terminal,
-            len(pthread), pthread,
-            len(thread), thread,
-            len(total))
+    report += "\nTOTAL\t:%s" % total
 
     print(report)
     return 0
-
-
-def get_undef_prims_in(table):
-    from pycket.prims.expose import prim_env
-    from pycket.values import W_Symbol, W_Prim
-    ls = []
-    for name in table:
-        p = prim_env[sym(name)]
-        if isinstance(p, W_Prim) and not p.is_implemented():
-            ls.append(name)
-    return ls

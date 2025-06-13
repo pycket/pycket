@@ -5,25 +5,17 @@
 #
 import pytest
 import os
-from tempfile import NamedTemporaryFile, gettempdir
-from pycket.expand import expand, JsonLoader, expand_string, ModTable, parse_module
-from pycket.pycket_json import loads
+from tempfile import NamedTemporaryFile
+from pycket.expand import JsonLoader, expand_string, parse_module
 from pycket.env import ToplevelEnv, w_global_config
 from pycket.interpreter import *
 from pycket.error import SchemeException
-from pycket.cont import continuation
 from pycket.values import *
 from pycket.hash.base import W_HashTable
-from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive
+from pycket.racket_entry import initiate_boot_sequence, read_eval_print_string, get_primitive
 from pycket.prims.linklet import *
 from pycket.test.utils import *
-from pycket.config import get_testing_config
 
-#
-# basic runners
-#
-
-# This is where all the work happens
 
 delete_temp_files = True
 
@@ -31,10 +23,15 @@ delete_temp_files = True
 ## NEW Pycket test helpers
 ##############################
 
+def namespace_require_kernel():
+
+    namespace_require = get_primitive("namespace-require")
+
+    kernel = W_WrappedConsProper.make(W_Symbol.make("quote"),
+                                      W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
+    namespace_require.call_interpret([kernel])
+
 instantiate_linklet = get_primitive("instantiate-linklet")
-
-# This is where all the work happens
-
 
 if not pytest.config.new_pycket:
     w_global_config.set_linklet_mode_off()

@@ -1,4 +1,4 @@
-from pycket.error          import SchemeException
+from pycket.error          import SchemeException, ExitException
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib          import jit, objectmodel
 
@@ -52,12 +52,12 @@ class W_Object(W_ProtoObject):
 
     def call_interpret(self, racket_vals):
         from pycket.interpreter import Done, interpret_one
-        from pycket.env import ToplevelEnv, w_global_config
+        from pycket.env import ToplevelEnv, w_global_config as glob
         from pycket.cont import NilCont, Prompt
         from pycket import values, values_parameter
         from pycket.prims.control import default_uncaught_exception_handler
 
-        __pycketconfig = w_global_config.get_pycketconfig()
+        __pycketconfig = glob.get_pycketconfig()
 
         t_env = ToplevelEnv(__pycketconfig)
 
@@ -73,6 +73,9 @@ class W_Object(W_ProtoObject):
             return e.values
         except SchemeException as e:
             raise e
+        except ExitException as e:
+            # default-uncaught-exception-handler caught something
+            pass
 
 
     def enable_jitting(self):

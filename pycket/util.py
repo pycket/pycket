@@ -86,7 +86,7 @@ class LinkletPerf(object):
         self.categories = {"read" : ["fasl->s-exp", "s-exp->ast", "assign-convert-deserialize"],
                            "run" : ["instantiate-linklet" "outer"],
                            "startup" : ["expander-linklet", "json-load", "json-to-ast",
-                                        "fasl-linklet", "set-params"],
+                                        "fasl-linklet", "thread-linklet", "regexp-linklet", "pycket-boot-linklet", "set-params"],
                            "compile" : ["compile-linklet", "compile-sexp-to-ast",
                                         "compile-normalize", "compile-assign-convert",
                            ]}
@@ -261,7 +261,9 @@ def console_log(print_str, given_verbosity_level=0, debug=False, keyword=""):
         if decimal == 1:
             current_str += "0"
 
-        print("[%s] %s" % (current_str, print_str))
+        standout_str = "" if not debug else " -------------------------------- "
+
+        print("[%s] %s%s" % (current_str, standout_str, print_str))
 
 ##############################################
 # MISC

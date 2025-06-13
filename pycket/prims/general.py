@@ -123,8 +123,6 @@ for args in [
         ("unquoted-printing-string?", values.W_UnquotedPrintingString),
         ("port?", values.W_Port),
         ("security-guard?", values.W_SecurityGuard),
-        # FIXME
-        ("will-executor?", values.W_WillExecutor),
         ("bytes-converter?", values.W_Impossible),
         ("fsemaphore?", values.W_Impossible),
         ("thread-group?", values.W_Impossible),
@@ -295,6 +293,7 @@ for name in ["exn:srclocs",
 
 
 expose_val("prop:authentic", values_struct.w_prop_authentic)
+expose_val("prop:unsafe-authentic-override", values_struct.w_prop_authentic_override)
 expose_val("prop:sealed", values_struct.w_prop_sealed)
 expose_val("prop:object-name", values_struct.w_prop_object_name)
 
@@ -1347,7 +1346,7 @@ def current_seconds():
 def curr_millis():
     return values.W_Flonum(time.time() * 1000.0)
 
-@expose("current-inexact-monotonic-milliseconds", [])
+@expose(["current-inexact-monotonic-milliseconds", "current-process-milliseconds"] , [])
 def curr_monotonic_millis():
     """
         This is primarily used to measure elapsed time without worrying about system clock adjustments. So the exact value returned by this monotonic timer (elapsed time since unspecified start of a monotonic clock) is not relevant or meaningful.
@@ -2109,6 +2108,16 @@ def __dummy__():
 
 @expose("primitive-table", [values.W_Object])
 def primitive_table(v):
+    sym = values.W_Symbol.make
+
+    # IO linklet wants the table (as #%thread)
+    # that the Thread linklet exposes as #%thread-instance
+    if v is sym("#%thread"):
+        thread_ins = sym("#%thread-instance")
+        if thread_ins not in prim_env:
+            return values.w_false
+        return prim_env[thread_ins]
+
     if v not in select_prim_table:
         return values.w_false
 
@@ -2215,23 +2224,7 @@ def lang_country():
 def add_post(p):
     return values.w_void
 
-
-@expose("make-will-executor", [])
-def make_will_exec():
-    return values.W_WillExecutor()
-
-@expose("will-register", [values.W_WillExecutor, values.W_Object, values.W_Object])
-def will_register(w, v, p):
-    return values.w_void
-
-@expose("will-execute", [values.W_WillExecutor])
-def will_exec(w):
-    return values.w_void
-
-@expose("will-try-execute", [values.W_WillExecutor, default(values.W_Object, values.w_false)])
-def will_exec(w, v):
-    return v
-
+# FIXME: deleteme
 @expose("thread", [values.W_Object])
 def thread(p):
     return values.W_Thread()

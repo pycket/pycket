@@ -113,7 +113,9 @@ class GlobalConfig(object):
                        'repl_loaded':0,
                        'debug_active':0,
                        'boot_done':0,
-                       'linklet_mode':1}
+                       'linklet_mode':1,
+                       }
+        self._CURRENT_MC = [] # see pycket/engine
         self.callgraph = CallGraph()
         self.error_exit = None
         self.verbose_keywords = []
@@ -188,6 +190,12 @@ class GlobalConfig(object):
         if var_str not in self.environment_vars:
             self.environment_vars[var_str] = GlobalConfig.ask_OS_var(var_str)
         return self.environment_vars[var_str] != ""
+
+    def get_current_mc(self):
+        return self._CURRENT_MC
+
+    def set_current_mc(self, p_lst):
+        self._CURRENT_MC = p_lst
 
     def get_config_val(self, name):
         return self.config[name]

@@ -1,21 +1,19 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket                   import config
 from pycket.base              import W_Object, W_ProtoObject, UnhashableType
-from pycket.cont              import continuation, label, NilCont
+from pycket.cont              import label
 from pycket.env               import ConsEnv
 from pycket.error             import SchemeException
 from pycket.prims.expose      import make_call_method
 from pycket.small_list        import inline_small_list
 from pycket.util              import add_copy_method, memoize_constructor
 
-from rpython.tool.pairtype    import extendabletype
-from rpython.rlib             import jit, runicode, rarithmetic, rweaklist
+from rpython.rlib             import jit, rarithmetic, rweaklist
 from rpython.rlib.rstring     import StringBuilder
-from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
+from rpython.rlib.objectmodel import always_inline, compute_hash, we_are_translated
 from rpython.rlib.objectmodel import specialize, try_inline, import_from_mixin
-from rpython.rlib.rarithmetic import r_longlong, intmask
+from rpython.rlib.rarithmetic import intmask
 
 import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
@@ -1319,7 +1317,7 @@ class W_Symbol(W_Object):
 W_Symbol.all_symbols = {}
 W_Symbol.unreadable_symbols = {}
 
-break_enabled_key = W_Symbol("break-enabled-key")
+break_enabled_key = W_ContinuationMarkKey(W_Symbol("break-enabled-key"))
 exn_handler_key = W_Symbol("exnh")
 parameterization_key = W_Symbol("parameterization")
 
@@ -2305,7 +2303,3 @@ class W_Impossible(W_Object):
     def __init__(self):
         pass
 
-class W_WillExecutor(W_Object):
-    errorname = "will-executor"
-    def __init__(self):
-        pass

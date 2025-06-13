@@ -1,9 +1,8 @@
 from pycket.base  import W_Object
-from pycket.error import SchemeException
 from pycket       import values, values_string
 from pycket       import regexp
 
-from rpython.rlib.rsre        import rsre_core, rsre_char, rsre_re
+from rpython.rlib.rsre        import rsre_core, rsre_char
 from rpython.rlib             import buffer, jit, rstring
 from rpython.rlib.objectmodel import specialize
 import sys
