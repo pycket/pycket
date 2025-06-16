@@ -53,7 +53,7 @@ librktio_a = ExternalCompilationInfo(
 )
 
 
-# Constants 
+# Constants
 
 RKTIO_LOCK_ERROR = -2
 RKTIO_ERROR_CANNOT_FILE_POSITION = 12
@@ -3869,6 +3869,29 @@ def rktio_udp_open(w_rktio, w_addr, w_family):
 
 	# returns R_PTR
 	return W_R_PTR(res)
+
+
+c_rktio_tcp_keepalive = rffi.llexternal('rktio_tcp_keepalive', [R_PTR, R_PTR, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
+
+add_prim_to_rktio("rktio_tcp_keepalive")
+
+@expose("rktio_tcp_keepalive", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+def rktio_tcp_keepalive(w_rktio, w_rfd, w_enable):
+
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+
+	r_enable = rffi.cast(rffi.INT, 1 if w_enable is values.w_true else 0)
+
+	res = c_rktio_tcp_keepalive(r_rktio, r_rfd, r_enable)
+
+	if not res:
+		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
+		return values_vector.W_Vector.fromelements([num(n) for n in elems])
+
+	# returns RKTIO_OK_T
+	return values.W_Fixnum(res)
 
 
 c_rktio_tcp_nodelay = rffi.llexternal('rktio_tcp_nodelay', [R_PTR, R_PTR, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
