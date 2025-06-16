@@ -43,6 +43,7 @@
 (define w_fixnum "values.W_Fixnum")
 (define w_flonum "values.W_Flonum")
 (define w_string "values_string.W_String")
+(define w_bytes  "values.W_Bytes")
 (define w_void   "values.w_void")
 (define w_ccharp "W_CCHARP")
 (define w_ccharpp "W_CCHARPP")
@@ -53,7 +54,7 @@
     "RKTIO_TRI_T"	      w_fixnum
     "RKTIO_BOOL_T"	      w_fixnum
     "RKTIO_CHAR16_T"	      w_fixnum
-    "RKTIO_CONST_STRING_T"    w_string
+    "RKTIO_CONST_STRING_T"    w_bytes
     "RKTIO_FILESIZE_T"	      w_fixnum
     "RKTIO_TIMESTAMP_T"	      w_fixnum
     "INT"		      w_fixnum
@@ -296,6 +297,19 @@ def ~a(~a):
       (define (args-str lst-of-str)
 	(string-join lst-of-str ", "))
 
+      (define (arg-str->charp r_name w_name)
+	(let*
+	  ([_p_str (format "_p_str = ~a.as_str_utf8()\n" w_name)]
+	   [p_str (format "\tp_str = _p_str if _p_str else \"\"\n")]
+	   [r_line (format "\t~a = rffi.str2charp(p_str)" r_name)])
+	  (string-append _p_str p_str r_line)))
+
+      (define (arg-bytes->charp r_name w_name)
+	(let*
+	  ([p_str (format "p_str = ~a.as_str()\n" w_name)]
+	   [r_line (format "\t~a = rffi.str2charp(p_str)" r_name)])
+	  (string-append p_str r_line)))
+
       ;; arg-w->r expresses the conversion logic for a single
       ;; w-arg -> r-arg in RPython
       (define (arg-w->r r_name r_type w_name w_type)
@@ -313,12 +327,8 @@ def ~a(~a):
 	   (format "~a = rffi.cast(rffi.INT, 1 if ~a is values.w_true else 0)"
 		   r_name w_name)]
 	  
-	  [(equal? r_type "RKTIO_CONST_STRING_T")
-	   (let*
-	     ([_p_str (format "_p_str = ~a.as_str_utf8()\n" w_name)]
-	      [p_str (format "\tp_str = _p_str if _p_str else \"\"\n")]
-	      [r_line (format "\t~a = rffi.str2charp(p_str)" r_name)])
-	     (string-append _p_str p_str r_line))]
+	  [(equal? r_type "RKTIO_CONST_STRING_T") ; W_Bytes
+	   (arg-bytes->charp r_name w_name)]
 
 	  [(or (equal? r_type "RKTIO_CHAR16_T")
 	       (equal? r_type "RKTIO_FILESIZE_T"))

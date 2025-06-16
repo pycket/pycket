@@ -509,11 +509,10 @@ c_rktio_set_default_locale = rffi.llexternal('rktio_set_default_locale', [RKTIO_
 
 add_prim_to_rktio("rktio_set_default_locale")
 
-@expose("rktio_set_default_locale", [values_string.W_String], simple=True)
+@expose("rktio_set_default_locale", [values.W_Bytes], simple=True)
 def rktio_set_default_locale(w_name):
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	c_rktio_set_default_locale(r_name)
@@ -526,13 +525,12 @@ c_rktio_set_locale = rffi.llexternal('rktio_set_locale', [R_PTR, RKTIO_CONST_STR
 
 add_prim_to_rktio("rktio_set_locale")
 
-@expose("rktio_set_locale", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_set_locale", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_set_locale(w_rktio, w_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	c_rktio_set_locale(r_rktio, r_name)
@@ -570,17 +568,15 @@ c_rktio_locale_strcoll = rffi.llexternal('rktio_locale_strcoll', [R_PTR, RKTIO_C
 
 add_prim_to_rktio("rktio_locale_strcoll")
 
-@expose("rktio_locale_strcoll", [W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
+@expose("rktio_locale_strcoll", [W_R_PTR, values.W_Bytes, values.W_Bytes], simple=True)
 def rktio_locale_strcoll(w_rktio, w_s1, w_s2):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_s1.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_s1.as_str()
 	r_s1 = rffi.str2charp(p_str)
 
-	_p_str = w_s2.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_s2.as_str()
 	r_s2 = rffi.str2charp(p_str)
 
 	res = c_rktio_locale_strcoll(r_rktio, r_s1, r_s2)
@@ -616,15 +612,14 @@ c_rktio_locale_recase = rffi.llexternal('rktio_locale_recase', [R_PTR, RKTIO_BOO
 
 add_prim_to_rktio("rktio_locale_recase")
 
-@expose("rktio_locale_recase", [W_R_PTR, values.W_Fixnum, values_string.W_String], simple=True)
+@expose("rktio_locale_recase", [W_R_PTR, values.W_Fixnum, values.W_Bytes], simple=True)
 def rktio_locale_recase(w_rktio, w_to_up, w_in):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_to_up = rffi.cast(rffi.INT, 1 if w_to_up is values.w_true else 0)
 
-	_p_str = w_in.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_in.as_str()
 	r_in = rffi.str2charp(p_str)
 
 	res = c_rktio_locale_recase(r_rktio, r_to_up, r_in)
@@ -992,13 +987,12 @@ c_rktio_is_regular_file = rffi.llexternal('rktio_is_regular_file', [R_PTR, RKTIO
 
 add_prim_to_rktio("rktio_is_regular_file")
 
-@expose("rktio_is_regular_file", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_is_regular_file", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_is_regular_file(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_is_regular_file(r_rktio, r_filename)
@@ -1011,13 +1005,12 @@ c_rktio_link_exists = rffi.llexternal('rktio_link_exists', [R_PTR, RKTIO_CONST_S
 
 add_prim_to_rktio("rktio_link_exists")
 
-@expose("rktio_link_exists", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_link_exists", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_link_exists(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_link_exists(r_rktio, r_filename)
@@ -1030,13 +1023,12 @@ c_rktio_directory_exists = rffi.llexternal('rktio_directory_exists', [R_PTR, RKT
 
 add_prim_to_rktio("rktio_directory_exists")
 
-@expose("rktio_directory_exists", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_directory_exists", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_directory_exists(w_rktio, w_dirname):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_dirname.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dirname.as_str()
 	r_dirname = rffi.str2charp(p_str)
 
 	res = c_rktio_directory_exists(r_rktio, r_dirname)
@@ -1049,13 +1041,12 @@ c_rktio_file_exists = rffi.llexternal('rktio_file_exists', [R_PTR, RKTIO_CONST_S
 
 add_prim_to_rktio("rktio_file_exists")
 
-@expose("rktio_file_exists", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_file_exists", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_file_exists(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_file_exists(r_rktio, r_filename)
@@ -1511,19 +1502,17 @@ c_rktio_envvars_set = rffi.llexternal('rktio_envvars_set', [R_PTR, R_PTR, RKTIO_
 
 add_prim_to_rktio("rktio_envvars_set")
 
-@expose("rktio_envvars_set", [W_R_PTR, W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
+@expose("rktio_envvars_set", [W_R_PTR, W_R_PTR, values.W_Bytes, values.W_Bytes], simple=True)
 def rktio_envvars_set(w_rktio, w_envvars, w_name, w_value):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_envvars = rffi.cast(R_PTR, w_envvars.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
-	_p_str = w_value.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_value.as_str()
 	r_value = rffi.str2charp(p_str)
 
 	c_rktio_envvars_set(r_rktio, r_envvars, r_name, r_value)
@@ -1568,13 +1557,12 @@ c_rktio_is_ok_envvar_name = rffi.llexternal('rktio_is_ok_envvar_name', [R_PTR, R
 
 add_prim_to_rktio("rktio_is_ok_envvar_name")
 
-@expose("rktio_is_ok_envvar_name", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_is_ok_envvar_name", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_is_ok_envvar_name(w_rktio, w_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	res = c_rktio_is_ok_envvar_name(r_rktio, r_name)
@@ -2036,15 +2024,14 @@ c_rktio_dll_find_object = rffi.llexternal('rktio_dll_find_object', [R_PTR, R_PTR
 
 add_prim_to_rktio("rktio_dll_find_object")
 
-@expose("rktio_dll_find_object", [W_R_PTR, W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_dll_find_object", [W_R_PTR, W_R_PTR, values.W_Bytes], simple=True)
 def rktio_dll_find_object(w_rktio, w_dll, w_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_dll = rffi.cast(R_PTR, w_dll.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	res = c_rktio_dll_find_object(r_rktio, r_dll, r_name)
@@ -2061,13 +2048,12 @@ c_rktio_dll_open = rffi.llexternal('rktio_dll_open', [R_PTR, RKTIO_CONST_STRING_
 
 add_prim_to_rktio("rktio_dll_open")
 
-@expose("rktio_dll_open", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_dll_open", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_dll_open(w_rktio, w_name, w_as_global):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	r_as_global = rffi.cast(rffi.INT, 1 if w_as_global is values.w_true else 0)
@@ -2186,17 +2172,15 @@ c_rktio_converter_open = rffi.llexternal('rktio_converter_open', [R_PTR, RKTIO_C
 
 add_prim_to_rktio("rktio_converter_open")
 
-@expose("rktio_converter_open", [W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
+@expose("rktio_converter_open", [W_R_PTR, values.W_Bytes, values.W_Bytes], simple=True)
 def rktio_converter_open(w_rktio, w_to_enc, w_from_enc):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_to_enc.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_to_enc.as_str()
 	r_to_enc = rffi.str2charp(p_str)
 
-	_p_str = w_from_enc.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_from_enc.as_str()
 	r_from_enc = rffi.str2charp(p_str)
 
 	res = c_rktio_converter_open(r_rktio, r_to_enc, r_from_enc)
@@ -2213,23 +2197,20 @@ c_rktio_syslog = rffi.llexternal('rktio_syslog', [R_PTR, INT, RKTIO_CONST_STRING
 
 add_prim_to_rktio("rktio_syslog")
 
-@expose("rktio_syslog", [W_R_PTR, values.W_Fixnum, values_string.W_String, values_string.W_String, values_string.W_String], simple=True)
+@expose("rktio_syslog", [W_R_PTR, values.W_Fixnum, values.W_Bytes, values.W_Bytes, values.W_Bytes], simple=True)
 def rktio_syslog(w_rktio, w_level, w_name, w_msg, w_exec_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_level = rffi.cast(rffi.INT, w_level.value)
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
-	_p_str = w_msg.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_msg.as_str()
 	r_msg = rffi.str2charp(p_str)
 
-	_p_str = w_exec_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_exec_name.as_str()
 	r_exec_name = rffi.str2charp(p_str)
 
 	res = c_rktio_syslog(r_rktio, r_level, r_name, r_msg, r_exec_name)
@@ -2246,13 +2227,12 @@ c_rktio_path_to_wide_path = rffi.llexternal('rktio_path_to_wide_path', [R_PTR, R
 
 add_prim_to_rktio("rktio_path_to_wide_path")
 
-@expose("rktio_path_to_wide_path", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_path_to_wide_path", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_path_to_wide_path(w_rktio, w_p):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_p.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_p.as_str()
 	r_p = rffi.str2charp(p_str)
 
 	res = c_rktio_path_to_wide_path(r_rktio, r_p)
@@ -2269,25 +2249,21 @@ c_rktio_shell_execute = rffi.llexternal('rktio_shell_execute', [R_PTR, RKTIO_CON
 
 add_prim_to_rktio("rktio_shell_execute")
 
-@expose("rktio_shell_execute", [W_R_PTR, values_string.W_String, values_string.W_String, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_shell_execute", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bytes, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_shell_execute(w_rktio, w_verb, w_target, w_arg, w_dir, w_show_mode):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_verb.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_verb.as_str()
 	r_verb = rffi.str2charp(p_str)
 
-	_p_str = w_target.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_target.as_str()
 	r_target = rffi.str2charp(p_str)
 
-	_p_str = w_arg.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_arg.as_str()
 	r_arg = rffi.str2charp(p_str)
 
-	_p_str = w_dir.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dir.as_str()
 	r_dir = rffi.str2charp(p_str)
 
 	r_show_mode = rffi.cast(rffi.INT, w_show_mode.value)
@@ -2333,13 +2309,12 @@ c_rktio_expand_user_tilde = rffi.llexternal('rktio_expand_user_tilde', [R_PTR, R
 
 add_prim_to_rktio("rktio_expand_user_tilde")
 
-@expose("rktio_expand_user_tilde", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_expand_user_tilde", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_expand_user_tilde(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_expand_user_tilde(r_rktio, r_filename)
@@ -2417,13 +2392,12 @@ c_rktio_directory_list_start = rffi.llexternal('rktio_directory_list_start', [R_
 
 add_prim_to_rktio("rktio_directory_list_start")
 
-@expose("rktio_directory_list_start", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_directory_list_start", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_directory_list_start(w_rktio, w_dirname):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_dirname.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dirname.as_str()
 	r_dirname = rffi.str2charp(p_str)
 
 	res = c_rktio_directory_list_start(r_rktio, r_dirname)
@@ -2440,13 +2414,12 @@ c_rktio_set_file_or_directory_permissions = rffi.llexternal('rktio_set_file_or_d
 
 add_prim_to_rktio("rktio_set_file_or_directory_permissions")
 
-@expose("rktio_set_file_or_directory_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_set_file_or_directory_permissions", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_set_file_or_directory_permissions(w_rktio, w_filename, w_new_bits):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	r_new_bits = rffi.cast(rffi.INT, w_new_bits.value)
@@ -2465,13 +2438,12 @@ c_rktio_get_file_or_directory_permissions = rffi.llexternal('rktio_get_file_or_d
 
 add_prim_to_rktio("rktio_get_file_or_directory_permissions")
 
-@expose("rktio_get_file_or_directory_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_get_file_or_directory_permissions", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_get_file_or_directory_permissions(w_rktio, w_filename, w_all_bits):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	r_all_bits = rffi.cast(rffi.INT, 1 if w_all_bits is values.w_true else 0)
@@ -2490,13 +2462,12 @@ c_rktio_path_identity = rffi.llexternal('rktio_path_identity', [R_PTR, RKTIO_CON
 
 add_prim_to_rktio("rktio_path_identity")
 
-@expose("rktio_path_identity", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_path_identity", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_path_identity(w_rktio, w_path, w_follow_links):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_path.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_path.as_str()
 	r_path = rffi.str2charp(p_str)
 
 	r_follow_links = rffi.cast(rffi.INT, 1 if w_follow_links is values.w_true else 0)
@@ -2557,13 +2528,12 @@ c_rktio_file_or_directory_stat = rffi.llexternal('rktio_file_or_directory_stat',
 
 add_prim_to_rktio("rktio_file_or_directory_stat")
 
-@expose("rktio_file_or_directory_stat", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_file_or_directory_stat", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_file_or_directory_stat(w_rktio, w_path, w_follow_links):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_path.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_path.as_str()
 	r_path = rffi.str2charp(p_str)
 
 	r_follow_links = rffi.cast(rffi.INT, 1 if w_follow_links is values.w_true else 0)
@@ -2582,13 +2552,12 @@ c_rktio_set_file_modify_seconds = rffi.llexternal('rktio_set_file_modify_seconds
 
 add_prim_to_rktio("rktio_set_file_modify_seconds")
 
-@expose("rktio_set_file_modify_seconds", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_set_file_modify_seconds", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_set_file_modify_seconds(w_rktio, w_file, w_secs):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_file.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_file.as_str()
 	r_file = rffi.str2charp(p_str)
 
 	r_secs = rffi.cast(rffi.SSIZE_T, w_secs.value)
@@ -2607,13 +2576,12 @@ c_rktio_get_file_modify_seconds = rffi.llexternal('rktio_get_file_modify_seconds
 
 add_prim_to_rktio("rktio_get_file_modify_seconds")
 
-@expose("rktio_get_file_modify_seconds", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_get_file_modify_seconds", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_get_file_modify_seconds(w_rktio, w_file):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_file.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_file.as_str()
 	r_file = rffi.str2charp(p_str)
 
 	res = c_rktio_get_file_modify_seconds(r_rktio, r_file)
@@ -2630,13 +2598,12 @@ c_rktio_file_size = rffi.llexternal('rktio_file_size', [R_PTR, RKTIO_CONST_STRIN
 
 add_prim_to_rktio("rktio_file_size")
 
-@expose("rktio_file_size", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_file_size", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_file_size(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_file_size(r_rktio, r_filename)
@@ -2653,17 +2620,15 @@ c_rktio_make_link = rffi.llexternal('rktio_make_link', [R_PTR, RKTIO_CONST_STRIN
 
 add_prim_to_rktio("rktio_make_link")
 
-@expose("rktio_make_link", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_make_link", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_make_link(w_rktio, w_src, w_dest, w_dest_is_directory):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
-	_p_str = w_dest.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dest.as_str()
 	r_dest = rffi.str2charp(p_str)
 
 	r_dest_is_directory = rffi.cast(rffi.INT, 1 if w_dest_is_directory is values.w_true else 0)
@@ -2682,13 +2647,12 @@ c_rktio_readlink = rffi.llexternal('rktio_readlink', [R_PTR, RKTIO_CONST_STRING_
 
 add_prim_to_rktio("rktio_readlink")
 
-@expose("rktio_readlink", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_readlink", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_readlink(w_rktio, w_fullfilename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_fullfilename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_fullfilename.as_str()
 	r_fullfilename = rffi.str2charp(p_str)
 
 	res = c_rktio_readlink(r_rktio, r_fullfilename)
@@ -2705,17 +2669,15 @@ c_rktio_delete_directory = rffi.llexternal('rktio_delete_directory', [R_PTR, RKT
 
 add_prim_to_rktio("rktio_delete_directory")
 
-@expose("rktio_delete_directory", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_delete_directory", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_delete_directory(w_rktio, w_filename, w_current_directory, w_enable_write_on_fail):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
-	_p_str = w_current_directory.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_current_directory.as_str()
 	r_current_directory = rffi.str2charp(p_str)
 
 	r_enable_write_on_fail = rffi.cast(rffi.INT, 1 if w_enable_write_on_fail is values.w_true else 0)
@@ -2734,13 +2696,12 @@ c_rktio_make_directory_with_permissions = rffi.llexternal('rktio_make_directory_
 
 add_prim_to_rktio("rktio_make_directory_with_permissions")
 
-@expose("rktio_make_directory_with_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_make_directory_with_permissions", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_make_directory_with_permissions(w_rktio, w_filename, w_perm_bits):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	r_perm_bits = rffi.cast(rffi.INT, w_perm_bits.value)
@@ -2759,13 +2720,12 @@ c_rktio_make_directory = rffi.llexternal('rktio_make_directory', [R_PTR, RKTIO_C
 
 add_prim_to_rktio("rktio_make_directory")
 
-@expose("rktio_make_directory", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_make_directory", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_make_directory(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_make_directory(r_rktio, r_filename)
@@ -2782,13 +2742,12 @@ c_rktio_set_current_directory = rffi.llexternal('rktio_set_current_directory', [
 
 add_prim_to_rktio("rktio_set_current_directory")
 
-@expose("rktio_set_current_directory", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_set_current_directory", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_set_current_directory(w_rktio, w_path):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_path.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_path.as_str()
 	r_path = rffi.str2charp(p_str)
 
 	res = c_rktio_set_current_directory(r_rktio, r_path)
@@ -2824,17 +2783,15 @@ c_rktio_rename_file = rffi.llexternal('rktio_rename_file', [R_PTR, RKTIO_CONST_S
 
 add_prim_to_rktio("rktio_rename_file")
 
-@expose("rktio_rename_file", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_rename_file", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_rename_file(w_rktio, w_dest, w_src, w_exists_ok):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_dest.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dest.as_str()
 	r_dest = rffi.str2charp(p_str)
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
 	r_exists_ok = rffi.cast(rffi.INT, 1 if w_exists_ok is values.w_true else 0)
@@ -2853,13 +2810,12 @@ c_rktio_delete_file = rffi.llexternal('rktio_delete_file', [R_PTR, RKTIO_CONST_S
 
 add_prim_to_rktio("rktio_delete_file")
 
-@expose("rktio_delete_file", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_delete_file", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_delete_file(w_rktio, w_fn, w_enable_write_on_fail):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_fn.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_fn.as_str()
 	r_fn = rffi.str2charp(p_str)
 
 	r_enable_write_on_fail = rffi.cast(rffi.INT, 1 if w_enable_write_on_fail is values.w_true else 0)
@@ -2878,13 +2834,12 @@ c_rktio_file_type = rffi.llexternal('rktio_file_type', [R_PTR, RKTIO_CONST_STRIN
 
 add_prim_to_rktio("rktio_file_type")
 
-@expose("rktio_file_type", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_file_type", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_file_type(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_file_type(r_rktio, r_filename)
@@ -3054,13 +3009,12 @@ c_rktio_fs_change = rffi.llexternal('rktio_fs_change', [R_PTR, RKTIO_CONST_STRIN
 
 add_prim_to_rktio("rktio_fs_change")
 
-@expose("rktio_fs_change", [W_R_PTR, values_string.W_String, W_R_PTR], simple=True)
+@expose("rktio_fs_change", [W_R_PTR, values.W_Bytes, W_R_PTR], simple=True)
 def rktio_fs_change(w_rktio, w_path, w_ltps):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_path.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_path.as_str()
 	r_path = rffi.str2charp(p_str)
 
 	r_ltps = rffi.cast(R_PTR, w_ltps.to_rffi())
@@ -3163,13 +3117,12 @@ c_rktio_process = rffi.llexternal('rktio_process', [R_PTR, RKTIO_CONST_STRING_T,
 
 add_prim_to_rktio("rktio_process")
 
-@expose("rktio_process", [W_R_PTR, values_string.W_String, values.W_Fixnum, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, values_string.W_String, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_process", [W_R_PTR, values.W_Bytes, values.W_Fixnum, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, values.W_Bytes, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w_stderr_fd, w_group_proc, w_current_directory, w_envvars, w_flags):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_command.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_command.as_str()
 	r_command = rffi.str2charp(p_str)
 
 	r_argc = rffi.cast(rffi.INT, w_argc.value)
@@ -3184,8 +3137,7 @@ def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w
 
 	r_group_proc = rffi.cast(R_PTR, w_group_proc.to_rffi())
 
-	_p_str = w_current_directory.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_current_directory.as_str()
 	r_current_directory = rffi.str2charp(p_str)
 
 	r_envvars = rffi.cast(R_PTR, w_envvars.to_rffi())
@@ -3252,15 +3204,14 @@ c_rktio_envvars_get = rffi.llexternal('rktio_envvars_get', [R_PTR, R_PTR, RKTIO_
 
 add_prim_to_rktio("rktio_envvars_get")
 
-@expose("rktio_envvars_get", [W_R_PTR, W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_envvars_get", [W_R_PTR, W_R_PTR, values.W_Bytes], simple=True)
 def rktio_envvars_get(w_rktio, w_envvars, w_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_envvars = rffi.cast(R_PTR, w_envvars.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	res = c_rktio_envvars_get(r_rktio, r_envvars, r_name)
@@ -3336,17 +3287,15 @@ c_rktio_setenv = rffi.llexternal('rktio_setenv', [R_PTR, RKTIO_CONST_STRING_T, R
 
 add_prim_to_rktio("rktio_setenv")
 
-@expose("rktio_setenv", [W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
+@expose("rktio_setenv", [W_R_PTR, values.W_Bytes, values.W_Bytes], simple=True)
 def rktio_setenv(w_rktio, w_name, w_val):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
-	_p_str = w_val.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_val.as_str()
 	r_val = rffi.str2charp(p_str)
 
 	res = c_rktio_setenv(r_rktio, r_name, r_val)
@@ -3363,13 +3312,12 @@ c_rktio_getenv = rffi.llexternal('rktio_getenv', [R_PTR, RKTIO_CONST_STRING_T], 
 
 add_prim_to_rktio("rktio_getenv")
 
-@expose("rktio_getenv", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_getenv", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_getenv(w_rktio, w_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	res = c_rktio_getenv(r_rktio, r_name)
@@ -4139,13 +4087,12 @@ c_rktio_start_addrinfo_lookup = rffi.llexternal('rktio_start_addrinfo_lookup', [
 
 add_prim_to_rktio("rktio_start_addrinfo_lookup")
 
-@expose("rktio_start_addrinfo_lookup", [W_R_PTR, values_string.W_String, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_start_addrinfo_lookup", [W_R_PTR, values.W_Bytes, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_start_addrinfo_lookup(w_rktio, w_hostname, w_portno, w_family, w_passive, w_tcp):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_hostname.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_hostname.as_str()
 	r_hostname = rffi.str2charp(p_str)
 
 	r_portno = rffi.cast(rffi.INT, w_portno.value)
@@ -4592,13 +4539,12 @@ c_rktio_open_with_create_permissions = rffi.llexternal('rktio_open_with_create_p
 
 add_prim_to_rktio("rktio_open_with_create_permissions")
 
-@expose("rktio_open_with_create_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_open_with_create_permissions", [W_R_PTR, values.W_Bytes, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_open_with_create_permissions(w_rktio, w_src, w_modes, w_perm_bits):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
 	r_modes = rffi.cast(rffi.INT, w_modes.value)
@@ -4619,13 +4565,12 @@ c_rktio_open = rffi.llexternal('rktio_open', [R_PTR, RKTIO_CONST_STRING_T, INT],
 
 add_prim_to_rktio("rktio_open")
 
-@expose("rktio_open", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_open", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_open(w_rktio, w_src, w_modes):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
 	r_modes = rffi.cast(rffi.INT, w_modes.value)
@@ -4728,17 +4673,15 @@ c_rktio_copy_file_start_permissions = rffi.llexternal('rktio_copy_file_start_per
 
 add_prim_to_rktio("rktio_copy_file_start_permissions")
 
-@expose("rktio_copy_file_start_permissions", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_copy_file_start_permissions", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_copy_file_start_permissions(w_rktio, w_dest, w_src, w_exists_ok, w_use_perm_bits, w_perm_bits, w_override_create_perms):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_dest.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dest.as_str()
 	r_dest = rffi.str2charp(p_str)
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
 	r_exists_ok = rffi.cast(rffi.INT, 1 if w_exists_ok is values.w_true else 0)
@@ -4763,17 +4706,15 @@ c_rktio_copy_file_start = rffi.llexternal('rktio_copy_file_start', [R_PTR, RKTIO
 
 add_prim_to_rktio("rktio_copy_file_start")
 
-@expose("rktio_copy_file_start", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_copy_file_start", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_copy_file_start(w_rktio, w_dest, w_src, w_exists_ok):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_dest.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dest.as_str()
 	r_dest = rffi.str2charp(p_str)
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
 	r_exists_ok = rffi.cast(rffi.INT, 1 if w_exists_ok is values.w_true else 0)
