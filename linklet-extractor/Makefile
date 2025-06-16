@@ -73,7 +73,7 @@ pycket-boot:
 .PHONY: librktio.a
 librktio.a:
 	@echo "Generating librktio.a"
-	cd $(RKTIO_DIR) && $(ZUO) ./build.zuo default_rktio
+	cd $(RKTIO_DIR) && ./configure && $(ZUO) ./build.zuo default_rktio
 	@echo "Copying everything we need into $(RKTIO_LOCAL_DIR)"
 	cp $(RKTIO_DIR)/*.a $(RKTIO_DIR)/*.h $(RKTIO_DIR)/rktio.rktl $(RKTIO_LOCAL_DIR)
 
