@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import struct
+
+from rpython.rtyper.lltypesystem import rffi
 from pycket       import values
 from rpython.rlib import jit
 
@@ -117,11 +119,16 @@ def make_w_pointer_class(str_name):
     class _W_Custom(W_CPointer):
         _immutable_fields_ = _attrs_ = ["ptr"]
 
+        errorname = "cpointer %s" % str_name
+
         def __init__(self, ptr):
             self.ptr = ptr
 
         def to_rffi(self):
             return self.ptr
+
+        def as_voidp(self):
+            return rffi.cast(rffi.VOIDP, self.to_rffi())
 
     _W_Custom.__name__ = "W_%s" % str_name
     return _W_Custom

@@ -14,6 +14,7 @@ DOUBLE                  = rffi.DOUBLE
 FLOAT                   = rffi.FLOAT
 CCHARP			= rffi.CCHARP
 CCHARPP			= rffi.CCHARPP
+VOIDP			= rffi.VOIDP
 ARR_PTR			= rffi.CArrayPtr
 VOID                    = lltype.Void
 NULL                    = rffi.NULL

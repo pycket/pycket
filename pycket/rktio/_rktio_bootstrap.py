@@ -27,10 +27,11 @@ At each primitive definition, it adds the exposed function to the #%rktio module
 
 import os
 
-from pycket import values, values_string
+from pycket import values
 from pycket import vector as values_vector
 from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
+from pycket.foreign import W_CPointer
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *
@@ -473,16 +474,16 @@ def rktio_sha1_init(w_context):
 	return values.w_void
 
 
-c_rktio_pop_c_numeric_locale = rffi.llexternal('rktio_pop_c_numeric_locale', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_pop_c_numeric_locale = rffi.llexternal('rktio_pop_c_numeric_locale', [R_PTR, VOIDP], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_pop_c_numeric_locale")
 
-@expose("rktio_pop_c_numeric_locale", [W_R_PTR, W_R_PTR], simple=True)
+@expose("rktio_pop_c_numeric_locale", [W_R_PTR, W_CPointer], simple=True)
 def rktio_pop_c_numeric_locale(w_rktio, w_prev):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	r_prev = rffi.cast(R_PTR, w_prev.to_rffi())
+	r_prev = w_prev.as_voidp()
 
 	c_rktio_pop_c_numeric_locale(r_rktio, r_prev)
 
@@ -1144,18 +1145,18 @@ def rktio_ltps_handle_get_data(w_rktio, w_h):
 	return W_R_PTR(res)
 
 
-c_rktio_ltps_handle_set_data = rffi.llexternal('rktio_ltps_handle_set_data', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_ltps_handle_set_data = rffi.llexternal('rktio_ltps_handle_set_data', [R_PTR, R_PTR, VOIDP], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_ltps_handle_set_data")
 
-@expose("rktio_ltps_handle_set_data", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
+@expose("rktio_ltps_handle_set_data", [W_R_PTR, W_R_PTR, W_CPointer], simple=True)
 def rktio_ltps_handle_set_data(w_rktio, w_h, w_data):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_h = rffi.cast(R_PTR, w_h.to_rffi())
 
-	r_data = rffi.cast(R_PTR, w_data.to_rffi())
+	r_data = w_data.as_voidp()
 
 	c_rktio_ltps_handle_set_data(r_rktio, r_h, r_data)
 
@@ -1936,14 +1937,14 @@ def rktio_set_dll_path(w_p):
 	return values.w_void
 
 
-c_rktio_free = rffi.llexternal('rktio_free', [R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_free = rffi.llexternal('rktio_free', [VOIDP], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_free")
 
-@expose("rktio_free", [W_R_PTR], simple=True)
+@expose("rktio_free", [W_CPointer], simple=True)
 def rktio_free(w_p):
 
-	r_p = rffi.cast(R_PTR, w_p.to_rffi())
+	r_p = w_p.as_voidp()
 
 	c_rktio_free(r_p)
 

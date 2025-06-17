@@ -40,13 +40,14 @@
     'function-pointer	      "INTPTR_T"
 ))
 
-(define w_fixnum "values.W_Fixnum")
-(define w_flonum "values.W_Flonum")
-(define w_string "values_string.W_String")
-(define w_bytes  "values.W_Bytes")
-(define w_void   "values.w_void")
-(define w_ccharp "W_CCHARP")
+(define w_fixnum  "values.W_Fixnum")
+(define w_flonum  "values.W_Flonum")
+(define w_string  "values_string.W_String")
+(define w_bytes	  "values.W_Bytes")
+(define w_void	  "values.w_void")
+(define w_ccharp  "W_CCHARP")
 (define w_ccharpp "W_CCHARPP")
+(define w_voidp	  "W_CPointer")
 
 (define type:rffi->pycket
   (hash
@@ -68,6 +69,7 @@
     "INTPTR_T"		      w_fixnum
     "CCHARP"		      w_ccharp
     "CCHARPP"		      w_ccharpp
+    "VOIDP"		      w_voidp
 
     "RKTIO_DATE_PTR"	      "W_RKTIO_DATE_PTR"
 ))
@@ -92,8 +94,9 @@
 ;; There are some specific items (e.g. (ref rktio_t) -> RKTIO_T_PTR
 ;; And there are stuff like (ref (ref char))
 ;; FIXME: massive refactor needed
-(define (lower-type rktio-type)
+(define (lower-type rktio-type [is-arg? #f])
   (match rktio-type
+	['(ref void) (if is-arg? "VOIDP" "R_PTR")]
 	[`(,(or 'ref '*ref) char) "CCHARP"]
 	[`(,(or 'ref '*ref) (,(or 'ref '*ref) char)) "CCHARPP"]
 	;; We keep using a generic pointer (void *) on rffi
@@ -315,6 +318,9 @@ def ~a(~a):
       (define (arg-w->r r_name r_type w_name w_type)
 	(let ([defn-rhs
 	(cond
+	  [(equal? r_type "VOIDP")
+	   (format "~a = ~a.as_voidp()"
+		   r_name w_name)]
 	  [(or (equal? r_type "R_PTR")
 	       (equal? r_type "CCHARP")
 	       (equal? r_type "CCHARPP")
@@ -550,10 +556,11 @@ At each primitive definition, it adds the exposed function to the #%rktio module
 \"\"\"\n\n
 import os
 
-from pycket import values, values_string
+from pycket import values
 from pycket import vector as values_vector
 from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
+from pycket.foreign import W_CPointer
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *
@@ -643,7 +650,7 @@ librktio_a = ExternalCompilationInfo(
 	       [w-ret-type (r->w lowered-ret-type)]
 	       [lowered-arg-types
 		(map (lambda (a)
-		       (let* ([arg-r-type (lower-type (car a))]
+		       (let* ([arg-r-type (lower-type (car a) #t)]
 			      [arg-w-type (r->w arg-r-type)]
 			      [arg-w-name (format "w_~a" (cadr a))]
 			      [arg-r-name (format "r_~a" (cadr a))])
@@ -656,7 +663,7 @@ librktio_a = ExternalCompilationInfo(
 	       [w-ret-type (r->w lowered-ret-type)]
 	       [lowered-arg-types
 		(map (lambda (a)
-		       (let* ([arg-r-type (lower-type (car a))]
+		       (let* ([arg-r-type (lower-type (car a) #t)]
 			      [arg-w-type (r->w arg-r-type)]
 			      [arg-w-name (format "w_~a" (cadr a))]
 			      [arg-r-name (format "r_~a" (cadr a))])
@@ -669,7 +676,7 @@ librktio_a = ExternalCompilationInfo(
 	       [w-ret-type (r->w lowered-ret-type)]
 	       [lowered-arg-types
 		(map (lambda (a)
-		       (let* ([arg-r-type (lower-type (car a))]
+		       (let* ([arg-r-type (lower-type (car a) #t)]
 			      [arg-w-type (r->w arg-r-type)]
 			      [arg-w-name (format "w_~a" (cadr a))]
 			      [arg-r-name (format "r_~a" (cadr a))])
