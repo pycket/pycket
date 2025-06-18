@@ -423,20 +423,20 @@ def ~a(~a):
       (define (return-line w-ret-type r-ret-type)
 	(cond
 	  [(equal? r-ret-type "VOID") ; return w_void, value not type
-	   (format "\t# returns ~a\n\treturn ~a" r-ret-type w-ret-type)]
+	   (format "\t# res is a ~a\n\treturn ~a" r-ret-type w-ret-type)]
 	  [(equal? r-ret-type "RKTIO_BOOL_T")
-	   (format "\t# returns ~a\n\treturn values.W_Bool.make(res == 1)" r-ret-type)]
+	   (format "\t# res is a ~a\n\treturn values.W_Bool.make(res == 1)" r-ret-type)]
 	  [(or (equal? r-ret-type "UNSIGNED")
 	       (equal? r-ret-type "UNSIGNED_8")
 	       (equal? r-ret-type "UINTPTR_T"))
-	   (format "\t# returns ~a\n\treturn num(intmask(res))" r-ret-type)]
+	   (format "\t# res is a ~a\n\treturn num(intmask(res))" r-ret-type)]
 	  [(or (equal? w-ret-type w_fixnum)
 	       (equal? w-ret-type w_flonum)
 	       (equal? w-ret-type "W_R_PTR")
 	       (equal? w-ret-type "W_CCHARP")
 	       (equal? w-ret-type "W_CCHARPP")
 	       (equal? w-ret-type "W_RKTIO_DATE_PTR"))
-	   (format "\t# returns ~a\n\treturn ~a(res)" r-ret-type w-ret-type)]
+	   (format "\t# res is a ~a\n\treturn ~a(res)" r-ret-type w-ret-type)]
 	  [else (error 'return-line
 		       (format "unhandled w-ret-type: ~a" w-ret-type))]))
 
