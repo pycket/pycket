@@ -408,7 +408,7 @@ c_rktio_sha2_init = rffi.llexternal('rktio_sha2_init', [R_PTR, RKTIO_BOOL_T], VO
 
 add_prim_to_rktio("rktio_sha2_init")
 
-@expose("rktio_sha2_init", [W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_sha2_init", [W_R_PTR, values.W_Bool], simple=True)
 def rktio_sha2_init(w_ctx, w_is224):
 
 	r_ctx = rffi.cast(R_PTR, w_ctx.to_rffi())
@@ -544,7 +544,7 @@ c_rktio_strcoll_utf16 = rffi.llexternal('rktio_strcoll_utf16', [R_PTR, R_PTR, IN
 
 add_prim_to_rktio("rktio_strcoll_utf16")
 
-@expose("rktio_strcoll_utf16", [W_R_PTR, W_R_PTR, values.W_Fixnum, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_strcoll_utf16", [W_R_PTR, W_R_PTR, values.W_Fixnum, W_R_PTR, values.W_Fixnum, values.W_Bool], simple=True)
 def rktio_strcoll_utf16(w_rktio, w_s1, w_l1, w_s2, w_l2, w_cvt_case):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -590,7 +590,7 @@ c_rktio_recase_utf16 = rffi.llexternal('rktio_recase_utf16', [R_PTR, RKTIO_BOOL_
 
 add_prim_to_rktio("rktio_recase_utf16")
 
-@expose("rktio_recase_utf16", [W_R_PTR, values.W_Fixnum, W_R_PTR, values.W_Fixnum, W_R_PTR], simple=True)
+@expose("rktio_recase_utf16", [W_R_PTR, values.W_Bool, W_R_PTR, values.W_Fixnum, W_R_PTR], simple=True)
 def rktio_recase_utf16(w_rktio, w_to_up, w_s1, w_len, w_olen):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -613,7 +613,7 @@ c_rktio_locale_recase = rffi.llexternal('rktio_locale_recase', [R_PTR, RKTIO_BOO
 
 add_prim_to_rktio("rktio_locale_recase")
 
-@expose("rktio_locale_recase", [W_R_PTR, values.W_Fixnum, values.W_Bytes], simple=True)
+@expose("rktio_locale_recase", [W_R_PTR, values.W_Bool, values.W_Bytes], simple=True)
 def rktio_locale_recase(w_rktio, w_to_up, w_in):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -964,7 +964,7 @@ def rktio_copy_file_is_done(w_rktio, w_fc):
 	res = c_rktio_copy_file_is_done(r_rktio, r_fc)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_directory_list_stop = rffi.llexternal('rktio_directory_list_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
@@ -999,7 +999,7 @@ def rktio_is_regular_file(w_rktio, w_filename):
 	res = c_rktio_is_regular_file(r_rktio, r_filename)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_link_exists = rffi.llexternal('rktio_link_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1017,7 +1017,7 @@ def rktio_link_exists(w_rktio, w_filename):
 	res = c_rktio_link_exists(r_rktio, r_filename)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_directory_exists = rffi.llexternal('rktio_directory_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1035,7 +1035,7 @@ def rktio_directory_exists(w_rktio, w_dirname):
 	res = c_rktio_directory_exists(r_rktio, r_dirname)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_file_exists = rffi.llexternal('rktio_file_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1053,7 +1053,7 @@ def rktio_file_exists(w_rktio, w_filename):
 	res = c_rktio_file_exists(r_rktio, r_filename)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_end_sleep = rffi.llexternal('rktio_end_sleep', [R_PTR], VOID, compilation_info=librktio_a)
@@ -1551,7 +1551,7 @@ def rktio_are_envvar_names_case_insensitive(w_rktio):
 	res = c_rktio_are_envvar_names_case_insensitive(r_rktio)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_is_ok_envvar_name = rffi.llexternal('rktio_is_ok_envvar_name', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1569,7 +1569,7 @@ def rktio_is_ok_envvar_name(w_rktio, w_name):
 	res = c_rktio_is_ok_envvar_name(r_rktio, r_name)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_connect_stop = rffi.llexternal('rktio_connect_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
@@ -1800,7 +1800,7 @@ def rktio_fd_is_pending_open(w_rktio, w_rfd):
 	res = c_rktio_fd_is_pending_open(r_rktio, r_rfd)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_text_converted = rffi.llexternal('rktio_fd_is_text_converted', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1817,7 +1817,7 @@ def rktio_fd_is_text_converted(w_rktio, w_rfd):
 	res = c_rktio_fd_is_text_converted(r_rktio, r_rfd)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_terminal = rffi.llexternal('rktio_fd_is_terminal', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1834,7 +1834,7 @@ def rktio_fd_is_terminal(w_rktio, w_rfd):
 	res = c_rktio_fd_is_terminal(r_rktio, r_rfd)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_udp = rffi.llexternal('rktio_fd_is_udp', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1851,7 +1851,7 @@ def rktio_fd_is_udp(w_rktio, w_rfd):
 	res = c_rktio_fd_is_udp(r_rktio, r_rfd)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_socket = rffi.llexternal('rktio_fd_is_socket', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1868,7 +1868,7 @@ def rktio_fd_is_socket(w_rktio, w_rfd):
 	res = c_rktio_fd_is_socket(r_rktio, r_rfd)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_directory = rffi.llexternal('rktio_fd_is_directory', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1885,7 +1885,7 @@ def rktio_fd_is_directory(w_rktio, w_rfd):
 	res = c_rktio_fd_is_directory(r_rktio, r_rfd)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_regular_file = rffi.llexternal('rktio_fd_is_regular_file', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1902,7 +1902,7 @@ def rktio_fd_is_regular_file(w_rktio, w_rfd):
 	res = c_rktio_fd_is_regular_file(r_rktio, r_rfd)
 
 	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_system_fd = rffi.llexternal('rktio_fd_system_fd', [R_PTR, R_PTR], INTPTR_T, compilation_info=librktio_a)
@@ -2049,7 +2049,7 @@ c_rktio_dll_open = rffi.llexternal('rktio_dll_open', [R_PTR, RKTIO_CONST_STRING_
 
 add_prim_to_rktio("rktio_dll_open")
 
-@expose("rktio_dll_open", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
+@expose("rktio_dll_open", [W_R_PTR, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_dll_open(w_rktio, w_name, w_as_global):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -2439,7 +2439,7 @@ c_rktio_get_file_or_directory_permissions = rffi.llexternal('rktio_get_file_or_d
 
 add_prim_to_rktio("rktio_get_file_or_directory_permissions")
 
-@expose("rktio_get_file_or_directory_permissions", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
+@expose("rktio_get_file_or_directory_permissions", [W_R_PTR, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_get_file_or_directory_permissions(w_rktio, w_filename, w_all_bits):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -2463,7 +2463,7 @@ c_rktio_path_identity = rffi.llexternal('rktio_path_identity', [R_PTR, RKTIO_CON
 
 add_prim_to_rktio("rktio_path_identity")
 
-@expose("rktio_path_identity", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
+@expose("rktio_path_identity", [W_R_PTR, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_path_identity(w_rktio, w_path, w_follow_links):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -2529,7 +2529,7 @@ c_rktio_file_or_directory_stat = rffi.llexternal('rktio_file_or_directory_stat',
 
 add_prim_to_rktio("rktio_file_or_directory_stat")
 
-@expose("rktio_file_or_directory_stat", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
+@expose("rktio_file_or_directory_stat", [W_R_PTR, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_file_or_directory_stat(w_rktio, w_path, w_follow_links):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -2621,7 +2621,7 @@ c_rktio_make_link = rffi.llexternal('rktio_make_link', [R_PTR, RKTIO_CONST_STRIN
 
 add_prim_to_rktio("rktio_make_link")
 
-@expose("rktio_make_link", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Fixnum], simple=True)
+@expose("rktio_make_link", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_make_link(w_rktio, w_src, w_dest, w_dest_is_directory):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -2670,7 +2670,7 @@ c_rktio_delete_directory = rffi.llexternal('rktio_delete_directory', [R_PTR, RKT
 
 add_prim_to_rktio("rktio_delete_directory")
 
-@expose("rktio_delete_directory", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Fixnum], simple=True)
+@expose("rktio_delete_directory", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_delete_directory(w_rktio, w_filename, w_current_directory, w_enable_write_on_fail):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -2784,7 +2784,7 @@ c_rktio_rename_file = rffi.llexternal('rktio_rename_file', [R_PTR, RKTIO_CONST_S
 
 add_prim_to_rktio("rktio_rename_file")
 
-@expose("rktio_rename_file", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Fixnum], simple=True)
+@expose("rktio_rename_file", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_rename_file(w_rktio, w_dest, w_src, w_exists_ok):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -2811,7 +2811,7 @@ c_rktio_delete_file = rffi.llexternal('rktio_delete_file', [R_PTR, RKTIO_CONST_S
 
 add_prim_to_rktio("rktio_delete_file")
 
-@expose("rktio_delete_file", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
+@expose("rktio_delete_file", [W_R_PTR, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_delete_file(w_rktio, w_fn, w_enable_write_on_fail):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3513,7 +3513,7 @@ c_rktio_udp_set_multicast_loopback = rffi.llexternal('rktio_udp_set_multicast_lo
 
 add_prim_to_rktio("rktio_udp_set_multicast_loopback")
 
-@expose("rktio_udp_set_multicast_loopback", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_udp_set_multicast_loopback", [W_R_PTR, W_R_PTR, values.W_Bool], simple=True)
 def rktio_udp_set_multicast_loopback(w_rktio, w_rfd, w_on):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3755,7 +3755,7 @@ c_rktio_udp_bind = rffi.llexternal('rktio_udp_bind', [R_PTR, R_PTR, R_PTR, RKTIO
 
 add_prim_to_rktio("rktio_udp_bind")
 
-@expose("rktio_udp_bind", [W_R_PTR, W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_udp_bind", [W_R_PTR, W_R_PTR, W_R_PTR, values.W_Bool], simple=True)
 def rktio_udp_bind(w_rktio, w_rfd, w_addr, w_reuse):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3824,7 +3824,7 @@ c_rktio_tcp_keepalive = rffi.llexternal('rktio_tcp_keepalive', [R_PTR, R_PTR, RK
 
 add_prim_to_rktio("rktio_tcp_keepalive")
 
-@expose("rktio_tcp_keepalive", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_tcp_keepalive", [W_R_PTR, W_R_PTR, values.W_Bool], simple=True)
 def rktio_tcp_keepalive(w_rktio, w_rfd, w_enable):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3847,7 +3847,7 @@ c_rktio_tcp_nodelay = rffi.llexternal('rktio_tcp_nodelay', [R_PTR, R_PTR, RKTIO_
 
 add_prim_to_rktio("rktio_tcp_nodelay")
 
-@expose("rktio_tcp_nodelay", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_tcp_nodelay", [W_R_PTR, W_R_PTR, values.W_Bool], simple=True)
 def rktio_tcp_nodelay(w_rktio, w_rfd, w_enable):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -4021,7 +4021,7 @@ c_rktio_listen = rffi.llexternal('rktio_listen', [R_PTR, R_PTR, INT, RKTIO_BOOL_
 
 add_prim_to_rktio("rktio_listen")
 
-@expose("rktio_listen", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_listen", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Bool], simple=True)
 def rktio_listen(w_rktio, w_local, w_backlog, w_reuse):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -4088,7 +4088,7 @@ c_rktio_start_addrinfo_lookup = rffi.llexternal('rktio_start_addrinfo_lookup', [
 
 add_prim_to_rktio("rktio_start_addrinfo_lookup")
 
-@expose("rktio_start_addrinfo_lookup", [W_R_PTR, values.W_Bytes, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_start_addrinfo_lookup", [W_R_PTR, values.W_Bytes, values.W_Fixnum, values.W_Fixnum, values.W_Bool, values.W_Bool], simple=True)
 def rktio_start_addrinfo_lookup(w_rktio, w_hostname, w_portno, w_family, w_passive, w_tcp):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -4229,7 +4229,7 @@ c_rktio_file_lock_try = rffi.llexternal('rktio_file_lock_try', [R_PTR, R_PTR, RK
 
 add_prim_to_rktio("rktio_file_lock_try")
 
-@expose("rktio_file_lock_try", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_file_lock_try", [W_R_PTR, W_R_PTR, values.W_Bool], simple=True)
 def rktio_file_lock_try(w_rktio, w_rfd, w_excl):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -4674,7 +4674,7 @@ c_rktio_copy_file_start_permissions = rffi.llexternal('rktio_copy_file_start_per
 
 add_prim_to_rktio("rktio_copy_file_start_permissions")
 
-@expose("rktio_copy_file_start_permissions", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_copy_file_start_permissions", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bool, values.W_Bool, values.W_Fixnum, values.W_Bool], simple=True)
 def rktio_copy_file_start_permissions(w_rktio, w_dest, w_src, w_exists_ok, w_use_perm_bits, w_perm_bits, w_override_create_perms):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -4707,7 +4707,7 @@ c_rktio_copy_file_start = rffi.llexternal('rktio_copy_file_start', [R_PTR, RKTIO
 
 add_prim_to_rktio("rktio_copy_file_start")
 
-@expose("rktio_copy_file_start", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Fixnum], simple=True)
+@expose("rktio_copy_file_start", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_copy_file_start(w_rktio, w_dest, w_src, w_exists_ok):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())

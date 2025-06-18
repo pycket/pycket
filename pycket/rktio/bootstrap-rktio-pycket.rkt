@@ -41,6 +41,7 @@
 ))
 
 (define w_fixnum  "values.W_Fixnum")
+(define w_bool	  "values.W_Bool")
 (define w_flonum  "values.W_Flonum")
 (define w_string  "values_string.W_String")
 (define w_bytes	  "values.W_Bytes")
@@ -53,7 +54,7 @@
   (hash
     "RKTIO_OK_T"	      w_fixnum
     "RKTIO_TRI_T"	      w_fixnum
-    "RKTIO_BOOL_T"	      w_fixnum
+    "RKTIO_BOOL_T"	      w_bool
     "RKTIO_CHAR16_T"	      w_fixnum
     "RKTIO_CONST_STRING_T"    w_bytes
     "RKTIO_FILESIZE_T"	      w_fixnum
@@ -423,6 +424,8 @@ def ~a(~a):
 	(cond
 	  [(equal? r-ret-type "VOID") ; return w_void, value not type
 	   (format "\t# returns ~a\n\treturn ~a" r-ret-type w-ret-type)]
+	  [(equal? r-ret-type "RKTIO_BOOL_T")
+	   (format "\t# returns ~a\n\treturn values.W_Bool.make(res == 1)" r-ret-type)]
 	  [(or (equal? r-ret-type "UNSIGNED")
 	       (equal? r-ret-type "UNSIGNED_8")
 	       (equal? r-ret-type "UINTPTR_T"))
