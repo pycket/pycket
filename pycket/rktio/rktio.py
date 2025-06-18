@@ -150,14 +150,18 @@ def rktio_stat_to_vector(w_stat_ptr):
     ]
     return values_vector.W_Vector.fromelements(elems)
 
-@expose("rktio_identity_to_vector", [W_RKTIO_IDENTITY_PTR])
+@expose("rktio_identity_to_vector", [W_CPointer])
 def rktio_identity_to_vector(w_id_ptr):
-    ll_ptr = rffi.cast(RKTIO_IDENTITY_PTR, w_id_ptr.to_rffi())
+    ll_ptr = w_id_ptr.as_rktio_identity_ptr()
+
+    signed_c_a = rffi.cast(lltype.Signed, ll_ptr.c_a)
+    signed_c_b = rffi.cast(lltype.Signed, ll_ptr.c_b)
+    signed_c_c = rffi.cast(lltype.Signed, ll_ptr.c_c)
 
     elems = [
-        _wrap_int(ll_ptr.c_a),          # uintptr_t
-        _wrap_int(ll_ptr.c_b),
-        _wrap_int(ll_ptr.c_c),
+        _wrap_int(signed_c_a),          # uintptr_t
+        _wrap_int(signed_c_b),
+        _wrap_int(signed_c_c),
         _wrap_int(ll_ptr.c_a_bits),     # plain int -> still wrap
         _wrap_int(ll_ptr.c_b_bits),
         _wrap_int(ll_ptr.c_c_bits),

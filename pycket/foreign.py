@@ -109,7 +109,7 @@ class W_CStructType(W_CType):
 class W_CPointer(values.W_Object):
     _attrs_ = []
 
-    errorname = "cpointer"
+    errorname = "<cpointer>"
 
     def __init__(self):
         pass
@@ -119,7 +119,7 @@ def make_w_pointer_class(str_name):
     class _W_Custom(W_CPointer):
         _immutable_fields_ = _attrs_ = ["ptr"]
 
-        errorname = "cpointer %s" % str_name
+        errorname = "<cpointer %s>" % str_name
 
         def __init__(self, ptr):
             self.ptr = ptr
@@ -129,6 +129,10 @@ def make_w_pointer_class(str_name):
 
         def as_voidp(self):
             return rffi.cast(rffi.VOIDP, self.to_rffi())
+
+        def as_rktio_identity_ptr(self):
+            from pycket.rktio import bootstrap_structs
+            return rffi.cast(bootstrap_structs.RKTIO_IDENTITY_PTR, self.to_rffi())
 
     _W_Custom.__name__ = "W_%s" % str_name
     return _W_Custom
