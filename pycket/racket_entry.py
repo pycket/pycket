@@ -5,7 +5,7 @@ from pycket.values          import W_Object, Values
 from pycket.vector          import W_Vector
 from pycket.expand          import JsonLoader
 from pycket.util            import console_log, linklet_perf, PerfRegion
-from pycket.error           import ExitException, SchemeException
+from pycket.error           import ExitException, SchemeException, EntryException
 from rpython.rlib.debug     import debug_start, debug_stop, debug_print
 from pycket.error           import BootstrapError
 
@@ -94,6 +94,11 @@ class BootstrapLinklet():
             self.instantiate_linklet()
 
         console_log("Exporting vars of %s linklet." % self.which_str)
+        if not self.instance:
+            # Normally we'd raise at initiate_linklet()
+            # but we don't raise ExitException at
+            # call_interpret
+            raise EntryException("Unable to initiate the %s linklet" % self.which_str)
         self.instance.expose_vars_to_prim_env()
         self.is_loaded = True
 
@@ -614,16 +619,20 @@ def racket_entry(names, config, command_line_arguments):
         return 0
 
     with PerfRegion("startup"):
-        initiate_boot_sequence(command_line_arguments,
-                               use_compiled,
-                               debug,
-                               set_run_file,
-                               set_collects_dir,
-                               set_config_dir,
-                               set_addon_dir,
-                               feature_flag,
-                               compile_any=c_a,
-                               dont_load_regexp=dont_load_regexp)
+        try:
+            initiate_boot_sequence(command_line_arguments,
+                                   use_compiled,
+                                   debug,
+                                   set_run_file,
+                                   set_collects_dir,
+                                   set_config_dir,
+                                   set_addon_dir,
+                                   feature_flag,
+                                   compile_any=c_a,
+                                   dont_load_regexp=dont_load_regexp)
+        except EntryException as e:
+            print("Error at boot: %s" % e.msg)
+            return 0
 
     if just_init:
         return 0
