@@ -396,6 +396,9 @@ def error_value_string_handler(v, repr_length):
 error_val_string_handler_param = values_parameter.W_Parameter(error_value_string_handler)
 expose_val("error-value->string-handler", error_val_string_handler_param)
 
+error_module_path_string_handler_param = values_parameter.W_Parameter(error_value_string_handler)
+expose_val("error-module-path->string-handler", error_val_string_handler_param)
+
 @continuation
 def exit_cont(env, cont, _vals):
     from pycket.interpreter import return_value
