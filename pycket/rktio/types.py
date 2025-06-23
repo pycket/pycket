@@ -35,8 +35,6 @@ INTPTR_T                = rffi.SSIZE_T # pointer-sized signed int
 UINTPTR_T               = rffi.SIZE_T # unsigned
 RKTIO_TIMESTAMP_T       = INTPTR_T
 
-INTPTR_T_PTR		= rffi.CArrayPtr(INTPTR_T)
-
 W_CCHARP                = make_w_pointer_class("ccharp")
 W_CCHARPP               = make_w_pointer_class("ccharpp")
 
@@ -75,6 +73,11 @@ never tries to free them.
 def ptr_of(base):
     return rffi.CArrayPtr(base)
 
+# For *ref
+INTPTR_T_PTR		= ptr_of(INTPTR_T)
+STAR_REF_CCHARP		= rffi.CCHARP
+
+
 
 """
 (array 5 unsigned) ---> rffi.CFixedArray(UINT, 5)
@@ -99,7 +102,7 @@ W_RKTIO_TIMESTAMP_PTR   = make_w_pointer_class("rktio_timestamp_t")
 def extract_ccharp(w_obj):
     # Null ptr
     if isinstance(w_obj, values.w_false):
-        return rffi.cast(rffi.CCHARP, 0)
+        return rffi.cast(CCHARP, 0)
     # Actual C pointer
     if isinstance(w_obj, W_CPointer):
         return w_obj.to_rffi()

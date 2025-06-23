@@ -107,10 +107,10 @@
 (define (lower-type rktio-type [is-arg? #f])
   (match rktio-type
 	['(ref void) (if is-arg? "VOIDP" "R_PTR")]
-	[`(*ref intptr_t) (if (not is-arg?)
-			 ; for non-args we treat ref & *ref the same
-			 (lower-type `(ref 'c) is-arg?)
-			 (lower-*ref-type 'intptr_t))]
+	[`(*ref ,T) (if (not is-arg?)
+			; for non-args we treat ref & *ref the same
+			(lower-type `(ref ,T) is-arg?)
+			(lower-*ref-type T))]
 	[`(,(or 'ref '*ref) char) "CCHARP"]
 	[`(,(or 'ref '*ref) (,(or 'ref '*ref) char)) "CCHARPP"]
 	;; We keep using a generic pointer (void *) on rffi
@@ -153,7 +153,7 @@
 ;; that can be different things at runtime (W_Object)
 (define (lower-*ref-type T)
   (match T
-    #;['char ....] ;; extract_ccharp
+    ['char "STAR_REF_CCHARP"] ;; extract_ccharp
     ['intptr_t "INTPTR_T_PTR"] ;; extract_fixnum
     #;['rktio_char16_t ...] ;; extract_fixnum
     #;['rktio_const_string_t ....] ;; extract_ccharp
@@ -348,6 +348,9 @@ def ~a(~a):
       (define (arg-w->r r_name r_type w_name w_type)
 	(let ([defn-rhs
 	(cond
+	  [(equal? r_type "STAR_REF_CCHARP"]
+	   (format "~a = extract_ccharp(~a)"
+		   r_name w_name)]
 	  [(equal? r_type "INTPTR_T_PTR")
 	   (format "~a = extract_intptr_t_ptr(~a)"
 		   r_name w_name)]
