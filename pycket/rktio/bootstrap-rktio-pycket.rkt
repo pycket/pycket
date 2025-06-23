@@ -49,6 +49,7 @@
 (define w_ccharp  "W_CCHARP")
 (define w_ccharpp "W_CCHARPP")
 (define w_voidp	  "W_CPointer")
+(define W_Object  "base.W_Object")
 
 (define type:rffi->pycket
   (hash
@@ -73,6 +74,14 @@
     "VOIDP"		      w_voidp
 
     "RKTIO_DATE_PTR"	      "W_RKTIO_DATE_PTR"
+
+    ;; *ref types need special treatment because
+    ;; they're transparent to Racket runtime
+    ;; so e.g. Racket can pass W_MutableBytes directly
+    ;; instead of W_CPointer for the bytes.
+    ;; Or it can pass #f for null pointer.
+    "INTPTR_T_PTR"	      W_Object
+
 ))
 
 ;; { rktio : rffi }
@@ -98,6 +107,10 @@
 (define (lower-type rktio-type [is-arg? #f])
   (match rktio-type
 	['(ref void) (if is-arg? "VOIDP" "R_PTR")]
+	[`(*ref intptr_t) (if (not is-arg?)
+			 ; for non-args we treat ref & *ref the same
+			 (lower-type `(ref 'c) is-arg?)
+			 (lower-*ref-type 'intptr_t))]
 	[`(,(or 'ref '*ref) char) "CCHARP"]
 	[`(,(or 'ref '*ref) (,(or 'ref '*ref) char)) "CCHARPP"]
 	;; We keep using a generic pointer (void *) on rffi
@@ -134,6 +147,22 @@
 		(hash-set! type:w-struct-ptrs rffi_ptr_type w_ptr_type)
 		"R_PTR" #;rffi_ptr_type))]
 ))
+
+;; lower-*ref-type
+;; *ref is a transparent(to Racket) pointer ref
+;; that can be different things at runtime (W_Object)
+(define (lower-*ref-type T)
+  (match T
+    #;['char ....] ;; extract_ccharp
+    ['intptr_t "INTPTR_T_PTR"] ;; extract_fixnum
+    #;['rktio_char16_t ...] ;; extract_fixnum
+    #;['rktio_const_string_t ....] ;; extract_ccharp
+    #;['rktio_sha1_ctx_t ....] ;; extract_struct_ptr
+    #;['rktio_sha2_ctx_t ....] ;; extract_struct_ptr
+    #;['unsigned-8 ....] ;; extract_fixnum
+    #;['(ref char) .....]
+    [else (error 'lower-*ref-type
+		 (format "unhandled T : ~a" T))]))
 
 ;; Add an element to a parameterized list (front-cons style).
 (define (acc! p n v)
@@ -319,6 +348,9 @@ def ~a(~a):
       (define (arg-w->r r_name r_type w_name w_type)
 	(let ([defn-rhs
 	(cond
+	  [(equal? r_type "INTPTR_T_PTR")
+	   (format "~a = extract_intptr_t_ptr(~a)"
+		   r_name w_name)]
 	  [(equal? r_type "VOIDP")
 	   (format "~a = ~a.as_voidp()"
 		   r_name w_name)]
@@ -559,11 +591,12 @@ At each primitive definition, it adds the exposed function to the #%rktio module
 \"\"\"\n\n
 import os
 
-from pycket import values
+from pycket import base, values
 from pycket import vector as values_vector
 from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
 from pycket.foreign import W_CPointer
+from pycket.error import SchemeException
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *

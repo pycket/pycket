@@ -1,5 +1,9 @@
-from pycket.foreign import make_w_pointer_class
-from rpython.rtyper.lltypesystem import rffi, lltype
+
+from pycket			    import values
+from pycket.foreign		    import make_w_pointer_class, W_CPointer
+from pycket.error		    import SchemeException
+
+from rpython.rtyper.lltypesystem    import rffi, lltype
 
 ###############################################
 ######## Base Types and Pointers ##############
@@ -31,24 +35,35 @@ INTPTR_T                = rffi.SSIZE_T # pointer-sized signed int
 UINTPTR_T               = rffi.SIZE_T # unsigned
 RKTIO_TIMESTAMP_T       = INTPTR_T
 
+INTPTR_T_PTR		= rffi.CArrayPtr(INTPTR_T)
+
 W_CCHARP                = make_w_pointer_class("ccharp")
 W_CCHARPP               = make_w_pointer_class("ccharpp")
 
-# TODO: delete me
-def bootstrap_struct_type(name, type_tuple):
-    from rpython.rtyper.lltypesystem import rffi
-    from pycket.foreign import make_w_pointer_class
+# We could make separate opaque pointers for every typedef
+# in the included h files, but that wouldn't give us extra
+# benefit as they will all be opaque to rffi anyways.
+# So we use a generic \"any\" pointer for all of them as
+# much as we can.
+R_PTR	= rffi.VOIDP # rffi.COpaquePtr('void *')
+W_R_PTR = make_w_pointer_class('voidp')
 
-    """
-        Input is a key-value pair from the STRUCT_POINTERS map
-        in _rktio_bootstrap.
-        type_tuple has (rffi_type, w_pycket_type)
-    """
-    globals()[type_tuple[0]] = rffi.COpaquePtr(name)
-    globals()[type_tuple[1]] = make_w_pointer_class(name)
 
-def define_constant(name, val):
-    globals()[name] = val
+###############################################
+############## used struct-types ##############
+###############################################
+#
+# These are some structs that are used in bootstrap.
+# Pycket needs to know these intimitely, i.e. define
+# rffi.CStruct for them, because it'll expose functions
+# (as part of the bootstrap layer) that dereference some
+# of the fields of these.
+
+RKTIO_PROCESS_T_PTR     = R_PTR
+W_RKTIO_PROCESS_T_PTR   = W_R_PTR
+RKTIO_FD_T_PTR          = R_PTR
+W_RKTIO_FD_T_PTR        = W_R_PTR
+
 
 """
 ref: opaque to Racket: callee (C) allocates, and caller must
@@ -74,5 +89,42 @@ W_RKTIO_FILESIZE_PTR    = make_w_pointer_class("rktio_filesize_t")
 
 RKTIO_TIMESTAMP_PTR     = ptr_of(RKTIO_TIMESTAMP_T)
 W_RKTIO_TIMESTAMP_PTR   = make_w_pointer_class("rktio_timestamp_t")
+
+# Helpers for *ref arguments to coerce arg into ccharp, fixnum, etc.
+# Takes a W_Object and produces an rffi pointer
+# We could get just a value, in which case we need to create (malloc)
+# a cell and output its address to whoever's expecting the (*ref T)
+
+# For char*
+def extract_ccharp(w_obj):
+    # Null ptr
+    if isinstance(w_obj, values.w_false):
+        return rffi.cast(rffi.CCHARP, 0)
+    # Actual C pointer
+    if isinstance(w_obj, W_CPointer):
+        return w_obj.to_rffi()
+    # Racket value
+    if isinstance(w_obj, values.W_MutableBytes):
+        return rffi.str2charp(w_obj.as_bytes_list())
+
+    raise SchemeException("expected bytes, cpointer, or #f for char*")
+
+# For fixnum
+def extract_intptr_t_ptr(w_obj):
+    # Null ptr
+    if isinstance(w_obj, values.w_false):
+        return rffi.cast(INTPTR_T_PTR, 0)
+    # Actual C pointer
+    if isinstance(w_obj, W_CPointer):
+        return w_obj.to_rffi()
+    # Racket value
+    if isinstance(w_obj, values.W_Fixnum):
+	# FIXME: does rpython GC collect this?
+	cell = lltype.malloc(rffi.CArray(INTPTR_T), 1, flavor='raw',
+                             zero=False, track_allocation=False)
+	cell[0] = rffi.cast(INTPTR_T, w_obj.value)
+        return rffi.cast(INTPTR_T_PTR, cell)
+
+    raise SchemeException("expected fixnum, cpointer, or #f for intptr_t*")
 
 

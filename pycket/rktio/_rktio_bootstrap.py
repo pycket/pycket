@@ -27,11 +27,12 @@ At each primitive definition, it adds the exposed function to the #%rktio module
 
 import os
 
-from pycket import values
+from pycket import base, values
 from pycket import vector as values_vector
 from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
 from pycket.foreign import W_CPointer
+from pycket.error import SchemeException
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *
@@ -586,11 +587,11 @@ def rktio_locale_strcoll(w_rktio, w_s1, w_s2):
 	return values.W_Fixnum(res)
 
 
-c_rktio_recase_utf16 = rffi.llexternal('rktio_recase_utf16', [R_PTR, RKTIO_BOOL_T, R_PTR, INTPTR_T, R_PTR], R_PTR, compilation_info=librktio_a)
+c_rktio_recase_utf16 = rffi.llexternal('rktio_recase_utf16', [R_PTR, RKTIO_BOOL_T, R_PTR, INTPTR_T, INTPTR_T_PTR], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_recase_utf16")
 
-@expose("rktio_recase_utf16", [W_R_PTR, values.W_Bool, W_R_PTR, values.W_Fixnum, W_R_PTR], simple=True)
+@expose("rktio_recase_utf16", [W_R_PTR, values.W_Bool, W_R_PTR, values.W_Fixnum, base.W_Object], simple=True)
 def rktio_recase_utf16(w_rktio, w_to_up, w_s1, w_len, w_olen):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -601,7 +602,7 @@ def rktio_recase_utf16(w_rktio, w_to_up, w_s1, w_len, w_olen):
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
-	r_olen = rffi.cast(R_PTR, w_olen.to_rffi())
+	r_olen = extract_intptr_t_ptr(w_olen)
 
 	res = c_rktio_recase_utf16(r_rktio, r_to_up, r_s1, r_len, r_olen)
 
@@ -2140,11 +2141,11 @@ def rktio_convert_in(w_rktio, w_cvt, w_in, w_in_start, w_in_end, w_out, w_out_st
 	return W_R_PTR(res)
 
 
-c_rktio_convert = rffi.llexternal('rktio_convert', [R_PTR, R_PTR, CCHARPP, R_PTR, CCHARPP, R_PTR], INTPTR_T, compilation_info=librktio_a)
+c_rktio_convert = rffi.llexternal('rktio_convert', [R_PTR, R_PTR, CCHARPP, INTPTR_T_PTR, CCHARPP, INTPTR_T_PTR], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_convert")
 
-@expose("rktio_convert", [W_R_PTR, W_R_PTR, W_CCHARPP, W_R_PTR, W_CCHARPP, W_R_PTR], simple=True)
+@expose("rktio_convert", [W_R_PTR, W_R_PTR, W_CCHARPP, base.W_Object, W_CCHARPP, base.W_Object], simple=True)
 def rktio_convert(w_rktio, w_cvt, w_in, w_in_left, w_out, w_out_left):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -2153,11 +2154,11 @@ def rktio_convert(w_rktio, w_cvt, w_in, w_in_left, w_out, w_out_left):
 
 	r_in = rffi.cast(CCHARPP, w_in.to_rffi())
 
-	r_in_left = rffi.cast(R_PTR, w_in_left.to_rffi())
+	r_in_left = extract_intptr_t_ptr(w_in_left)
 
 	r_out = rffi.cast(CCHARPP, w_out.to_rffi())
 
-	r_out_left = rffi.cast(R_PTR, w_out_left.to_rffi())
+	r_out_left = extract_intptr_t_ptr(w_out_left)
 
 	res = c_rktio_convert(r_rktio, r_cvt, r_in, r_in_left, r_out, r_out_left)
 
