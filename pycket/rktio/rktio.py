@@ -214,14 +214,14 @@ def rktio_seconds_to_date_star(w_rktio, w_seconds, w_nanosec, w_get_gmt, env, co
         ], env, cont, None)
 
 # rktio_convert_result_to_vector
-@expose("rktio_convert_result_to_vector", [W_RKTIO_CONVERT_RESULT_PTR])
+@expose("rktio_convert_result_to_vector", [values.W_Object])
 def rktio_convert_result_to_vector(w_ptr):
     ll_ptr = rffi.cast(RKTIO_CONVERT_RESULT_PTR, w_ptr.to_rffi())
 
     elems = [
-        _wrap_int(ll_ptr.in_consumed),
-        _wrap_int(ll_ptr.out_produced),
-        _wrap_int(ll_ptr.converted),
+        _wrap_int(ll_ptr.c_in_consumed),
+        _wrap_int(ll_ptr.c_out_produced),
+        _wrap_int(ll_ptr.c_converted),
     ]
 
     return values_vector.W_Vector.fromelements(elems)
@@ -387,13 +387,13 @@ def rktio_process_result_process(res_ptr):
 @expose("rktio_status_running", [W_RKTIO_STATUS_PTR])
 def rktio_status_running(w_stat_ptr):
     r_stat_ptr = rffi.cast(RKTIO_STATUS_PTR, w_stat_ptr.to_rffi())
-    return values.W_Bool.make(r_stat_ptr.running == 1)
+    return values.W_Bool.make(r_stat_ptr.c_running == 1)
 
 # rktio_status_result
 @expose("rktio_status_result", [W_RKTIO_STATUS_PTR])
 def rktio_status_result(w_stat_ptr):
     r_stat_ptr = rffi.cast(RKTIO_STATUS_PTR, w_stat_ptr.to_rffi())
-    return _wrap_int(r_stat_ptr.result)
+    return _wrap_int(r_stat_ptr.c_result)
 
 # rktio_pipe_results
 @expose("rktio_pipe_results", [W_R_PTR])
