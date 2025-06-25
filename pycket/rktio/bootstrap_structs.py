@@ -193,9 +193,19 @@ RKTIO_SHA1_CTX_T = rffi.CStruct(
     ('buffer',  array_of(UNSIGNED_8, 64)),
 )
 RKTIO_SHA1_CTX_PTR = lltype.Ptr(RKTIO_SHA1_CTX_T)
-W_RKTIO_SHA1_CTX_PTR = make_w_pointer_class('rktio_sha1_ctx_1')
+W_RKTIO_SHA1_CTX_PTR = make_w_pointer_class('rktio_sha1_ctx_t')
 
 STRUCT_RFFI_TYPES['rktio_sha1_ctx_t'] = (RKTIO_SHA1_CTX_T, RKTIO_SHA1_CTX_PTR, W_RKTIO_SHA1_CTX_PTR)
+
+def extract_sha1_ctx_ptr(w_obj):
+    # Null ptr
+    if w_obj is values.w_false:
+        return rffi.cast(RKTIO_SHA1_CTX_PTR, 0)
+    # Actual C pointer
+    if isinstance(w_obj, W_RKTIO_SHA1_CTX_PTR):
+        return w_obj.to_rffi()
+
+    raise SchemeException("expected rktio_sha1_ctx_t pointer, or #f")
 
 """
 (define-struct-type
@@ -217,4 +227,13 @@ W_RKTIO_SHA2_CTX_PTR = make_w_pointer_class('rktio_sha2_ctx_t')
 
 STRUCT_RFFI_TYPES['rktio_sha2_ctx_t'] = (RKTIO_SHA2_CTX_T, RKTIO_SHA2_CTX_PTR, W_RKTIO_SHA2_CTX_PTR)
 
+def extract_sha2_ctx_ptr(w_obj):
+    # Null ptr
+    if w_obj is values.w_false:
+        return rffi.cast(RKTIO_SHA2_CTX_PTR, 0)
+    # Actual C pointer
+    if isinstance(w_obj, W_RKTIO_SHA2_CTX_PTR):
+        return w_obj.to_rffi()
+
+    raise SchemeException("expected rktio_sha2_ctx_t pointer, or #f")
 

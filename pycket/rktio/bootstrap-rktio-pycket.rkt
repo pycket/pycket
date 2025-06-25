@@ -80,7 +80,12 @@
     ;; so e.g. Racket can pass W_MutableBytes directly
     ;; instead of W_CPointer for the bytes.
     ;; Or it can pass #f for null pointer.
-    "INTPTR_T_PTR"	      W_Object
+    "INTPTR_T_PTR"	      W_Object ; "W_INTPTR_T_PTR"
+    "UNSIGNED_8_PTR"	      W_Object ; "W_UNSIGNED_8_PTR"
+    "STAR_REF_CCHARP"	      W_Object ; "W_STAR_REF_CCHARP"
+    "RKTIO_CHAR16_T_PTR"      W_Object ; "W_RKTIO_CHAR16_T_PTR"
+    "RKTIO_SHA1_CTX_PTR"      W_Object ; "W_RKTIO_SHA1_CTX_PTR"
+    "RKTIO_SHA2_CTX_PTR"      W_Object ; "W_RKTIO_SHA2_CTX_PTR"
 
 ))
 
@@ -154,13 +159,21 @@
 (define (lower-*ref-type T)
   (match T
     ['char "STAR_REF_CCHARP"] ;; extract_ccharp
-    ['intptr_t "INTPTR_T_PTR"] ;; extract_fixnum
-    #;['rktio_char16_t ...] ;; extract_fixnum
-    #;['rktio_const_string_t ....] ;; extract_ccharp
-    #;['rktio_sha1_ctx_t ....] ;; extract_struct_ptr
-    #;['rktio_sha2_ctx_t ....] ;; extract_struct_ptr
-    #;['unsigned-8 ....] ;; extract_fixnum
-    #;['(ref char) .....]
+    ['intptr_t "INTPTR_T_PTR"] ;; extract_intptr_t_ptr
+    ['rktio_char16_t "RKTIO_CHAR16_T_PTR"] ;; extract_char16_t_ptr
+    ; rktio_const_string_t is by itself a (*ref char)
+    ; this case is for (*ref (*ref char))
+    ; using CCHARPP is a hack because it overrides (ref (ref char))
+    ; but there's only 1 call that uses this in the io linklet
+    ; (rktio_process) and we're sure it passes a W_CCHARPP
+    ; (with the extra P). So we get away with that.
+    ['rktio_const_string_t "CCHARPP"]
+    ['rktio_sha1_ctx_t "RKTIO_SHA1_CTX_PTR"] ;; extract_struct_ptr
+    ['rktio_sha2_ctx_t "RKTIO_SHA2_CTX_PTR"] ;; extract_struct_ptr
+    ['unsigned-8 "UNSIGNED_8_PTR"] ;; extract_fixnum
+    ; (*ref (ref char))
+    ; again, using CCHARPP is a hack here
+    ['(ref char) "CCHARPP"]
     [else (error 'lower-*ref-type
 		 (format "unhandled T : ~a" T))]))
 
@@ -348,18 +361,33 @@ def ~a(~a):
       (define (arg-w->r r_name r_type w_name w_type)
 	(let ([defn-rhs
 	(cond
-	  [(equal? r_type "STAR_REF_CCHARP"]
+	  ; for *ref types
+	  ; see lower-*ref-type function
+	  [(equal? r_type "STAR_REF_CCHARP")
 	   (format "~a = extract_ccharp(~a)"
 		   r_name w_name)]
 	  [(equal? r_type "INTPTR_T_PTR")
 	   (format "~a = extract_intptr_t_ptr(~a)"
 		   r_name w_name)]
+	  [(equal? r_type "RKTIO_CHAR16_T_PTR")
+	   (format "~a = extract_char16_t_ptr(~a)"
+		   r_name w_name)]
+	  [(equal? r_type "RKTIO_SHA1_CTX_PTR")
+	   (format "~a = extract_sha1_ctx_ptr(~a)"
+		   r_name w_name)]
+	  [(equal? r_type "RKTIO_SHA2_CTX_PTR")
+	   (format "~a = extract_sha2_ctx_ptr(~a)"
+		   r_name w_name)]
+	  [(equal? r_type "UNSIGNED_8_PTR")
+	   (format "~a = extract_unsigned_8_ptr(~a)"
+		   r_name w_name)]
+	  ;
 	  [(equal? r_type "VOIDP")
 	   (format "~a = ~a.as_voidp()"
 		   r_name w_name)]
 	  [(or (equal? r_type "R_PTR")
 	       (equal? r_type "CCHARP")
-	       (equal? r_type "CCHARPP")
+	       (equal? r_type "CCHARPP") ; CCHARPP might receive a #f because of (*ref char)
 	       (equal? r_type "W_RKTIO_DATE_PTR")
 	       )
 	   (format "~a = rffi.cast(~a, ~a.to_rffi())"
@@ -599,7 +627,6 @@ from pycket import vector as values_vector
 from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
 from pycket.foreign import W_CPointer
-from pycket.error import SchemeException
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *

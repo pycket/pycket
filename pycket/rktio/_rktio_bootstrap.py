@@ -32,7 +32,6 @@ from pycket import vector as values_vector
 from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
 from pycket.foreign import W_CPointer
-from pycket.error import SchemeException
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *
@@ -367,16 +366,16 @@ def rktio_set_dll_procs(w_dll_open, w_dll_find_object, w_dll_close):
 	return values.w_void
 
 
-c_rktio_sha2_final = rffi.llexternal('rktio_sha2_final', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_sha2_final = rffi.llexternal('rktio_sha2_final', [RKTIO_SHA2_CTX_PTR, UNSIGNED_8_PTR], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha2_final")
 
-@expose("rktio_sha2_final", [W_R_PTR, W_R_PTR], simple=True)
+@expose("rktio_sha2_final", [base.W_Object, base.W_Object], simple=True)
 def rktio_sha2_final(w_ctx, w_digest):
 
-	r_ctx = rffi.cast(R_PTR, w_ctx.to_rffi())
+	r_ctx = extract_sha2_ctx_ptr(w_ctx)
 
-	r_digest = rffi.cast(R_PTR, w_digest.to_rffi())
+	r_digest = extract_unsigned_8_ptr(w_digest)
 
 	c_rktio_sha2_final(r_ctx, r_digest)
 
@@ -384,16 +383,16 @@ def rktio_sha2_final(w_ctx, w_digest):
 	return values.w_void
 
 
-c_rktio_sha2_update = rffi.llexternal('rktio_sha2_update', [R_PTR, R_PTR, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
+c_rktio_sha2_update = rffi.llexternal('rktio_sha2_update', [RKTIO_SHA2_CTX_PTR, UNSIGNED_8_PTR, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha2_update")
 
-@expose("rktio_sha2_update", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_sha2_update", [base.W_Object, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_sha2_update(w_ctx, w_data, w_start, w_end):
 
-	r_ctx = rffi.cast(R_PTR, w_ctx.to_rffi())
+	r_ctx = extract_sha2_ctx_ptr(w_ctx)
 
-	r_data = rffi.cast(R_PTR, w_data.to_rffi())
+	r_data = extract_unsigned_8_ptr(w_data)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -405,14 +404,14 @@ def rktio_sha2_update(w_ctx, w_data, w_start, w_end):
 	return values.w_void
 
 
-c_rktio_sha2_init = rffi.llexternal('rktio_sha2_init', [R_PTR, RKTIO_BOOL_T], VOID, compilation_info=librktio_a)
+c_rktio_sha2_init = rffi.llexternal('rktio_sha2_init', [RKTIO_SHA2_CTX_PTR, RKTIO_BOOL_T], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha2_init")
 
-@expose("rktio_sha2_init", [W_R_PTR, values.W_Bool], simple=True)
+@expose("rktio_sha2_init", [base.W_Object, values.W_Bool], simple=True)
 def rktio_sha2_init(w_ctx, w_is224):
 
-	r_ctx = rffi.cast(R_PTR, w_ctx.to_rffi())
+	r_ctx = extract_sha2_ctx_ptr(w_ctx)
 
 	r_is224 = rffi.cast(rffi.INT, 1 if w_is224 is values.w_true else 0)
 
@@ -422,16 +421,16 @@ def rktio_sha2_init(w_ctx, w_is224):
 	return values.w_void
 
 
-c_rktio_sha1_final = rffi.llexternal('rktio_sha1_final', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_sha1_final = rffi.llexternal('rktio_sha1_final', [RKTIO_SHA1_CTX_PTR, UNSIGNED_8_PTR], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha1_final")
 
-@expose("rktio_sha1_final", [W_R_PTR, W_R_PTR], simple=True)
+@expose("rktio_sha1_final", [base.W_Object, base.W_Object], simple=True)
 def rktio_sha1_final(w_context, w_digest):
 
-	r_context = rffi.cast(R_PTR, w_context.to_rffi())
+	r_context = extract_sha1_ctx_ptr(w_context)
 
-	r_digest = rffi.cast(R_PTR, w_digest.to_rffi())
+	r_digest = extract_unsigned_8_ptr(w_digest)
 
 	c_rktio_sha1_final(r_context, r_digest)
 
@@ -439,16 +438,16 @@ def rktio_sha1_final(w_context, w_digest):
 	return values.w_void
 
 
-c_rktio_sha1_update = rffi.llexternal('rktio_sha1_update', [R_PTR, R_PTR, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
+c_rktio_sha1_update = rffi.llexternal('rktio_sha1_update', [RKTIO_SHA1_CTX_PTR, UNSIGNED_8_PTR, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha1_update")
 
-@expose("rktio_sha1_update", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_sha1_update", [base.W_Object, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_sha1_update(w_context, w_data, w_start, w_end):
 
-	r_context = rffi.cast(R_PTR, w_context.to_rffi())
+	r_context = extract_sha1_ctx_ptr(w_context)
 
-	r_data = rffi.cast(R_PTR, w_data.to_rffi())
+	r_data = extract_unsigned_8_ptr(w_data)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -460,14 +459,14 @@ def rktio_sha1_update(w_context, w_data, w_start, w_end):
 	return values.w_void
 
 
-c_rktio_sha1_init = rffi.llexternal('rktio_sha1_init', [R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_sha1_init = rffi.llexternal('rktio_sha1_init', [RKTIO_SHA1_CTX_PTR], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha1_init")
 
-@expose("rktio_sha1_init", [W_R_PTR], simple=True)
+@expose("rktio_sha1_init", [base.W_Object], simple=True)
 def rktio_sha1_init(w_context):
 
-	r_context = rffi.cast(R_PTR, w_context.to_rffi())
+	r_context = extract_sha1_ctx_ptr(w_context)
 
 	c_rktio_sha1_init(r_context)
 
@@ -541,20 +540,20 @@ def rktio_set_locale(w_rktio, w_name):
 	return values.w_void
 
 
-c_rktio_strcoll_utf16 = rffi.llexternal('rktio_strcoll_utf16', [R_PTR, R_PTR, INTPTR_T, R_PTR, INTPTR_T, RKTIO_BOOL_T], INT, compilation_info=librktio_a)
+c_rktio_strcoll_utf16 = rffi.llexternal('rktio_strcoll_utf16', [R_PTR, RKTIO_CHAR16_T_PTR, INTPTR_T, RKTIO_CHAR16_T_PTR, INTPTR_T, RKTIO_BOOL_T], INT, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_strcoll_utf16")
 
-@expose("rktio_strcoll_utf16", [W_R_PTR, W_R_PTR, values.W_Fixnum, W_R_PTR, values.W_Fixnum, values.W_Bool], simple=True)
+@expose("rktio_strcoll_utf16", [W_R_PTR, base.W_Object, values.W_Fixnum, base.W_Object, values.W_Fixnum, values.W_Bool], simple=True)
 def rktio_strcoll_utf16(w_rktio, w_s1, w_l1, w_s2, w_l2, w_cvt_case):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	r_s1 = rffi.cast(R_PTR, w_s1.to_rffi())
+	r_s1 = extract_char16_t_ptr(w_s1)
 
 	r_l1 = rffi.cast(rffi.SSIZE_T, w_l1.value)
 
-	r_s2 = rffi.cast(R_PTR, w_s2.to_rffi())
+	r_s2 = extract_char16_t_ptr(w_s2)
 
 	r_l2 = rffi.cast(rffi.SSIZE_T, w_l2.value)
 
@@ -587,18 +586,18 @@ def rktio_locale_strcoll(w_rktio, w_s1, w_s2):
 	return values.W_Fixnum(res)
 
 
-c_rktio_recase_utf16 = rffi.llexternal('rktio_recase_utf16', [R_PTR, RKTIO_BOOL_T, R_PTR, INTPTR_T, INTPTR_T_PTR], R_PTR, compilation_info=librktio_a)
+c_rktio_recase_utf16 = rffi.llexternal('rktio_recase_utf16', [R_PTR, RKTIO_BOOL_T, RKTIO_CHAR16_T_PTR, INTPTR_T, INTPTR_T_PTR], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_recase_utf16")
 
-@expose("rktio_recase_utf16", [W_R_PTR, values.W_Bool, W_R_PTR, values.W_Fixnum, base.W_Object], simple=True)
+@expose("rktio_recase_utf16", [W_R_PTR, values.W_Bool, base.W_Object, values.W_Fixnum, base.W_Object], simple=True)
 def rktio_recase_utf16(w_rktio, w_to_up, w_s1, w_len, w_olen):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_to_up = rffi.cast(rffi.INT, 1 if w_to_up is values.w_true else 0)
 
-	r_s1 = rffi.cast(R_PTR, w_s1.to_rffi())
+	r_s1 = extract_char16_t_ptr(w_s1)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
@@ -694,16 +693,16 @@ def rktio_processor_count(w_rktio):
 	return values.W_Fixnum(res)
 
 
-c_rktio_wide_path_to_path = rffi.llexternal('rktio_wide_path_to_path', [R_PTR, R_PTR], CCHARP, compilation_info=librktio_a)
+c_rktio_wide_path_to_path = rffi.llexternal('rktio_wide_path_to_path', [R_PTR, RKTIO_CHAR16_T_PTR], CCHARP, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_wide_path_to_path")
 
-@expose("rktio_wide_path_to_path", [W_R_PTR, W_R_PTR], simple=True)
+@expose("rktio_wide_path_to_path", [W_R_PTR, base.W_Object], simple=True)
 def rktio_wide_path_to_path(w_rktio, w_wp):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	r_wp = rffi.cast(R_PTR, w_wp.to_rffi())
+	r_wp = extract_char16_t_ptr(w_wp)
 
 	res = c_rktio_wide_path_to_path(r_rktio, r_wp)
 
@@ -1923,14 +1922,14 @@ def rktio_fd_system_fd(w_rktio, w_rfd):
 	return values.W_Fixnum(res)
 
 
-c_rktio_set_dll_path = rffi.llexternal('rktio_set_dll_path', [R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_set_dll_path = rffi.llexternal('rktio_set_dll_path', [RKTIO_CHAR16_T_PTR], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_set_dll_path")
 
-@expose("rktio_set_dll_path", [W_R_PTR], simple=True)
+@expose("rktio_set_dll_path", [base.W_Object], simple=True)
 def rktio_set_dll_path(w_p):
 
-	r_p = rffi.cast(R_PTR, w_p.to_rffi())
+	r_p = extract_char16_t_ptr(w_p)
 
 	c_rktio_set_dll_path(r_p)
 
@@ -2108,24 +2107,24 @@ def rktio_locale_encoding(w_rktio):
 	return W_CCHARP(res)
 
 
-c_rktio_convert_in = rffi.llexternal('rktio_convert_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T, CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
+c_rktio_convert_in = rffi.llexternal('rktio_convert_in', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_convert_in")
 
-@expose("rktio_convert_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_convert_in", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_convert_in(w_rktio, w_cvt, w_in, w_in_start, w_in_end, w_out, w_out_start, w_out_end):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_cvt = rffi.cast(R_PTR, w_cvt.to_rffi())
 
-	r_in = rffi.cast(CCHARP, w_in.to_rffi())
+	r_in = extract_ccharp(w_in)
 
 	r_in_start = rffi.cast(rffi.SSIZE_T, w_in_start.value)
 
 	r_in_end = rffi.cast(rffi.SSIZE_T, w_in_end.value)
 
-	r_out = rffi.cast(CCHARP, w_out.to_rffi())
+	r_out = extract_ccharp(w_out)
 
 	r_out_start = rffi.cast(rffi.SSIZE_T, w_out_start.value)
 
@@ -3115,11 +3114,11 @@ def rktio_process_kill(w_rktio, w_sp):
 	return values.W_Fixnum(res)
 
 
-c_rktio_process = rffi.llexternal('rktio_process', [R_PTR, RKTIO_CONST_STRING_T, INT, R_PTR, R_PTR, R_PTR, R_PTR, R_PTR, RKTIO_CONST_STRING_T, R_PTR, INT], R_PTR, compilation_info=librktio_a)
+c_rktio_process = rffi.llexternal('rktio_process', [R_PTR, RKTIO_CONST_STRING_T, INT, CCHARPP, R_PTR, R_PTR, R_PTR, R_PTR, RKTIO_CONST_STRING_T, R_PTR, INT], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_process")
 
-@expose("rktio_process", [W_R_PTR, values.W_Bytes, values.W_Fixnum, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, values.W_Bytes, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_process", [W_R_PTR, values.W_Bytes, values.W_Fixnum, W_CCHARPP, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, values.W_Bytes, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w_stderr_fd, w_group_proc, w_current_directory, w_envvars, w_flags):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3129,7 +3128,7 @@ def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w
 
 	r_argc = rffi.cast(rffi.INT, w_argc.value)
 
-	r_argv = rffi.cast(R_PTR, w_argv.to_rffi())
+	r_argv = rffi.cast(CCHARPP, w_argv.to_rffi())
 
 	r_stdout_fd = rffi.cast(R_PTR, w_stdout_fd.to_rffi())
 
@@ -3621,18 +3620,18 @@ def rktio_udp_set_receive_buffer_size(w_rktio, w_rfd, w_size):
 	return values.W_Fixnum(res)
 
 
-c_rktio_udp_recvfrom_in = rffi.llexternal('rktio_udp_recvfrom_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
+c_rktio_udp_recvfrom_in = rffi.llexternal('rktio_udp_recvfrom_in', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_udp_recvfrom_in")
 
-@expose("rktio_udp_recvfrom_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_udp_recvfrom_in", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_udp_recvfrom_in(w_rktio, w_rfd, w_buffer, w_start, w_end):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -3648,18 +3647,18 @@ def rktio_udp_recvfrom_in(w_rktio, w_rfd, w_buffer, w_start, w_end):
 	return W_R_PTR(res)
 
 
-c_rktio_udp_recvfrom = rffi.llexternal('rktio_udp_recvfrom', [R_PTR, R_PTR, CCHARP, INTPTR_T], R_PTR, compilation_info=librktio_a)
+c_rktio_udp_recvfrom = rffi.llexternal('rktio_udp_recvfrom', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_udp_recvfrom")
 
-@expose("rktio_udp_recvfrom", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
+@expose("rktio_udp_recvfrom", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum], simple=True)
 def rktio_udp_recvfrom(w_rktio, w_rfd, w_buffer, w_len):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
@@ -3673,11 +3672,11 @@ def rktio_udp_recvfrom(w_rktio, w_rfd, w_buffer, w_len):
 	return W_R_PTR(res)
 
 
-c_rktio_udp_sendto_in = rffi.llexternal('rktio_udp_sendto_in', [R_PTR, R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_udp_sendto_in = rffi.llexternal('rktio_udp_sendto_in', [R_PTR, R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_udp_sendto_in")
 
-@expose("rktio_udp_sendto_in", [W_R_PTR, W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_udp_sendto_in", [W_R_PTR, W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_udp_sendto_in(w_rktio, w_rfd, w_addr, w_buffer, w_start, w_end):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3686,7 +3685,7 @@ def rktio_udp_sendto_in(w_rktio, w_rfd, w_addr, w_buffer, w_start, w_end):
 
 	r_addr = rffi.cast(R_PTR, w_addr.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -3702,11 +3701,11 @@ def rktio_udp_sendto_in(w_rktio, w_rfd, w_addr, w_buffer, w_start, w_end):
 	return values.W_Fixnum(res)
 
 
-c_rktio_udp_sendto = rffi.llexternal('rktio_udp_sendto', [R_PTR, R_PTR, R_PTR, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_udp_sendto = rffi.llexternal('rktio_udp_sendto', [R_PTR, R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_udp_sendto")
 
-@expose("rktio_udp_sendto", [W_R_PTR, W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
+@expose("rktio_udp_sendto", [W_R_PTR, W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum], simple=True)
 def rktio_udp_sendto(w_rktio, w_rfd, w_addr, w_buffer, w_len):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3715,7 +3714,7 @@ def rktio_udp_sendto(w_rktio, w_rfd, w_addr, w_buffer, w_len):
 
 	r_addr = rffi.cast(R_PTR, w_addr.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
@@ -4312,24 +4311,24 @@ def rktio_poll_read_ready(w_rktio, w_rfd):
 	return values.W_Fixnum(res)
 
 
-c_rktio_read_converted_in = rffi.llexternal('rktio_read_converted_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_read_converted_in = rffi.llexternal('rktio_read_converted_in', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T, STAR_REF_CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_read_converted_in")
 
-@expose("rktio_read_converted_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum, W_CCHARP, values.W_Fixnum], simple=True)
+@expose("rktio_read_converted_in", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum, base.W_Object, values.W_Fixnum], simple=True)
 def rktio_read_converted_in(w_rktio, w_fd, w_buffer, w_start, w_len, w_is_converted, w_converted_start):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
-	r_is_converted = rffi.cast(CCHARP, w_is_converted.to_rffi())
+	r_is_converted = extract_ccharp(w_is_converted)
 
 	r_converted_start = rffi.cast(rffi.SSIZE_T, w_converted_start.value)
 
@@ -4343,18 +4342,18 @@ def rktio_read_converted_in(w_rktio, w_fd, w_buffer, w_start, w_len, w_is_conver
 	return values.W_Fixnum(res)
 
 
-c_rktio_write_in = rffi.llexternal('rktio_write_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_write_in = rffi.llexternal('rktio_write_in', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_write_in")
 
-@expose("rktio_write_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_write_in", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_write_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -4370,18 +4369,18 @@ def rktio_write_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 	return values.W_Fixnum(res)
 
 
-c_rktio_read_in = rffi.llexternal('rktio_read_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_read_in = rffi.llexternal('rktio_read_in', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_read_in")
 
-@expose("rktio_read_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_read_in", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_read_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -4397,22 +4396,22 @@ def rktio_read_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 	return values.W_Fixnum(res)
 
 
-c_rktio_read_converted = rffi.llexternal('rktio_read_converted', [R_PTR, R_PTR, CCHARP, INTPTR_T, CCHARP], INTPTR_T, compilation_info=librktio_a)
+c_rktio_read_converted = rffi.llexternal('rktio_read_converted', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, STAR_REF_CCHARP], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_read_converted")
 
-@expose("rktio_read_converted", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, W_CCHARP], simple=True)
+@expose("rktio_read_converted", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, base.W_Object], simple=True)
 def rktio_read_converted(w_rktio, w_fd, w_buffer, w_len, w_is_converted):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
-	r_is_converted = rffi.cast(CCHARP, w_is_converted.to_rffi())
+	r_is_converted = extract_ccharp(w_is_converted)
 
 	res = c_rktio_read_converted(r_rktio, r_fd, r_buffer, r_len, r_is_converted)
 
@@ -4424,18 +4423,18 @@ def rktio_read_converted(w_rktio, w_fd, w_buffer, w_len, w_is_converted):
 	return values.W_Fixnum(res)
 
 
-c_rktio_write = rffi.llexternal('rktio_write', [R_PTR, R_PTR, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_write = rffi.llexternal('rktio_write', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_write")
 
-@expose("rktio_write", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
+@expose("rktio_write", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum], simple=True)
 def rktio_write(w_rktio, w_fd, w_buffer, w_len):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
@@ -4449,18 +4448,18 @@ def rktio_write(w_rktio, w_fd, w_buffer, w_len):
 	return values.W_Fixnum(res)
 
 
-c_rktio_read = rffi.llexternal('rktio_read', [R_PTR, R_PTR, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_read = rffi.llexternal('rktio_read', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_read")
 
-@expose("rktio_read", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
+@expose("rktio_read", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum], simple=True)
 def rktio_read(w_rktio, w_fd, w_buffer, w_len):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
@@ -4610,14 +4609,14 @@ def rktio_system_fd(w_rktio, w_system_fd, w_modes):
 	return W_R_PTR(res)
 
 
-c_rktio_get_dll_path = rffi.llexternal('rktio_get_dll_path', [R_PTR], R_PTR, compilation_info=librktio_a)
+c_rktio_get_dll_path = rffi.llexternal('rktio_get_dll_path', [RKTIO_CHAR16_T_PTR], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_get_dll_path")
 
-@expose("rktio_get_dll_path", [W_R_PTR], simple=True)
+@expose("rktio_get_dll_path", [base.W_Object], simple=True)
 def rktio_get_dll_path(w_p):
 
-	r_p = rffi.cast(R_PTR, w_p.to_rffi())
+	r_p = extract_char16_t_ptr(w_p)
 
 	res = c_rktio_get_dll_path(r_p)
 

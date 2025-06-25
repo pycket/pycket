@@ -76,6 +76,14 @@ def ptr_of(base):
 # For *ref
 INTPTR_T_PTR		= ptr_of(INTPTR_T)
 STAR_REF_CCHARP		= rffi.CCHARP
+RKTIO_CHAR16_T_PTR	= ptr_of(RKTIO_CHAR16_T)
+UNSIGNED_8_PTR		= ptr_of(UNSIGNED_8)
+
+# W_Object classes for these
+W_INTPTR_T_PTR		= make_w_pointer_class("intptr_t_ptr")
+W_STAR_REF_CCHARP	= make_w_pointer_class("star_ref_ccharp")
+W_RKTIO_CHAR16_T_PTR	= make_w_pointer_class("char16_t_ptr")
+W_UNSIGNED_8_PTR	= make_w_pointer_class("unsigned_8_ptr")
 
 
 
@@ -101,24 +109,24 @@ W_RKTIO_TIMESTAMP_PTR   = make_w_pointer_class("rktio_timestamp_t")
 # For char*
 def extract_ccharp(w_obj):
     # Null ptr
-    if isinstance(w_obj, values.w_false):
+    if w_obj is values.w_false:
         return rffi.cast(CCHARP, 0)
     # Actual C pointer
-    if isinstance(w_obj, W_CPointer):
+    if isinstance(w_obj, W_CCHARP):
         return w_obj.to_rffi()
     # Racket value
     if isinstance(w_obj, values.W_MutableBytes):
-        return rffi.str2charp(w_obj.as_bytes_list())
+        return rffi.str2charp(w_obj.as_str())
 
     raise SchemeException("expected bytes, cpointer, or #f for char*")
 
 # For fixnum
 def extract_intptr_t_ptr(w_obj):
     # Null ptr
-    if isinstance(w_obj, values.w_false):
+    if w_obj is values.w_false:
         return rffi.cast(INTPTR_T_PTR, 0)
     # Actual C pointer
-    if isinstance(w_obj, W_CPointer):
+    if isinstance(w_obj, W_INTPTR_T_PTR):
         return w_obj.to_rffi()
     # Racket value
     if isinstance(w_obj, values.W_Fixnum):
@@ -130,4 +138,38 @@ def extract_intptr_t_ptr(w_obj):
 
     raise SchemeException("expected fixnum, cpointer, or #f for intptr_t*")
 
+def extract_char16_t_ptr(w_obj):
+    # Null ptr
+    if w_obj is values.w_false:
+        return rffi.cast(RKTIO_CHAR16_T_PTR, 0)
+    # Actual C pointer
+    if isinstance(w_obj, W_RKTIO_CHAR16_T_PTR):
+        return w_obj.to_rffi()
+    # Racket value
+    if isinstance(w_obj, values.W_Fixnum):
+	# FIXME: does rpython GC collect this?
+	cell = lltype.malloc(rffi.CArray(RKTIO_CHAR16_T), 1, flavor='raw',
+                             zero=False, track_allocation=False)
+	cell[0] = rffi.cast(RKTIO_CHAR16_T, w_obj.value)
+        return rffi.cast(RKTIO_CHAR16_T_PTR, cell)
+
+    raise SchemeException("expected fixnum, cpointer, or #f for rktio_char16_t *")
+
+
+def extract_unsigned_8_ptr(w_obj):
+    # Null ptr
+    if w_obj is values.w_false:
+        return rffi.cast(UNSIGNED_8_PTR, 0)
+    # Actual C pointer
+    if isinstance(w_obj, W_UNSIGNED_8_PTR):
+        return w_obj.to_rffi()
+    # Racket value
+    if isinstance(w_obj, values.W_Fixnum):
+	# FIXME: does rpython GC collect this?
+	cell = lltype.malloc(rffi.CArray(UNSIGNED_8), 1, flavor='raw',
+                             zero=False, track_allocation=False)
+	cell[0] = rffi.cast(UNSIGNED_8, w_obj.value)
+        return rffi.cast(UNSIGNED_8_PTR, cell)
+
+    raise SchemeException("expected fixnum, cpointer, or #f for unsigned_8 *")
 
