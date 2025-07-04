@@ -636,8 +636,8 @@ def var_ref_from_unsafe_huh(varref):
 
 # Keeping the use of racket/fasl for future comparisons
 
-@expose("read-linklet-bundle-hash", [values.W_InputPort], simple=False)
-def read_linklet_bundle_hash(in_port, env, cont):
+@expose("read-linklet-bundle-hash", [values.W_InputPort, values.W_Object], simple=False)
+def read_linklet_bundle_hash(in_port, _, env, cont):
     from pycket.racket_entry import get_primitive
     from pycket.fasl import Fasl
     from pycket.util import console_log
