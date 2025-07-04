@@ -1996,6 +1996,9 @@ def rktio_dll_get_error(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -2017,6 +2020,9 @@ def rktio_dll_close(w_rktio, w_dll):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2041,6 +2047,9 @@ def rktio_dll_find_object(w_rktio, w_dll, w_name):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2065,6 +2074,9 @@ def rktio_dll_open(w_rktio, w_name, w_as_global):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2084,6 +2096,9 @@ def rktio_system_language_country(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -2103,6 +2118,9 @@ def rktio_locale_encoding(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -2136,6 +2154,14 @@ def rktio_convert_in(w_rktio, w_cvt, w_in, w_in_start, w_in_end, w_out, w_out_st
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_out, values.W_MutableBytes):
+		w_out.replace_bytes(list(rffi.charpsize2str(r_out, w_out.length())))
+
+	if isinstance(w_in, values.W_MutableBytes):
+		w_in.replace_bytes(list(rffi.charpsize2str(r_in, w_in.length())))
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2165,6 +2191,9 @@ def rktio_convert(w_rktio, w_cvt, w_in, w_in_left, w_out, w_out_left):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
@@ -2190,6 +2219,9 @@ def rktio_converter_open(w_rktio, w_to_enc, w_from_enc):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2220,6 +2252,9 @@ def rktio_syslog(w_rktio, w_level, w_name, w_msg, w_exec_name):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2242,6 +2277,9 @@ def rktio_path_to_wide_path(w_rktio, w_p):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2275,6 +2313,9 @@ def rktio_shell_execute(w_rktio, w_verb, w_target, w_arg, w_dir, w_show_mode):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2299,6 +2340,9 @@ def w_rktio_seconds_to_date(w_rktio, w_seconds, w_nanoseconds, w_get_gmt):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_DATE_PTR
 	return W_RKTIO_DATE_PTR(res)
 
@@ -2324,6 +2368,9 @@ def rktio_expand_user_tilde(w_rktio, w_filename):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -2345,6 +2392,9 @@ def rktio_system_path(w_rktio, w_which):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -2364,6 +2414,9 @@ def rktio_filesystem_roots(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARPP
 	return W_CCHARPP(res)
 
@@ -2385,6 +2438,9 @@ def rktio_directory_list_step(w_rktio, w_dl):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -2407,6 +2463,9 @@ def rktio_directory_list_start(w_rktio, w_dirname):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2431,6 +2490,9 @@ def rktio_set_file_or_directory_permissions(w_rktio, w_filename, w_new_bits):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2455,6 +2517,9 @@ def rktio_get_file_or_directory_permissions(w_rktio, w_filename, w_all_bits):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a INT
 	return values.W_Fixnum(res)
 
@@ -2479,6 +2544,9 @@ def rktio_path_identity(w_rktio, w_path, w_follow_links):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2500,6 +2568,9 @@ def rktio_fd_identity(w_rktio, w_fd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2521,6 +2592,9 @@ def rktio_fd_stat(w_rktio, w_fd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2545,6 +2619,9 @@ def rktio_file_or_directory_stat(w_rktio, w_path, w_follow_links):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2569,6 +2646,9 @@ def rktio_set_file_modify_seconds(w_rktio, w_file, w_secs):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2591,6 +2671,9 @@ def rktio_get_file_modify_seconds(w_rktio, w_file):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2613,6 +2696,9 @@ def rktio_file_size(w_rktio, w_filename):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2640,6 +2726,9 @@ def rktio_make_link(w_rktio, w_src, w_dest, w_dest_is_directory):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2662,6 +2751,9 @@ def rktio_readlink(w_rktio, w_fullfilename):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -2689,6 +2781,9 @@ def rktio_delete_directory(w_rktio, w_filename, w_current_directory, w_enable_wr
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2713,6 +2808,9 @@ def rktio_make_directory_with_permissions(w_rktio, w_filename, w_perm_bits):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2735,6 +2833,9 @@ def rktio_make_directory(w_rktio, w_filename):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2757,6 +2858,9 @@ def rktio_set_current_directory(w_rktio, w_path):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2776,6 +2880,9 @@ def rktio_get_current_directory(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -2803,6 +2910,9 @@ def rktio_rename_file(w_rktio, w_dest, w_src, w_exists_ok):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2827,6 +2937,9 @@ def rktio_delete_file(w_rktio, w_fn, w_enable_write_on_fail):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2849,6 +2962,9 @@ def rktio_file_type(w_rktio, w_filename):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a INT
 	return values.W_Fixnum(res)
 
@@ -2876,6 +2992,9 @@ def rktio_start_sleep(w_rktio, w_nsecs, w_fds, w_lt, w_woke_fd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2897,6 +3016,9 @@ def rktio_ltps_get_signaled_handle(w_rktio, w_lt):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2918,6 +3040,9 @@ def rktio_ltps_poll(w_rktio, w_lt):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -2943,6 +3068,9 @@ def rktio_ltps_add(w_rktio, w_lt, w_rfd, w_mode):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2962,6 +3090,9 @@ def rktio_ltps_open(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -2981,6 +3112,9 @@ def rktio_make_poll_set(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3002,6 +3136,9 @@ def rktio_poll_fs_change_ready(w_rktio, w_fc):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -3026,6 +3163,9 @@ def rktio_fs_change(w_rktio, w_path, w_ltps):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3047,6 +3187,9 @@ def rktio_process_status(w_rktio, w_sp):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3068,6 +3211,9 @@ def rktio_poll_process_done(w_rktio, w_sp):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -3089,6 +3235,9 @@ def rktio_process_interrupt(w_rktio, w_sp):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3110,6 +3259,9 @@ def rktio_process_kill(w_rktio, w_sp):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3151,6 +3303,9 @@ def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3174,6 +3329,9 @@ def rktio_envvars_value_ref(w_rktio, w_envvars, w_i):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -3197,6 +3355,9 @@ def rktio_envvars_name_ref(w_rktio, w_envvars, w_i):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -3221,6 +3382,9 @@ def rktio_envvars_get(w_rktio, w_envvars, w_name):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -3242,6 +3406,9 @@ def rktio_envvars_copy(w_rktio, w_envvars):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3261,6 +3428,9 @@ def rktio_empty_envvars(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3280,6 +3450,9 @@ def rktio_envvars(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3305,6 +3478,9 @@ def rktio_setenv(w_rktio, w_name, w_val):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3327,6 +3503,9 @@ def rktio_getenv(w_rktio, w_name):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -3348,6 +3527,9 @@ def rktio_listener_address(w_rktio, w_lnr):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARPP
 	return W_CCHARPP(res)
 
@@ -3369,6 +3551,9 @@ def rktio_socket_peer_address(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARPP
 	return W_CCHARPP(res)
 
@@ -3390,6 +3575,9 @@ def rktio_socket_address(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARPP
 	return W_CCHARPP(res)
 
@@ -3417,6 +3605,9 @@ def rktio_udp_change_multicast_group(w_rktio, w_rfd, w_group_addr, w_intf_addr, 
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3440,6 +3631,9 @@ def rktio_udp_set_multicast_interface(w_rktio, w_rfd, w_addr):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3461,6 +3655,9 @@ def rktio_udp_multicast_interface(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a CCHARP
 	return W_CCHARP(res)
 
@@ -3484,6 +3681,9 @@ def rktio_udp_set_multicast_ttl(w_rktio, w_rfd, w_ttl_val):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3505,6 +3705,9 @@ def rktio_udp_get_multicast_ttl(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -3528,6 +3731,9 @@ def rktio_udp_set_multicast_loopback(w_rktio, w_rfd, w_on):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3549,6 +3755,9 @@ def rktio_udp_get_multicast_loopback(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -3570,6 +3779,9 @@ def rktio_udp_get_ttl(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -3593,6 +3805,9 @@ def rktio_udp_set_ttl(w_rktio, w_rfd, w_ttl_val):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3616,6 +3831,9 @@ def rktio_udp_set_receive_buffer_size(w_rktio, w_rfd, w_size):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3643,6 +3861,11 @@ def rktio_udp_recvfrom_in(w_rktio, w_rfd, w_buffer, w_start, w_end):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3668,6 +3891,11 @@ def rktio_udp_recvfrom(w_rktio, w_rfd, w_buffer, w_len):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3697,6 +3925,11 @@ def rktio_udp_sendto_in(w_rktio, w_rfd, w_addr, w_buffer, w_start, w_end):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
 	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
@@ -3724,6 +3957,11 @@ def rktio_udp_sendto(w_rktio, w_rfd, w_addr, w_buffer, w_len):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
 	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
@@ -3747,6 +3985,9 @@ def rktio_udp_connect(w_rktio, w_rfd, w_addr):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3772,6 +4013,9 @@ def rktio_udp_bind(w_rktio, w_rfd, w_addr, w_reuse):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3793,6 +4037,9 @@ def rktio_udp_disconnect(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3816,6 +4063,9 @@ def rktio_udp_open(w_rktio, w_addr, w_family):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3839,6 +4089,9 @@ def rktio_tcp_keepalive(w_rktio, w_rfd, w_enable):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3862,6 +4115,9 @@ def rktio_tcp_nodelay(w_rktio, w_rfd, w_enable):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3885,6 +4141,9 @@ def rktio_socket_shutdown(w_rktio, w_rfd, w_mode):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -3906,6 +4165,9 @@ def rktio_connect_trying(w_rktio, w_conn):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3927,6 +4189,9 @@ def rktio_poll_connect_ready(w_rktio, w_conn):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -3948,6 +4213,9 @@ def rktio_connect_finish(w_rktio, w_conn):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3971,6 +4239,9 @@ def rktio_start_connect(w_rktio, w_remote, w_local):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -3992,6 +4263,9 @@ def rktio_accept(w_rktio, w_listener):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4013,6 +4287,9 @@ def rktio_poll_accept_ready(w_rktio, w_listener):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -4038,6 +4315,9 @@ def rktio_listen(w_rktio, w_local, w_backlog, w_reuse):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4059,6 +4339,9 @@ def rktio_addrinfo_lookup_get(w_rktio, w_lookup):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4080,6 +4363,9 @@ def rktio_poll_addrinfo_lookup_ready(w_rktio, w_lookup):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -4110,6 +4396,9 @@ def rktio_start_addrinfo_lookup(w_rktio, w_hostname, w_portno, w_family, w_passi
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4131,6 +4420,9 @@ def rktio_make_pipe(w_rktio, w_flags):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4154,6 +4446,9 @@ def rktio_set_file_size(w_rktio, w_rfd, w_sz):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -4175,6 +4470,9 @@ def rktio_get_file_position(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4200,6 +4498,9 @@ def rktio_set_file_position(w_rktio, w_rfd, w_pos, w_whence):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -4221,6 +4522,9 @@ def rktio_file_unlock(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -4244,6 +4548,9 @@ def rktio_file_lock_try(w_rktio, w_rfd, w_excl):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -4265,6 +4572,9 @@ def rktio_poll_write_flushed(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -4286,6 +4596,9 @@ def rktio_poll_write_ready(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -4307,6 +4620,9 @@ def rktio_poll_read_ready(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
@@ -4338,6 +4654,14 @@ def rktio_read_converted_in(w_rktio, w_fd, w_buffer, w_start, w_len, w_is_conver
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_is_converted, values.W_MutableBytes):
+		w_is_converted.replace_bytes(list(rffi.charpsize2str(r_is_converted, w_is_converted.length())))
+
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
 	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
@@ -4365,6 +4689,11 @@ def rktio_write_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
 	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
@@ -4392,6 +4721,11 @@ def rktio_read_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
 	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
@@ -4419,6 +4753,14 @@ def rktio_read_converted(w_rktio, w_fd, w_buffer, w_len, w_is_converted):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_is_converted, values.W_MutableBytes):
+		w_is_converted.replace_bytes(list(rffi.charpsize2str(r_is_converted, w_is_converted.length())))
+
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
 	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
@@ -4444,6 +4786,11 @@ def rktio_write(w_rktio, w_fd, w_buffer, w_len):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
 	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
@@ -4469,6 +4816,11 @@ def rktio_read(w_rktio, w_fd, w_buffer, w_len):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
 	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
@@ -4490,6 +4842,9 @@ def rktio_std_fd(w_rktio, w_which):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4511,6 +4866,9 @@ def rktio_dup(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4532,6 +4890,9 @@ def rktio_close(w_rktio, w_fd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -4558,6 +4919,9 @@ def rktio_open_with_create_permissions(w_rktio, w_src, w_modes, w_perm_bits):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4582,6 +4946,9 @@ def rktio_open(w_rktio, w_src, w_modes):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4605,6 +4972,9 @@ def rktio_system_fd(w_rktio, w_system_fd, w_modes):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4624,6 +4994,9 @@ def rktio_get_dll_path(w_p):
 		elems = [c_rktio_get_last_error_kind(r_p), c_rktio_get_last_error(r_p)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4645,6 +5018,9 @@ def rktio_copy_file_finish_permissions(w_rktio, w_fc):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio), c_rktio_get_last_error_step(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -4666,6 +5042,9 @@ def rktio_copy_file_step(w_rktio, w_fc):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio), c_rktio_get_last_error_step(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
@@ -4699,6 +5078,9 @@ def rktio_copy_file_start_permissions(w_rktio, w_dest, w_src, w_exists_ok, w_use
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio), c_rktio_get_last_error_step(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 
@@ -4726,6 +5108,9 @@ def rktio_copy_file_start(w_rktio, w_dest, w_src, w_exists_ok):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio), c_rktio_get_last_error_step(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
 	# res is a R_PTR
 	return W_R_PTR(res)
 

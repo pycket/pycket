@@ -214,7 +214,7 @@ def rktio_seconds_to_date_star(w_rktio, w_seconds, w_nanosec, w_get_gmt, env, co
         ], env, cont, None)
 
 # rktio_convert_result_to_vector
-@expose("rktio_convert_result_to_vector", [values.W_Object])
+@expose("rktio_convert_result_to_vector", [W_RKTIO_CONVERT_RESULT_PTR])
 def rktio_convert_result_to_vector(w_ptr):
     ll_ptr = rffi.cast(RKTIO_CONVERT_RESULT_PTR, w_ptr.to_rffi())
 

@@ -1186,6 +1186,15 @@ class W_MutableBytes(W_Bytes):
     def immutable(self):
         return False
 
+    # Used inteernally in _rktio_bootstrap layer.
+    # Use at your own risk.
+    def replace_bytes(self, new_bytes):
+        if not isinstance(new_bytes, list) or len(new_bytes) != len(self.value):
+            raise SchemeException("trying to replace bytes with a different size. current size: %s, incoming bytes size: %s" % (len(self.value), len(new_bytes)))
+
+        for i in range(len(new_bytes)):
+            self.value[i] = new_bytes[i]
+
     def set(self, n, v):
         l = len(self.value)
         if n < 0 or n >= l:

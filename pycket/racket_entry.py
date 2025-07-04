@@ -203,6 +203,8 @@ def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
     THREAD_LINKLET.load()
 
     # Load io linklet
+    # Make sure thread linklet's loaded first
+    # io requires stuff like unsafe-start-atomic
     # Feature Flag: io
     if feature_flag == FFLAG_IO:
         IO_LINKLET.load()
