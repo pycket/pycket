@@ -5,6 +5,7 @@ from pycket.prims.expose import default, expose, expose_val
 
 from rpython.rlib.rbigint import rbigint
 from rpython.rtyper.lltypesystem import rffi
+from rpython.rlib.objectmodel import specialize
 
 from pycket.rktio.types import *
 from pycket.rktio._rktio_bootstrap import *
@@ -214,7 +215,11 @@ def rktio_seconds_to_date_star(w_rktio, w_seconds, w_nanosec, w_get_gmt, env, co
         ], env, cont, None)
 
 # rktio_convert_result_to_vector
-@expose("rktio_convert_result_to_vector", [W_RKTIO_CONVERT_RESULT_PTR])
+# Taking W_R_PTR is actually a hack here. Normmally it should take
+# a W_RKTIO_CONVERT_RESULT_PTR, but it's always called with
+# a void* pointer and W_Object upsets the annotator because
+# of to_rffi generalization.
+@expose("rktio_convert_result_to_vector", [W_R_PTR])
 def rktio_convert_result_to_vector(w_ptr):
     ll_ptr = rffi.cast(RKTIO_CONVERT_RESULT_PTR, w_ptr.to_rffi())
 
