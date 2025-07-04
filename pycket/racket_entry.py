@@ -207,7 +207,14 @@ def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
     # io requires stuff like unsafe-start-atomic
     # Feature Flag: io
     if feature_flag == FFLAG_IO:
-        IO_LINKLET.load()
+        try:
+            IO_LINKLET.load()
+        except NotImplementedError, e:
+            if "rktio" in e.message:
+                from rpython.rlib.objectmodel import we_are_translated
+                if not we_are_translated():
+                    raise BootstrapError("you'll need a librktio.so in pycket/rktio to run Pycket in interpreted mode using the IO linklet")
+                raise
 
     # Load fasl linklet
     FASL_LINKLET.load()
@@ -632,9 +639,9 @@ def racket_entry(names, config, command_line_arguments):
                                    feature_flag,
                                    compile_any=c_a,
                                    dont_load_regexp=dont_load_regexp)
-        except EntryException as e:
+        except (EntryException, BootstrapError) as e:
             print("Error at boot: %s" % e.msg)
-            return 0
+            return 1
 
     if just_init:
         return 0
