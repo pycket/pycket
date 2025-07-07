@@ -195,10 +195,6 @@ def locate_linklet(file_name):
 
 def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
 
-    if not dont_load_regexp:
-        # Load regexp linklet
-        REGEXP_LINKLET.load()
-
     # Load thread linklet
     THREAD_LINKLET.load()
 
@@ -209,12 +205,17 @@ def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
     if feature_flag == FFLAG_IO:
         try:
             IO_LINKLET.load()
-        except NotImplementedError, e:
-            if "rktio" in e.message:
-                from rpython.rlib.objectmodel import we_are_translated
-                if not we_are_translated():
-                    raise BootstrapError("you'll need a librktio.so in pycket/rktio to run Pycket in interpreted mode using the IO linklet")
-                raise
+        except Exception:
+            from rpython.rlib.objectmodel import we_are_translated
+            if not we_are_translated():
+                raise BootstrapError("you'll need a librktio.so in pycket/rktio to run Pycket in interpreted mode using the IO linklet")
+            raise
+
+    # Make sure regexp is loaded *after* IO linklet
+    # e.g. path? should come from the IO linklet
+    if not dont_load_regexp:
+        # Load regexp linklet
+        REGEXP_LINKLET.load()
 
     # Load fasl linklet
     FASL_LINKLET.load()
