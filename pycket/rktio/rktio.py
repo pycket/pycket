@@ -128,26 +128,46 @@ def rktio_recv_address_ref(w_len_and_addrinfo_ptr):
 def rktio_stat_to_vector(w_stat_ptr):
     ll_ptr = rffi.cast(RKTIO_STAT_PTR, w_stat_ptr.to_rffi())
 
+    signed_c_device_id			= rffi.cast(lltype.Signed, ll_ptr.c_device_id)
+    signed_c_inode			= rffi.cast(lltype.Signed, ll_ptr.c_inode)
+    signed_c_mode			= rffi.cast(lltype.Signed, ll_ptr.c_mode)
+    signed_c_hardlink_count		= rffi.cast(lltype.Signed, ll_ptr.c_hardlink_count)
+    signed_c_user_id			= rffi.cast(lltype.Signed, ll_ptr.c_user_id)
+    signed_c_group_id			= rffi.cast(lltype.Signed, ll_ptr.c_group_id)
+    signed_c_device_id_for_special_file = rffi.cast(lltype.Signed, ll_ptr.c_device_id_for_special_file)
+    signed_c_size			= rffi.cast(lltype.Signed, ll_ptr.c_size)
+    signed_c_block_size			= rffi.cast(lltype.Signed, ll_ptr.c_block_size)
+    signed_c_block_count		= rffi.cast(lltype.Signed, ll_ptr.c_block_count)
+
+    signed_c_access_time_seconds	= rffi.cast(lltype.Signed, ll_ptr.c_access_time_seconds)
+    signed_c_access_time_nanoseconds	= rffi.cast(lltype.Signed, ll_ptr.c_access_time_nanoseconds)
+    signed_c_modify_time_seconds	= rffi.cast(lltype.Signed, ll_ptr.c_modify_time_seconds)
+    signed_c_modify_time_nanoseconds	= rffi.cast(lltype.Signed, ll_ptr.c_modify_time_nanoseconds)
+    signed_c_ctime_seconds		= rffi.cast(lltype.Signed, ll_ptr.c_ctime_seconds)
+    signed_c_ctime_nanoseconds		= rffi.cast(lltype.Signed, ll_ptr.c_ctime_nanoseconds)
+    signed_c_ctime_nanoseconds		= rffi.cast(lltype.Signed, ll_ptr.c_ctime_nanoseconds)
+    signed_c_ctime_is_change_time	= rffi.cast(lltype.Signed, ll_ptr.c_ctime_is_change_time)
+
     elems = [
-        _wrap_int(ll_ptr.c_device_id),
-        _wrap_int(ll_ptr.c_inode),
-        _wrap_int(ll_ptr.c_mode),
-        _wrap_int(ll_ptr.c_hardlink_count),
-        _wrap_int(ll_ptr.c_user_id),
-        _wrap_int(ll_ptr.c_group_id),
-        _wrap_int(ll_ptr.c_device_id_for_special_file),
-        _wrap_int(ll_ptr.c_size),
-        _wrap_int(ll_ptr.c_block_size),
-        _wrap_int(ll_ptr.c_block_count),
+        _wrap_int(signed_c_device_id),
+        _wrap_int(signed_c_inode),
+        _wrap_int(signed_c_mode),
+        _wrap_int(signed_c_hardlink_count),
+        _wrap_int(signed_c_user_id),
+        _wrap_int(signed_c_group_id),
+        _wrap_int(signed_c_device_id_for_special_file),
+        _wrap_int(signed_c_size),
+        _wrap_int(signed_c_block_size),
+        _wrap_int(signed_c_block_count),
 
-        _wrap_int(ll_ptr.c_access_time_seconds),
-        _wrap_int(ll_ptr.c_access_time_nanoseconds),
-        _wrap_int(ll_ptr.c_modify_time_seconds),
-        _wrap_int(ll_ptr.c_modify_time_nanoseconds),
-        _wrap_int(ll_ptr.c_ctime_seconds),
-        _wrap_int(ll_ptr.c_ctime_nanoseconds),
+        _wrap_int(signed_c_access_time_seconds),
+        _wrap_int(signed_c_access_time_nanoseconds),
+        _wrap_int(signed_c_modify_time_seconds),
+        _wrap_int(signed_c_modify_time_nanoseconds),
+        _wrap_int(signed_c_ctime_seconds),
+        _wrap_int(signed_c_ctime_nanoseconds),
 
-        values.w_true if ll_ptr.c_ctime_is_change_time else values.w_false,
+        values.w_true if signed_c_ctime_is_change_time else values.w_false,
     ]
     return values_vector.W_Vector.fromelements(elems)
 
@@ -388,7 +408,8 @@ def rktio_process_result_process(res_ptr):
 @expose("rktio_status_running", [W_R_PTR])
 def rktio_status_running(w_stat_ptr):
     r_stat_ptr = rffi.cast(RKTIO_STATUS_PTR, w_stat_ptr.to_rffi())
-    return values.W_Bool.make(r_stat_ptr.c_running == 1)
+    running = rffi.cast(lltype.Signed, r_stat_ptr.c_running)
+    return values.W_Bool.make(running == 1)
 
 # rktio_status_result
 @expose("rktio_status_result", [W_R_PTR])
