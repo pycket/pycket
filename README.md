@@ -87,9 +87,9 @@ Naturally, it varies on the way in which the Racket is installed:
 
 #### If Racket is installed in a single directory (non-Unix-style) :
 
-Then all the `NEW` Pycket needs is a `PLTHOME` environment variable to point to the surrounding directory. For example it will assume the `collects` directory is at:
+Then all environment variables need to point to this directory. For example,
 
-> $PLTHOME/racket/collects
+> PLTCOLLECTS=<dirpath>/racket/collects
 
 #### If Racket is installed in Unix-style :
 
