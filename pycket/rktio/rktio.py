@@ -74,7 +74,7 @@ def rktio_filesize_ref(w_filesize_ptr):
         return values.w_false
     return _wrap_int(val)
 
-@expose("rktio_timestamp_ref", [W_RKTIO_TIMESTAMP_PTR])
+@expose("rktio_timestamp_ref", [W_R_PTR])
 def rktio_timestamp_ref(w_timestamp_ptr):
     r_timestamp_ptr = rffi.cast(RKTIO_TIMESTAMP_PTR, w_timestamp_ptr.to_rffi())
     val = r_timestamp_ptr[0]
