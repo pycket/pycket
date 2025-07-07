@@ -66,7 +66,7 @@ def _wrap_int(raw):
 
 expose_val("rktio_NULL", values.w_false)
 
-@expose("rktio_filesize_ref", [W_RKTIO_FILESIZE_PTR])
+@expose("rktio_filesize_ref", [W_R_PTR])
 def rktio_filesize_ref(w_filesize_ptr):
     r_filesize_ptr = rffi.cast(RKTIO_FILESIZE_PTR, w_filesize_ptr.to_rffi())
     val = r_filesize_ptr[0]
@@ -104,13 +104,13 @@ def rktio_is_timestamp(w_v):
     else:
         return values.w_false
 
-@expose("rkito_recv_length_ref", [W_RKTIO_LENGTH_AND_ADDRINFO_PTR])
+@expose("rkito_recv_length_ref", [W_R_PTR])
 def rktio_recv_length_ref(w_len_and_addrinfo_ptr):
     r_struct_ptr = rffi.cast(RKTIO_LENGTH_AND_ADDRINFO_PTR,
                              w_len_and_addrinfo_ptr.to_rffi())
     return _wrap_int(r_struct_ptr.c_len)
 
-@expose("rktio_recv_address_ref", [W_RKTIO_LENGTH_AND_ADDRINFO_PTR])
+@expose("rktio_recv_address_ref", [W_R_PTR])
 def rktio_recv_address_ref(w_len_and_addrinfo_ptr):
     ll_ptr = rffi.cast(RKTIO_LENGTH_AND_ADDRINFO_PTR,
                        w_len_and_addrinfo_ptr.to_rffi())
@@ -124,7 +124,7 @@ def rktio_recv_address_ref(w_len_and_addrinfo_ptr):
     py_str = rffi.charp2str(charp) # assumes utf-8
     return values_string.W_String.fromstr_utf8(py_str)
 
-@expose("rktio_stat_to_vector", [W_RKTIO_STAT_PTR])
+@expose("rktio_stat_to_vector", [W_R_PTR])
 def rktio_stat_to_vector(w_stat_ptr):
     ll_ptr = rffi.cast(RKTIO_STAT_PTR, w_stat_ptr.to_rffi())
 
@@ -359,27 +359,23 @@ def rktio_make_sha2_ctx():
 def _wrap_process_null(addr):
     return values.w_false if not addr else W_RKTIO_FD_T_PTR(addr)
 
-@expose("rktio_process_result_stdin_fd",
-        [W_RKTIO_PROCESS_RESULT_PTR])
+@expose("rktio_process_result_stdin_fd", [W_R_PTR])
 def rktio_process_result_stdin_fd(res_ptr):
     res_ll = rffi.cast(RKTIO_PROCESS_RESULT_PTR, res_ptr.to_rffi())
 
     return _wrap_process_null(res_ll.c_stdin_fd)
 
-@expose("rktio_process_result_stdout_fd",
-        [W_RKTIO_PROCESS_RESULT_PTR])
+@expose("rktio_process_result_stdout_fd", [W_R_PTR])
 def rktio_process_result_stdout_fd(res_ptr):
     res_ll = rffi.cast(RKTIO_PROCESS_RESULT_PTR, res_ptr.to_rffi())
     return _wrap_process_null(res_ll.c_stdout_fd)
 
-@expose("rktio_process_result_stderr_fd",
-        [W_RKTIO_PROCESS_RESULT_PTR])
+@expose("rktio_process_result_stderr_fd", [W_R_PTR])
 def rktio_process_result_stderr_fd(res_ptr):
     res_ll = rffi.cast(RKTIO_PROCESS_RESULT_PTR, res_ptr.to_rffi())
     return _wrap_process_null(res_ll.c_stderr_fd)
 
-@expose("rktio_process_result_process",
-        [W_RKTIO_PROCESS_RESULT_PTR])
+@expose("rktio_process_result_process", [W_R_PTR])
 def rktio_process_result_process(res_ptr):
     res_ll = rffi.cast(RKTIO_PROCESS_RESULT_PTR, res_ptr.to_rffi())
     return W_RKTIO_PROCESS_T_PTR(res_ll.c_process)   # never NULL, so no _wrap
@@ -389,13 +385,13 @@ def rktio_process_result_process(res_ptr):
 ###############################################
 
 # rktio_status_running
-@expose("rktio_status_running", [W_RKTIO_STATUS_PTR])
+@expose("rktio_status_running", [W_R_PTR])
 def rktio_status_running(w_stat_ptr):
     r_stat_ptr = rffi.cast(RKTIO_STATUS_PTR, w_stat_ptr.to_rffi())
     return values.W_Bool.make(r_stat_ptr.c_running == 1)
 
 # rktio_status_result
-@expose("rktio_status_result", [W_RKTIO_STATUS_PTR])
+@expose("rktio_status_result", [W_R_PTR])
 def rktio_status_result(w_stat_ptr):
     r_stat_ptr = rffi.cast(RKTIO_STATUS_PTR, w_stat_ptr.to_rffi())
     return _wrap_int(r_stat_ptr.c_result)
