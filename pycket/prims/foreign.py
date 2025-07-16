@@ -1,21 +1,20 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from operator import add
 import sys
 
-from pycket              import values
-from pycket.error        import SchemeException, FSException, ContractException, ArityException
-from pycket.foreign      import (
-    W_CType,
-    W_PrimitiveCType,
-    W_DerivedCType,
-    W_CStructType,
-    W_CPointer,
-    W_FFILib)
-from pycket.prims.expose import default, expose, expose_val, procedure
+from rpython.rtyper.lltypesystem.lloperation import void
 
-from rpython.rlib                import jit, unroll
-from rpython.rtyper.lltypesystem import rffi
+from pycket                         import values
+from pycket.error                   import SchemeException, FSException, ContractException, ArityException
+from pycket.foreign                 import *
+from pycket.prims.expose            import default, expose, expose_val, procedure
+from pycket.rktio                   import types
+
+from rpython.rlib                   import jit, unroll, rgc
+from rpython.rtyper.lltypesystem    import rffi
+from rpython.rtyper.annlowlevel     import cast_instance_to_base_ptr, cast_base_ptr_to_instance
 
 POINTER_SIZE = rffi.sizeof(rffi.VOIDP)
 
@@ -210,4 +209,110 @@ def ctype_scheme_to_c(ctype):
 @expose("ctype-c->scheme", [W_CType])
 def ctype_c_to_scheme(ctype):
     return ctype.c_to_scheme()
+
+# See immobile cells in pycket/foreign
+
+_roots_for_GC = {} # int: GC
+
+from pycket.util import console_log
+
+def log_roots():
+    console_log("ROOTS -- size =%s" % len(_roots_for_GC), debug=True)
+    console_log("   keys: %s" % list(_roots_for_GC))
+
+@expose("malloc-immobile-cell", [values.W_Object])
+def malloc_immobile_cell(w_val):
+    cell       = lltype.malloc(CELL, zero=True)
+    cell.val   = cast_instance_to_base_ptr(w_val)
+    rgc.pin(cell)
+    addr_int = voidp_to_int(cell_to_voidp(cell))
+    _roots_for_GC[addr_int] = cell
+
+    console_log("malloc: addr_int : %s" % (addr_int), debug=True)
+    log_roots()
+
+    return W_ImmobileCellPointer(int_to_voidp(addr_int))
+
+@jit.dont_look_inside
+def deref_foreign_cell(voidp):
+    """Return (OBJ_PTR *)voidp[0] as a live W_Object instance."""
+    ptrptr = rffi.cast(OBJ_PTR_PTR, voidp)
+    return cast_base_ptr_to_instance(values.W_Object, ptrptr[0])
+
+@jit.dont_look_inside
+def set_foreign_cell(voidp, w_val):
+    ptrptr = rffi.cast(OBJ_PTR_PTR, voidp)
+    ptrptr[0] = cast_instance_to_base_ptr(w_val)
+
+
+@expose("immobile-cell-ref", [values.W_Object])
+def immobile_cell_ref(w_arg):
+
+    console_log("immobile-cell-ref", debug=True)
+    log_roots()
+
+    voidp = voidp_from_any(w_arg, "immobile-cell-ref")
+    if not voidp:
+        return values.w_false
+
+    addr_key = voidp_to_int(voidp)
+    if addr_key in _roots_for_GC:
+        cell_ptr = _roots_for_GC[addr_key]
+        return cast_base_ptr_to_instance(values.W_Object, cell_ptr.val)
+    # foreign cell
+    return deref_foreign_cell(w_arg.as_voidp())
+
+@expose("immobile-cell-set!", [values.W_Object, values.W_Object])
+def immobile_cell_set(w_arg, w_new):
+    voidp = voidp_from_any(w_arg, "immobile-cell-set!")
+    if not voidp:
+        return values.w_false
+
+    console_log("immobile-cell-set", debug=True)
+    log_roots()
+
+    addr_key = voidp_to_int(voidp)
+    if addr_key in _roots_for_GC:
+        cell_ptr = _roots_for_GC[addr_key]
+        if cell_ptr:
+            cell_ptr.val = cast_instance_to_base_ptr(w_new)
+            return values.w_void
+    set_foreign_cell(w_arg.as_voidp(), w_new)
+
+@expose("free-immobile-cell", [values.W_Object])
+def free_immobile_cell(w_arg):
+
+    console_log("free-immobile-cell", debug=True)
+    log_roots()
+
+    voidp = voidp_from_any(w_arg, "free-immobile-cell")
+    if not voidp:
+        return values.w_false
+
+    addr_int = voidp_to_int(voidp)
+    if addr_int not in _roots_for_GC:
+        raise SchemeException("free-immobile-cell: address already freed")
+    cell     = _roots_for_GC.pop(addr_int)
+    rgc.unpin(cell)
+    cell.val = lltype.nullptr(OBJ_PTR.TO)
+
+@expose("address->immobile-cell", [types.W_R_PTR])
+def address_to_immobile_cell(w_ptr):
+
+    console_log("address->immobile-cell", debug=True)
+    log_roots()
+
+    voidp = w_ptr.as_voidp()
+    if not voidp:
+        return values.w_false
+
+    return W_ImmobileCellPointer(voidp)
+
+@expose("immobile-cell->address", [W_ImmobileCellPointer])
+def immobile_cell_to_address(w_icptr):
+    console_log("immobile-cell->address", debug=True)
+    log_roots()
+
+    return types.W_R_PTR(w_icptr.as_voidp())
+
 
