@@ -40,7 +40,7 @@ if pytest.config.load_expander:
     w_global_config.set_config_val('expander_loaded', 1)
     # get the expander
     print("Loading and initializing the expander")
-    initiate_boot_sequence([], False)
+    initiate_boot_sequence([], False, dont_load_io_linklet=True)
     # load the '#%kernel
     print("(namespace-require '#%%kernel)")
     namespace_require_kernel()
