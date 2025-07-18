@@ -518,9 +518,14 @@ def ~a(~a):
 	       (equal? r-ret-type "UNSIGNED_8")
 	       (equal? r-ret-type "UINTPTR_T"))
 	   (format "\t# res is a ~a\n\treturn num(intmask(res))" r-ret-type)]
+	  ;; Functions that return a W_R_PTR (ref void) can also return a NULL pointer
+	  ;; which is represented as rktio_NULL (in types.py)
+	  [(equal? w-ret-type "W_R_PTR")
+	   (let ([check "\tif not res or res == NULL_VOIDP:\n"]
+		 [check-return "\t\treturn rktio_NULL\n\n"])
+	     (format "\t# res is a R_PTR, can be NULL\n~a~a\treturn ~a(res)" check check-return w-ret-type))]
 	  [(or (equal? w-ret-type w_fixnum)
 	       (equal? w-ret-type w_flonum)
-	       (equal? w-ret-type "W_R_PTR")
 	       (equal? w-ret-type "W_CCHARP")
 	       (equal? w-ret-type "W_CCHARPP")
 	       (equal? w-ret-type "W_RKTIO_DATE_PTR"))
@@ -681,7 +686,7 @@ from pycket import base, values
 from pycket import vector as values_vector
 from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
-from pycket.foreign import W_CPointer
+from pycket.foreign import W_CPointer, NULL_VOIDP
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *

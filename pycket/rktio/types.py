@@ -46,6 +46,8 @@ W_CCHARPP               = make_w_pointer_class("ccharpp")
 R_PTR	= rffi.VOIDP # rffi.COpaquePtr('void *')
 W_R_PTR = make_w_pointer_class('voidp')
 
+rktio_NULL = values.w_false
+
 
 ###############################################
 ############## used struct-types ##############

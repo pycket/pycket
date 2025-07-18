@@ -64,7 +64,7 @@ def _wrap_int(raw):
         big = rbigint.fromint(intmask(val))
         return values.W_Bignum(big)
 
-expose_val("rktio_NULL", values.w_false)
+expose_val("rktio_NULL", rktio_NULL) # in types.py
 
 @expose("rktio_filesize_ref", [W_R_PTR])
 def rktio_filesize_ref(w_filesize_ptr):

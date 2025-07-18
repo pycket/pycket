@@ -31,7 +31,7 @@ from pycket import base, values
 from pycket import vector as values_vector
 from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
-from pycket.foreign import W_CPointer
+from pycket.foreign import W_CPointer, NULL_VOIDP
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *
@@ -502,7 +502,10 @@ def rktio_push_c_numeric_locale(w_rktio):
 
 	res = c_rktio_push_c_numeric_locale(r_rktio)
 
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -605,7 +608,10 @@ def rktio_recase_utf16(w_rktio, w_to_up, w_s1, w_len, w_olen):
 
 	res = c_rktio_recase_utf16(r_rktio, r_to_up, r_s1, r_len, r_olen)
 
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -914,7 +920,10 @@ def rktio_get_signal_handle(w_rktio):
 
 	res = c_rktio_get_signal_handle(r_rktio)
 
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -1141,7 +1150,10 @@ def rktio_ltps_handle_get_data(w_rktio, w_h):
 
 	res = c_rktio_ltps_handle_get_data(r_rktio, r_h)
 
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -1683,7 +1695,10 @@ def rktio_fd_attach(w_rktio, w_rfdt):
 
 	res = c_rktio_fd_attach(r_rktio, r_rfdt)
 
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -1700,7 +1715,10 @@ def rktio_fd_detach(w_rktio, w_rfd):
 
 	res = c_rktio_fd_detach(r_rktio, r_rfd)
 
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -1977,7 +1995,10 @@ def rktio_init():
 
 	res = c_rktio_init()
 
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2050,7 +2071,10 @@ def rktio_dll_find_object(w_rktio, w_dll, w_name):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2077,7 +2101,10 @@ def rktio_dll_open(w_rktio, w_name, w_as_global):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2162,7 +2189,10 @@ def rktio_convert_in(w_rktio, w_cvt, w_in, w_in_start, w_in_end, w_out, w_out_st
 		w_in.replace_bytes(list(rffi.charpsize2str(r_in, w_in.length())))
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2222,7 +2252,10 @@ def rktio_converter_open(w_rktio, w_to_enc, w_from_enc):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2280,7 +2313,10 @@ def rktio_path_to_wide_path(w_rktio, w_p):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2466,7 +2502,10 @@ def rktio_directory_list_start(w_rktio, w_dirname):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2547,7 +2586,10 @@ def rktio_path_identity(w_rktio, w_path, w_follow_links):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2571,7 +2613,10 @@ def rktio_fd_identity(w_rktio, w_fd):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2595,7 +2640,10 @@ def rktio_fd_stat(w_rktio, w_fd):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2622,7 +2670,10 @@ def rktio_file_or_directory_stat(w_rktio, w_path, w_follow_links):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2674,7 +2725,10 @@ def rktio_get_file_modify_seconds(w_rktio, w_file):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2699,7 +2753,10 @@ def rktio_file_size(w_rktio, w_filename):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3019,7 +3076,10 @@ def rktio_ltps_get_signaled_handle(w_rktio, w_lt):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3071,7 +3131,10 @@ def rktio_ltps_add(w_rktio, w_lt, w_rfd, w_mode):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3093,7 +3156,10 @@ def rktio_ltps_open(w_rktio):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3115,7 +3181,10 @@ def rktio_make_poll_set(w_rktio):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3166,7 +3235,10 @@ def rktio_fs_change(w_rktio, w_path, w_ltps):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3190,7 +3262,10 @@ def rktio_process_status(w_rktio, w_sp):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3306,7 +3381,10 @@ def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3409,7 +3487,10 @@ def rktio_envvars_copy(w_rktio, w_envvars):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3431,7 +3512,10 @@ def rktio_empty_envvars(w_rktio):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3453,7 +3537,10 @@ def rktio_envvars(w_rktio):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3866,7 +3953,10 @@ def rktio_udp_recvfrom_in(w_rktio, w_rfd, w_buffer, w_start, w_end):
 		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3896,7 +3986,10 @@ def rktio_udp_recvfrom(w_rktio, w_rfd, w_buffer, w_len):
 		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4066,7 +4159,10 @@ def rktio_udp_open(w_rktio, w_addr, w_family):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4168,7 +4264,10 @@ def rktio_connect_trying(w_rktio, w_conn):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4216,7 +4315,10 @@ def rktio_connect_finish(w_rktio, w_conn):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4242,7 +4344,10 @@ def rktio_start_connect(w_rktio, w_remote, w_local):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4266,7 +4371,10 @@ def rktio_accept(w_rktio, w_listener):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4318,7 +4426,10 @@ def rktio_listen(w_rktio, w_local, w_backlog, w_reuse):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4342,7 +4453,10 @@ def rktio_addrinfo_lookup_get(w_rktio, w_lookup):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4399,7 +4513,10 @@ def rktio_start_addrinfo_lookup(w_rktio, w_hostname, w_portno, w_family, w_passi
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4423,7 +4540,10 @@ def rktio_make_pipe(w_rktio, w_flags):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4473,7 +4593,10 @@ def rktio_get_file_position(w_rktio, w_rfd):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4845,7 +4968,10 @@ def rktio_std_fd(w_rktio, w_which):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4869,7 +4995,10 @@ def rktio_dup(w_rktio, w_rfd):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4922,7 +5051,10 @@ def rktio_open_with_create_permissions(w_rktio, w_src, w_modes, w_perm_bits):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4949,7 +5081,10 @@ def rktio_open(w_rktio, w_src, w_modes):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4975,7 +5110,10 @@ def rktio_system_fd(w_rktio, w_system_fd, w_modes):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4997,7 +5135,10 @@ def rktio_get_dll_path(w_p):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -5081,7 +5222,10 @@ def rktio_copy_file_start_permissions(w_rktio, w_dest, w_src, w_exists_ok, w_use
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -5111,7 +5255,10 @@ def rktio_copy_file_start(w_rktio, w_dest, w_src, w_exists_ok):
 	# *ref feedback line (if any *ref input is received)
 
 	# return line
-	# res is a R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
