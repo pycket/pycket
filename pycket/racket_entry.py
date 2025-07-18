@@ -193,7 +193,7 @@ def locate_linklet(file_name):
 
     return file_path
 
-def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
+def load_bootstrap_linklets(dont_load_regexp=False, dont_load_io_linklet=False, feature_flag=""):
 
     # Load thread linklet
     THREAD_LINKLET.load()
@@ -201,8 +201,7 @@ def load_bootstrap_linklets(dont_load_regexp=False, feature_flag=""):
     # Load io linklet
     # Make sure thread linklet's loaded first
     # io requires stuff like unsafe-start-atomic
-    # Feature Flag: io
-    if feature_flag == FFLAG_IO:
+    if not dont_load_io_linklet:
         try:
             IO_LINKLET.load()
         except Exception:
@@ -242,7 +241,10 @@ def load_linklet_from_json(file_name, set_version=False):
     return linkl
 
 def make_bootstrap_zos():
-    # Regexp linklet needs to be fully loaded here. There's a slightly annoying
+    THREAD_LINKLET.create_zo()
+    IO_LINKLET.create_zo()
+
+    # Regexp linklet needs to be fully loaded at this spot. There's a slightly annoying
     # dependency between the regexp linklet and the others. E.g., primitives
     # used within the expander such as  "regexp-match?" are "simple" application
     # in RPython (no env, cont required), but not "simple" when used from the
@@ -253,8 +255,11 @@ def make_bootstrap_zos():
     # let-bind those. (e.g. (if (regexp-match? ...) ...)). Therefore the regexp
     # linklet needs to expose its functions before we load and compile the
     # expander.
+
+    # FIXME: ordering can be avoided here by just running load_bootstrap_linklets first
+    # (which should be the only source of truth for the order)
+
     REGEXP_LINKLET.create_zo()
-    THREAD_LINKLET.create_zo()
     FASL_LINKLET.create_zo()
     PYCKET_BOOT_LINKLET.create_zo()
     EXPANDER_LINKLET.create_zo()
@@ -456,10 +461,11 @@ def initiate_boot_sequence(command_line_arguments,
                            set_addon_dir="",
                            feature_flag="",
                            compile_any=False,
-                           dont_load_regexp=False):
+                           dont_load_regexp=False,
+                           dont_load_io_linklet=False):
     from pycket.env import w_version
 
-    load_bootstrap_linklets(dont_load_regexp=dont_load_regexp, feature_flag=feature_flag)
+    load_bootstrap_linklets(dont_load_regexp=dont_load_regexp, dont_load_io_linklet=dont_load_io_linklet, feature_flag=feature_flag)
 
     with PerfRegion("set-params"):
 
@@ -536,6 +542,10 @@ def initiate_boot_sequence(command_line_arguments,
         assert isinstance(c, values.W_ThreadCell)
         c.set(values.W_Path(c_dir))
 
+        # disabled breaks
+        # disable_breaks = get_primitive("pycket:disable-breaks")
+        # disable_breaks.call_interpret([])
+
         console_log("...Boot Sequence Completed")
         from pycket.env import w_global_config as glob
         glob.boot_is_completed()
@@ -602,6 +612,7 @@ def racket_entry(names, config, command_line_arguments):
     version          = flags['version']
     c_a              = flags['compile-machine-independent']
     dont_load_regexp = flags['no-regexp']
+    dont_load_io_l   = flags['no-io-linklet']
     dev_mode         = flags['dev-mode']
     racket_fasl      = flags['racket-fasl']
     rpython_fasl     = flags['rpython-fasl']
@@ -639,7 +650,8 @@ def racket_entry(names, config, command_line_arguments):
                                    set_addon_dir,
                                    feature_flag,
                                    compile_any=c_a,
-                                   dont_load_regexp=dont_load_regexp)
+                                   dont_load_regexp=dont_load_regexp,
+                                   dont_load_io_linklet=dont_load_io_l)
         except (EntryException, BootstrapError) as e:
             print("Error at boot: %s" % e.msg)
             return 1

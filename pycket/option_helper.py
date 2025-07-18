@@ -47,7 +47,8 @@ def print_help(argv):
 
  Meta options:
   --make-linklet-zos                 : Make the compiled zo's for bootstrap linklets
-  --no-regexp                        : Doesn't load the regexp linklet, uses rpython regexp functions
+  --no-regexp                        : Don't load the regexp linklet, use RPython regexp functions
+  --no-io-linklet                    : Don't load the io linklet, use RPython io primitives
   --verbose <level>                  : Print the debug logs. <level> : natural number (defaults to 0)
   --jit <jitargs>                    : Set RPython JIT options may be 'default', 'off',
                                        or 'param=value,param=value' list
@@ -103,6 +104,7 @@ conf_opts = ["-c", "--no-compiled",
              "--save-callgraph"]
 meta_opts = ["--make-linklet-zos",
              "--no-regexp",
+             "--no-io-linklet",
              "--verbose",
              "--jit",
              "-h", "--help"]
@@ -126,21 +128,22 @@ RET_JIT = 2
 BAD_ARG = 5
 
 config = {
-    'repl' : False,
-    'no-lib' : False,
-    'version' : False,
-    'stop' : False,
-    'just_kernel' : False,
-    'verbose' : False,
-    'just-init' : False,
-    'dev-mode' : False,
-    'feature-flag': False,
-    'use-compiled' : True,
-    'compile-machine-independent' : False,
-    'no-regexp' : False,
-    'make-zos' : False,
-    'racket-fasl' : False,
-    'rpython-fasl' : False
+    'repl'                          : False,
+    'no-lib'                        : False,
+    'version'                       : False,
+    'stop'                          : False,
+    'just_kernel'                   : False,
+    'verbose'                       : False,
+    'just-init'                     : False,
+    'dev-mode'                      : False,
+    'feature-flag'                  : False,
+    'use-compiled'                  : True,
+    'compile-machine-independent'   : False,
+    'no-regexp'                     : False,
+    'no-io-linklet'                 : False,
+    'make-zos'                      : False,
+    'racket-fasl'                   : False,
+    'rpython-fasl'                  : False
 }
 
 def add_name(names, name, val, replace=False):
@@ -484,6 +487,9 @@ def parse_args(argv):
         elif argv[i] == "--no-regexp":
             config['no-regexp'] = True
             #retval = RETURN_OK
+
+        elif argv[i] == "--no-io-linklet":
+            config['no-io-linklet'] = True
 
         elif argv[i] == "--make-linklet-zos":
             config['make-zos'] = True
