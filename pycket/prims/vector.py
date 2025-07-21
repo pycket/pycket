@@ -23,6 +23,11 @@ def flvector(args):
 def extflvector(obj):
     return values.w_false
 
+@expose("stencil-vector?", [values.W_Object])
+def stencil_vector(obj):
+    # TODO: implement stencil vectors
+    return values.w_false
+
 # FIXME: immutable
 @expose("vector-immutable")
 def vector_immutable(args):

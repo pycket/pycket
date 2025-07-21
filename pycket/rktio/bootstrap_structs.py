@@ -3,30 +3,6 @@ from pycket.rktio._rktio_bootstrap import *
 
 from rpython.rtyper.lltypesystem import rffi
 
-# We could make separate opaque pointers for every typedef
-# in the included h files, but that wouldn't give us extra
-# benefit as they will all be opaque to rffi anyways.
-# So we use a generic \"any\" pointer for all of them as
-# much as we can.
-R_PTR	= rffi.VOIDP # rffi.COpaquePtr('void *')
-W_R_PTR = make_w_pointer_class('voidp')
-
-
-###############################################
-############## used struct-types ##############
-###############################################
-#
-# These are some structs that are used in bootstrap.
-# Pycket needs to know these intimitely, i.e. define 
-# rffi.CStruct for them, because it'll expose functions
-# (as part of the bootstrap layer) that dereference some
-# of the fields of these.
-
-RKTIO_PROCESS_T_PTR     = R_PTR
-W_RKTIO_PROCESS_T_PTR   = W_R_PTR
-RKTIO_FD_T_PTR          = R_PTR
-W_RKTIO_FD_T_PTR        = W_R_PTR
-
 
 # str: (struct_type, struct_ptr_type, w_struct_ptr_type)
 STRUCT_RFFI_TYPES = {}
@@ -217,9 +193,19 @@ RKTIO_SHA1_CTX_T = rffi.CStruct(
     ('buffer',  array_of(UNSIGNED_8, 64)),
 )
 RKTIO_SHA1_CTX_PTR = lltype.Ptr(RKTIO_SHA1_CTX_T)
-W_RKTIO_SHA1_CTX_PTR = make_w_pointer_class('rktio_sha1_ctx_1')
+W_RKTIO_SHA1_CTX_PTR = make_w_pointer_class('rktio_sha1_ctx_t')
 
 STRUCT_RFFI_TYPES['rktio_sha1_ctx_t'] = (RKTIO_SHA1_CTX_T, RKTIO_SHA1_CTX_PTR, W_RKTIO_SHA1_CTX_PTR)
+
+def extract_sha1_ctx_ptr(w_obj):
+    # Null ptr
+    if w_obj is values.w_false:
+        return rffi.cast(RKTIO_SHA1_CTX_PTR, 0)
+    # Actual C pointer
+    if isinstance(w_obj, W_RKTIO_SHA1_CTX_PTR):
+        return w_obj.to_rffi()
+
+    raise SchemeException("expected rktio_sha1_ctx_t pointer, or #f")
 
 """
 (define-struct-type
@@ -241,4 +227,13 @@ W_RKTIO_SHA2_CTX_PTR = make_w_pointer_class('rktio_sha2_ctx_t')
 
 STRUCT_RFFI_TYPES['rktio_sha2_ctx_t'] = (RKTIO_SHA2_CTX_T, RKTIO_SHA2_CTX_PTR, W_RKTIO_SHA2_CTX_PTR)
 
+def extract_sha2_ctx_ptr(w_obj):
+    # Null ptr
+    if w_obj is values.w_false:
+        return rffi.cast(RKTIO_SHA2_CTX_PTR, 0)
+    # Actual C pointer
+    if isinstance(w_obj, W_RKTIO_SHA2_CTX_PTR):
+        return w_obj.to_rffi()
+
+    raise SchemeException("expected rktio_sha2_ctx_t pointer, or #f")
 

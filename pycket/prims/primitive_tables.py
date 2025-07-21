@@ -309,6 +309,7 @@ kernel_str = [
     "eqv-hash-code", "error", "error-display-handler",
     "error-escape-handler", "error-print-context-length", "error-print-source-location",
     "error-print-width", "error-value->string-handler", "eval-jit-enabled",
+    "error-module-path->string-handler",
     "even?", "exact-integer?",
     "exact-nonnegative-integer?", "exact-positive-integer?", "exact?",
     "exact->inexact", "executable-yield-handler", "exit",

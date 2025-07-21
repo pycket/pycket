@@ -40,20 +40,24 @@
     'function-pointer	      "INTPTR_T"
 ))
 
-(define w_fixnum "values.W_Fixnum")
-(define w_flonum "values.W_Flonum")
-(define w_string "values_string.W_String")
-(define w_void   "values.w_void")
-(define w_ccharp "W_CCHARP")
+(define w_fixnum  "values.W_Fixnum")
+(define w_bool	  "values.W_Bool")
+(define w_flonum  "values.W_Flonum")
+(define w_string  "values_string.W_String")
+(define w_bytes	  "values.W_Bytes")
+(define w_void	  "values.w_void")
+(define w_ccharp  "W_CCHARP")
 (define w_ccharpp "W_CCHARPP")
+(define w_voidp	  "W_CPointer")
+(define W_Object  "base.W_Object")
 
 (define type:rffi->pycket
   (hash
     "RKTIO_OK_T"	      w_fixnum
     "RKTIO_TRI_T"	      w_fixnum
-    "RKTIO_BOOL_T"	      w_fixnum
+    "RKTIO_BOOL_T"	      w_bool
     "RKTIO_CHAR16_T"	      w_fixnum
-    "RKTIO_CONST_STRING_T"    w_string
+    "RKTIO_CONST_STRING_T"    w_bytes
     "RKTIO_FILESIZE_T"	      w_fixnum
     "RKTIO_TIMESTAMP_T"	      w_fixnum
     "INT"		      w_fixnum
@@ -67,8 +71,22 @@
     "INTPTR_T"		      w_fixnum
     "CCHARP"		      w_ccharp
     "CCHARPP"		      w_ccharpp
+    "VOIDP"		      w_voidp
 
     "RKTIO_DATE_PTR"	      "W_RKTIO_DATE_PTR"
+
+    ;; *ref types need special treatment because
+    ;; they're transparent to Racket runtime
+    ;; so e.g. Racket can pass W_MutableBytes directly
+    ;; instead of W_CPointer for the bytes.
+    ;; Or it can pass #f for null pointer.
+    "INTPTR_T_PTR"	      W_Object ; "W_INTPTR_T_PTR"
+    "UNSIGNED_8_PTR"	      W_Object ; "W_UNSIGNED_8_PTR"
+    "STAR_REF_CCHARP"	      W_Object ; "W_STAR_REF_CCHARP"
+    "RKTIO_CHAR16_T_PTR"      W_Object ; "W_RKTIO_CHAR16_T_PTR"
+    "RKTIO_SHA1_CTX_PTR"      W_Object ; "W_RKTIO_SHA1_CTX_PTR"
+    "RKTIO_SHA2_CTX_PTR"      W_Object ; "W_RKTIO_SHA2_CTX_PTR"
+
 ))
 
 ;; { rktio : rffi }
@@ -91,8 +109,13 @@
 ;; There are some specific items (e.g. (ref rktio_t) -> RKTIO_T_PTR
 ;; And there are stuff like (ref (ref char))
 ;; FIXME: massive refactor needed
-(define (lower-type rktio-type)
+(define (lower-type rktio-type [is-arg? #f])
   (match rktio-type
+	['(ref void) (if is-arg? "VOIDP" "R_PTR")]
+	[`(*ref ,T) (if (not is-arg?)
+			; for non-args we treat ref & *ref the same
+			(lower-type `(ref ,T) is-arg?)
+			(lower-*ref-type T))]
 	[`(,(or 'ref '*ref) char) "CCHARP"]
 	[`(,(or 'ref '*ref) (,(or 'ref '*ref) char)) "CCHARPP"]
 	;; We keep using a generic pointer (void *) on rffi
@@ -129,6 +152,30 @@
 		(hash-set! type:w-struct-ptrs rffi_ptr_type w_ptr_type)
 		"R_PTR" #;rffi_ptr_type))]
 ))
+
+;; lower-*ref-type
+;; *ref is a transparent(to Racket) pointer ref
+;; that can be different things at runtime (W_Object)
+(define (lower-*ref-type T)
+  (match T
+    ['char "STAR_REF_CCHARP"] ;; extract_ccharp
+    ['intptr_t "INTPTR_T_PTR"] ;; extract_intptr_t_ptr
+    ['rktio_char16_t "RKTIO_CHAR16_T_PTR"] ;; extract_char16_t_ptr
+    ; rktio_const_string_t is by itself a (*ref char)
+    ; this case is for (*ref (*ref char))
+    ; using CCHARPP is a hack because it overrides (ref (ref char))
+    ; but there's only 1 call that uses this in the io linklet
+    ; (rktio_process) and we're sure it passes a W_CCHARPP
+    ; (with the extra P). So we get away with that.
+    ['rktio_const_string_t "CCHARPP"]
+    ['rktio_sha1_ctx_t "RKTIO_SHA1_CTX_PTR"] ;; extract_struct_ptr
+    ['rktio_sha2_ctx_t "RKTIO_SHA2_CTX_PTR"] ;; extract_struct_ptr
+    ['unsigned-8 "UNSIGNED_8_PTR"] ;; extract_fixnum
+    ; (*ref (ref char))
+    ; again, using CCHARPP is a hack here
+    ['(ref char) "CCHARPP"]
+    [else (error 'lower-*ref-type
+		 (format "unhandled T : ~a" T))]))
 
 ;; Add an element to a parameterized list (front-cons style).
 (define (acc! p n v)
@@ -230,10 +277,15 @@ def w_~a(~a):
 \t\telems = [c_rktio_get_last_error_kind(~a), c_rktio_get_last_error(~a)]
 \t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+\t# *ref feedback line (if any *ref input is received)
+~a
+\t# return line
 ~a
 
 expose(\"~a\", [~a], simple=True)(w_~a)
 ")
+
+      ;; The only difference is the explicit calling of "expose" instead of decorating with @expose
 
       (define expose-py-fun-err-template
 	;; @expose(name, [W_Args...], simple=True)
@@ -265,6 +317,9 @@ def ~a(~a):
 \t\telems = [c_rktio_get_last_error_kind(~a), c_rktio_get_last_error(~a)]
 \t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+\t# *ref feedback line (if any *ref input is received)
+~a
+\t# return line
 ~a")
 
       (define expose-py-fun-err-step-template
@@ -284,6 +339,9 @@ def ~a(~a):
 \t\telems = [c_rktio_get_last_error_kind(~a), c_rktio_get_last_error(~a), c_rktio_get_last_error_step(~a)]
 \t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
 
+\t# *ref feedback line (if any *ref input is received)
+~a
+\t# return line
 ~a")
 
       (define (err-val-check err-v)
@@ -296,14 +354,51 @@ def ~a(~a):
       (define (args-str lst-of-str)
 	(string-join lst-of-str ", "))
 
+      (define (arg-str->charp r_name w_name)
+	(let*
+	  ([_p_str (format "_p_str = ~a.as_str_utf8()\n" w_name)]
+	   [p_str (format "\tp_str = _p_str if _p_str else \"\"\n")]
+	   [r_line (format "\t~a = rffi.str2charp(p_str)" r_name)])
+	  (string-append _p_str p_str r_line)))
+
+      (define (arg-bytes->charp r_name w_name)
+	(let*
+	  ([p_str (format "p_str = ~a.as_str()\n" w_name)]
+	   [r_line (format "\t~a = rffi.str2charp(p_str)" r_name)])
+	  (string-append p_str r_line)))
+
       ;; arg-w->r expresses the conversion logic for a single
       ;; w-arg -> r-arg in RPython
       (define (arg-w->r r_name r_type w_name w_type)
 	(let ([defn-rhs
 	(cond
+	  ; for *ref types
+	  ; see lower-*ref-type function
+	  [(equal? r_type "STAR_REF_CCHARP")
+	   (format "~a = extract_ccharp(~a)"
+		   r_name w_name)]
+	  [(equal? r_type "INTPTR_T_PTR")
+	   (format "~a = extract_intptr_t_ptr(~a)"
+		   r_name w_name)]
+	  [(equal? r_type "RKTIO_CHAR16_T_PTR")
+	   (format "~a = extract_char16_t_ptr(~a)"
+		   r_name w_name)]
+	  [(equal? r_type "RKTIO_SHA1_CTX_PTR")
+	   (format "~a = extract_sha1_ctx_ptr(~a)"
+		   r_name w_name)]
+	  [(equal? r_type "RKTIO_SHA2_CTX_PTR")
+	   (format "~a = extract_sha2_ctx_ptr(~a)"
+		   r_name w_name)]
+	  [(equal? r_type "UNSIGNED_8_PTR")
+	   (format "~a = extract_unsigned_8_ptr(~a)"
+		   r_name w_name)]
+	  ;
+	  [(equal? r_type "VOIDP")
+	   (format "~a = ~a.as_voidp()"
+		   r_name w_name)]
 	  [(or (equal? r_type "R_PTR")
 	       (equal? r_type "CCHARP")
-	       (equal? r_type "CCHARPP")
+	       (equal? r_type "CCHARPP") ; CCHARPP might receive a #f because of (*ref char)
 	       (equal? r_type "W_RKTIO_DATE_PTR")
 	       )
 	   (format "~a = rffi.cast(~a, ~a.to_rffi())"
@@ -313,12 +408,8 @@ def ~a(~a):
 	   (format "~a = rffi.cast(rffi.INT, 1 if ~a is values.w_true else 0)"
 		   r_name w_name)]
 	  
-	  [(equal? r_type "RKTIO_CONST_STRING_T")
-	   (let*
-	     ([_p_str (format "_p_str = ~a.as_str_utf8()\n" w_name)]
-	      [p_str (format "\tp_str = _p_str if _p_str else \"\"\n")]
-	      [r_line (format "\t~a = rffi.str2charp(p_str)" r_name)])
-	     (string-append _p_str p_str r_line))]
+	  [(equal? r_type "RKTIO_CONST_STRING_T") ; W_Bytes
+	   (arg-bytes->charp r_name w_name)]
 
 	  [(or (equal? r_type "RKTIO_CHAR16_T")
 	       (equal? r_type "RKTIO_FILESIZE_T"))
@@ -365,12 +456,18 @@ def ~a(~a):
 	   [r_arg_names null]
 	   [r_arg_types null]
 	   [r_arg_defns null]
-	   ;; there's a convention used in rktio that first
-	   ;; always a pointer for the functions
+	   ;; there's a convention used in rktio that the first
+	   ;; parameter (often *rktio) is
+	   ;; always a pointer that's used for the functions
 	   ;; that can return errors
 	   ;; so first_r_arg_name is passed to the librktio
 	   ;; functions to get the kind/error etc
+	   ;; e.g. c_rktio_get_last_error_kind(r_rktio)
 	   [first_r_arg_name ""]
+	   ;; *ref feedback lines for all arguments that has
+	   ;; r_type == STAR_REF_CCHARP
+	   ;; (see *ref-feedback-line's comment)
+	   [*ref-ccharps null]
 	   #:result (values
 		      (string-join (reverse w_arg_names) ", ")
 		      (string-join (reverse w_arg_types) ", ")
@@ -378,7 +475,8 @@ def ~a(~a):
 		      (string-join (reverse r_arg_types) ", ")
 		      (string-join (reverse r_arg_defns) "\n")
 		      ;; FIXME: can we use something else to avoid all these reverses?
-		      (if (empty? r_arg_names) "" (first (reverse r_arg_names)))))
+		      (if (empty? r_arg_names) "" (first (reverse r_arg_names)))
+		      (string-join *ref-ccharps "\n")))
 	  ([a args-list])
 
 	  (let* ([rktio_name (arg-rktio-name a)]
@@ -387,13 +485,20 @@ def ~a(~a):
 		 [w_type (arg-w-type a)]
 		 [r_type (arg-r-type a)]
 		 [arg-convert-lines
-		   (arg-w->r r_name r_type w_name w_type)])
+		   (arg-w->r r_name r_type w_name w_type)]
+		 ; *ref-fb-line
+		 [*ref-fb-line (*ref-feedback-line w_name r_name r_type)])
 	    (values
 	      (cons w_name w_arg_names)
 	      (cons w_type w_arg_types)
 	      (cons r_name r_arg_names)
 	      (cons r_type r_arg_types)
-	      (cons arg-convert-lines r_arg_defns) ""))))
+	      (cons arg-convert-lines r_arg_defns)
+	      ""
+	      (if (not *ref-fb-line)
+		  *ref-ccharps
+		  (cons *ref-fb-line *ref-ccharps))
+	      ))))
 
       (define (res=c-func-call name r_arg_names r_ret_type)
 	(if (equal? r_ret_type "VOID")
@@ -406,20 +511,54 @@ def ~a(~a):
       (define (return-line w-ret-type r-ret-type)
 	(cond
 	  [(equal? r-ret-type "VOID") ; return w_void, value not type
-	   (format "\t# returns ~a\n\treturn ~a" r-ret-type w-ret-type)]
+	   (format "\t# res is a ~a\n\treturn ~a" r-ret-type w-ret-type)]
+	  [(equal? r-ret-type "RKTIO_BOOL_T")
+	   (format "\t# res is a ~a\n\treturn values.W_Bool.make(res == 1)" r-ret-type)]
 	  [(or (equal? r-ret-type "UNSIGNED")
 	       (equal? r-ret-type "UNSIGNED_8")
 	       (equal? r-ret-type "UINTPTR_T"))
-	   (format "\t# returns ~a\n\treturn num(intmask(res))" r-ret-type)]
+	   (format "\t# res is a ~a\n\treturn num(intmask(res))" r-ret-type)]
+	  ;; Functions that return a W_R_PTR (ref void) can also return a NULL pointer
+	  ;; which is represented as rktio_NULL (in types.py)
+	  [(equal? w-ret-type "W_R_PTR")
+	   (let ([check "\tif not res or res == NULL_VOIDP:\n"]
+		 [check-return "\t\treturn rktio_NULL\n\n"])
+	     (format "\t# res is a R_PTR, can be NULL\n~a~a\treturn ~a(res)" check check-return w-ret-type))]
 	  [(or (equal? w-ret-type w_fixnum)
 	       (equal? w-ret-type w_flonum)
-	       (equal? w-ret-type "W_R_PTR")
 	       (equal? w-ret-type "W_CCHARP")
 	       (equal? w-ret-type "W_CCHARPP")
 	       (equal? w-ret-type "W_RKTIO_DATE_PTR"))
-	   (format "\t# returns ~a\n\treturn ~a(res)" r-ret-type w-ret-type)]
+	   (format "\t# res is a ~a\n\treturn ~a(res)" r-ret-type w-ret-type)]
 	  [else (error 'return-line
 		       (format "unhandled w-ret-type: ~a" w-ret-type))]))
+
+      ;; Any *ref pointed chunk of memory (i.e. a piece of memory
+      ;; that's owned and managed by Racket) can be mutated in-place
+      ;; by a C function in the rktio layer. That mutation needs to be
+      ;; reflected back to the carriers on the Pycket side, such as
+      ;; W_MutableBytes (since W_MutableBytes carry a list of characters,
+      ;; and not a raw bytes that we can point to).
+      ;; Currently only a concern for (*ref char) (STAR_REF_CCHARP),
+      ;; the other *ref types seem to only be read, but technically they can
+      ;; be mutated, so we can add more stuff here later on.
+      ;;
+      ;; Note that *ref can also be a W_CPointer on Pycket's side
+      ;; if Racket decides to refer to that memory with a pointer of its
+      ;; own creation. In that case the reflection is not an issue
+      ;; as we're passing a pointer to the actual memory (rather than a
+      ;; memory that we allocate for stuff in W_MutableBytes for example).
+      (define (*ref-feedback-line w_name r_name r_type)
+	(if (not (equal? r_type "STAR_REF_CCHARP"))
+	    #f
+	    ;; We only need a reflection line if this (*ref char) is
+	    ;; passed as a W_MutableBytes (see comment above).
+	    (string-append
+	      (format
+		"\tif isinstance(~a, values.W_MutableBytes):\n" w_name)
+	      (format
+		"\t\t~a.replace_bytes(list(rffi.charpsize2str(~a, ~a.length())))\n"
+		w_name r_name w_name))))
 
       (define (fn-to-py-expose fn)
 	(let (
@@ -427,7 +566,7 @@ def ~a(~a):
 	      [w_ret_line (return-line (def-fun-w-ret-type fn)
 				       (def-fun-r-ret-type fn))]
 	      [r_ret_type (def-fun-r-ret-type fn)])
-	  (let-values ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns _)
+	  (let-values ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns _ _2)
 			(process-args (def-fun-args-list fn))])
 	    (let ([llexternal-lines
 		    (llexternal-block name r_arg_types r_ret_type)]
@@ -449,7 +588,7 @@ def ~a(~a):
 				       (def-fun-err-r-ret-type fn))]
 	      [r_ret_type (def-fun-err-r-ret-type fn)])
 	  (let-values
-	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns first_r_arg_name)
+	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns first_r_arg_name *ref-ccharps)
 	      (process-args (def-fun-err-args-list fn))])
 	    (let ([llexternal-lines
 		    (llexternal-block name r_arg_types r_ret_type)])
@@ -461,6 +600,7 @@ def ~a(~a):
 			  r_arg_defns
 			  name r_arg_names
 			  (err-val-check err-v) first_r_arg_name first_r_arg_name
+			  *ref-ccharps
 			  w_ret_line
 			  name w_arg_types name
 			  )
@@ -472,6 +612,7 @@ def ~a(~a):
 		      r_arg_defns
 		      name r_arg_names
 		      (err-val-check err-v) first_r_arg_name first_r_arg_name
+		      *ref-ccharps
 		      w_ret_line))))))
 
       (define (fn/err/step-to-py-expose fn)
@@ -481,7 +622,7 @@ def ~a(~a):
 				       (def-fun-err-r-ret-type fn))]
 	      [r_ret_type (def-fun-err-r-ret-type fn)])
 	  (let-values
-	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns first_r_arg_name)
+	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns first_r_arg_name *ref-ccharps)
 	      (process-args (def-fun-err-args-list fn))])
 	    (let ([llexternal-lines
 		    (llexternal-block name r_arg_types r_ret_type)])
@@ -493,6 +634,7 @@ def ~a(~a):
 		      r_arg_defns
 		      name r_arg_names
 		      (err-val-check err-v) first_r_arg_name first_r_arg_name first_r_arg_name
+		      *ref-ccharps
 		      w_ret_line)))))
 
       (define (fn/err-to-tuple fn)
@@ -540,10 +682,11 @@ At each primitive definition, it adds the exposed function to the #%rktio module
 \"\"\"\n\n
 import os
 
-from pycket import values, values_string
+from pycket import base, values
 from pycket import vector as values_vector
 from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
+from pycket.foreign import W_CPointer, NULL_VOIDP
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *
@@ -633,7 +776,7 @@ librktio_a = ExternalCompilationInfo(
 	       [w-ret-type (r->w lowered-ret-type)]
 	       [lowered-arg-types
 		(map (lambda (a)
-		       (let* ([arg-r-type (lower-type (car a))]
+		       (let* ([arg-r-type (lower-type (car a) #t)]
 			      [arg-w-type (r->w arg-r-type)]
 			      [arg-w-name (format "w_~a" (cadr a))]
 			      [arg-r-name (format "r_~a" (cadr a))])
@@ -646,7 +789,7 @@ librktio_a = ExternalCompilationInfo(
 	       [w-ret-type (r->w lowered-ret-type)]
 	       [lowered-arg-types
 		(map (lambda (a)
-		       (let* ([arg-r-type (lower-type (car a))]
+		       (let* ([arg-r-type (lower-type (car a) #t)]
 			      [arg-w-type (r->w arg-r-type)]
 			      [arg-w-name (format "w_~a" (cadr a))]
 			      [arg-r-name (format "r_~a" (cadr a))])
@@ -659,7 +802,7 @@ librktio_a = ExternalCompilationInfo(
 	       [w-ret-type (r->w lowered-ret-type)]
 	       [lowered-arg-types
 		(map (lambda (a)
-		       (let* ([arg-r-type (lower-type (car a))]
+		       (let* ([arg-r-type (lower-type (car a) #t)]
 			      [arg-w-type (r->w arg-r-type)]
 			      [arg-w-name (format "w_~a" (cadr a))]
 			      [arg-r-name (format "r_~a" (cadr a))])

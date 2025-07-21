@@ -5,6 +5,7 @@ from pycket.prims.expose import default, expose, expose_val
 
 from rpython.rlib.rbigint import rbigint
 from rpython.rtyper.lltypesystem import rffi
+from rpython.rlib.objectmodel import specialize
 
 from pycket.rktio.types import *
 from pycket.rktio._rktio_bootstrap import *
@@ -63,9 +64,9 @@ def _wrap_int(raw):
         big = rbigint.fromint(intmask(val))
         return values.W_Bignum(big)
 
-expose_val("rktio_NULL", values.w_false)
+expose_val("rktio_NULL", rktio_NULL) # in types.py
 
-@expose("rktio_filesize_ref", [W_RKTIO_FILESIZE_PTR])
+@expose("rktio_filesize_ref", [W_R_PTR])
 def rktio_filesize_ref(w_filesize_ptr):
     r_filesize_ptr = rffi.cast(RKTIO_FILESIZE_PTR, w_filesize_ptr.to_rffi())
     val = r_filesize_ptr[0]
@@ -73,7 +74,7 @@ def rktio_filesize_ref(w_filesize_ptr):
         return values.w_false
     return _wrap_int(val)
 
-@expose("rktio_timestamp_ref", [W_RKTIO_TIMESTAMP_PTR])
+@expose("rktio_timestamp_ref", [W_R_PTR])
 def rktio_timestamp_ref(w_timestamp_ptr):
     r_timestamp_ptr = rffi.cast(RKTIO_TIMESTAMP_PTR, w_timestamp_ptr.to_rffi())
     val = r_timestamp_ptr[0]
@@ -103,13 +104,13 @@ def rktio_is_timestamp(w_v):
     else:
         return values.w_false
 
-@expose("rkito_recv_length_ref", [W_RKTIO_LENGTH_AND_ADDRINFO_PTR])
+@expose("rkito_recv_length_ref", [W_R_PTR])
 def rktio_recv_length_ref(w_len_and_addrinfo_ptr):
     r_struct_ptr = rffi.cast(RKTIO_LENGTH_AND_ADDRINFO_PTR,
                              w_len_and_addrinfo_ptr.to_rffi())
     return _wrap_int(r_struct_ptr.c_len)
 
-@expose("rktio_recv_address_ref", [W_RKTIO_LENGTH_AND_ADDRINFO_PTR])
+@expose("rktio_recv_address_ref", [W_R_PTR])
 def rktio_recv_address_ref(w_len_and_addrinfo_ptr):
     ll_ptr = rffi.cast(RKTIO_LENGTH_AND_ADDRINFO_PTR,
                        w_len_and_addrinfo_ptr.to_rffi())
@@ -123,41 +124,65 @@ def rktio_recv_address_ref(w_len_and_addrinfo_ptr):
     py_str = rffi.charp2str(charp) # assumes utf-8
     return values_string.W_String.fromstr_utf8(py_str)
 
-@expose("rktio_stat_to_vector", [W_RKTIO_STAT_PTR])
+@expose("rktio_stat_to_vector", [W_R_PTR])
 def rktio_stat_to_vector(w_stat_ptr):
     ll_ptr = rffi.cast(RKTIO_STAT_PTR, w_stat_ptr.to_rffi())
 
+    signed_c_device_id			= rffi.cast(lltype.Signed, ll_ptr.c_device_id)
+    signed_c_inode			= rffi.cast(lltype.Signed, ll_ptr.c_inode)
+    signed_c_mode			= rffi.cast(lltype.Signed, ll_ptr.c_mode)
+    signed_c_hardlink_count		= rffi.cast(lltype.Signed, ll_ptr.c_hardlink_count)
+    signed_c_user_id			= rffi.cast(lltype.Signed, ll_ptr.c_user_id)
+    signed_c_group_id			= rffi.cast(lltype.Signed, ll_ptr.c_group_id)
+    signed_c_device_id_for_special_file = rffi.cast(lltype.Signed, ll_ptr.c_device_id_for_special_file)
+    signed_c_size			= rffi.cast(lltype.Signed, ll_ptr.c_size)
+    signed_c_block_size			= rffi.cast(lltype.Signed, ll_ptr.c_block_size)
+    signed_c_block_count		= rffi.cast(lltype.Signed, ll_ptr.c_block_count)
+
+    signed_c_access_time_seconds	= rffi.cast(lltype.Signed, ll_ptr.c_access_time_seconds)
+    signed_c_access_time_nanoseconds	= rffi.cast(lltype.Signed, ll_ptr.c_access_time_nanoseconds)
+    signed_c_modify_time_seconds	= rffi.cast(lltype.Signed, ll_ptr.c_modify_time_seconds)
+    signed_c_modify_time_nanoseconds	= rffi.cast(lltype.Signed, ll_ptr.c_modify_time_nanoseconds)
+    signed_c_ctime_seconds		= rffi.cast(lltype.Signed, ll_ptr.c_ctime_seconds)
+    signed_c_ctime_nanoseconds		= rffi.cast(lltype.Signed, ll_ptr.c_ctime_nanoseconds)
+    signed_c_ctime_nanoseconds		= rffi.cast(lltype.Signed, ll_ptr.c_ctime_nanoseconds)
+    signed_c_ctime_is_change_time	= rffi.cast(lltype.Signed, ll_ptr.c_ctime_is_change_time)
+
     elems = [
-        _wrap_int(ll_ptr.c_device_id),
-        _wrap_int(ll_ptr.c_inode),
-        _wrap_int(ll_ptr.c_mode),
-        _wrap_int(ll_ptr.c_hardlink_count),
-        _wrap_int(ll_ptr.c_user_id),
-        _wrap_int(ll_ptr.c_group_id),
-        _wrap_int(ll_ptr.c_device_id_for_special_file),
-        _wrap_int(ll_ptr.c_size),
-        _wrap_int(ll_ptr.c_block_size),
-        _wrap_int(ll_ptr.c_block_count),
+        _wrap_int(signed_c_device_id),
+        _wrap_int(signed_c_inode),
+        _wrap_int(signed_c_mode),
+        _wrap_int(signed_c_hardlink_count),
+        _wrap_int(signed_c_user_id),
+        _wrap_int(signed_c_group_id),
+        _wrap_int(signed_c_device_id_for_special_file),
+        _wrap_int(signed_c_size),
+        _wrap_int(signed_c_block_size),
+        _wrap_int(signed_c_block_count),
 
-        _wrap_int(ll_ptr.c_access_time_seconds),
-        _wrap_int(ll_ptr.c_access_time_nanoseconds),
-        _wrap_int(ll_ptr.c_modify_time_seconds),
-        _wrap_int(ll_ptr.c_modify_time_nanoseconds),
-        _wrap_int(ll_ptr.c_ctime_seconds),
-        _wrap_int(ll_ptr.c_ctime_nanoseconds),
+        _wrap_int(signed_c_access_time_seconds),
+        _wrap_int(signed_c_access_time_nanoseconds),
+        _wrap_int(signed_c_modify_time_seconds),
+        _wrap_int(signed_c_modify_time_nanoseconds),
+        _wrap_int(signed_c_ctime_seconds),
+        _wrap_int(signed_c_ctime_nanoseconds),
 
-        values.w_true if ll_ptr.c_ctime_is_change_time else values.w_false,
+        values.w_true if signed_c_ctime_is_change_time else values.w_false,
     ]
     return values_vector.W_Vector.fromelements(elems)
 
-@expose("rktio_identity_to_vector", [W_RKTIO_IDENTITY_PTR])
+@expose("rktio_identity_to_vector", [W_CPointer])
 def rktio_identity_to_vector(w_id_ptr):
-    ll_ptr = rffi.cast(RKTIO_IDENTITY_PTR, w_id_ptr.to_rffi())
+    ll_ptr = w_id_ptr.as_rktio_identity_ptr()
+
+    signed_c_a = rffi.cast(lltype.Signed, ll_ptr.c_a)
+    signed_c_b = rffi.cast(lltype.Signed, ll_ptr.c_b)
+    signed_c_c = rffi.cast(lltype.Signed, ll_ptr.c_c)
 
     elems = [
-        _wrap_int(ll_ptr.c_a),          # uintptr_t
-        _wrap_int(ll_ptr.c_b),
-        _wrap_int(ll_ptr.c_c),
+        _wrap_int(signed_c_a),          # uintptr_t
+        _wrap_int(signed_c_b),
+        _wrap_int(signed_c_c),
         _wrap_int(ll_ptr.c_a_bits),     # plain int -> still wrap
         _wrap_int(ll_ptr.c_b_bits),
         _wrap_int(ll_ptr.c_c_bits),
@@ -210,14 +235,18 @@ def rktio_seconds_to_date_star(w_rktio, w_seconds, w_nanosec, w_get_gmt, env, co
         ], env, cont, None)
 
 # rktio_convert_result_to_vector
-@expose("rktio_convert_result_to_vector", [W_RKTIO_CONVERT_RESULT_PTR])
+# Taking W_R_PTR is actually a hack here. Normmally it should take
+# a W_RKTIO_CONVERT_RESULT_PTR, but it's always called with
+# a void* pointer and W_Object upsets the annotator because
+# of to_rffi generalization.
+@expose("rktio_convert_result_to_vector", [W_R_PTR])
 def rktio_convert_result_to_vector(w_ptr):
     ll_ptr = rffi.cast(RKTIO_CONVERT_RESULT_PTR, w_ptr.to_rffi())
 
     elems = [
-        _wrap_int(ll_ptr.in_consumed),
-        _wrap_int(ll_ptr.out_produced),
-        _wrap_int(ll_ptr.converted),
+        _wrap_int(ll_ptr.c_in_consumed),
+        _wrap_int(ll_ptr.c_out_produced),
+        _wrap_int(ll_ptr.c_converted),
     ]
 
     return values_vector.W_Vector.fromelements(elems)
@@ -350,27 +379,23 @@ def rktio_make_sha2_ctx():
 def _wrap_process_null(addr):
     return values.w_false if not addr else W_RKTIO_FD_T_PTR(addr)
 
-@expose("rktio_process_result_stdin_fd",
-        [W_RKTIO_PROCESS_RESULT_PTR])
+@expose("rktio_process_result_stdin_fd", [W_R_PTR])
 def rktio_process_result_stdin_fd(res_ptr):
     res_ll = rffi.cast(RKTIO_PROCESS_RESULT_PTR, res_ptr.to_rffi())
 
     return _wrap_process_null(res_ll.c_stdin_fd)
 
-@expose("rktio_process_result_stdout_fd",
-        [W_RKTIO_PROCESS_RESULT_PTR])
+@expose("rktio_process_result_stdout_fd", [W_R_PTR])
 def rktio_process_result_stdout_fd(res_ptr):
     res_ll = rffi.cast(RKTIO_PROCESS_RESULT_PTR, res_ptr.to_rffi())
     return _wrap_process_null(res_ll.c_stdout_fd)
 
-@expose("rktio_process_result_stderr_fd",
-        [W_RKTIO_PROCESS_RESULT_PTR])
+@expose("rktio_process_result_stderr_fd", [W_R_PTR])
 def rktio_process_result_stderr_fd(res_ptr):
     res_ll = rffi.cast(RKTIO_PROCESS_RESULT_PTR, res_ptr.to_rffi())
     return _wrap_process_null(res_ll.c_stderr_fd)
 
-@expose("rktio_process_result_process",
-        [W_RKTIO_PROCESS_RESULT_PTR])
+@expose("rktio_process_result_process", [W_R_PTR])
 def rktio_process_result_process(res_ptr):
     res_ll = rffi.cast(RKTIO_PROCESS_RESULT_PTR, res_ptr.to_rffi())
     return W_RKTIO_PROCESS_T_PTR(res_ll.c_process)   # never NULL, so no _wrap
@@ -380,16 +405,17 @@ def rktio_process_result_process(res_ptr):
 ###############################################
 
 # rktio_status_running
-@expose("rktio_status_running", [W_RKTIO_STATUS_PTR])
+@expose("rktio_status_running", [W_R_PTR])
 def rktio_status_running(w_stat_ptr):
     r_stat_ptr = rffi.cast(RKTIO_STATUS_PTR, w_stat_ptr.to_rffi())
-    return values.W_Bool.make(r_stat_ptr.running == 1)
+    running = rffi.cast(lltype.Signed, r_stat_ptr.c_running)
+    return values.W_Bool.make(running == 1)
 
 # rktio_status_result
-@expose("rktio_status_result", [W_RKTIO_STATUS_PTR])
+@expose("rktio_status_result", [W_R_PTR])
 def rktio_status_result(w_stat_ptr):
     r_stat_ptr = rffi.cast(RKTIO_STATUS_PTR, w_stat_ptr.to_rffi())
-    return _wrap_int(r_stat_ptr.result)
+    return _wrap_int(r_stat_ptr.c_result)
 
 # rktio_pipe_results
 @expose("rktio_pipe_results", [W_R_PTR])

@@ -636,25 +636,28 @@ def var_ref_from_unsafe_huh(varref):
 
 # Keeping the use of racket/fasl for future comparisons
 
-@expose("read-linklet-bundle-hash", [values.W_InputPort], simple=False)
-def read_linklet_bundle_hash(in_port, env, cont):
+@expose("read-linklet-bundle-hash", [values.W_Object, values.W_Object], simple=False)
+def read_linklet_bundle_hash(in_port, _, env, cont):
     from pycket.racket_entry import get_primitive
     from pycket.fasl import Fasl
     from pycket.util import console_log
 
-    current_load_relative_dir_path = get_primitive("current-load-relative-directory").get_cell_value(cont)
+    # INFO: Keeping the old way of using Fasl module here commented out,
+    # in case of future use
+
+    # current_load_relative_dir_path = get_primitive("current-load-relative-directory").get_cell_value(cont)
 
     fasl_to_s_exp = get_primitive("fasl->s-exp")
     with PerfRegion("fasl->s-exp"):
-        bundle_map = Fasl(current_load_relative_dir_path).to_sexp_from_w_port(in_port)
-        #return fasl_to_s_exp.call([in_port, values.w_true], env, read_linklet_cont(env, cont))
+        # bundle_map = Fasl(current_load_relative_dir_path).to_sexp_from_w_port(in_port)
+        bundle_map = fasl_to_s_exp.call_interpret([in_port, values.w_true])
     if not isinstance(bundle_map, W_HashTable):
         raise SchemeException("got something that is not a table: %s" % bundle_map.tostring())
     console_log("BUNDLE SEXP FASL-READ from ZO: %s" % deserialize_loop(bundle_map).tostring(), 7)
     with PerfRegion("s-exp->ast"):
         return return_value(deserialize_loop(bundle_map), env, cont)
 
-@expose("write-linklet-bundle-hash", [W_EqImmutableHashTable, values.W_OutputPort], simple=False)
+@expose("write-linklet-bundle-hash", [W_EqImmutableHashTable, values.W_Object], simple=False)
 def write_linklet_bundle_hash(ht, out_port, env, cont):
     from pycket.util import console_log
     from pycket.racket_entry import get_primitive

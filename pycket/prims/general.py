@@ -1777,6 +1777,7 @@ def detect_platform():
 
 w_system_sym = detect_platform()
 
+
 w_os_sym = values.W_Symbol.make("os")
 w_os_so_suffix = values.W_Symbol.make("so-suffix")
 w_os_so_mode_sym = values.W_Symbol.make("so-mode")
@@ -1797,23 +1798,32 @@ w_fs_low_latency = values.W_Symbol.make("low-latency")
 w_fs_file_level = values.W_Symbol.make("file-level")
 w_target_machine_sym = values.W_Symbol.make("target-machine")
 
-def system_type(w_what):
+w_f = values.w_false
+if w_system_sym is w_unix_sym:
+    default_fs_change_vector = vector.vector([w_fs_supported, w_fs_scalable, w_f, w_fs_file_level])
+else:
+    default_fs_change_vector = vector.vector([w_f, w_f, w_f, w_f])
+
+w_fs_change_vector_param = values_parameter.W_Parameter(default_fs_change_vector)
+
+def system_type(w_what, env, cont):
+    from pycket.interpreter import return_value
     # os
     if w_what is w_os_sym:
-        return w_system_sym
+        return return_value(w_system_sym, env, cont)
 
     # word
     if w_what is w_word_sym:
         #return values.W_Fixnum(8*struct.calcsize("P"))
-        return values.W_Fixnum(64)
+        return return_value(values.W_Fixnum(64), env, cont)
 
     # vm
     if w_what is w_vm_sym:
-        return values.W_Symbol.make("pycket")
+        return return_value(values.W_Symbol.make("pycket"), env, cont)
 
     # gc
     if w_what is w_gc_sym:
-        return values.W_Symbol.make("3m") # ??
+        return return_value(values.W_Symbol.make("3m"), env, cont) # ??
 
     # link
     #
@@ -1822,43 +1832,47 @@ def system_type(w_what):
     # 'dll (Windows)
     # 'framework (Mac OS)
     if w_what is w_link_sym:
-        return values.W_Symbol.make("static")
+        return return_value(values.W_Symbol.make("static"), env, cont)
 
     # machine
     if w_what is w_machine_sym:
-        return values_string.W_String.make("further details about the current machine in a platform-specific format")
+        return return_value(values_string.W_String.make("further details about the current machine in a platform-specific format"), env, cont)
 
     # so-suffix
     if w_what is w_os_so_suffix:
-        return w_unix_so_suffix
+        return return_value(w_unix_so_suffix, env, cont)
 
     # so-mode
     if w_what is w_os_so_mode_sym:
-        return w_local_mode
+        return return_value(w_local_mode, env, cont)
 
     # fs-change
     if w_what is w_fs_change_mode:
-        from pycket.prims.vector import vector
-        w_f = values.w_false
-        # FIXME: Is there a way to get this info from sys or os?
-        if w_system_sym is w_unix_sym:
-            return vector([w_fs_supported, w_fs_scalable, w_f, w_fs_file_level])
-        else:
-            return vector([w_f, w_f, w_f, w_f])
+        # this is the reason that this function is simple=False
+        v = w_fs_change_vector_param.get_cell_value(cont)
+        return return_value(v, env, cont)
 
     # cross
     if w_what is w_cross_sym:
-        return values.W_Symbol.make("infer")
+        return return_value(values.W_Symbol.make("infer"), env, cont)
 
     # cross
     if w_what is w_target_machine_sym:
-        return values.W_Symbol.make("pycket")
+        return return_value(values.W_Symbol.make("pycket"), env, cont)
 
     raise SchemeException("unexpected system-type symbol '%s" % w_what.utf8value)
 
-expose("system-type", [default(values.W_Symbol, w_os_sym)])(system_type)
+expose("system-type", [default(values.W_Symbol, w_os_sym)], simple=False)(system_type)
 
 _endian = sys.byteorder
+
+@expose("set-fs-change-properties!", [values_vector.W_Vector], simple=False)
+def set_fs_change_properties(w_vec, env, cont):
+    from pycket.interpreter import return_value
+
+    w_fs_change_vector_p_cell = w_fs_change_vector_param.get_cell(cont)
+    w_fs_change_vector_p_cell.set(w_vec)
+    return return_value(values.w_void, env, cont)
 
 @expose("system-big-endian?", [])
 def system_big_endian():

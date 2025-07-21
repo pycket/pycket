@@ -48,6 +48,14 @@ class SchemeException(Exception):
             result += "\n  in module: %s" % context.full_module_path()
         return result
 
+# Something went wrong at racket_entry
+class EntryException(SchemeException):
+    _attrs_ = ["msg"]
+    _immutable_ = True
+
+    def __init__(self, msg):
+        SchemeException.__init__(self, msg)
+
 class BootstrapError(SchemeException):
     _attrs_ = ["msg"]
     _immutable_ = True

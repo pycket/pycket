@@ -27,10 +27,11 @@ At each primitive definition, it adds the exposed function to the #%rktio module
 
 import os
 
-from pycket import values, values_string
+from pycket import base, values
 from pycket import vector as values_vector
 from pycket.prims.primitive_tables import add_prim_to_rktio
 from pycket.prims.expose import expose
+from pycket.foreign import W_CPointer, NULL_VOIDP
 
 from pycket.rktio.types import *
 from pycket.rktio.bootstrap_structs import *
@@ -53,7 +54,7 @@ librktio_a = ExternalCompilationInfo(
 )
 
 
-# Constants 
+# Constants
 
 RKTIO_LOCK_ERROR = -2
 RKTIO_ERROR_CANNOT_FILE_POSITION = 12
@@ -231,7 +232,7 @@ def rktio_get_error_string(w_rktio, w_kind, w_errid):
 
 	res = c_rktio_get_error_string(r_rktio, r_kind, r_errid)
 
-	# returns CCHARP
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -246,7 +247,7 @@ def rktio_get_last_error_string(w_rktio):
 
 	res = c_rktio_get_last_error_string(r_rktio)
 
-	# returns CCHARP
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -261,7 +262,7 @@ def rktio_remap_last_error(w_rktio):
 
 	c_rktio_remap_last_error(r_rktio)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -278,7 +279,7 @@ def rktio_set_last_error_step(w_rktio, w_step):
 
 	c_rktio_set_last_error_step(r_rktio, r_step)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -297,7 +298,7 @@ def rktio_set_last_error(w_rktio, w_kind, w_errid):
 
 	c_rktio_set_last_error(r_rktio, r_kind, r_errid)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -312,7 +313,7 @@ def rktio_get_last_error_step(w_rktio):
 
 	res = c_rktio_get_last_error_step(r_rktio)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -327,7 +328,7 @@ def rktio_get_last_error(w_rktio):
 
 	res = c_rktio_get_last_error(r_rktio)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -342,7 +343,7 @@ def rktio_get_last_error_kind(w_rktio):
 
 	res = c_rktio_get_last_error_kind(r_rktio)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -361,37 +362,37 @@ def rktio_set_dll_procs(w_dll_open, w_dll_find_object, w_dll_close):
 
 	c_rktio_set_dll_procs(r_dll_open, r_dll_find_object, r_dll_close)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
-c_rktio_sha2_final = rffi.llexternal('rktio_sha2_final', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_sha2_final = rffi.llexternal('rktio_sha2_final', [RKTIO_SHA2_CTX_PTR, UNSIGNED_8_PTR], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha2_final")
 
-@expose("rktio_sha2_final", [W_R_PTR, W_R_PTR], simple=True)
+@expose("rktio_sha2_final", [base.W_Object, base.W_Object], simple=True)
 def rktio_sha2_final(w_ctx, w_digest):
 
-	r_ctx = rffi.cast(R_PTR, w_ctx.to_rffi())
+	r_ctx = extract_sha2_ctx_ptr(w_ctx)
 
-	r_digest = rffi.cast(R_PTR, w_digest.to_rffi())
+	r_digest = extract_unsigned_8_ptr(w_digest)
 
 	c_rktio_sha2_final(r_ctx, r_digest)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
-c_rktio_sha2_update = rffi.llexternal('rktio_sha2_update', [R_PTR, R_PTR, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
+c_rktio_sha2_update = rffi.llexternal('rktio_sha2_update', [RKTIO_SHA2_CTX_PTR, UNSIGNED_8_PTR, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha2_update")
 
-@expose("rktio_sha2_update", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_sha2_update", [base.W_Object, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_sha2_update(w_ctx, w_data, w_start, w_end):
 
-	r_ctx = rffi.cast(R_PTR, w_ctx.to_rffi())
+	r_ctx = extract_sha2_ctx_ptr(w_ctx)
 
-	r_data = rffi.cast(R_PTR, w_data.to_rffi())
+	r_data = extract_unsigned_8_ptr(w_data)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -399,54 +400,54 @@ def rktio_sha2_update(w_ctx, w_data, w_start, w_end):
 
 	c_rktio_sha2_update(r_ctx, r_data, r_start, r_end)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
-c_rktio_sha2_init = rffi.llexternal('rktio_sha2_init', [R_PTR, RKTIO_BOOL_T], VOID, compilation_info=librktio_a)
+c_rktio_sha2_init = rffi.llexternal('rktio_sha2_init', [RKTIO_SHA2_CTX_PTR, RKTIO_BOOL_T], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha2_init")
 
-@expose("rktio_sha2_init", [W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_sha2_init", [base.W_Object, values.W_Bool], simple=True)
 def rktio_sha2_init(w_ctx, w_is224):
 
-	r_ctx = rffi.cast(R_PTR, w_ctx.to_rffi())
+	r_ctx = extract_sha2_ctx_ptr(w_ctx)
 
 	r_is224 = rffi.cast(rffi.INT, 1 if w_is224 is values.w_true else 0)
 
 	c_rktio_sha2_init(r_ctx, r_is224)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
-c_rktio_sha1_final = rffi.llexternal('rktio_sha1_final', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_sha1_final = rffi.llexternal('rktio_sha1_final', [RKTIO_SHA1_CTX_PTR, UNSIGNED_8_PTR], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha1_final")
 
-@expose("rktio_sha1_final", [W_R_PTR, W_R_PTR], simple=True)
+@expose("rktio_sha1_final", [base.W_Object, base.W_Object], simple=True)
 def rktio_sha1_final(w_context, w_digest):
 
-	r_context = rffi.cast(R_PTR, w_context.to_rffi())
+	r_context = extract_sha1_ctx_ptr(w_context)
 
-	r_digest = rffi.cast(R_PTR, w_digest.to_rffi())
+	r_digest = extract_unsigned_8_ptr(w_digest)
 
 	c_rktio_sha1_final(r_context, r_digest)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
-c_rktio_sha1_update = rffi.llexternal('rktio_sha1_update', [R_PTR, R_PTR, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
+c_rktio_sha1_update = rffi.llexternal('rktio_sha1_update', [RKTIO_SHA1_CTX_PTR, UNSIGNED_8_PTR, INTPTR_T, INTPTR_T], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha1_update")
 
-@expose("rktio_sha1_update", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_sha1_update", [base.W_Object, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_sha1_update(w_context, w_data, w_start, w_end):
 
-	r_context = rffi.cast(R_PTR, w_context.to_rffi())
+	r_context = extract_sha1_ctx_ptr(w_context)
 
-	r_data = rffi.cast(R_PTR, w_data.to_rffi())
+	r_data = extract_unsigned_8_ptr(w_data)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -454,39 +455,39 @@ def rktio_sha1_update(w_context, w_data, w_start, w_end):
 
 	c_rktio_sha1_update(r_context, r_data, r_start, r_end)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
-c_rktio_sha1_init = rffi.llexternal('rktio_sha1_init', [R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_sha1_init = rffi.llexternal('rktio_sha1_init', [RKTIO_SHA1_CTX_PTR], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_sha1_init")
 
-@expose("rktio_sha1_init", [W_R_PTR], simple=True)
+@expose("rktio_sha1_init", [base.W_Object], simple=True)
 def rktio_sha1_init(w_context):
 
-	r_context = rffi.cast(R_PTR, w_context.to_rffi())
+	r_context = extract_sha1_ctx_ptr(w_context)
 
 	c_rktio_sha1_init(r_context)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
-c_rktio_pop_c_numeric_locale = rffi.llexternal('rktio_pop_c_numeric_locale', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_pop_c_numeric_locale = rffi.llexternal('rktio_pop_c_numeric_locale', [R_PTR, VOIDP], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_pop_c_numeric_locale")
 
-@expose("rktio_pop_c_numeric_locale", [W_R_PTR, W_R_PTR], simple=True)
+@expose("rktio_pop_c_numeric_locale", [W_R_PTR, W_CPointer], simple=True)
 def rktio_pop_c_numeric_locale(w_rktio, w_prev):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	r_prev = rffi.cast(R_PTR, w_prev.to_rffi())
+	r_prev = w_prev.as_voidp()
 
 	c_rktio_pop_c_numeric_locale(r_rktio, r_prev)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -501,7 +502,10 @@ def rktio_push_c_numeric_locale(w_rktio):
 
 	res = c_rktio_push_c_numeric_locale(r_rktio)
 
-	# returns R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -509,16 +513,15 @@ c_rktio_set_default_locale = rffi.llexternal('rktio_set_default_locale', [RKTIO_
 
 add_prim_to_rktio("rktio_set_default_locale")
 
-@expose("rktio_set_default_locale", [values_string.W_String], simple=True)
+@expose("rktio_set_default_locale", [values.W_Bytes], simple=True)
 def rktio_set_default_locale(w_name):
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	c_rktio_set_default_locale(r_name)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -526,35 +529,34 @@ c_rktio_set_locale = rffi.llexternal('rktio_set_locale', [R_PTR, RKTIO_CONST_STR
 
 add_prim_to_rktio("rktio_set_locale")
 
-@expose("rktio_set_locale", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_set_locale", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_set_locale(w_rktio, w_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	c_rktio_set_locale(r_rktio, r_name)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
-c_rktio_strcoll_utf16 = rffi.llexternal('rktio_strcoll_utf16', [R_PTR, R_PTR, INTPTR_T, R_PTR, INTPTR_T, RKTIO_BOOL_T], INT, compilation_info=librktio_a)
+c_rktio_strcoll_utf16 = rffi.llexternal('rktio_strcoll_utf16', [R_PTR, RKTIO_CHAR16_T_PTR, INTPTR_T, RKTIO_CHAR16_T_PTR, INTPTR_T, RKTIO_BOOL_T], INT, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_strcoll_utf16")
 
-@expose("rktio_strcoll_utf16", [W_R_PTR, W_R_PTR, values.W_Fixnum, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_strcoll_utf16", [W_R_PTR, base.W_Object, values.W_Fixnum, base.W_Object, values.W_Fixnum, values.W_Bool], simple=True)
 def rktio_strcoll_utf16(w_rktio, w_s1, w_l1, w_s2, w_l2, w_cvt_case):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	r_s1 = rffi.cast(R_PTR, w_s1.to_rffi())
+	r_s1 = extract_char16_t_ptr(w_s1)
 
 	r_l1 = rffi.cast(rffi.SSIZE_T, w_l1.value)
 
-	r_s2 = rffi.cast(R_PTR, w_s2.to_rffi())
+	r_s2 = extract_char16_t_ptr(w_s2)
 
 	r_l2 = rffi.cast(rffi.SSIZE_T, w_l2.value)
 
@@ -562,7 +564,7 @@ def rktio_strcoll_utf16(w_rktio, w_s1, w_l1, w_s2, w_l2, w_cvt_case):
 
 	res = c_rktio_strcoll_utf16(r_rktio, r_s1, r_l1, r_s2, r_l2, r_cvt_case)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -570,45 +572,46 @@ c_rktio_locale_strcoll = rffi.llexternal('rktio_locale_strcoll', [R_PTR, RKTIO_C
 
 add_prim_to_rktio("rktio_locale_strcoll")
 
-@expose("rktio_locale_strcoll", [W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
+@expose("rktio_locale_strcoll", [W_R_PTR, values.W_Bytes, values.W_Bytes], simple=True)
 def rktio_locale_strcoll(w_rktio, w_s1, w_s2):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_s1.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_s1.as_str()
 	r_s1 = rffi.str2charp(p_str)
 
-	_p_str = w_s2.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_s2.as_str()
 	r_s2 = rffi.str2charp(p_str)
 
 	res = c_rktio_locale_strcoll(r_rktio, r_s1, r_s2)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
-c_rktio_recase_utf16 = rffi.llexternal('rktio_recase_utf16', [R_PTR, RKTIO_BOOL_T, R_PTR, INTPTR_T, R_PTR], R_PTR, compilation_info=librktio_a)
+c_rktio_recase_utf16 = rffi.llexternal('rktio_recase_utf16', [R_PTR, RKTIO_BOOL_T, RKTIO_CHAR16_T_PTR, INTPTR_T, INTPTR_T_PTR], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_recase_utf16")
 
-@expose("rktio_recase_utf16", [W_R_PTR, values.W_Fixnum, W_R_PTR, values.W_Fixnum, W_R_PTR], simple=True)
+@expose("rktio_recase_utf16", [W_R_PTR, values.W_Bool, base.W_Object, values.W_Fixnum, base.W_Object], simple=True)
 def rktio_recase_utf16(w_rktio, w_to_up, w_s1, w_len, w_olen):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_to_up = rffi.cast(rffi.INT, 1 if w_to_up is values.w_true else 0)
 
-	r_s1 = rffi.cast(R_PTR, w_s1.to_rffi())
+	r_s1 = extract_char16_t_ptr(w_s1)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
-	r_olen = rffi.cast(R_PTR, w_olen.to_rffi())
+	r_olen = extract_intptr_t_ptr(w_olen)
 
 	res = c_rktio_recase_utf16(r_rktio, r_to_up, r_s1, r_len, r_olen)
 
-	# returns R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -616,20 +619,19 @@ c_rktio_locale_recase = rffi.llexternal('rktio_locale_recase', [R_PTR, RKTIO_BOO
 
 add_prim_to_rktio("rktio_locale_recase")
 
-@expose("rktio_locale_recase", [W_R_PTR, values.W_Fixnum, values_string.W_String], simple=True)
+@expose("rktio_locale_recase", [W_R_PTR, values.W_Bool, values.W_Bytes], simple=True)
 def rktio_locale_recase(w_rktio, w_to_up, w_in):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_to_up = rffi.cast(rffi.INT, 1 if w_to_up is values.w_true else 0)
 
-	_p_str = w_in.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_in.as_str()
 	r_in = rffi.str2charp(p_str)
 
 	res = c_rktio_locale_recase(r_rktio, r_to_up, r_in)
 
-	# returns CCHARP
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -646,7 +648,7 @@ def rktio_convert_reset(w_rktio, w_cvt):
 
 	c_rktio_convert_reset(r_rktio, r_cvt)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -663,7 +665,7 @@ def rktio_converter_close(w_rktio, w_cvt):
 
 	c_rktio_converter_close(r_rktio, r_cvt)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -678,7 +680,7 @@ def rktio_convert_properties(w_rktio):
 
 	res = c_rktio_convert_properties(r_rktio)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -693,24 +695,24 @@ def rktio_processor_count(w_rktio):
 
 	res = c_rktio_processor_count(r_rktio)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
-c_rktio_wide_path_to_path = rffi.llexternal('rktio_wide_path_to_path', [R_PTR, R_PTR], CCHARP, compilation_info=librktio_a)
+c_rktio_wide_path_to_path = rffi.llexternal('rktio_wide_path_to_path', [R_PTR, RKTIO_CHAR16_T_PTR], CCHARP, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_wide_path_to_path")
 
-@expose("rktio_wide_path_to_path", [W_R_PTR, W_R_PTR], simple=True)
+@expose("rktio_wide_path_to_path", [W_R_PTR, base.W_Object], simple=True)
 def rktio_wide_path_to_path(w_rktio, w_wp):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	r_wp = rffi.cast(R_PTR, w_wp.to_rffi())
+	r_wp = extract_char16_t_ptr(w_wp)
 
 	res = c_rktio_wide_path_to_path(r_rktio, r_wp)
 
-	# returns CCHARP
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -725,7 +727,7 @@ def rktio_get_seconds(w_rktio):
 
 	res = c_rktio_get_seconds(r_rktio)
 
-	# returns RKTIO_TIMESTAMP_T
+	# res is a RKTIO_TIMESTAMP_T
 	return values.W_Fixnum(res)
 
 
@@ -740,7 +742,7 @@ def rktio_get_process_children_milliseconds(w_rktio):
 
 	res = c_rktio_get_process_children_milliseconds(r_rktio)
 
-	# returns UINTPTR_T
+	# res is a UINTPTR_T
 	return num(intmask(res))
 
 
@@ -755,7 +757,7 @@ def rktio_get_process_milliseconds(w_rktio):
 
 	res = c_rktio_get_process_milliseconds(r_rktio)
 
-	# returns UINTPTR_T
+	# res is a UINTPTR_T
 	return num(intmask(res))
 
 
@@ -770,7 +772,7 @@ def rktio_get_inexact_monotonic_milliseconds(w_rktio):
 
 	res = c_rktio_get_inexact_monotonic_milliseconds(r_rktio)
 
-	# returns DOUBLE
+	# res is a DOUBLE
 	return values.W_Flonum(res)
 
 
@@ -784,7 +786,7 @@ def rktio_get_inexact_milliseconds():
 
 	res = c_rktio_get_inexact_milliseconds()
 
-	# returns DOUBLE
+	# res is a DOUBLE
 	return values.W_Flonum(res)
 
 
@@ -798,7 +800,7 @@ def rktio_get_milliseconds():
 
 	res = c_rktio_get_milliseconds()
 
-	# returns UINTPTR_T
+	# res is a UINTPTR_T
 	return num(intmask(res))
 
 
@@ -813,7 +815,7 @@ def rktio_will_modify_os_signal_handler(w_sig_id):
 
 	c_rktio_will_modify_os_signal_handler(r_sig_id)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -828,7 +830,7 @@ def rktio_poll_os_signal(w_rktio):
 
 	res = c_rktio_poll_os_signal(r_rktio)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -843,7 +845,7 @@ def rktio_install_os_signal_handler(w_rktio):
 
 	c_rktio_install_os_signal_handler(r_rktio)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -858,7 +860,7 @@ def rktio_flush_signals_received(w_rktio):
 
 	c_rktio_flush_signals_received(r_rktio)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -873,7 +875,7 @@ def rktio_wait_until_signal_received(w_rktio):
 
 	c_rktio_wait_until_signal_received(r_rktio)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -888,7 +890,7 @@ def rktio_signal_received(w_rktio):
 
 	c_rktio_signal_received(r_rktio)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -903,7 +905,7 @@ def rktio_signal_received_at(w_h):
 
 	c_rktio_signal_received_at(r_h)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -918,7 +920,10 @@ def rktio_get_signal_handle(w_rktio):
 
 	res = c_rktio_get_signal_handle(r_rktio)
 
-	# returns R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -933,7 +938,7 @@ def rktio_uname(w_rktio):
 
 	res = c_rktio_uname(r_rktio)
 
-	# returns CCHARP
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -950,7 +955,7 @@ def rktio_copy_file_stop(w_rktio, w_fc):
 
 	c_rktio_copy_file_stop(r_rktio, r_fc)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -967,8 +972,8 @@ def rktio_copy_file_is_done(w_rktio, w_fc):
 
 	res = c_rktio_copy_file_is_done(r_rktio, r_fc)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_directory_list_stop = rffi.llexternal('rktio_directory_list_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
@@ -984,7 +989,7 @@ def rktio_directory_list_stop(w_rktio, w_dl):
 
 	c_rktio_directory_list_stop(r_rktio, r_dl)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -992,76 +997,72 @@ c_rktio_is_regular_file = rffi.llexternal('rktio_is_regular_file', [R_PTR, RKTIO
 
 add_prim_to_rktio("rktio_is_regular_file")
 
-@expose("rktio_is_regular_file", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_is_regular_file", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_is_regular_file(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_is_regular_file(r_rktio, r_filename)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_link_exists = rffi.llexternal('rktio_link_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_link_exists")
 
-@expose("rktio_link_exists", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_link_exists", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_link_exists(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_link_exists(r_rktio, r_filename)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_directory_exists = rffi.llexternal('rktio_directory_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_directory_exists")
 
-@expose("rktio_directory_exists", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_directory_exists", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_directory_exists(w_rktio, w_dirname):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_dirname.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dirname.as_str()
 	r_dirname = rffi.str2charp(p_str)
 
 	res = c_rktio_directory_exists(r_rktio, r_dirname)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_file_exists = rffi.llexternal('rktio_file_exists', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_file_exists")
 
-@expose("rktio_file_exists", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_file_exists", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_file_exists(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_file_exists(r_rktio, r_filename)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_end_sleep = rffi.llexternal('rktio_end_sleep', [R_PTR], VOID, compilation_info=librktio_a)
@@ -1075,7 +1076,7 @@ def rktio_end_sleep(w_rktio):
 
 	c_rktio_end_sleep(r_rktio)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1096,7 +1097,7 @@ def rktio_sleep(w_rktio, w_nsecs, w_fds, w_lt):
 
 	c_rktio_sleep(r_rktio, r_nsecs, r_fds, r_lt)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1115,7 +1116,7 @@ def rktio_ltps_handle_set_auto(w_rktio, w_lth, w_auto_mode):
 
 	c_rktio_ltps_handle_set_auto(r_rktio, r_lth, r_auto_mode)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1132,7 +1133,7 @@ def rktio_ltps_remove_all(w_rktio, w_lt):
 
 	c_rktio_ltps_remove_all(r_rktio, r_lt)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1149,26 +1150,29 @@ def rktio_ltps_handle_get_data(w_rktio, w_h):
 
 	res = c_rktio_ltps_handle_get_data(r_rktio, r_h)
 
-	# returns R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
-c_rktio_ltps_handle_set_data = rffi.llexternal('rktio_ltps_handle_set_data', [R_PTR, R_PTR, R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_ltps_handle_set_data = rffi.llexternal('rktio_ltps_handle_set_data', [R_PTR, R_PTR, VOIDP], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_ltps_handle_set_data")
 
-@expose("rktio_ltps_handle_set_data", [W_R_PTR, W_R_PTR, W_R_PTR], simple=True)
+@expose("rktio_ltps_handle_set_data", [W_R_PTR, W_R_PTR, W_CPointer], simple=True)
 def rktio_ltps_handle_set_data(w_rktio, w_h, w_data):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_h = rffi.cast(R_PTR, w_h.to_rffi())
 
-	r_data = rffi.cast(R_PTR, w_data.to_rffi())
+	r_data = w_data.as_voidp()
 
 	c_rktio_ltps_handle_set_data(r_rktio, r_h, r_data)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1185,7 +1189,7 @@ def rktio_ltps_close(w_rktio, w_lt):
 
 	c_rktio_ltps_close(r_rktio, r_lt)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1200,7 +1204,7 @@ def rkio_reset_sleep_backoff(w_rktio):
 
 	c_rkio_reset_sleep_backoff(r_rktio)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1219,7 +1223,7 @@ def rktio_poll_set_add_eventmask(w_rktio, w_fds, w_mask):
 
 	c_rktio_poll_set_add_eventmask(r_rktio, r_fds, r_mask)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1240,7 +1244,7 @@ def rktio_poll_set_add_handle(w_rktio, w_h, w_fds, w_repost):
 
 	c_rktio_poll_set_add_handle(r_rktio, r_h, r_fds, r_repost)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1257,7 +1261,7 @@ def rktio_poll_set_add_nosleep(w_rktio, w_fds):
 
 	c_rktio_poll_set_add_nosleep(r_rktio, r_fds)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1276,7 +1280,7 @@ def rktio_poll_add_fs_change(w_rktio, w_fc, w_fds):
 
 	c_rktio_poll_add_fs_change(r_rktio, r_fc, r_fds)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1295,7 +1299,7 @@ def rktio_poll_add_process(w_rktio, w_sp, w_fds):
 
 	c_rktio_poll_add_process(r_rktio, r_sp, r_fds)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1314,7 +1318,7 @@ def rktio_poll_add_addrinfo_lookup(w_rktio, w_lookup, w_fds):
 
 	c_rktio_poll_add_addrinfo_lookup(r_rktio, r_lookup, r_fds)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1333,7 +1337,7 @@ def rktio_poll_add_connect(w_rktio, w_conn, w_fds):
 
 	c_rktio_poll_add_connect(r_rktio, r_conn, r_fds)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1352,7 +1356,7 @@ def rktio_poll_add_accept(w_rktio, w_listener, w_fds):
 
 	c_rktio_poll_add_accept(r_rktio, r_listener, r_fds)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1373,7 +1377,7 @@ def rktio_poll_add(w_rktio, w_rfd, w_fds, w_modes):
 
 	c_rktio_poll_add(r_rktio, r_rfd, r_fds, r_modes)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1390,7 +1394,7 @@ def rktio_poll_set_forget(w_rktio, w_fds):
 
 	c_rktio_poll_set_forget(r_rktio, r_fds)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1407,7 +1411,7 @@ def rktio_fs_change_forget(w_rktio, w_fc):
 
 	c_rktio_fs_change_forget(r_rktio, r_fc)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1422,7 +1426,7 @@ def rktio_fs_change_properties(w_rktio):
 
 	res = c_rktio_fs_change_properties(r_rktio)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -1437,7 +1441,7 @@ def rktio_reap_processes(w_rktio):
 
 	c_rktio_reap_processes(r_rktio)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1454,7 +1458,7 @@ def rktio_process_forget(w_rktio, w_sp):
 
 	c_rktio_process_forget(r_rktio, r_sp)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1471,7 +1475,7 @@ def rktio_process_pid(w_rktio, w_sp):
 
 	res = c_rktio_process_pid(r_rktio, r_sp)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -1486,7 +1490,7 @@ def rktio_process_allowed_flags(w_rktio):
 
 	res = c_rktio_process_allowed_flags(r_rktio)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -1503,7 +1507,7 @@ def rktio_envvars_count(w_rktio, w_envvars):
 
 	res = c_rktio_envvars_count(r_rktio, r_envvars)
 
-	# returns INTPTR_T
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
@@ -1511,24 +1515,22 @@ c_rktio_envvars_set = rffi.llexternal('rktio_envvars_set', [R_PTR, R_PTR, RKTIO_
 
 add_prim_to_rktio("rktio_envvars_set")
 
-@expose("rktio_envvars_set", [W_R_PTR, W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
+@expose("rktio_envvars_set", [W_R_PTR, W_R_PTR, values.W_Bytes, values.W_Bytes], simple=True)
 def rktio_envvars_set(w_rktio, w_envvars, w_name, w_value):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_envvars = rffi.cast(R_PTR, w_envvars.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
-	_p_str = w_value.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_value.as_str()
 	r_value = rffi.str2charp(p_str)
 
 	c_rktio_envvars_set(r_rktio, r_envvars, r_name, r_value)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1545,7 +1547,7 @@ def rktio_envvars_free(w_rktio, w_envvars):
 
 	c_rktio_envvars_free(r_rktio, r_envvars)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1560,27 +1562,26 @@ def rktio_are_envvar_names_case_insensitive(w_rktio):
 
 	res = c_rktio_are_envvar_names_case_insensitive(r_rktio)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_is_ok_envvar_name = rffi.llexternal('rktio_is_ok_envvar_name', [R_PTR, RKTIO_CONST_STRING_T], RKTIO_BOOL_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_is_ok_envvar_name")
 
-@expose("rktio_is_ok_envvar_name", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_is_ok_envvar_name", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_is_ok_envvar_name(w_rktio, w_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	res = c_rktio_is_ok_envvar_name(r_rktio, r_name)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_connect_stop = rffi.llexternal('rktio_connect_stop', [R_PTR, R_PTR], VOID, compilation_info=librktio_a)
@@ -1596,7 +1597,7 @@ def rktio_connect_stop(w_rktio, w_conn):
 
 	c_rktio_connect_stop(r_rktio, r_conn)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1613,7 +1614,7 @@ def rktio_listen_stop(w_rktio, w_l):
 
 	c_rktio_listen_stop(r_rktio, r_l)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1630,7 +1631,7 @@ def rktio_addrinfo_free(w_rktio, w_a):
 
 	c_rktio_addrinfo_free(r_rktio, r_a)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1647,7 +1648,7 @@ def rktio_addrinfo_lookup_stop(w_rktio, w_lookup):
 
 	c_rktio_addrinfo_lookup_stop(r_rktio, r_lookup)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1662,7 +1663,7 @@ def rktio_get_ipv4_family(w_rktio):
 
 	res = c_rktio_get_ipv4_family(r_rktio)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -1677,7 +1678,7 @@ def rktio_fd_close_transfer(w_rfdt):
 
 	c_rktio_fd_close_transfer(r_rfdt)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1694,7 +1695,10 @@ def rktio_fd_attach(w_rktio, w_rfdt):
 
 	res = c_rktio_fd_attach(r_rktio, r_rfdt)
 
-	# returns R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -1711,7 +1715,10 @@ def rktio_fd_detach(w_rktio, w_rfd):
 
 	res = c_rktio_fd_detach(r_rktio, r_rfd)
 
-	# returns R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -1728,7 +1735,7 @@ def rktio_buffered_byte_count(w_rktio, w_fd):
 
 	res = c_rktio_buffered_byte_count(r_rktio, r_fd)
 
-	# returns INTPTR_T
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
@@ -1742,7 +1749,7 @@ def rktio_create_console():
 
 	c_rktio_create_console()
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1759,7 +1766,7 @@ def rktio_forget(w_rktio, w_fd):
 
 	c_rktio_forget(r_rktio, r_fd)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1776,7 +1783,7 @@ def rktio_close_noerr(w_rktio, w_fd):
 
 	c_rktio_close_noerr(r_rktio, r_fd)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1793,7 +1800,7 @@ def rktio_fd_modes(w_rktio, w_rfd):
 
 	res = c_rktio_fd_modes(r_rktio, r_rfd)
 
-	# returns INT
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -1810,8 +1817,8 @@ def rktio_fd_is_pending_open(w_rktio, w_rfd):
 
 	res = c_rktio_fd_is_pending_open(r_rktio, r_rfd)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_text_converted = rffi.llexternal('rktio_fd_is_text_converted', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1827,8 +1834,8 @@ def rktio_fd_is_text_converted(w_rktio, w_rfd):
 
 	res = c_rktio_fd_is_text_converted(r_rktio, r_rfd)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_terminal = rffi.llexternal('rktio_fd_is_terminal', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1844,8 +1851,8 @@ def rktio_fd_is_terminal(w_rktio, w_rfd):
 
 	res = c_rktio_fd_is_terminal(r_rktio, r_rfd)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_udp = rffi.llexternal('rktio_fd_is_udp', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1861,8 +1868,8 @@ def rktio_fd_is_udp(w_rktio, w_rfd):
 
 	res = c_rktio_fd_is_udp(r_rktio, r_rfd)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_socket = rffi.llexternal('rktio_fd_is_socket', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1878,8 +1885,8 @@ def rktio_fd_is_socket(w_rktio, w_rfd):
 
 	res = c_rktio_fd_is_socket(r_rktio, r_rfd)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_directory = rffi.llexternal('rktio_fd_is_directory', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1895,8 +1902,8 @@ def rktio_fd_is_directory(w_rktio, w_rfd):
 
 	res = c_rktio_fd_is_directory(r_rktio, r_rfd)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_is_regular_file = rffi.llexternal('rktio_fd_is_regular_file', [R_PTR, R_PTR], RKTIO_BOOL_T, compilation_info=librktio_a)
@@ -1912,8 +1919,8 @@ def rktio_fd_is_regular_file(w_rktio, w_rfd):
 
 	res = c_rktio_fd_is_regular_file(r_rktio, r_rfd)
 
-	# returns RKTIO_BOOL_T
-	return values.W_Fixnum(res)
+	# res is a RKTIO_BOOL_T
+	return values.W_Bool.make(res == 1)
 
 
 c_rktio_fd_system_fd = rffi.llexternal('rktio_fd_system_fd', [R_PTR, R_PTR], INTPTR_T, compilation_info=librktio_a)
@@ -1929,37 +1936,37 @@ def rktio_fd_system_fd(w_rktio, w_rfd):
 
 	res = c_rktio_fd_system_fd(r_rktio, r_rfd)
 
-	# returns INTPTR_T
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
-c_rktio_set_dll_path = rffi.llexternal('rktio_set_dll_path', [R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_set_dll_path = rffi.llexternal('rktio_set_dll_path', [RKTIO_CHAR16_T_PTR], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_set_dll_path")
 
-@expose("rktio_set_dll_path", [W_R_PTR], simple=True)
+@expose("rktio_set_dll_path", [base.W_Object], simple=True)
 def rktio_set_dll_path(w_p):
 
-	r_p = rffi.cast(R_PTR, w_p.to_rffi())
+	r_p = extract_char16_t_ptr(w_p)
 
 	c_rktio_set_dll_path(r_p)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
-c_rktio_free = rffi.llexternal('rktio_free', [R_PTR], VOID, compilation_info=librktio_a)
+c_rktio_free = rffi.llexternal('rktio_free', [VOIDP], VOID, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_free")
 
-@expose("rktio_free", [W_R_PTR], simple=True)
+@expose("rktio_free", [W_CPointer], simple=True)
 def rktio_free(w_p):
 
-	r_p = rffi.cast(R_PTR, w_p.to_rffi())
+	r_p = w_p.as_voidp()
 
 	c_rktio_free(r_p)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1974,7 +1981,7 @@ def rktio_destroy(w_rktio):
 
 	c_rktio_destroy(r_rktio)
 
-	# returns VOID
+	# res is a VOID
 	return values.w_void
 
 
@@ -1988,7 +1995,10 @@ def rktio_init():
 
 	res = c_rktio_init()
 
-	# returns R_PTR
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2007,7 +2017,10 @@ def rktio_dll_get_error(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -2028,7 +2041,10 @@ def rktio_dll_close(w_rktio, w_dll):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2036,15 +2052,14 @@ c_rktio_dll_find_object = rffi.llexternal('rktio_dll_find_object', [R_PTR, R_PTR
 
 add_prim_to_rktio("rktio_dll_find_object")
 
-@expose("rktio_dll_find_object", [W_R_PTR, W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_dll_find_object", [W_R_PTR, W_R_PTR, values.W_Bytes], simple=True)
 def rktio_dll_find_object(w_rktio, w_dll, w_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_dll = rffi.cast(R_PTR, w_dll.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	res = c_rktio_dll_find_object(r_rktio, r_dll, r_name)
@@ -2053,7 +2068,13 @@ def rktio_dll_find_object(w_rktio, w_dll, w_name):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2061,13 +2082,12 @@ c_rktio_dll_open = rffi.llexternal('rktio_dll_open', [R_PTR, RKTIO_CONST_STRING_
 
 add_prim_to_rktio("rktio_dll_open")
 
-@expose("rktio_dll_open", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_dll_open", [W_R_PTR, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_dll_open(w_rktio, w_name, w_as_global):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	r_as_global = rffi.cast(rffi.INT, 1 if w_as_global is values.w_true else 0)
@@ -2078,7 +2098,13 @@ def rktio_dll_open(w_rktio, w_name, w_as_global):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2097,7 +2123,10 @@ def rktio_system_language_country(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -2116,28 +2145,31 @@ def rktio_locale_encoding(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
-c_rktio_convert_in = rffi.llexternal('rktio_convert_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T, CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
+c_rktio_convert_in = rffi.llexternal('rktio_convert_in', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_convert_in")
 
-@expose("rktio_convert_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_convert_in", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_convert_in(w_rktio, w_cvt, w_in, w_in_start, w_in_end, w_out, w_out_start, w_out_end):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_cvt = rffi.cast(R_PTR, w_cvt.to_rffi())
 
-	r_in = rffi.cast(CCHARP, w_in.to_rffi())
+	r_in = extract_ccharp(w_in)
 
 	r_in_start = rffi.cast(rffi.SSIZE_T, w_in_start.value)
 
 	r_in_end = rffi.cast(rffi.SSIZE_T, w_in_end.value)
 
-	r_out = rffi.cast(CCHARP, w_out.to_rffi())
+	r_out = extract_ccharp(w_out)
 
 	r_out_start = rffi.cast(rffi.SSIZE_T, w_out_start.value)
 
@@ -2149,15 +2181,26 @@ def rktio_convert_in(w_rktio, w_cvt, w_in, w_in_start, w_in_end, w_out, w_out_st
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_out, values.W_MutableBytes):
+		w_out.replace_bytes(list(rffi.charpsize2str(r_out, w_out.length())))
+
+	if isinstance(w_in, values.W_MutableBytes):
+		w_in.replace_bytes(list(rffi.charpsize2str(r_in, w_in.length())))
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
-c_rktio_convert = rffi.llexternal('rktio_convert', [R_PTR, R_PTR, CCHARPP, R_PTR, CCHARPP, R_PTR], INTPTR_T, compilation_info=librktio_a)
+c_rktio_convert = rffi.llexternal('rktio_convert', [R_PTR, R_PTR, CCHARPP, INTPTR_T_PTR, CCHARPP, INTPTR_T_PTR], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_convert")
 
-@expose("rktio_convert", [W_R_PTR, W_R_PTR, W_CCHARPP, W_R_PTR, W_CCHARPP, W_R_PTR], simple=True)
+@expose("rktio_convert", [W_R_PTR, W_R_PTR, W_CCHARPP, base.W_Object, W_CCHARPP, base.W_Object], simple=True)
 def rktio_convert(w_rktio, w_cvt, w_in, w_in_left, w_out, w_out_left):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -2166,11 +2209,11 @@ def rktio_convert(w_rktio, w_cvt, w_in, w_in_left, w_out, w_out_left):
 
 	r_in = rffi.cast(CCHARPP, w_in.to_rffi())
 
-	r_in_left = rffi.cast(R_PTR, w_in_left.to_rffi())
+	r_in_left = extract_intptr_t_ptr(w_in_left)
 
 	r_out = rffi.cast(CCHARPP, w_out.to_rffi())
 
-	r_out_left = rffi.cast(R_PTR, w_out_left.to_rffi())
+	r_out_left = extract_intptr_t_ptr(w_out_left)
 
 	res = c_rktio_convert(r_rktio, r_cvt, r_in, r_in_left, r_out, r_out_left)
 
@@ -2178,7 +2221,10 @@ def rktio_convert(w_rktio, w_cvt, w_in, w_in_left, w_out, w_out_left):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INTPTR_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
@@ -2186,17 +2232,15 @@ c_rktio_converter_open = rffi.llexternal('rktio_converter_open', [R_PTR, RKTIO_C
 
 add_prim_to_rktio("rktio_converter_open")
 
-@expose("rktio_converter_open", [W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
+@expose("rktio_converter_open", [W_R_PTR, values.W_Bytes, values.W_Bytes], simple=True)
 def rktio_converter_open(w_rktio, w_to_enc, w_from_enc):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_to_enc.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_to_enc.as_str()
 	r_to_enc = rffi.str2charp(p_str)
 
-	_p_str = w_from_enc.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_from_enc.as_str()
 	r_from_enc = rffi.str2charp(p_str)
 
 	res = c_rktio_converter_open(r_rktio, r_to_enc, r_from_enc)
@@ -2205,7 +2249,13 @@ def rktio_converter_open(w_rktio, w_to_enc, w_from_enc):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2213,23 +2263,20 @@ c_rktio_syslog = rffi.llexternal('rktio_syslog', [R_PTR, INT, RKTIO_CONST_STRING
 
 add_prim_to_rktio("rktio_syslog")
 
-@expose("rktio_syslog", [W_R_PTR, values.W_Fixnum, values_string.W_String, values_string.W_String, values_string.W_String], simple=True)
+@expose("rktio_syslog", [W_R_PTR, values.W_Fixnum, values.W_Bytes, values.W_Bytes, values.W_Bytes], simple=True)
 def rktio_syslog(w_rktio, w_level, w_name, w_msg, w_exec_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_level = rffi.cast(rffi.INT, w_level.value)
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
-	_p_str = w_msg.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_msg.as_str()
 	r_msg = rffi.str2charp(p_str)
 
-	_p_str = w_exec_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_exec_name.as_str()
 	r_exec_name = rffi.str2charp(p_str)
 
 	res = c_rktio_syslog(r_rktio, r_level, r_name, r_msg, r_exec_name)
@@ -2238,7 +2285,10 @@ def rktio_syslog(w_rktio, w_level, w_name, w_msg, w_exec_name):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2246,13 +2296,12 @@ c_rktio_path_to_wide_path = rffi.llexternal('rktio_path_to_wide_path', [R_PTR, R
 
 add_prim_to_rktio("rktio_path_to_wide_path")
 
-@expose("rktio_path_to_wide_path", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_path_to_wide_path", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_path_to_wide_path(w_rktio, w_p):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_p.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_p.as_str()
 	r_p = rffi.str2charp(p_str)
 
 	res = c_rktio_path_to_wide_path(r_rktio, r_p)
@@ -2261,7 +2310,13 @@ def rktio_path_to_wide_path(w_rktio, w_p):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2269,25 +2324,21 @@ c_rktio_shell_execute = rffi.llexternal('rktio_shell_execute', [R_PTR, RKTIO_CON
 
 add_prim_to_rktio("rktio_shell_execute")
 
-@expose("rktio_shell_execute", [W_R_PTR, values_string.W_String, values_string.W_String, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_shell_execute", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bytes, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_shell_execute(w_rktio, w_verb, w_target, w_arg, w_dir, w_show_mode):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_verb.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_verb.as_str()
 	r_verb = rffi.str2charp(p_str)
 
-	_p_str = w_target.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_target.as_str()
 	r_target = rffi.str2charp(p_str)
 
-	_p_str = w_arg.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_arg.as_str()
 	r_arg = rffi.str2charp(p_str)
 
-	_p_str = w_dir.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dir.as_str()
 	r_dir = rffi.str2charp(p_str)
 
 	r_show_mode = rffi.cast(rffi.INT, w_show_mode.value)
@@ -2298,7 +2349,10 @@ def rktio_shell_execute(w_rktio, w_verb, w_target, w_arg, w_dir, w_show_mode):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2322,7 +2376,10 @@ def w_rktio_seconds_to_date(w_rktio, w_seconds, w_nanoseconds, w_get_gmt):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_DATE_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_DATE_PTR
 	return W_RKTIO_DATE_PTR(res)
 
 expose("rktio_seconds_to_date", [W_R_PTR, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)(w_rktio_seconds_to_date)
@@ -2333,13 +2390,12 @@ c_rktio_expand_user_tilde = rffi.llexternal('rktio_expand_user_tilde', [R_PTR, R
 
 add_prim_to_rktio("rktio_expand_user_tilde")
 
-@expose("rktio_expand_user_tilde", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_expand_user_tilde", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_expand_user_tilde(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_expand_user_tilde(r_rktio, r_filename)
@@ -2348,7 +2404,10 @@ def rktio_expand_user_tilde(w_rktio, w_filename):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -2369,7 +2428,10 @@ def rktio_system_path(w_rktio, w_which):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -2388,7 +2450,10 @@ def rktio_filesystem_roots(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARPP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARPP
 	return W_CCHARPP(res)
 
 
@@ -2409,7 +2474,10 @@ def rktio_directory_list_step(w_rktio, w_dl):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -2417,13 +2485,12 @@ c_rktio_directory_list_start = rffi.llexternal('rktio_directory_list_start', [R_
 
 add_prim_to_rktio("rktio_directory_list_start")
 
-@expose("rktio_directory_list_start", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_directory_list_start", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_directory_list_start(w_rktio, w_dirname):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_dirname.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dirname.as_str()
 	r_dirname = rffi.str2charp(p_str)
 
 	res = c_rktio_directory_list_start(r_rktio, r_dirname)
@@ -2432,7 +2499,13 @@ def rktio_directory_list_start(w_rktio, w_dirname):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2440,13 +2513,12 @@ c_rktio_set_file_or_directory_permissions = rffi.llexternal('rktio_set_file_or_d
 
 add_prim_to_rktio("rktio_set_file_or_directory_permissions")
 
-@expose("rktio_set_file_or_directory_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_set_file_or_directory_permissions", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_set_file_or_directory_permissions(w_rktio, w_filename, w_new_bits):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	r_new_bits = rffi.cast(rffi.INT, w_new_bits.value)
@@ -2457,7 +2529,10 @@ def rktio_set_file_or_directory_permissions(w_rktio, w_filename, w_new_bits):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2465,13 +2540,12 @@ c_rktio_get_file_or_directory_permissions = rffi.llexternal('rktio_get_file_or_d
 
 add_prim_to_rktio("rktio_get_file_or_directory_permissions")
 
-@expose("rktio_get_file_or_directory_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_get_file_or_directory_permissions", [W_R_PTR, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_get_file_or_directory_permissions(w_rktio, w_filename, w_all_bits):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	r_all_bits = rffi.cast(rffi.INT, 1 if w_all_bits is values.w_true else 0)
@@ -2482,7 +2556,10 @@ def rktio_get_file_or_directory_permissions(w_rktio, w_filename, w_all_bits):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INT
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -2490,13 +2567,12 @@ c_rktio_path_identity = rffi.llexternal('rktio_path_identity', [R_PTR, RKTIO_CON
 
 add_prim_to_rktio("rktio_path_identity")
 
-@expose("rktio_path_identity", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_path_identity", [W_R_PTR, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_path_identity(w_rktio, w_path, w_follow_links):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_path.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_path.as_str()
 	r_path = rffi.str2charp(p_str)
 
 	r_follow_links = rffi.cast(rffi.INT, 1 if w_follow_links is values.w_true else 0)
@@ -2507,7 +2583,13 @@ def rktio_path_identity(w_rktio, w_path, w_follow_links):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2528,7 +2610,13 @@ def rktio_fd_identity(w_rktio, w_fd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2549,7 +2637,13 @@ def rktio_fd_stat(w_rktio, w_fd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2557,13 +2651,12 @@ c_rktio_file_or_directory_stat = rffi.llexternal('rktio_file_or_directory_stat',
 
 add_prim_to_rktio("rktio_file_or_directory_stat")
 
-@expose("rktio_file_or_directory_stat", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_file_or_directory_stat", [W_R_PTR, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_file_or_directory_stat(w_rktio, w_path, w_follow_links):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_path.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_path.as_str()
 	r_path = rffi.str2charp(p_str)
 
 	r_follow_links = rffi.cast(rffi.INT, 1 if w_follow_links is values.w_true else 0)
@@ -2574,7 +2667,13 @@ def rktio_file_or_directory_stat(w_rktio, w_path, w_follow_links):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2582,13 +2681,12 @@ c_rktio_set_file_modify_seconds = rffi.llexternal('rktio_set_file_modify_seconds
 
 add_prim_to_rktio("rktio_set_file_modify_seconds")
 
-@expose("rktio_set_file_modify_seconds", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_set_file_modify_seconds", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_set_file_modify_seconds(w_rktio, w_file, w_secs):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_file.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_file.as_str()
 	r_file = rffi.str2charp(p_str)
 
 	r_secs = rffi.cast(rffi.SSIZE_T, w_secs.value)
@@ -2599,7 +2697,10 @@ def rktio_set_file_modify_seconds(w_rktio, w_file, w_secs):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2607,13 +2708,12 @@ c_rktio_get_file_modify_seconds = rffi.llexternal('rktio_get_file_modify_seconds
 
 add_prim_to_rktio("rktio_get_file_modify_seconds")
 
-@expose("rktio_get_file_modify_seconds", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_get_file_modify_seconds", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_get_file_modify_seconds(w_rktio, w_file):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_file.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_file.as_str()
 	r_file = rffi.str2charp(p_str)
 
 	res = c_rktio_get_file_modify_seconds(r_rktio, r_file)
@@ -2622,7 +2722,13 @@ def rktio_get_file_modify_seconds(w_rktio, w_file):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2630,13 +2736,12 @@ c_rktio_file_size = rffi.llexternal('rktio_file_size', [R_PTR, RKTIO_CONST_STRIN
 
 add_prim_to_rktio("rktio_file_size")
 
-@expose("rktio_file_size", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_file_size", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_file_size(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_file_size(r_rktio, r_filename)
@@ -2645,7 +2750,13 @@ def rktio_file_size(w_rktio, w_filename):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2653,17 +2764,15 @@ c_rktio_make_link = rffi.llexternal('rktio_make_link', [R_PTR, RKTIO_CONST_STRIN
 
 add_prim_to_rktio("rktio_make_link")
 
-@expose("rktio_make_link", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_make_link", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_make_link(w_rktio, w_src, w_dest, w_dest_is_directory):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
-	_p_str = w_dest.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dest.as_str()
 	r_dest = rffi.str2charp(p_str)
 
 	r_dest_is_directory = rffi.cast(rffi.INT, 1 if w_dest_is_directory is values.w_true else 0)
@@ -2674,7 +2783,10 @@ def rktio_make_link(w_rktio, w_src, w_dest, w_dest_is_directory):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2682,13 +2794,12 @@ c_rktio_readlink = rffi.llexternal('rktio_readlink', [R_PTR, RKTIO_CONST_STRING_
 
 add_prim_to_rktio("rktio_readlink")
 
-@expose("rktio_readlink", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_readlink", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_readlink(w_rktio, w_fullfilename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_fullfilename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_fullfilename.as_str()
 	r_fullfilename = rffi.str2charp(p_str)
 
 	res = c_rktio_readlink(r_rktio, r_fullfilename)
@@ -2697,7 +2808,10 @@ def rktio_readlink(w_rktio, w_fullfilename):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -2705,17 +2819,15 @@ c_rktio_delete_directory = rffi.llexternal('rktio_delete_directory', [R_PTR, RKT
 
 add_prim_to_rktio("rktio_delete_directory")
 
-@expose("rktio_delete_directory", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_delete_directory", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_delete_directory(w_rktio, w_filename, w_current_directory, w_enable_write_on_fail):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
-	_p_str = w_current_directory.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_current_directory.as_str()
 	r_current_directory = rffi.str2charp(p_str)
 
 	r_enable_write_on_fail = rffi.cast(rffi.INT, 1 if w_enable_write_on_fail is values.w_true else 0)
@@ -2726,7 +2838,10 @@ def rktio_delete_directory(w_rktio, w_filename, w_current_directory, w_enable_wr
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2734,13 +2849,12 @@ c_rktio_make_directory_with_permissions = rffi.llexternal('rktio_make_directory_
 
 add_prim_to_rktio("rktio_make_directory_with_permissions")
 
-@expose("rktio_make_directory_with_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_make_directory_with_permissions", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_make_directory_with_permissions(w_rktio, w_filename, w_perm_bits):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	r_perm_bits = rffi.cast(rffi.INT, w_perm_bits.value)
@@ -2751,7 +2865,10 @@ def rktio_make_directory_with_permissions(w_rktio, w_filename, w_perm_bits):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2759,13 +2876,12 @@ c_rktio_make_directory = rffi.llexternal('rktio_make_directory', [R_PTR, RKTIO_C
 
 add_prim_to_rktio("rktio_make_directory")
 
-@expose("rktio_make_directory", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_make_directory", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_make_directory(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_make_directory(r_rktio, r_filename)
@@ -2774,7 +2890,10 @@ def rktio_make_directory(w_rktio, w_filename):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2782,13 +2901,12 @@ c_rktio_set_current_directory = rffi.llexternal('rktio_set_current_directory', [
 
 add_prim_to_rktio("rktio_set_current_directory")
 
-@expose("rktio_set_current_directory", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_set_current_directory", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_set_current_directory(w_rktio, w_path):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_path.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_path.as_str()
 	r_path = rffi.str2charp(p_str)
 
 	res = c_rktio_set_current_directory(r_rktio, r_path)
@@ -2797,7 +2915,10 @@ def rktio_set_current_directory(w_rktio, w_path):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2816,7 +2937,10 @@ def rktio_get_current_directory(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -2824,17 +2948,15 @@ c_rktio_rename_file = rffi.llexternal('rktio_rename_file', [R_PTR, RKTIO_CONST_S
 
 add_prim_to_rktio("rktio_rename_file")
 
-@expose("rktio_rename_file", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_rename_file", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_rename_file(w_rktio, w_dest, w_src, w_exists_ok):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_dest.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dest.as_str()
 	r_dest = rffi.str2charp(p_str)
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
 	r_exists_ok = rffi.cast(rffi.INT, 1 if w_exists_ok is values.w_true else 0)
@@ -2845,7 +2967,10 @@ def rktio_rename_file(w_rktio, w_dest, w_src, w_exists_ok):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2853,13 +2978,12 @@ c_rktio_delete_file = rffi.llexternal('rktio_delete_file', [R_PTR, RKTIO_CONST_S
 
 add_prim_to_rktio("rktio_delete_file")
 
-@expose("rktio_delete_file", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_delete_file", [W_R_PTR, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_delete_file(w_rktio, w_fn, w_enable_write_on_fail):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_fn.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_fn.as_str()
 	r_fn = rffi.str2charp(p_str)
 
 	r_enable_write_on_fail = rffi.cast(rffi.INT, 1 if w_enable_write_on_fail is values.w_true else 0)
@@ -2870,7 +2994,10 @@ def rktio_delete_file(w_rktio, w_fn, w_enable_write_on_fail):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2878,13 +3005,12 @@ c_rktio_file_type = rffi.llexternal('rktio_file_type', [R_PTR, RKTIO_CONST_STRIN
 
 add_prim_to_rktio("rktio_file_type")
 
-@expose("rktio_file_type", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_file_type", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_file_type(w_rktio, w_filename):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_filename.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_filename.as_str()
 	r_filename = rffi.str2charp(p_str)
 
 	res = c_rktio_file_type(r_rktio, r_filename)
@@ -2893,7 +3019,10 @@ def rktio_file_type(w_rktio, w_filename):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INT
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a INT
 	return values.W_Fixnum(res)
 
 
@@ -2920,7 +3049,10 @@ def rktio_start_sleep(w_rktio, w_nsecs, w_fds, w_lt, w_woke_fd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2941,7 +3073,13 @@ def rktio_ltps_get_signaled_handle(w_rktio, w_lt):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -2962,7 +3100,10 @@ def rktio_ltps_poll(w_rktio, w_lt):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -2987,7 +3128,13 @@ def rktio_ltps_add(w_rktio, w_lt, w_rfd, w_mode):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3006,7 +3153,13 @@ def rktio_ltps_open(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3025,7 +3178,13 @@ def rktio_make_poll_set(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3046,7 +3205,10 @@ def rktio_poll_fs_change_ready(w_rktio, w_fc):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -3054,13 +3216,12 @@ c_rktio_fs_change = rffi.llexternal('rktio_fs_change', [R_PTR, RKTIO_CONST_STRIN
 
 add_prim_to_rktio("rktio_fs_change")
 
-@expose("rktio_fs_change", [W_R_PTR, values_string.W_String, W_R_PTR], simple=True)
+@expose("rktio_fs_change", [W_R_PTR, values.W_Bytes, W_R_PTR], simple=True)
 def rktio_fs_change(w_rktio, w_path, w_ltps):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_path.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_path.as_str()
 	r_path = rffi.str2charp(p_str)
 
 	r_ltps = rffi.cast(R_PTR, w_ltps.to_rffi())
@@ -3071,7 +3232,13 @@ def rktio_fs_change(w_rktio, w_path, w_ltps):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3092,7 +3259,13 @@ def rktio_process_status(w_rktio, w_sp):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3113,7 +3286,10 @@ def rktio_poll_process_done(w_rktio, w_sp):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -3134,7 +3310,10 @@ def rktio_process_interrupt(w_rktio, w_sp):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3155,26 +3334,28 @@ def rktio_process_kill(w_rktio, w_sp):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
-c_rktio_process = rffi.llexternal('rktio_process', [R_PTR, RKTIO_CONST_STRING_T, INT, R_PTR, R_PTR, R_PTR, R_PTR, R_PTR, RKTIO_CONST_STRING_T, R_PTR, INT], R_PTR, compilation_info=librktio_a)
+c_rktio_process = rffi.llexternal('rktio_process', [R_PTR, RKTIO_CONST_STRING_T, INT, CCHARPP, R_PTR, R_PTR, R_PTR, R_PTR, RKTIO_CONST_STRING_T, R_PTR, INT], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_process")
 
-@expose("rktio_process", [W_R_PTR, values_string.W_String, values.W_Fixnum, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, values_string.W_String, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_process", [W_R_PTR, values.W_Bytes, values.W_Fixnum, W_CCHARPP, W_R_PTR, W_R_PTR, W_R_PTR, W_R_PTR, values.W_Bytes, W_R_PTR, values.W_Fixnum], simple=True)
 def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w_stderr_fd, w_group_proc, w_current_directory, w_envvars, w_flags):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_command.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_command.as_str()
 	r_command = rffi.str2charp(p_str)
 
 	r_argc = rffi.cast(rffi.INT, w_argc.value)
 
-	r_argv = rffi.cast(R_PTR, w_argv.to_rffi())
+	r_argv = rffi.cast(CCHARPP, w_argv.to_rffi())
 
 	r_stdout_fd = rffi.cast(R_PTR, w_stdout_fd.to_rffi())
 
@@ -3184,8 +3365,7 @@ def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w
 
 	r_group_proc = rffi.cast(R_PTR, w_group_proc.to_rffi())
 
-	_p_str = w_current_directory.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_current_directory.as_str()
 	r_current_directory = rffi.str2charp(p_str)
 
 	r_envvars = rffi.cast(R_PTR, w_envvars.to_rffi())
@@ -3198,7 +3378,13 @@ def rktio_process(w_rktio, w_command, w_argc, w_argv, w_stdout_fd, w_stdin_fd, w
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3221,7 +3407,10 @@ def rktio_envvars_value_ref(w_rktio, w_envvars, w_i):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -3244,7 +3433,10 @@ def rktio_envvars_name_ref(w_rktio, w_envvars, w_i):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -3252,15 +3444,14 @@ c_rktio_envvars_get = rffi.llexternal('rktio_envvars_get', [R_PTR, R_PTR, RKTIO_
 
 add_prim_to_rktio("rktio_envvars_get")
 
-@expose("rktio_envvars_get", [W_R_PTR, W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_envvars_get", [W_R_PTR, W_R_PTR, values.W_Bytes], simple=True)
 def rktio_envvars_get(w_rktio, w_envvars, w_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_envvars = rffi.cast(R_PTR, w_envvars.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	res = c_rktio_envvars_get(r_rktio, r_envvars, r_name)
@@ -3269,7 +3460,10 @@ def rktio_envvars_get(w_rktio, w_envvars, w_name):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -3290,7 +3484,13 @@ def rktio_envvars_copy(w_rktio, w_envvars):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3309,7 +3509,13 @@ def rktio_empty_envvars(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3328,7 +3534,13 @@ def rktio_envvars(w_rktio):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3336,17 +3548,15 @@ c_rktio_setenv = rffi.llexternal('rktio_setenv', [R_PTR, RKTIO_CONST_STRING_T, R
 
 add_prim_to_rktio("rktio_setenv")
 
-@expose("rktio_setenv", [W_R_PTR, values_string.W_String, values_string.W_String], simple=True)
+@expose("rktio_setenv", [W_R_PTR, values.W_Bytes, values.W_Bytes], simple=True)
 def rktio_setenv(w_rktio, w_name, w_val):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
-	_p_str = w_val.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_val.as_str()
 	r_val = rffi.str2charp(p_str)
 
 	res = c_rktio_setenv(r_rktio, r_name, r_val)
@@ -3355,7 +3565,10 @@ def rktio_setenv(w_rktio, w_name, w_val):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3363,13 +3576,12 @@ c_rktio_getenv = rffi.llexternal('rktio_getenv', [R_PTR, RKTIO_CONST_STRING_T], 
 
 add_prim_to_rktio("rktio_getenv")
 
-@expose("rktio_getenv", [W_R_PTR, values_string.W_String], simple=True)
+@expose("rktio_getenv", [W_R_PTR, values.W_Bytes], simple=True)
 def rktio_getenv(w_rktio, w_name):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_name.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_name.as_str()
 	r_name = rffi.str2charp(p_str)
 
 	res = c_rktio_getenv(r_rktio, r_name)
@@ -3378,7 +3590,10 @@ def rktio_getenv(w_rktio, w_name):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -3399,7 +3614,10 @@ def rktio_listener_address(w_rktio, w_lnr):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARPP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARPP
 	return W_CCHARPP(res)
 
 
@@ -3420,7 +3638,10 @@ def rktio_socket_peer_address(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARPP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARPP
 	return W_CCHARPP(res)
 
 
@@ -3441,7 +3662,10 @@ def rktio_socket_address(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARPP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARPP
 	return W_CCHARPP(res)
 
 
@@ -3468,7 +3692,10 @@ def rktio_udp_change_multicast_group(w_rktio, w_rfd, w_group_addr, w_intf_addr, 
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3491,7 +3718,10 @@ def rktio_udp_set_multicast_interface(w_rktio, w_rfd, w_addr):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3512,7 +3742,10 @@ def rktio_udp_multicast_interface(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns CCHARP
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a CCHARP
 	return W_CCHARP(res)
 
 
@@ -3535,7 +3768,10 @@ def rktio_udp_set_multicast_ttl(w_rktio, w_rfd, w_ttl_val):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3556,7 +3792,10 @@ def rktio_udp_get_multicast_ttl(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -3564,7 +3803,7 @@ c_rktio_udp_set_multicast_loopback = rffi.llexternal('rktio_udp_set_multicast_lo
 
 add_prim_to_rktio("rktio_udp_set_multicast_loopback")
 
-@expose("rktio_udp_set_multicast_loopback", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_udp_set_multicast_loopback", [W_R_PTR, W_R_PTR, values.W_Bool], simple=True)
 def rktio_udp_set_multicast_loopback(w_rktio, w_rfd, w_on):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3579,7 +3818,10 @@ def rktio_udp_set_multicast_loopback(w_rktio, w_rfd, w_on):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3600,7 +3842,10 @@ def rktio_udp_get_multicast_loopback(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -3621,7 +3866,10 @@ def rktio_udp_get_ttl(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -3644,7 +3892,10 @@ def rktio_udp_set_ttl(w_rktio, w_rfd, w_ttl_val):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3667,22 +3918,25 @@ def rktio_udp_set_receive_buffer_size(w_rktio, w_rfd, w_size):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
-c_rktio_udp_recvfrom_in = rffi.llexternal('rktio_udp_recvfrom_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
+c_rktio_udp_recvfrom_in = rffi.llexternal('rktio_udp_recvfrom_in', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_udp_recvfrom_in")
 
-@expose("rktio_udp_recvfrom_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_udp_recvfrom_in", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_udp_recvfrom_in(w_rktio, w_rfd, w_buffer, w_start, w_end):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -3694,22 +3948,30 @@ def rktio_udp_recvfrom_in(w_rktio, w_rfd, w_buffer, w_start, w_end):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
-c_rktio_udp_recvfrom = rffi.llexternal('rktio_udp_recvfrom', [R_PTR, R_PTR, CCHARP, INTPTR_T], R_PTR, compilation_info=librktio_a)
+c_rktio_udp_recvfrom = rffi.llexternal('rktio_udp_recvfrom', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_udp_recvfrom")
 
-@expose("rktio_udp_recvfrom", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
+@expose("rktio_udp_recvfrom", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum], simple=True)
 def rktio_udp_recvfrom(w_rktio, w_rfd, w_buffer, w_len):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
@@ -3719,15 +3981,23 @@ def rktio_udp_recvfrom(w_rktio, w_rfd, w_buffer, w_len):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
-c_rktio_udp_sendto_in = rffi.llexternal('rktio_udp_sendto_in', [R_PTR, R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_udp_sendto_in = rffi.llexternal('rktio_udp_sendto_in', [R_PTR, R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_udp_sendto_in")
 
-@expose("rktio_udp_sendto_in", [W_R_PTR, W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_udp_sendto_in", [W_R_PTR, W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_udp_sendto_in(w_rktio, w_rfd, w_addr, w_buffer, w_start, w_end):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3736,7 +4006,7 @@ def rktio_udp_sendto_in(w_rktio, w_rfd, w_addr, w_buffer, w_start, w_end):
 
 	r_addr = rffi.cast(R_PTR, w_addr.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -3748,15 +4018,20 @@ def rktio_udp_sendto_in(w_rktio, w_rfd, w_addr, w_buffer, w_start, w_end):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INTPTR_T
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
-c_rktio_udp_sendto = rffi.llexternal('rktio_udp_sendto', [R_PTR, R_PTR, R_PTR, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_udp_sendto = rffi.llexternal('rktio_udp_sendto', [R_PTR, R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_udp_sendto")
 
-@expose("rktio_udp_sendto", [W_R_PTR, W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
+@expose("rktio_udp_sendto", [W_R_PTR, W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum], simple=True)
 def rktio_udp_sendto(w_rktio, w_rfd, w_addr, w_buffer, w_len):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3765,7 +4040,7 @@ def rktio_udp_sendto(w_rktio, w_rfd, w_addr, w_buffer, w_len):
 
 	r_addr = rffi.cast(R_PTR, w_addr.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
@@ -3775,7 +4050,12 @@ def rktio_udp_sendto(w_rktio, w_rfd, w_addr, w_buffer, w_len):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INTPTR_T
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
@@ -3798,7 +4078,10 @@ def rktio_udp_connect(w_rktio, w_rfd, w_addr):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3806,7 +4089,7 @@ c_rktio_udp_bind = rffi.llexternal('rktio_udp_bind', [R_PTR, R_PTR, R_PTR, RKTIO
 
 add_prim_to_rktio("rktio_udp_bind")
 
-@expose("rktio_udp_bind", [W_R_PTR, W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_udp_bind", [W_R_PTR, W_R_PTR, W_R_PTR, values.W_Bool], simple=True)
 def rktio_udp_bind(w_rktio, w_rfd, w_addr, w_reuse):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3823,7 +4106,10 @@ def rktio_udp_bind(w_rktio, w_rfd, w_addr, w_reuse):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3844,7 +4130,10 @@ def rktio_udp_disconnect(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3867,15 +4156,47 @@ def rktio_udp_open(w_rktio, w_addr, w_family):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
+
+
+c_rktio_tcp_keepalive = rffi.llexternal('rktio_tcp_keepalive', [R_PTR, R_PTR, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
+
+add_prim_to_rktio("rktio_tcp_keepalive")
+
+@expose("rktio_tcp_keepalive", [W_R_PTR, W_R_PTR, values.W_Bool], simple=True)
+def rktio_tcp_keepalive(w_rktio, w_rfd, w_enable):
+
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+
+	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
+
+	r_enable = rffi.cast(rffi.INT, 1 if w_enable is values.w_true else 0)
+
+	res = c_rktio_tcp_keepalive(r_rktio, r_rfd, r_enable)
+
+	if not res:
+		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
+		return values_vector.W_Vector.fromelements([num(n) for n in elems])
+
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
+	return values.W_Fixnum(res)
 
 
 c_rktio_tcp_nodelay = rffi.llexternal('rktio_tcp_nodelay', [R_PTR, R_PTR, RKTIO_BOOL_T], RKTIO_OK_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_tcp_nodelay")
 
-@expose("rktio_tcp_nodelay", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_tcp_nodelay", [W_R_PTR, W_R_PTR, values.W_Bool], simple=True)
 def rktio_tcp_nodelay(w_rktio, w_rfd, w_enable):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -3890,7 +4211,10 @@ def rktio_tcp_nodelay(w_rktio, w_rfd, w_enable):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3913,7 +4237,10 @@ def rktio_socket_shutdown(w_rktio, w_rfd, w_mode):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -3934,7 +4261,13 @@ def rktio_connect_trying(w_rktio, w_conn):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3955,7 +4288,10 @@ def rktio_poll_connect_ready(w_rktio, w_conn):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -3976,7 +4312,13 @@ def rktio_connect_finish(w_rktio, w_conn):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -3999,7 +4341,13 @@ def rktio_start_connect(w_rktio, w_remote, w_local):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4020,7 +4368,13 @@ def rktio_accept(w_rktio, w_listener):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4041,7 +4395,10 @@ def rktio_poll_accept_ready(w_rktio, w_listener):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -4049,7 +4406,7 @@ c_rktio_listen = rffi.llexternal('rktio_listen', [R_PTR, R_PTR, INT, RKTIO_BOOL_
 
 add_prim_to_rktio("rktio_listen")
 
-@expose("rktio_listen", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_listen", [W_R_PTR, W_R_PTR, values.W_Fixnum, values.W_Bool], simple=True)
 def rktio_listen(w_rktio, w_local, w_backlog, w_reuse):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -4066,7 +4423,13 @@ def rktio_listen(w_rktio, w_local, w_backlog, w_reuse):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4087,7 +4450,13 @@ def rktio_addrinfo_lookup_get(w_rktio, w_lookup):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4108,7 +4477,10 @@ def rktio_poll_addrinfo_lookup_ready(w_rktio, w_lookup):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -4116,13 +4488,12 @@ c_rktio_start_addrinfo_lookup = rffi.llexternal('rktio_start_addrinfo_lookup', [
 
 add_prim_to_rktio("rktio_start_addrinfo_lookup")
 
-@expose("rktio_start_addrinfo_lookup", [W_R_PTR, values_string.W_String, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_start_addrinfo_lookup", [W_R_PTR, values.W_Bytes, values.W_Fixnum, values.W_Fixnum, values.W_Bool, values.W_Bool], simple=True)
 def rktio_start_addrinfo_lookup(w_rktio, w_hostname, w_portno, w_family, w_passive, w_tcp):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_hostname.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_hostname.as_str()
 	r_hostname = rffi.str2charp(p_str)
 
 	r_portno = rffi.cast(rffi.INT, w_portno.value)
@@ -4139,7 +4510,13 @@ def rktio_start_addrinfo_lookup(w_rktio, w_hostname, w_portno, w_family, w_passi
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4160,7 +4537,13 @@ def rktio_make_pipe(w_rktio, w_flags):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4183,7 +4566,10 @@ def rktio_set_file_size(w_rktio, w_rfd, w_sz):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -4204,7 +4590,13 @@ def rktio_get_file_position(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4229,7 +4621,10 @@ def rktio_set_file_position(w_rktio, w_rfd, w_pos, w_whence):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -4250,7 +4645,10 @@ def rktio_file_unlock(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -4258,7 +4656,7 @@ c_rktio_file_lock_try = rffi.llexternal('rktio_file_lock_try', [R_PTR, R_PTR, RK
 
 add_prim_to_rktio("rktio_file_lock_try")
 
-@expose("rktio_file_lock_try", [W_R_PTR, W_R_PTR, values.W_Fixnum], simple=True)
+@expose("rktio_file_lock_try", [W_R_PTR, W_R_PTR, values.W_Bool], simple=True)
 def rktio_file_lock_try(w_rktio, w_rfd, w_excl):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
@@ -4273,7 +4671,10 @@ def rktio_file_lock_try(w_rktio, w_rfd, w_excl):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -4294,7 +4695,10 @@ def rktio_poll_write_flushed(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -4315,7 +4719,10 @@ def rktio_poll_write_ready(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
@@ -4336,28 +4743,31 @@ def rktio_poll_read_ready(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_TRI_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_TRI_T
 	return values.W_Fixnum(res)
 
 
-c_rktio_read_converted_in = rffi.llexternal('rktio_read_converted_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_read_converted_in = rffi.llexternal('rktio_read_converted_in', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T, STAR_REF_CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_read_converted_in")
 
-@expose("rktio_read_converted_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum, W_CCHARP, values.W_Fixnum], simple=True)
+@expose("rktio_read_converted_in", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum, base.W_Object, values.W_Fixnum], simple=True)
 def rktio_read_converted_in(w_rktio, w_fd, w_buffer, w_start, w_len, w_is_converted, w_converted_start):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
-	r_is_converted = rffi.cast(CCHARP, w_is_converted.to_rffi())
+	r_is_converted = extract_ccharp(w_is_converted)
 
 	r_converted_start = rffi.cast(rffi.SSIZE_T, w_converted_start.value)
 
@@ -4367,22 +4777,30 @@ def rktio_read_converted_in(w_rktio, w_fd, w_buffer, w_start, w_len, w_is_conver
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INTPTR_T
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_is_converted, values.W_MutableBytes):
+		w_is_converted.replace_bytes(list(rffi.charpsize2str(r_is_converted, w_is_converted.length())))
+
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
-c_rktio_write_in = rffi.llexternal('rktio_write_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_write_in = rffi.llexternal('rktio_write_in', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_write_in")
 
-@expose("rktio_write_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_write_in", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_write_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -4394,22 +4812,27 @@ def rktio_write_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INTPTR_T
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
-c_rktio_read_in = rffi.llexternal('rktio_read_in', [R_PTR, R_PTR, CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_read_in = rffi.llexternal('rktio_read_in', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_read_in")
 
-@expose("rktio_read_in", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_read_in", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_read_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_start = rffi.cast(rffi.SSIZE_T, w_start.value)
 
@@ -4421,26 +4844,31 @@ def rktio_read_in(w_rktio, w_fd, w_buffer, w_start, w_end):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INTPTR_T
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
-c_rktio_read_converted = rffi.llexternal('rktio_read_converted', [R_PTR, R_PTR, CCHARP, INTPTR_T, CCHARP], INTPTR_T, compilation_info=librktio_a)
+c_rktio_read_converted = rffi.llexternal('rktio_read_converted', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, STAR_REF_CCHARP], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_read_converted")
 
-@expose("rktio_read_converted", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum, W_CCHARP], simple=True)
+@expose("rktio_read_converted", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum, base.W_Object], simple=True)
 def rktio_read_converted(w_rktio, w_fd, w_buffer, w_len, w_is_converted):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
-	r_is_converted = rffi.cast(CCHARP, w_is_converted.to_rffi())
+	r_is_converted = extract_ccharp(w_is_converted)
 
 	res = c_rktio_read_converted(r_rktio, r_fd, r_buffer, r_len, r_is_converted)
 
@@ -4448,22 +4876,30 @@ def rktio_read_converted(w_rktio, w_fd, w_buffer, w_len, w_is_converted):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INTPTR_T
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_is_converted, values.W_MutableBytes):
+		w_is_converted.replace_bytes(list(rffi.charpsize2str(r_is_converted, w_is_converted.length())))
+
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
-c_rktio_write = rffi.llexternal('rktio_write', [R_PTR, R_PTR, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_write = rffi.llexternal('rktio_write', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_write")
 
-@expose("rktio_write", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
+@expose("rktio_write", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum], simple=True)
 def rktio_write(w_rktio, w_fd, w_buffer, w_len):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
@@ -4473,22 +4909,27 @@ def rktio_write(w_rktio, w_fd, w_buffer, w_len):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INTPTR_T
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
-c_rktio_read = rffi.llexternal('rktio_read', [R_PTR, R_PTR, CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
+c_rktio_read = rffi.llexternal('rktio_read', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T], INTPTR_T, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_read")
 
-@expose("rktio_read", [W_R_PTR, W_R_PTR, W_CCHARP, values.W_Fixnum], simple=True)
+@expose("rktio_read", [W_R_PTR, W_R_PTR, base.W_Object, values.W_Fixnum], simple=True)
 def rktio_read(w_rktio, w_fd, w_buffer, w_len):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
 	r_fd = rffi.cast(R_PTR, w_fd.to_rffi())
 
-	r_buffer = rffi.cast(CCHARP, w_buffer.to_rffi())
+	r_buffer = extract_ccharp(w_buffer)
 
 	r_len = rffi.cast(rffi.SSIZE_T, w_len.value)
 
@@ -4498,7 +4939,12 @@ def rktio_read(w_rktio, w_fd, w_buffer, w_len):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns INTPTR_T
+	# *ref feedback line (if any *ref input is received)
+	if isinstance(w_buffer, values.W_MutableBytes):
+		w_buffer.replace_bytes(list(rffi.charpsize2str(r_buffer, w_buffer.length())))
+
+	# return line
+	# res is a INTPTR_T
 	return values.W_Fixnum(res)
 
 
@@ -4519,7 +4965,13 @@ def rktio_std_fd(w_rktio, w_which):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4540,7 +4992,13 @@ def rktio_dup(w_rktio, w_rfd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4561,7 +5019,10 @@ def rktio_close(w_rktio, w_fd):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -4569,13 +5030,12 @@ c_rktio_open_with_create_permissions = rffi.llexternal('rktio_open_with_create_p
 
 add_prim_to_rktio("rktio_open_with_create_permissions")
 
-@expose("rktio_open_with_create_permissions", [W_R_PTR, values_string.W_String, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_open_with_create_permissions", [W_R_PTR, values.W_Bytes, values.W_Fixnum, values.W_Fixnum], simple=True)
 def rktio_open_with_create_permissions(w_rktio, w_src, w_modes, w_perm_bits):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
 	r_modes = rffi.cast(rffi.INT, w_modes.value)
@@ -4588,7 +5048,13 @@ def rktio_open_with_create_permissions(w_rktio, w_src, w_modes, w_perm_bits):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4596,13 +5062,12 @@ c_rktio_open = rffi.llexternal('rktio_open', [R_PTR, RKTIO_CONST_STRING_T, INT],
 
 add_prim_to_rktio("rktio_open")
 
-@expose("rktio_open", [W_R_PTR, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_open", [W_R_PTR, values.W_Bytes, values.W_Fixnum], simple=True)
 def rktio_open(w_rktio, w_src, w_modes):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
 	r_modes = rffi.cast(rffi.INT, w_modes.value)
@@ -4613,7 +5078,13 @@ def rktio_open(w_rktio, w_src, w_modes):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4636,18 +5107,24 @@ def rktio_system_fd(w_rktio, w_system_fd, w_modes):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
-c_rktio_get_dll_path = rffi.llexternal('rktio_get_dll_path', [R_PTR], R_PTR, compilation_info=librktio_a)
+c_rktio_get_dll_path = rffi.llexternal('rktio_get_dll_path', [RKTIO_CHAR16_T_PTR], R_PTR, compilation_info=librktio_a)
 
 add_prim_to_rktio("rktio_get_dll_path")
 
-@expose("rktio_get_dll_path", [W_R_PTR], simple=True)
+@expose("rktio_get_dll_path", [base.W_Object], simple=True)
 def rktio_get_dll_path(w_p):
 
-	r_p = rffi.cast(R_PTR, w_p.to_rffi())
+	r_p = extract_char16_t_ptr(w_p)
 
 	res = c_rktio_get_dll_path(r_p)
 
@@ -4655,7 +5132,13 @@ def rktio_get_dll_path(w_p):
 		elems = [c_rktio_get_last_error_kind(r_p), c_rktio_get_last_error(r_p)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4676,7 +5159,10 @@ def rktio_copy_file_finish_permissions(w_rktio, w_fc):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio), c_rktio_get_last_error_step(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -4697,7 +5183,10 @@ def rktio_copy_file_step(w_rktio, w_fc):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio), c_rktio_get_last_error_step(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns RKTIO_OK_T
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a RKTIO_OK_T
 	return values.W_Fixnum(res)
 
 
@@ -4705,17 +5194,15 @@ c_rktio_copy_file_start_permissions = rffi.llexternal('rktio_copy_file_start_per
 
 add_prim_to_rktio("rktio_copy_file_start_permissions")
 
-@expose("rktio_copy_file_start_permissions", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum, values.W_Fixnum], simple=True)
+@expose("rktio_copy_file_start_permissions", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bool, values.W_Bool, values.W_Fixnum, values.W_Bool], simple=True)
 def rktio_copy_file_start_permissions(w_rktio, w_dest, w_src, w_exists_ok, w_use_perm_bits, w_perm_bits, w_override_create_perms):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_dest.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dest.as_str()
 	r_dest = rffi.str2charp(p_str)
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
 	r_exists_ok = rffi.cast(rffi.INT, 1 if w_exists_ok is values.w_true else 0)
@@ -4732,7 +5219,13 @@ def rktio_copy_file_start_permissions(w_rktio, w_dest, w_src, w_exists_ok, w_use
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio), c_rktio_get_last_error_step(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 
@@ -4740,17 +5233,15 @@ c_rktio_copy_file_start = rffi.llexternal('rktio_copy_file_start', [R_PTR, RKTIO
 
 add_prim_to_rktio("rktio_copy_file_start")
 
-@expose("rktio_copy_file_start", [W_R_PTR, values_string.W_String, values_string.W_String, values.W_Fixnum], simple=True)
+@expose("rktio_copy_file_start", [W_R_PTR, values.W_Bytes, values.W_Bytes, values.W_Bool], simple=True)
 def rktio_copy_file_start(w_rktio, w_dest, w_src, w_exists_ok):
 
 	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
 
-	_p_str = w_dest.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_dest.as_str()
 	r_dest = rffi.str2charp(p_str)
 
-	_p_str = w_src.as_str_utf8()
-	p_str = _p_str if _p_str else ""
+	p_str = w_src.as_str()
 	r_src = rffi.str2charp(p_str)
 
 	r_exists_ok = rffi.cast(rffi.INT, 1 if w_exists_ok is values.w_true else 0)
@@ -4761,7 +5252,13 @@ def rktio_copy_file_start(w_rktio, w_dest, w_src, w_exists_ok):
 		elems = [c_rktio_get_last_error_kind(r_rktio), c_rktio_get_last_error(r_rktio), c_rktio_get_last_error_step(r_rktio)]
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
-	# returns R_PTR
+	# *ref feedback line (if any *ref input is received)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
 	return W_R_PTR(res)
 
 

@@ -264,6 +264,8 @@ for args in [
         ("*"         , "arith_mul"       , values.W_Fixnum.ONE  , values.W_Flonum.ONE  , True  , True         ) ,
         ("/"         , "arith_div"       , None                 , values.W_Flonum.ONE  , False                ) ,
         ("and"       , "arith_and"       , None                 , None                 , True  , False , True ) ,
+        ("ior"       , "arith_or"        , None                 , None                 , True  , False , True ) ,
+        ("xor"       , "arith_xor"       , None                 , None                 , True  , False , True ) ,
         ("max"       , "arith_max"       , None                 , values.W_Flonum.ZERO                        ) ,
         ("min"       , "arith_min"       , None                 , values.W_Flonum.ZERO                        ) ,
         ("quotient"  , "arith_quotient"  , values.W_Fixnum.ZERO , None                 , True   , False       ) ,
