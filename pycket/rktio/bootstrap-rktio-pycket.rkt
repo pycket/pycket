@@ -7,9 +7,11 @@
 (define RKTIO-SOURCE  "rktio.rktl")         ; <- adjust path if needed
 (define PY-OUT-FILE   "_rktio_bootstrap.py")
 
-(define define-fn              (make-parameter '()))
-(define define-fn-errno        (make-parameter '()))
-(define define-fn-errno+step   (make-parameter '()))
+(define define-fn		  (make-parameter '()))
+(define define-fn-errno		  (make-parameter '()))
+(define define-fn-errno+step	  (make-parameter '()))
+(define define-fn-result_t	  (make-parameter '()))
+(define define-fn-alloc-result_t  (make-parameter '()))
 
 ;; Tight coupling with the Python code is inexorable here
 ;; because of the nature of ffi, though we're certainly abusing
@@ -134,18 +136,18 @@
 	      (hash-ref type:rktio->rffi struct-pointer #f)
 	      (and (hash-ref type:struct-ptrs struct-pointer #f) "R_PTR")
 	      (let* ([rffi_ptr_type
-		      (format "~a~a" 
+		      (format "~a~a"
 			(string-upcase (symbol->string struct-pointer)) "_PTR")]
 		     [w_ptr_type (format "W_~a" rffi_ptr_type)])
 		(hash-set! type:struct-ptrs struct-pointer rffi_ptr_type)
 		(hash-set! type:w-struct-ptrs rffi_ptr_type w_ptr_type)
 		"R_PTR" #;rffi_ptr_type))]
-	
+
 	[t (or
 	      (hash-ref type:rktio->rffi t #f)
 	      (and (hash-ref type:struct-ptrs t #f) "R_PTR")
 	      (let* ([rffi_ptr_type
-		       (format "~a~a" 
+		       (format "~a~a"
 			 (string-upcase (symbol->string t)) "_PTR")]
 		     [w_ptr_type (format "W_~a" rffi_ptr_type)])
 		(hash-set! type:struct-ptrs t rffi_ptr_type)
@@ -185,6 +187,7 @@
 (struct arg (r-type w-type rktio-name w-name r-name))
 (struct def-fun (r-ret-type w-ret-type name args-list))
 (struct def-fun-err (err-v r-ret-type w-ret-type name args-list))
+(struct def-fun-result_t (success-accessor r-ret-type w-ret-type name args-list))
 
 ;; Emit the final Python module.
 (define (write-python-module)
@@ -637,20 +640,28 @@ def ~a(~a):
 		      *ref-ccharps
 		      w_ret_line)))))
 
-      (define (fn/err-to-tuple fn)
-	(format "\n    (~a, (~a, ~a), \"~a\", ~a)"
-	  (let ([ev (def-fun-err-err-v fn)])
-	    (if (not ev) 
-		"W_FALSE"
-		ev))
-	  (def-fun-err-r-ret-type fn)
-	  (def-fun-err-w-ret-type fn)
-	  (def-fun-err-name fn)
-	  (format "[~a]"
-	    (string-join
-	      (map compose-arg-type
-		   (def-fun-err-args-list fn))
-	      ","))))
+      (define (fn/result_t-to-py-expose fn)
+	(let ([name (def-fun-result_t-name fn)]
+	      [success-accessor (def-fun-result_t-success-accessor fn)]
+	      [w_ret_line (return-line (def-fun-result_t-w-ret-type fn)
+				       (def-fun-result_t-r-ret-type fn))]
+	      [r_ret_type (def-fun-result_t-r-ret-type fn)])
+	  (let-values
+	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns first_r_arg_name *ref-ccharps)
+	      (process-args (def-fun-result_t-args-list fn))])
+	    (let ([llexternal-lines
+		    (llexternal-block name r_arg_types r_ret_type)])
+	      (format expose-py-fun-err-step-template
+		      llexternal-lines
+		      name
+		      name w_arg_types
+		      name w_arg_names
+		      r_arg_defns
+		      name r_arg_names
+		      (err-val-check err-v) first_r_arg_name first_r_arg_name first_r_arg_name
+		      *ref-ccharps
+		      w_ret_line)))))
+
 
       ;; header
       (emit "
@@ -736,6 +747,9 @@ librktio_a = ExternalCompilationInfo(
       (map (lambda (fdef) (emit fun-sep (fn/err/step-to-py-expose fdef)))
 	   (define-fn-errno+step))
 
+      (map (lambda (fdef) (emit fun-sep (fn/result_t-to-py-expose fdef)))
+	   (define-fn-result_t))
+
       (emit "\n\n")
 
 )))
@@ -808,6 +822,18 @@ librktio_a = ExternalCompilationInfo(
 			      [arg-r-name (format "r_~a" (cadr a))])
 			 (arg arg-r-type arg-w-type (cadr a) arg-w-name arg-r-name))) args)])
 	  (acc! define-fn-errno+step name (def-fun-err err-v lowered-ret-type w-ret-type name lowered-arg-types)))
+       ]
+      [`(define-function/result_t ,success-accessor ,flags ,ret-type ,name ,args)
+	(let* ([lowered-ret-type (lower-type ret-type)]
+	       [w-ret-type (r->w lowered-ret-type)]
+	       [lowered-arg-types
+		(map (lambda (a)
+		       (let* ([arg-r-type (lower-type (car a) #t)]
+			      [arg-w-type (r->w arg-r-type)]
+			      [arg-w-name (format "w_~a" (cadr a))]
+			      [arg-r-name (format "r_~a" (cadr a))])
+			 (arg arg-r-type arg-w-type (cadr a) arg-w-name arg-r-name))) args)])
+	  (acc! define-fn-result_t name (def-fun-result_t success-accessor lowered-ret-type w-ret-type name lowered-arg-types)))
        ]
 
       [_ #f]))
