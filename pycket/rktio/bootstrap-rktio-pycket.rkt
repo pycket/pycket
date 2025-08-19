@@ -347,6 +347,34 @@ def ~a(~a):
 \t# return line
 ~a")
 
+      (define expose-py-fun-result_t-template
+	;; Almost the same with above, it also calls the
+	;; c_rktio_get_last_error_step if an error is signalled
+	"
+~a
+
+add_prim_to_rktio(\"~a\")
+
+@expose(\"~a\", [~a], simple=True)
+def ~a(~a):
+~a
+\n\tres = c_~a(~a)
+
+\tres_success = c_rktio_result_is_success(res)
+
+\tif res_success != 1:
+\t\telems = [c_rktio_get_error_kind(~a), c_rktio_get_error(~a)]
+\t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
+
+\t# *ref feedback line (if any *ref input is received)
+~a
+
+\t# call success accessor to get the actual returned value
+\tres = c_~a(res)
+
+\t# return line
+~a")
+
       (define (err-val-check err-v)
 	(if (or (false? err-v) (equal? err-v 'NULL))
 	    "not res"
@@ -651,15 +679,16 @@ def ~a(~a):
 	      (process-args (def-fun-result_t-args-list fn))])
 	    (let ([llexternal-lines
 		    (llexternal-block name r_arg_types r_ret_type)])
-	      (format expose-py-fun-err-step-template
+	      (format expose-py-fun-result_t-template
 		      llexternal-lines
 		      name
 		      name w_arg_types
 		      name w_arg_names
 		      r_arg_defns
 		      name r_arg_names
-		      (err-val-check err-v) first_r_arg_name first_r_arg_name first_r_arg_name
+		      first_r_arg_name first_r_arg_name
 		      *ref-ccharps
+		      success-accessor
 		      w_ret_line)))))
 
 
