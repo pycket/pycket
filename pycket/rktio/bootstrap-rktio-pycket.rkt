@@ -187,7 +187,7 @@
 (struct arg (r-type w-type rktio-name w-name r-name))
 (struct def-fun (r-ret-type w-ret-type name args-list))
 (struct def-fun-err (err-v r-ret-type w-ret-type name args-list))
-(struct def-fun-result_t (success-accessor r-ret-type w-ret-type name args-list))
+(struct def-fun-result_t (success-accessor r-ret-type w-ret-type name args-list is-alloc?))
 
 ;; Emit the final Python module.
 (define (write-python-module)
@@ -364,6 +364,7 @@ def ~a(~a):
 
 \tif res_success != 1:
 \t\telems = [c_rktio_get_error_kind(~a), c_rktio_get_error(~a)]
+\t\t~a
 \t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 \t# *ref feedback line (if any *ref input is received)
@@ -673,6 +674,7 @@ def ~a(~a):
 	      [success-accessor (def-fun-result_t-success-accessor fn)]
 	      [w_ret_line (return-line (def-fun-result_t-w-ret-type fn)
 				       (def-fun-result_t-r-ret-type fn))]
+	      [is-alloc? (def-fun-result_t-is-alloc? fn)]
 	      [r_ret_type (def-fun-result_t-r-ret-type fn)])
 	  (let-values
 	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns first_r_arg_name *ref-ccharps)
@@ -686,7 +688,8 @@ def ~a(~a):
 		      name w_arg_names
 		      r_arg_defns
 		      name r_arg_names
-		      first_r_arg_name first_r_arg_name
+		      first_r_arg_name first_r_arg_name ; for get_error_kind & get_error
+		      (if is-alloc? "c_rktio_free(rffi.cast(rffi.VOIDP, _res))" "")
 		      *ref-ccharps
 		      success-accessor
 		      w_ret_line)))))
@@ -881,9 +884,20 @@ librktio_a = ExternalCompilationInfo(
 			      [arg-w-name (format "w_~a" (cadr a))]
 			      [arg-r-name (format "r_~a" (cadr a))])
 			 (arg arg-r-type arg-w-type (cadr a) arg-w-name arg-r-name))) args)])
-	  (acc! define-fn-result_t name (def-fun-result_t success-accessor lowered-ret-type w-ret-type name lowered-arg-types)))
+	  (acc! define-fn-result_t name (def-fun-result_t success-accessor lowered-ret-type w-ret-type name lowered-arg-types #f)))
        ]
-
+      [`(define-function/alloc_result_t ,success-accessor ,flags ,ret-type ,name ,args)
+	(let* ([lowered-ret-type (lower-type ret-type)]
+	       [w-ret-type (r->w lowered-ret-type success-accessor)]
+	       [lowered-arg-types
+		(map (lambda (a)
+		       (let* ([arg-r-type (lower-type (car a) #t)]
+			      [arg-w-type (r->w arg-r-type)]
+			      [arg-w-name (format "w_~a" (cadr a))]
+			      [arg-r-name (format "r_~a" (cadr a))])
+			 (arg arg-r-type arg-w-type (cadr a) arg-w-name arg-r-name))) args)])
+	  (acc! define-fn-result_t name (def-fun-result_t success-accessor lowered-ret-type w-ret-type name lowered-arg-types #t)))
+       ]
       [_ #f]))
 
   ;; read the single top-level form and start walking

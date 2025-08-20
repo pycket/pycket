@@ -5451,6 +5451,7 @@ def rktio_directory_list_step_r(w_rktio, w_dl):
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
+		
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 	# *ref feedback line (if any *ref input is received)
@@ -5462,6 +5463,41 @@ def rktio_directory_list_step_r(w_rktio, w_dl):
 	# return line
 	# res is a R_PTR
 	return W_CCHARP(res)
+
+
+c_rktio_directory_list_start_r = rffi.llexternal('rktio_directory_list_start_r', [R_PTR, RKTIO_CONST_STRING_T], R_PTR, compilation_info=librktio_a)
+
+add_prim_to_rktio("rktio_directory_list_start_r")
+
+@expose("rktio_directory_list_start_r", [W_R_PTR, values.W_Bytes], simple=True)
+def rktio_directory_list_start_r(w_rktio, w_dirname):
+
+	r_rktio = rffi.cast(R_PTR, w_rktio.to_rffi())
+
+	p_str = w_dirname.as_str()
+	r_dirname = rffi.str2charp(p_str)
+
+	_res = c_rktio_directory_list_start_r(r_rktio, r_dirname)
+
+	res_success = c_rktio_result_is_success(_res)
+
+	if res_success != 1:
+		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
+		c_rktio_free(rffi.cast(rffi.VOIDP, _res))
+		return values_vector.W_Vector.fromelements([num(n) for n in elems])
+
+	# *ref feedback line (if any *ref input is received)
+
+
+	# call success accessor to get the actual returned value
+	res = c_rktio_result_directory_list(_res)
+
+	# return line
+	# res is a R_PTR, can be NULL
+	if not res or res == NULL_VOIDP:
+		return rktio_NULL
+
+	return W_R_PTR(res)
 
 
 c_rktio_poll_write_flushed_r = rffi.llexternal('rktio_poll_write_flushed_r', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
@@ -5481,6 +5517,7 @@ def rktio_poll_write_flushed_r(w_rktio, w_rfd):
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
+		
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 	# *ref feedback line (if any *ref input is received)
@@ -5511,6 +5548,7 @@ def rktio_poll_write_ready_r(w_rktio, w_rfd):
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
+		
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 	# *ref feedback line (if any *ref input is received)
@@ -5541,6 +5579,7 @@ def rktio_poll_read_ready_r(w_rktio, w_rfd):
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
+		
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 	# *ref feedback line (if any *ref input is received)
@@ -5577,6 +5616,7 @@ def rktio_write_in_r(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
+		
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 	# *ref feedback line (if any *ref input is received)
@@ -5619,6 +5659,7 @@ def rktio_read_converted_in_r(w_rktio, w_fd, w_buffer, w_start, w_len, w_is_conv
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
+		
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 	# *ref feedback line (if any *ref input is received)
@@ -5660,6 +5701,7 @@ def rktio_read_in_r(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
+		
 		return values_vector.W_Vector.fromelements([num(n) for n in elems])
 
 	# *ref feedback line (if any *ref input is received)
