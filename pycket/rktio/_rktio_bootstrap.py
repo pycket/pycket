@@ -5445,9 +5445,9 @@ def rktio_directory_list_step_r(w_rktio, w_dl):
 
 	r_dl = rffi.cast(R_PTR, w_dl.to_rffi())
 
-	res = c_rktio_directory_list_step_r(r_rktio, r_dl)
+	_res = c_rktio_directory_list_step_r(r_rktio, r_dl)
 
-	res_success = c_rktio_result_is_success(res)
+	res_success = c_rktio_result_is_success(_res)
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
@@ -5457,14 +5457,11 @@ def rktio_directory_list_step_r(w_rktio, w_dl):
 
 
 	# call success accessor to get the actual returned value
-	res = c_rktio_result_string(res)
+	res = c_rktio_result_string(_res)
 
 	# return line
-	# res is a R_PTR, can be NULL
-	if not res or res == NULL_VOIDP:
-		return rktio_NULL
-
-	return W_R_PTR(res)
+	# res is a R_PTR
+	return W_CCHARP(res)
 
 
 c_rktio_poll_write_flushed_r = rffi.llexternal('rktio_poll_write_flushed_r', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
@@ -5478,9 +5475,9 @@ def rktio_poll_write_flushed_r(w_rktio, w_rfd):
 
 	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
 
-	res = c_rktio_poll_write_flushed_r(r_rktio, r_rfd)
+	_res = c_rktio_poll_write_flushed_r(r_rktio, r_rfd)
 
-	res_success = c_rktio_result_is_success(res)
+	res_success = c_rktio_result_is_success(_res)
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
@@ -5490,14 +5487,11 @@ def rktio_poll_write_flushed_r(w_rktio, w_rfd):
 
 
 	# call success accessor to get the actual returned value
-	res = c_rktio_result_integer(res)
+	res = c_rktio_result_integer(_res)
 
 	# return line
-	# res is a R_PTR, can be NULL
-	if not res or res == NULL_VOIDP:
-		return rktio_NULL
-
-	return W_R_PTR(res)
+	# res is a R_PTR
+	return values.W_Fixnum(res)
 
 
 c_rktio_poll_write_ready_r = rffi.llexternal('rktio_poll_write_ready_r', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
@@ -5511,9 +5505,9 @@ def rktio_poll_write_ready_r(w_rktio, w_rfd):
 
 	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
 
-	res = c_rktio_poll_write_ready_r(r_rktio, r_rfd)
+	_res = c_rktio_poll_write_ready_r(r_rktio, r_rfd)
 
-	res_success = c_rktio_result_is_success(res)
+	res_success = c_rktio_result_is_success(_res)
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
@@ -5523,14 +5517,11 @@ def rktio_poll_write_ready_r(w_rktio, w_rfd):
 
 
 	# call success accessor to get the actual returned value
-	res = c_rktio_result_integer(res)
+	res = c_rktio_result_integer(_res)
 
 	# return line
-	# res is a R_PTR, can be NULL
-	if not res or res == NULL_VOIDP:
-		return rktio_NULL
-
-	return W_R_PTR(res)
+	# res is a R_PTR
+	return values.W_Fixnum(res)
 
 
 c_rktio_poll_read_ready_r = rffi.llexternal('rktio_poll_read_ready_r', [R_PTR, R_PTR], R_PTR, compilation_info=librktio_a)
@@ -5544,9 +5535,9 @@ def rktio_poll_read_ready_r(w_rktio, w_rfd):
 
 	r_rfd = rffi.cast(R_PTR, w_rfd.to_rffi())
 
-	res = c_rktio_poll_read_ready_r(r_rktio, r_rfd)
+	_res = c_rktio_poll_read_ready_r(r_rktio, r_rfd)
 
-	res_success = c_rktio_result_is_success(res)
+	res_success = c_rktio_result_is_success(_res)
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
@@ -5556,14 +5547,11 @@ def rktio_poll_read_ready_r(w_rktio, w_rfd):
 
 
 	# call success accessor to get the actual returned value
-	res = c_rktio_result_integer(res)
+	res = c_rktio_result_integer(_res)
 
 	# return line
-	# res is a R_PTR, can be NULL
-	if not res or res == NULL_VOIDP:
-		return rktio_NULL
-
-	return W_R_PTR(res)
+	# res is a R_PTR
+	return values.W_Fixnum(res)
 
 
 c_rktio_write_in_r = rffi.llexternal('rktio_write_in_r', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
@@ -5583,9 +5571,9 @@ def rktio_write_in_r(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 	r_end = rffi.cast(rffi.SSIZE_T, w_end.value)
 
-	res = c_rktio_write_in_r(r_rktio, r_fd, r_buffer, r_start, r_end)
+	_res = c_rktio_write_in_r(r_rktio, r_fd, r_buffer, r_start, r_end)
 
-	res_success = c_rktio_result_is_success(res)
+	res_success = c_rktio_result_is_success(_res)
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
@@ -5597,14 +5585,11 @@ def rktio_write_in_r(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 
 	# call success accessor to get the actual returned value
-	res = c_rktio_result_integer(res)
+	res = c_rktio_result_integer(_res)
 
 	# return line
-	# res is a R_PTR, can be NULL
-	if not res or res == NULL_VOIDP:
-		return rktio_NULL
-
-	return W_R_PTR(res)
+	# res is a R_PTR
+	return values.W_Fixnum(res)
 
 
 c_rktio_read_converted_in_r = rffi.llexternal('rktio_read_converted_in_r', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T, STAR_REF_CCHARP, INTPTR_T], R_PTR, compilation_info=librktio_a)
@@ -5628,9 +5613,9 @@ def rktio_read_converted_in_r(w_rktio, w_fd, w_buffer, w_start, w_len, w_is_conv
 
 	r_converted_start = rffi.cast(rffi.SSIZE_T, w_converted_start.value)
 
-	res = c_rktio_read_converted_in_r(r_rktio, r_fd, r_buffer, r_start, r_len, r_is_converted, r_converted_start)
+	_res = c_rktio_read_converted_in_r(r_rktio, r_fd, r_buffer, r_start, r_len, r_is_converted, r_converted_start)
 
-	res_success = c_rktio_result_is_success(res)
+	res_success = c_rktio_result_is_success(_res)
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
@@ -5645,14 +5630,11 @@ def rktio_read_converted_in_r(w_rktio, w_fd, w_buffer, w_start, w_len, w_is_conv
 
 
 	# call success accessor to get the actual returned value
-	res = c_rktio_result_integer(res)
+	res = c_rktio_result_integer(_res)
 
 	# return line
-	# res is a R_PTR, can be NULL
-	if not res or res == NULL_VOIDP:
-		return rktio_NULL
-
-	return W_R_PTR(res)
+	# res is a R_PTR
+	return values.W_Fixnum(res)
 
 
 c_rktio_read_in_r = rffi.llexternal('rktio_read_in_r', [R_PTR, R_PTR, STAR_REF_CCHARP, INTPTR_T, INTPTR_T], R_PTR, compilation_info=librktio_a)
@@ -5672,9 +5654,9 @@ def rktio_read_in_r(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 	r_end = rffi.cast(rffi.SSIZE_T, w_end.value)
 
-	res = c_rktio_read_in_r(r_rktio, r_fd, r_buffer, r_start, r_end)
+	_res = c_rktio_read_in_r(r_rktio, r_fd, r_buffer, r_start, r_end)
 
-	res_success = c_rktio_result_is_success(res)
+	res_success = c_rktio_result_is_success(_res)
 
 	if res_success != 1:
 		elems = [c_rktio_get_error_kind(r_rktio), c_rktio_get_error(r_rktio)]
@@ -5686,13 +5668,10 @@ def rktio_read_in_r(w_rktio, w_fd, w_buffer, w_start, w_end):
 
 
 	# call success accessor to get the actual returned value
-	res = c_rktio_result_integer(res)
+	res = c_rktio_result_integer(_res)
 
 	# return line
-	# res is a R_PTR, can be NULL
-	if not res or res == NULL_VOIDP:
-		return rktio_NULL
-
-	return W_R_PTR(res)
+	# res is a R_PTR
+	return values.W_Fixnum(res)
 
 

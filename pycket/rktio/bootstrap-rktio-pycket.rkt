@@ -358,9 +358,9 @@ add_prim_to_rktio(\"~a\")
 @expose(\"~a\", [~a], simple=True)
 def ~a(~a):
 ~a
-\n\tres = c_~a(~a)
+\n\t_res = c_~a(~a)
 
-\tres_success = c_rktio_result_is_success(res)
+\tres_success = c_rktio_result_is_success(_res)
 
 \tif res_success != 1:
 \t\telems = [c_rktio_get_error_kind(~a), c_rktio_get_error(~a)]
@@ -370,7 +370,7 @@ def ~a(~a):
 ~a
 
 \t# call success accessor to get the actual returned value
-\tres = c_~a(res)
+\tres = c_~a(_res)
 
 \t# return line
 ~a")
@@ -790,14 +790,23 @@ librktio_a = ExternalCompilationInfo(
 ;; each define-function form.
 (define (process-rktl port)
 
-  (define (r->w rffi-type)
+  (define (r->w rffi-type [success-accessor #f])
+    ; If we're using a success-accessor, then the return
+    ; type will be whatever it returns (rather than what we
+    ; infer from teh rffi-type).
+    (if success-accessor
+	(cond
+	  [(eq? success-accessor 'rktio_result_integer) w_fixnum]
+	  [(eq? success-accessor 'rktio_result_string) w_ccharp]
+	  [(eq? success-accessor 'rktio_result_directory_list) "W_R_PTR"]
+	  [else (error 'r->w (format "Unknown success-accessor used ~a" success-accessor))])
     (hash-ref
       type:rffi->pycket
       rffi-type
       (hash-ref type:w-struct-ptrs rffi-type 
 		;; hack
                 (format "W_~a" rffi-type))
-    ))
+    )))
 
   ;; walk : any-datum → void
   (define (walk expr)
@@ -853,8 +862,18 @@ librktio_a = ExternalCompilationInfo(
 	  (acc! define-fn-errno+step name (def-fun-err err-v lowered-ret-type w-ret-type name lowered-arg-types)))
        ]
       [`(define-function/result_t ,success-accessor ,flags ,ret-type ,name ,args)
-	(let* ([lowered-ret-type (lower-type ret-type)]
-	       [w-ret-type (r->w lowered-ret-type)]
+	(let* (; w-ret-type doesn't make sense here, because we return whatever
+	       ; the success-accessor returns, so this function will have the same
+	       ; return type with whatever sucess-accessor it uses.
+	       ; Unfortunately there's no easy way to lookup the return value of
+	       ; the success-accessor function (I suppose we could scan all the
+	       ; functions defined across collections we set here, since the
+	       ; accessor is just another rktio function).
+	       ; Since there's only a handful of success-accessors that are used
+	       ; in grand total of 7 functions in rktio, I'll make a map for them 
+	       ; by hand, and we'll overwrite the ret-type right from the get go.
+	       [lowered-ret-type (lower-type ret-type)]
+	       [w-ret-type (r->w lowered-ret-type success-accessor)]
 	       [lowered-arg-types
 		(map (lambda (a)
 		       (let* ([arg-r-type (lower-type (car a) #t)]
