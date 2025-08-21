@@ -677,3 +677,11 @@ def assert_pop_lock_level_bang(v, env, cont):
     status_cell.set(new_list)
     return return_value(values.w_void, env, cont)
 
+@expose("threaded?", [])
+def threaded_huh():
+    return values.w_false
+
+# FIXME: implementation
+@expose(["memory-order-acquire", "memory-order-release"], [])
+def memory_order_acq_release():
+    return values.w_void

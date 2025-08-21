@@ -380,6 +380,7 @@ kernel_str = [
     "make-weak-hasheqv", "make-will-executor", "map",
     "max", "memq", "memv", "min", "modulo",
     "most-positive-fixnum", "most-negative-fixnum",
+    "memory-order-acquire", "memory-order-release",
     "nack-guard-evt", "negative?", "never-evt",
     "newline", "not", "null",
     "null?", "number->string", "number?",
