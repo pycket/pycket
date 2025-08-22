@@ -685,3 +685,12 @@ def threaded_huh():
 @expose(["memory-order-acquire", "memory-order-release"], [])
 def memory_order_acq_release():
     return values.w_void
+
+@expose("make-engine-thread-cell-state", [values.W_ThreadCell, values.W_Bool])
+def make_engine_thread_cell_state(init_break_enabled_cell, empty_config_huh):
+    return init_break_enabled_cell
+
+
+@expose("set-engine-thread-cell-state!", [values.W_Object])
+def set_engine_thread_cell_state_bang(init_break_enabled_cell):
+    return values.w_void

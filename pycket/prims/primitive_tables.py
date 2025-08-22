@@ -725,7 +725,9 @@ engine_str = [
     "post-as-asynchronous-callback",
     "continuation-current-primitive",
     "prop:unsafe-authentic-override",
-    "get-system-stats"
+    "get-system-stats",
+    "make-engine-thread-cell-state",
+    "set-engine-thread-cell-state!",
 ]
 
 pthread_str = [
