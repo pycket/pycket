@@ -262,7 +262,7 @@
   (make-parameter
    +inf.0
    (lambda (c_0)
-     (if (let-values (((or-part_0) (eqv? c_0 +inf.0))) (if or-part_0 or-part_0 (if (exact-integer? c_0) (> c_0 5) #f)))
+     (if (let-values (((or-part_4) (eqv? c_0 +inf.0))) (if or-part_4 or-part_4 (if (exact-integer? c_0) (> c_0 5) #f)))
        c_0
        (raise-argument-error 'print-value-columns "(or/c +inf.0 (and/c exact-integer? (>/c 5)))" c_0)))
    'print-value-columns))
@@ -313,12 +313,12 @@
  (define-values (not-an-fX.1$1) (lambda (who_7 v_18) (begin 'not-an-fX (raise-argument-error who_7 "fixnum?" v_18))))
  (define-values
   (check-flvector)
-  (lambda (v_17)
+  (lambda (v_19)
     (begin
-      (if (flvector? v_17)
+      (if (flvector? v_19)
         (void)
-        (let-values () (1/raise-argument-error 'in-flvector* (string-append "flvector" "?") v_17))))))
- (define-values (not-an-fX.1) (lambda (who_7 v_18) (begin 'not-an-fX (raise-argument-error who_7 "flonum?" v_18))))
+        (let-values () (1/raise-argument-error 'in-flvector* (string-append "flvector" "?") v_19))))))
+ (define-values (not-an-fX.1) (lambda (who_8 v_20) (begin 'not-an-fX (raise-argument-error who_8 "flonum?" v_20))))
  (define-values
   (truncate-path)
   (lambda (p_0)
@@ -356,17 +356,17 @@
     (begin
       'make-path->relative-path-elements
       (let-values (((wr-dir_0) (if (eq? wr-dir3_0 unsafe-undefined) (current-write-relative-directory) wr-dir3_0)))
-        (let-values (((who_8) who1_0))
+        (let-values (((who_9) who1_0))
           (let-values ()
             (begin
-              (if who_8
+              (if who_9
                 (let-values ()
-                  (if (let-values (((or-part_4) (not wr-dir_0)))
-                        (if or-part_4
-                          or-part_4
-                          (let-values (((or-part_5) (if (path-string? wr-dir_0) (complete-path? wr-dir_0) #f)))
-                            (if or-part_5
-                              or-part_5
+                  (if (let-values (((or-part_5) (not wr-dir_0)))
+                        (if or-part_5
+                          or-part_5
+                          (let-values (((or-part_6) (if (path-string? wr-dir_0) (complete-path? wr-dir_0) #f)))
+                            (if or-part_6
+                              or-part_6
                               (if (pair? wr-dir_0)
                                 (if (path-string? (car wr-dir_0))
                                   (if (complete-path? (car wr-dir_0))
@@ -377,7 +377,7 @@
                     (void)
                     (let-values ()
                       (raise-argument-error
-                       who_8
+                       who_9
                        (string-append
                         "(or/c (and/c path-string? complete-path?)\n"
                         "      (cons/c (and/c path-string? complete-path?)\n"
@@ -386,13 +386,13 @@
                        wr-dir_0))))
                 (void))
               (if (not wr-dir_0)
-                (let-values () (lambda (v_19) #f))
+                (let-values () (lambda (v_21) #f))
                 (let-values ()
                   (let-values (((exploded-base-dir_0) 'not-ready))
                     (let-values (((exploded-wrt-rel-dir_0) 'not-ready))
-                      (lambda (v_20)
+                      (lambda (v_22)
                         (begin
-                          (if (if (eq? exploded-base-dir_0 'not-ready) (path? v_20) #f)
+                          (if (if (eq? exploded-base-dir_0 'not-ready) (path? v_22) #f)
                             (let-values ()
                               (let-values (((wrt-dir_0) (if wr-dir_0 (if (pair? wr-dir_0) (car wr-dir_0) wr-dir_0) #f)))
                                 (let-values (((exploded-wrt-dir_0) (explode-path wrt-dir_0)))
@@ -407,7 +407,7 @@
                                             (let-values (((exploded-wrt-dir_1) (explode-path wrt-dir_0)))
                                               (let-values (((base-len_0) (length exploded-base-dir_0)))
                                                 (begin
-                                                  (if who_8
+                                                  (if who_9
                                                     (let-values ()
                                                       (if (if (>= (length exploded-wrt-dir_1) base-len_0)
                                                             (let-values (((result_0)
@@ -479,7 +479,7 @@
                                                         (void)
                                                         (let-values ()
                                                           (raise-arguments-error
-                                                           who_8
+                                                           who_9
                                                            "relative-directory pair's first path does not extend second path"
                                                            "first path"
                                                            wrt-dir_0
@@ -489,8 +489,8 @@
                                                   (list-tail exploded-wrt-dir_1 base-len_0))))))))))))
                             (void))
                           (if exploded-base-dir_0
-                            (if (path? v_20)
-                              (let-values (((exploded_0) (explode-path v_20)))
+                            (if (path? v_22)
+                              (let-values (((exploded_0) (explode-path v_22)))
                                 (if (let-values (((result_5) (let-values (((result_6) #t)) result_6)))
                                       (let-values (((lst_4) exploded-base-dir_0) ((lst_5) exploded_0))
                                         (begin
@@ -756,7 +756,7 @@
   (lambda (external-lift?7_0 handle-fail6_0 keep-mutable?5_0 skip-prefix?8_0 v14_0 orig-o13_0)
     (begin
       's-exp->fasl
-      (let-values (((v_21) v14_0))
+      (let-values (((v_23) v14_0))
         (let-values (((orig-o_0) orig-o13_0))
           (let-values (((keep-mutable?_0) keep-mutable?5_0))
             (let-values (((handle-fail_0) handle-fail6_0))
@@ -804,76 +804,76 @@
                                           (void))
                                         (values))))
                           (let-values (((o_0)
-                                        (let-values (((or-part_6) orig-o_0))
-                                          (if or-part_6 or-part_6 (open-output-bytes)))))
+                                        (let-values (((or-part_7) orig-o_0))
+                                          (if or-part_7 or-part_7 (open-output-bytes)))))
                             (let-values (((shared_0) (make-hasheq)))
                               (let-values (((external-lift_0) (if external-lift?_0 (make-hasheq) #f)))
                                 (let-values (((shared-counter_0) 0))
                                   (let-values ((()
                                                 (begin
                                                   ((letrec-values (((loop_2)
-                                                                    (lambda (v_22)
+                                                                    (lambda (v_24)
                                                                       (begin
                                                                         'loop
                                                                         (if (if external-lift_0
-                                                                              (hash-ref external-lift_0 v_22 #f)
+                                                                              (hash-ref external-lift_0 v_24 #f)
                                                                               #f)
                                                                           (let-values () (void))
                                                                           (if (if external-lift?_0
-                                                                                (external-lift?_0 v_22)
+                                                                                (external-lift?_0 v_24)
                                                                                 #f)
                                                                             (let-values ()
                                                                               (begin
-                                                                                (hash-set! external-lift_0 v_22 #t)
+                                                                                (hash-set! external-lift_0 v_24 #t)
                                                                                 (set! shared-counter_0
                                                                                   (add1 shared-counter_0))
                                                                                 (hash-set!
                                                                                  shared_0
-                                                                                 v_22
+                                                                                 v_24
                                                                                  (- shared-counter_0))))
-                                                                            (if (let-values (((or-part_7)
-                                                                                              (symbol? v_22)))
-                                                                                  (if or-part_7
-                                                                                    or-part_7
-                                                                                    (let-values (((or-part_8)
-                                                                                                  (keyword? v_22)))
-                                                                                      (if or-part_8
-                                                                                        or-part_8
-                                                                                        (let-values (((or-part_9)
-                                                                                                      (string? v_22)))
-                                                                                          (if or-part_9
-                                                                                            or-part_9
-                                                                                            (let-values (((or-part_10)
+                                                                            (if (let-values (((or-part_8)
+                                                                                              (symbol? v_24)))
+                                                                                  (if or-part_8
+                                                                                    or-part_8
+                                                                                    (let-values (((or-part_9)
+                                                                                                  (keyword? v_24)))
+                                                                                      (if or-part_9
+                                                                                        or-part_9
+                                                                                        (let-values (((or-part_10)
+                                                                                                      (string? v_24)))
+                                                                                          (if or-part_10
+                                                                                            or-part_10
+                                                                                            (let-values (((or-part_11)
                                                                                                           (bytes?
-                                                                                                           v_22)))
-                                                                                              (if or-part_10
-                                                                                                or-part_10
-                                                                                                (let-values (((or-part_11)
+                                                                                                           v_24)))
+                                                                                              (if or-part_11
+                                                                                                or-part_11
+                                                                                                (let-values (((or-part_12)
                                                                                                               (fxvector?
-                                                                                                               v_22)))
-                                                                                                  (if or-part_11
-                                                                                                    or-part_11
-                                                                                                    (let-values (((or-part_12)
+                                                                                                               v_24)))
+                                                                                                  (if or-part_12
+                                                                                                    or-part_12
+                                                                                                    (let-values (((or-part_13)
                                                                                                                   (flvector?
-                                                                                                                   v_22)))
-                                                                                                      (if or-part_12
-                                                                                                        or-part_12
+                                                                                                                   v_24)))
+                                                                                                      (if or-part_13
+                                                                                                        or-part_13
                                                                                                         (path?
-                                                                                                         v_22)))))))))))))
+                                                                                                         v_24)))))))))))))
                                                                               (let-values ()
-                                                                                (hash-update! shared_0 v_22 add1 0))
-                                                                              (if (pair? v_22)
+                                                                                (hash-update! shared_0 v_24 add1 0))
+                                                                              (if (pair? v_24)
                                                                                 (let-values ()
                                                                                   (begin
-                                                                                    (loop_2 (car v_22))
-                                                                                    (loop_2 (cdr v_22))))
-                                                                                (if (vector? v_22)
+                                                                                    (loop_2 (car v_24))
+                                                                                    (loop_2 (cdr v_24))))
+                                                                                (if (vector? v_24)
                                                                                   (let-values ()
                                                                                     (begin
                                                                                       (let-values ()
                                                                                         (let-values (((vec_3 len_2)
                                                                                                       (let-values (((vec_4)
-                                                                                                                    v_22))
+                                                                                                                    v_24))
                                                                                                         (begin
                                                                                                           (if (variable-reference-from-unsafe?
                                                                                                                (#%variable-reference))
@@ -916,21 +916,21 @@
                                                                                              for-loop_5)
                                                                                            0)))
                                                                                       (void)))
-                                                                                  (if (hash? v_22)
+                                                                                  (if (hash? v_24)
                                                                                     (let-values ()
                                                                                       (hash-for-each
-                                                                                       v_22
-                                                                                       (lambda (k_2 v_23)
+                                                                                       v_24
+                                                                                       (lambda (k_2 v_25)
                                                                                          (begin
                                                                                            (loop_2 k_2)
-                                                                                           (loop_2 v_23)))
+                                                                                           (loop_2 v_25)))
                                                                                        #t))
-                                                                                    (if (box? v_22)
+                                                                                    (if (box? v_24)
                                                                                       (let-values ()
-                                                                                        (loop_2 (unbox v_22)))
+                                                                                        (loop_2 (unbox v_24)))
                                                                                       (let-values (((c2_0)
                                                                                                     (prefab-struct-key
-                                                                                                     v_22)))
+                                                                                                     v_24)))
                                                                                         (if c2_0
                                                                                           ((lambda (k_3)
                                                                                              (begin
@@ -945,7 +945,7 @@
                                                                                                                  (unsafe-normalise-inputs
                                                                                                                   unsafe-vector-length
                                                                                                                   (struct->vector
-                                                                                                                   v_22)
+                                                                                                                   v_24)
                                                                                                                   1
                                                                                                                   #f
                                                                                                                   1)
@@ -959,7 +959,7 @@
                                                                                                                     (unsafe-vector-length
                                                                                                                      x_5))
                                                                                                                   (struct->vector
-                                                                                                                   v_22)
+                                                                                                                   v_24)
                                                                                                                   1
                                                                                                                   #f
                                                                                                                   1))))
@@ -995,22 +995,22 @@
                                                                                                     start*_0)))
                                                                                                (void)))
                                                                                            c2_0)
-                                                                                          (if (srcloc? v_22)
+                                                                                          (if (srcloc? v_24)
                                                                                             (let-values ()
                                                                                               (loop_2
-                                                                                               (srcloc-source v_22)))
-                                                                                            (if (correlated? v_22)
+                                                                                               (srcloc-source v_24)))
+                                                                                            (if (correlated? v_24)
                                                                                               (let-values ()
                                                                                                 (begin
                                                                                                   (loop_2
-                                                                                                   (correlated-e v_22))
+                                                                                                   (correlated-e v_24))
                                                                                                   (loop_2
                                                                                                    (correlated-source
-                                                                                                    v_22))
+                                                                                                    v_24))
                                                                                                   (let-values ()
                                                                                                     (let-values (((lst_14)
                                                                                                                   (correlated-property-symbol-keys
-                                                                                                                   v_22)))
+                                                                                                                   v_24)))
                                                                                                       (begin
                                                                                                         (if (variable-reference-from-unsafe?
                                                                                                              (#%variable-reference))
@@ -1040,7 +1040,7 @@
                                                                                                                                                                        k_4)
                                                                                                                                                                       (loop_2
                                                                                                                                                                        (correlated-property
-                                                                                                                                                                        v_22
+                                                                                                                                                                        v_24
                                                                                                                                                                         k_4))))
                                                                                                                                                                   (values)))))
                                                                                                                                                   (values))))
@@ -1055,9 +1055,9 @@
                                                                                                   (void)))
                                                                                               (let-values (((c1_0)
                                                                                                             (if (struct-type?
-                                                                                                                 v_22)
+                                                                                                                 v_24)
                                                                                                               (prefab-struct-type-key+field-count
-                                                                                                               v_22)
+                                                                                                               v_24)
                                                                                                               #f)))
                                                                                                 (if c1_0
                                                                                                   ((lambda (k+c_0)
@@ -1070,14 +1070,14 @@
                                                                                                   (let-values ()
                                                                                                     (void)))))))))))))))))))
                                                      loop_2)
-                                                   v_21)
+                                                   v_23)
                                                   (values))))
                                     (let-values (((treat-immutable?_0)
-                                                  (lambda (v_24)
+                                                  (lambda (v_26)
                                                     (begin
                                                       'treat-immutable?
-                                                      (let-values (((or-part_13) (not keep-mutable?_0)))
-                                                        (if or-part_13 or-part_13 (immutable? v_24)))))))
+                                                      (let-values (((or-part_14) (not keep-mutable?_0)))
+                                                        (if or-part_14 or-part_14 (immutable? v_26)))))))
                                       (let-values (((path->relative-path-elements_0)
                                                     (let-values ()
                                                       (make-path->relative-path-elements.1 #f unsafe-undefined))))
@@ -1091,18 +1091,18 @@
                                                         (let-values (((o_1) (open-output-bytes)))
                                                           (begin
                                                             ((letrec-values (((loop_3)
-                                                                              (lambda (v_25)
+                                                                              (lambda (v_27)
                                                                                 (begin
                                                                                   'loop
                                                                                   (if (not
                                                                                        (eq?
-                                                                                        (hash-ref shared_0 v_25 1)
+                                                                                        (hash-ref shared_0 v_27 1)
                                                                                         1))
                                                                                     (let-values ()
                                                                                       (let-values (((c_1)
                                                                                                     (hash-ref
                                                                                                      shared_0
-                                                                                                     v_25)))
+                                                                                                     v_27)))
                                                                                         (if (negative? c_1)
                                                                                           (let-values ()
                                                                                             (begin
@@ -1127,49 +1127,49 @@
                                                                                                  o_1)
                                                                                                 (hash-remove!
                                                                                                  shared_0
-                                                                                                 v_25)
-                                                                                                (loop_3 v_25)
+                                                                                                 v_27)
+                                                                                                (loop_3 v_27)
                                                                                                 (hash-set!
                                                                                                  shared_0
-                                                                                                 v_25
+                                                                                                 v_27
                                                                                                  (- (add1 pos_1)))))))))
-                                                                                    (if (not v_25)
+                                                                                    (if (not v_27)
                                                                                       (let-values ()
                                                                                         (1/write-byte
                                                                                          fasl-false-type
                                                                                          o_1))
-                                                                                      (if (eq? v_25 #t)
+                                                                                      (if (eq? v_27 #t)
                                                                                         (let-values ()
                                                                                           (1/write-byte
                                                                                            fasl-true-type
                                                                                            o_1))
-                                                                                        (if (null? v_25)
+                                                                                        (if (null? v_27)
                                                                                           (let-values ()
                                                                                             (1/write-byte
                                                                                              fasl-null-type
                                                                                              o_1))
-                                                                                          (if (void? v_25)
+                                                                                          (if (void? v_27)
                                                                                             (let-values ()
                                                                                               (1/write-byte
                                                                                                fasl-void-type
                                                                                                o_1))
-                                                                                            (if (eof-object? v_25)
+                                                                                            (if (eof-object? v_27)
                                                                                               (let-values ()
                                                                                                 (1/write-byte
                                                                                                  fasl-eof-type
                                                                                                  o_1))
-                                                                                              (if (exact-integer? v_25)
+                                                                                              (if (exact-integer? v_27)
                                                                                                 (let-values ()
                                                                                                   (if (<=
                                                                                                        fasl-lowest-small-integer
-                                                                                                       v_25
+                                                                                                       v_27
                                                                                                        fasl-highest-small-integer)
                                                                                                     (let-values ()
                                                                                                       (1/write-byte
                                                                                                        (+
                                                                                                         fasl-small-integer-start
                                                                                                         (-
-                                                                                                         v_25
+                                                                                                         v_27
                                                                                                          fasl-lowest-small-integer))
                                                                                                        o_1))
                                                                                                     (let-values ()
@@ -1178,19 +1178,19 @@
                                                                                                          fasl-integer-type
                                                                                                          o_1)
                                                                                                         (write-fasl-integer
-                                                                                                         v_25
+                                                                                                         v_27
                                                                                                          o_1)))))
-                                                                                                (if (flonum? v_25)
+                                                                                                (if (flonum? v_27)
                                                                                                   (let-values ()
                                                                                                     (begin
                                                                                                       (1/write-byte
                                                                                                        fasl-flonum-type
                                                                                                        o_1)
                                                                                                       (write-fasl-flonum
-                                                                                                       v_25
+                                                                                                       v_27
                                                                                                        o_1)))
                                                                                                   (if (single-flonum?
-                                                                                                       v_25)
+                                                                                                       v_27)
                                                                                                     (let-values ()
                                                                                                       (begin
                                                                                                         (1/write-byte
@@ -1198,17 +1198,17 @@
                                                                                                          o_1)
                                                                                                         (1/write-bytes
                                                                                                          (if (eqv?
-                                                                                                              v_25
+                                                                                                              v_27
                                                                                                               (real->single-flonum
                                                                                                                +nan.0))
                                                                                                            #"\0\0\300\177"
                                                                                                            (real->floating-point-bytes
-                                                                                                            v_25
+                                                                                                            v_27
                                                                                                             4
                                                                                                             #f))
                                                                                                          o_1)))
                                                                                                     (if (extflonum?
-                                                                                                         v_25)
+                                                                                                         v_27)
                                                                                                       (let-values ()
                                                                                                         (let-values ((()
                                                                                                                       (begin
@@ -1220,7 +1220,7 @@
                                                                                                                         (string->bytes/utf-8
                                                                                                                          (format
                                                                                                                           "~a"
-                                                                                                                          v_25))))
+                                                                                                                          v_27))))
                                                                                                             (begin
                                                                                                               (write-fasl-integer
                                                                                                                (bytes-length
@@ -1230,7 +1230,7 @@
                                                                                                                bstr_5
                                                                                                                o_1)))))
                                                                                                       (if (rational?
-                                                                                                           v_25)
+                                                                                                           v_27)
                                                                                                         (let-values ()
                                                                                                           (begin
                                                                                                             (1/write-byte
@@ -1238,12 +1238,12 @@
                                                                                                              o_1)
                                                                                                             (loop_3
                                                                                                              (numerator
-                                                                                                              v_25))
+                                                                                                              v_27))
                                                                                                             (loop_3
                                                                                                              (denominator
-                                                                                                              v_25))))
+                                                                                                              v_27))))
                                                                                                         (if (complex?
-                                                                                                             v_25)
+                                                                                                             v_27)
                                                                                                           (let-values ()
                                                                                                             (begin
                                                                                                               (1/write-byte
@@ -1251,12 +1251,12 @@
                                                                                                                o_1)
                                                                                                               (loop_3
                                                                                                                (real-part
-                                                                                                                v_25))
+                                                                                                                v_27))
                                                                                                               (loop_3
                                                                                                                (imag-part
-                                                                                                                v_25))))
+                                                                                                                v_27))))
                                                                                                           (if (char?
-                                                                                                               v_25)
+                                                                                                               v_27)
                                                                                                             (let-values ()
                                                                                                               (begin
                                                                                                                 (1/write-byte
@@ -1264,21 +1264,21 @@
                                                                                                                  o_1)
                                                                                                                 (write-fasl-integer
                                                                                                                  (char->integer
-                                                                                                                  v_25)
+                                                                                                                  v_27)
                                                                                                                  o_1)))
                                                                                                             (if (symbol?
-                                                                                                                 v_25)
+                                                                                                                 v_27)
                                                                                                               (let-values ()
                                                                                                                 (let-values ((()
                                                                                                                               (begin
                                                                                                                                 (if (symbol-interned?
-                                                                                                                                     v_25)
+                                                                                                                                     v_27)
                                                                                                                                   (let-values ()
                                                                                                                                     (1/write-byte
                                                                                                                                      fasl-symbol-type
                                                                                                                                      o_1))
                                                                                                                                   (if (symbol-unreadable?
-                                                                                                                                       v_25)
+                                                                                                                                       v_27)
                                                                                                                                     (let-values ()
                                                                                                                                       (1/write-byte
                                                                                                                                        fasl-unreadable-symbol-type
@@ -1291,7 +1291,7 @@
                                                                                                                   (let-values (((bstr_6)
                                                                                                                                 (string->bytes/utf-8
                                                                                                                                  (symbol->string
-                                                                                                                                  v_25))))
+                                                                                                                                  v_27))))
                                                                                                                     (begin
                                                                                                                       (write-fasl-integer
                                                                                                                        (bytes-length
@@ -1301,7 +1301,7 @@
                                                                                                                        bstr_6
                                                                                                                        o_1)))))
                                                                                                               (if (keyword?
-                                                                                                                   v_25)
+                                                                                                                   v_27)
                                                                                                                 (let-values ()
                                                                                                                   (let-values ((()
                                                                                                                                 (begin
@@ -1312,7 +1312,7 @@
                                                                                                                     (let-values (((bstr_7)
                                                                                                                                   (string->bytes/utf-8
                                                                                                                                    (keyword->string
-                                                                                                                                    v_25))))
+                                                                                                                                    v_27))))
                                                                                                                       (begin
                                                                                                                         (write-fasl-integer
                                                                                                                          (bytes-length
@@ -1322,37 +1322,37 @@
                                                                                                                          bstr_7
                                                                                                                          o_1)))))
                                                                                                                 (if (string?
-                                                                                                                     v_25)
+                                                                                                                     v_27)
                                                                                                                   (let-values ()
                                                                                                                     (begin
                                                                                                                       (write-fasl-integer
                                                                                                                        (if (treat-immutable?_0
-                                                                                                                            v_25)
+                                                                                                                            v_27)
                                                                                                                          fasl-immutable-string-type
                                                                                                                          fasl-string-type)
                                                                                                                        o_1)
                                                                                                                       (write-fasl-string
-                                                                                                                       v_25
+                                                                                                                       v_27
                                                                                                                        o_1)))
                                                                                                                   (if (bytes?
-                                                                                                                       v_25)
+                                                                                                                       v_27)
                                                                                                                     (let-values ()
                                                                                                                       (begin
                                                                                                                         (write-fasl-integer
                                                                                                                          (if (treat-immutable?_0
-                                                                                                                              v_25)
+                                                                                                                              v_27)
                                                                                                                            fasl-immutable-bytes-type
                                                                                                                            fasl-bytes-type)
                                                                                                                          o_1)
                                                                                                                         (write-fasl-bytes
-                                                                                                                         v_25
+                                                                                                                         v_27
                                                                                                                          o_1)))
                                                                                                                     (if (path-for-some-system?
-                                                                                                                         v_25)
+                                                                                                                         v_27)
                                                                                                                       (let-values ()
                                                                                                                         (let-values (((rel-elems_0)
                                                                                                                                       (path->relative-path-elements_0
-                                                                                                                                       v_25)))
+                                                                                                                                       v_27)))
                                                                                                                           (if rel-elems_0
                                                                                                                             (let-values ()
                                                                                                                               (begin
@@ -1368,43 +1368,43 @@
                                                                                                                                  o_1)
                                                                                                                                 (write-fasl-bytes
                                                                                                                                  (path->bytes
-                                                                                                                                  v_25)
+                                                                                                                                  v_27)
                                                                                                                                  o_1)
                                                                                                                                 (loop_3
                                                                                                                                  (path-convention-type
-                                                                                                                                  v_25)))))))
+                                                                                                                                  v_27)))))))
                                                                                                                       (if (if (srcloc?
-                                                                                                                               v_25)
+                                                                                                                               v_27)
                                                                                                                             (let-values (((src_0)
                                                                                                                                           (srcloc-source
-                                                                                                                                           v_25)))
-                                                                                                                              (let-values (((or-part_14)
+                                                                                                                                           v_27)))
+                                                                                                                              (let-values (((or-part_15)
                                                                                                                                             (not
                                                                                                                                              src_0)))
-                                                                                                                                (if or-part_14
-                                                                                                                                  or-part_14
-                                                                                                                                  (let-values (((or-part_15)
+                                                                                                                                (if or-part_15
+                                                                                                                                  or-part_15
+                                                                                                                                  (let-values (((or-part_16)
                                                                                                                                                 (path-for-some-system?
                                                                                                                                                  src_0)))
-                                                                                                                                    (if or-part_15
-                                                                                                                                      or-part_15
-                                                                                                                                      (let-values (((or-part_16)
+                                                                                                                                    (if or-part_16
+                                                                                                                                      or-part_16
+                                                                                                                                      (let-values (((or-part_17)
                                                                                                                                                     (string?
                                                                                                                                                      src_0)))
-                                                                                                                                        (if or-part_16
-                                                                                                                                          or-part_16
-                                                                                                                                          (let-values (((or-part_17)
+                                                                                                                                        (if or-part_17
+                                                                                                                                          or-part_17
+                                                                                                                                          (let-values (((or-part_18)
                                                                                                                                                         (bytes?
                                                                                                                                                          src_0)))
-                                                                                                                                            (if or-part_17
-                                                                                                                                              or-part_17
+                                                                                                                                            (if or-part_18
+                                                                                                                                              or-part_18
                                                                                                                                               (symbol?
                                                                                                                                                src_0))))))))))
                                                                                                                             #f)
                                                                                                                         (let-values ()
                                                                                                                           (let-values (((src_1)
                                                                                                                                         (srcloc-source
-                                                                                                                                         v_25)))
+                                                                                                                                         v_27)))
                                                                                                                             (let-values (((new-src_0)
                                                                                                                                           (if (if (path?
                                                                                                                                                    src_1)
@@ -1425,42 +1425,42 @@
                                                                                                                                  new-src_0)
                                                                                                                                 (loop_3
                                                                                                                                  (srcloc-line
-                                                                                                                                  v_25))
+                                                                                                                                  v_27))
                                                                                                                                 (loop_3
                                                                                                                                  (srcloc-column
-                                                                                                                                  v_25))
+                                                                                                                                  v_27))
                                                                                                                                 (loop_3
                                                                                                                                  (srcloc-position
-                                                                                                                                  v_25))
+                                                                                                                                  v_27))
                                                                                                                                 (loop_3
                                                                                                                                  (srcloc-span
-                                                                                                                                  v_25))))))
+                                                                                                                                  v_27))))))
                                                                                                                         (if (pair?
-                                                                                                                             v_25)
+                                                                                                                             v_27)
                                                                                                                           (let-values ()
                                                                                                                             (if (pair?
                                                                                                                                  (cdr
-                                                                                                                                  v_25))
+                                                                                                                                  v_27))
                                                                                                                               (let-values ()
                                                                                                                                 (let-values (((n_1
                                                                                                                                                normal-list?_0)
                                                                                                                                               ((letrec-values (((loop_4)
-                                                                                                                                                                (lambda (v_26
+                                                                                                                                                                (lambda (v_28
                                                                                                                                                                          len_3)
                                                                                                                                                                   (begin
                                                                                                                                                                     'loop
                                                                                                                                                                     (if (null?
-                                                                                                                                                                         v_26)
+                                                                                                                                                                         v_28)
                                                                                                                                                                       (let-values ()
                                                                                                                                                                         (values
                                                                                                                                                                          len_3
                                                                                                                                                                          #t))
                                                                                                                                                                       (if (pair?
-                                                                                                                                                                           v_26)
+                                                                                                                                                                           v_28)
                                                                                                                                                                         (let-values ()
                                                                                                                                                                           (loop_4
                                                                                                                                                                            (cdr
-                                                                                                                                                                            v_26)
+                                                                                                                                                                            v_28)
                                                                                                                                                                            (add1
                                                                                                                                                                             len_3)))
                                                                                                                                                                         (let-values ()
@@ -1468,7 +1468,7 @@
                                                                                                                                                                            len_3
                                                                                                                                                                            #f))))))))
                                                                                                                                                  loop_4)
-                                                                                                                                               v_25
+                                                                                                                                               v_27
                                                                                                                                                0)))
                                                                                                                                   (begin
                                                                                                                                     (1/write-byte
@@ -1480,27 +1480,27 @@
                                                                                                                                      n_1
                                                                                                                                      o_1)
                                                                                                                                     ((letrec-values (((ploop_0)
-                                                                                                                                                      (lambda (v_27)
+                                                                                                                                                      (lambda (v_29)
                                                                                                                                                         (begin
                                                                                                                                                           'ploop
                                                                                                                                                           (if (pair?
-                                                                                                                                                               v_27)
+                                                                                                                                                               v_29)
                                                                                                                                                             (let-values ()
                                                                                                                                                               (begin
                                                                                                                                                                 (loop_3
                                                                                                                                                                  (car
-                                                                                                                                                                  v_27))
+                                                                                                                                                                  v_29))
                                                                                                                                                                 (ploop_0
                                                                                                                                                                  (cdr
-                                                                                                                                                                  v_27))))
+                                                                                                                                                                  v_29))))
                                                                                                                                                             (let-values ()
                                                                                                                                                               (if normal-list?_0
                                                                                                                                                                 (void)
                                                                                                                                                                 (let-values ()
                                                                                                                                                                   (loop_3
-                                                                                                                                                                   v_27)))))))))
+                                                                                                                                                                   v_29)))))))))
                                                                                                                                        ploop_0)
-                                                                                                                                     v_25))))
+                                                                                                                                     v_27))))
                                                                                                                               (let-values ()
                                                                                                                                 (begin
                                                                                                                                   (1/write-byte
@@ -1508,29 +1508,29 @@
                                                                                                                                    o_1)
                                                                                                                                   (loop_3
                                                                                                                                    (car
-                                                                                                                                    v_25))
+                                                                                                                                    v_27))
                                                                                                                                   (loop_3
                                                                                                                                    (cdr
-                                                                                                                                    v_25))))))
+                                                                                                                                    v_27))))))
                                                                                                                           (if (vector?
-                                                                                                                               v_25)
+                                                                                                                               v_27)
                                                                                                                             (let-values ()
                                                                                                                               (begin
                                                                                                                                 (1/write-byte
                                                                                                                                  (if (treat-immutable?_0
-                                                                                                                                      v_25)
+                                                                                                                                      v_27)
                                                                                                                                    fasl-immutable-vector-type
                                                                                                                                    fasl-vector-type)
                                                                                                                                  o_1)
                                                                                                                                 (write-fasl-integer
                                                                                                                                  (vector-length
-                                                                                                                                  v_25)
+                                                                                                                                  v_27)
                                                                                                                                  o_1)
                                                                                                                                 (let-values ()
                                                                                                                                   (let-values (((vec_5
                                                                                                                                                  len_4)
                                                                                                                                                 (let-values (((vec_6)
-                                                                                                                                                              v_25))
+                                                                                                                                                              v_27))
                                                                                                                                                   (begin
                                                                                                                                                     (if (variable-reference-from-unsafe?
                                                                                                                                                          (#%variable-reference))
@@ -1574,7 +1574,7 @@
                                                                                                                                      0)))
                                                                                                                                 (void)))
                                                                                                                             (if (flvector?
-                                                                                                                                 v_25)
+                                                                                                                                 v_27)
                                                                                                                               (let-values ()
                                                                                                                                 (begin
                                                                                                                                   (1/write-byte
@@ -1582,13 +1582,13 @@
                                                                                                                                    o_1)
                                                                                                                                   (write-fasl-integer
                                                                                                                                    (flvector-length
-                                                                                                                                    v_25)
+                                                                                                                                    v_27)
                                                                                                                                    o_1)
                                                                                                                                   (let-values ()
                                                                                                                                     (let-values (((vec_7
                                                                                                                                                    len_5)
                                                                                                                                                   (let-values (((vec_8)
-                                                                                                                                                                v_25))
+                                                                                                                                                                v_27))
                                                                                                                                                     (begin
                                                                                                                                                       (if (variable-reference-from-unsafe?
                                                                                                                                                            (#%variable-reference))
@@ -1633,7 +1633,7 @@
                                                                                                                                        0)))
                                                                                                                                   (void)))
                                                                                                                               (if (fxvector?
-                                                                                                                                   v_25)
+                                                                                                                                   v_27)
                                                                                                                                 (let-values ()
                                                                                                                                   (begin
                                                                                                                                     (1/write-byte
@@ -1641,13 +1641,13 @@
                                                                                                                                      o_1)
                                                                                                                                     (write-fasl-integer
                                                                                                                                      (fxvector-length
-                                                                                                                                      v_25)
+                                                                                                                                      v_27)
                                                                                                                                      o_1)
                                                                                                                                     (let-values ()
                                                                                                                                       (let-values (((vec_9
                                                                                                                                                      len_6)
                                                                                                                                                     (let-values (((vec_10)
-                                                                                                                                                                  v_25))
+                                                                                                                                                                  v_27))
                                                                                                                                                       (begin
                                                                                                                                                         (if (variable-reference-from-unsafe?
                                                                                                                                                              (#%variable-reference))
@@ -1692,21 +1692,21 @@
                                                                                                                                          0)))
                                                                                                                                     (void)))
                                                                                                                                 (if (box?
-                                                                                                                                     v_25)
+                                                                                                                                     v_27)
                                                                                                                                   (let-values ()
                                                                                                                                     (begin
                                                                                                                                       (1/write-byte
                                                                                                                                        (if (treat-immutable?_0
-                                                                                                                                            v_25)
+                                                                                                                                            v_27)
                                                                                                                                          fasl-immutable-box-type
                                                                                                                                          fasl-box-type)
                                                                                                                                        o_1)
                                                                                                                                       (loop_3
                                                                                                                                        (unbox
-                                                                                                                                        v_25))))
+                                                                                                                                        v_27))))
                                                                                                                                   (let-values (((c4_0)
                                                                                                                                                 (prefab-struct-key
-                                                                                                                                                 v_25)))
+                                                                                                                                                 v_27)))
                                                                                                                                     (if c4_0
                                                                                                                                       ((lambda (k_5)
                                                                                                                                          (let-values ((()
@@ -1722,7 +1722,7 @@
                                                                                                                                                            (values))))
                                                                                                                                              (let-values (((vec_11)
                                                                                                                                                            (struct->vector
-                                                                                                                                                            v_25)))
+                                                                                                                                                            v_27)))
                                                                                                                                                (begin
                                                                                                                                                  (write-fasl-integer
                                                                                                                                                   (sub1
@@ -1788,26 +1788,26 @@
                                                                                                                                                  (void))))))
                                                                                                                                        c4_0)
                                                                                                                                       (if (hash?
-                                                                                                                                           v_25)
+                                                                                                                                           v_27)
                                                                                                                                         (let-values ()
                                                                                                                                           (begin
                                                                                                                                             (1/write-byte
                                                                                                                                              (if (treat-immutable?_0
-                                                                                                                                                  v_25)
+                                                                                                                                                  v_27)
                                                                                                                                                fasl-immutable-hash-type
                                                                                                                                                fasl-hash-type)
                                                                                                                                              o_1)
                                                                                                                                             (1/write-byte
                                                                                                                                              (if (hash-eq?
-                                                                                                                                                  v_25)
+                                                                                                                                                  v_27)
                                                                                                                                                (let-values ()
                                                                                                                                                  fasl-hash-eq-variant)
                                                                                                                                                (if (hash-eqv?
-                                                                                                                                                    v_25)
+                                                                                                                                                    v_27)
                                                                                                                                                  (let-values ()
                                                                                                                                                    fasl-hash-eqv-variant)
                                                                                                                                                  (if (hash-equal-always?
-                                                                                                                                                      v_25)
+                                                                                                                                                      v_27)
                                                                                                                                                    (let-values ()
                                                                                                                                                      fasl-hash-equal-always-variant)
                                                                                                                                                    (let-values ()
@@ -1815,48 +1815,48 @@
                                                                                                                                              o_1)
                                                                                                                                             (write-fasl-integer
                                                                                                                                              (hash-count
-                                                                                                                                              v_25)
+                                                                                                                                              v_27)
                                                                                                                                              o_1)
                                                                                                                                             (hash-for-each
-                                                                                                                                             v_25
+                                                                                                                                             v_27
                                                                                                                                              (lambda (k_6
-                                                                                                                                                      v_28)
+                                                                                                                                                      v_30)
                                                                                                                                                (begin
                                                                                                                                                  (loop_3
                                                                                                                                                   k_6)
                                                                                                                                                  (loop_3
-                                                                                                                                                  v_28)))
+                                                                                                                                                  v_30)))
                                                                                                                                              #t)))
                                                                                                                                         (if (regexp?
-                                                                                                                                             v_25)
+                                                                                                                                             v_27)
                                                                                                                                           (let-values ()
                                                                                                                                             (begin
                                                                                                                                               (1/write-byte
                                                                                                                                                (if (pregexp?
-                                                                                                                                                    v_25)
+                                                                                                                                                    v_27)
                                                                                                                                                  fasl-pregexp-type
                                                                                                                                                  fasl-regexp-type)
                                                                                                                                                o_1)
                                                                                                                                               (write-fasl-string
                                                                                                                                                (object-name
-                                                                                                                                                v_25)
+                                                                                                                                                v_27)
                                                                                                                                                o_1)))
                                                                                                                                           (if (byte-regexp?
-                                                                                                                                               v_25)
+                                                                                                                                               v_27)
                                                                                                                                             (let-values ()
                                                                                                                                               (begin
                                                                                                                                                 (1/write-byte
                                                                                                                                                  (if (byte-pregexp?
-                                                                                                                                                      v_25)
+                                                                                                                                                      v_27)
                                                                                                                                                    fasl-byte-pregexp-type
                                                                                                                                                    fasl-byte-regexp-type)
                                                                                                                                                  o_1)
                                                                                                                                                 (write-fasl-bytes
                                                                                                                                                  (object-name
-                                                                                                                                                  v_25)
+                                                                                                                                                  v_27)
                                                                                                                                                  o_1)))
                                                                                                                                             (if (correlated?
-                                                                                                                                                 v_25)
+                                                                                                                                                 v_27)
                                                                                                                                               (let-values ()
                                                                                                                                                 (begin
                                                                                                                                                   (1/write-byte
@@ -1864,19 +1864,19 @@
                                                                                                                                                    o_1)
                                                                                                                                                   (loop_3
                                                                                                                                                    (correlated-e
-                                                                                                                                                    v_25))
+                                                                                                                                                    v_27))
                                                                                                                                                   (loop_3
                                                                                                                                                    (srcloc
                                                                                                                                                     (correlated-source
-                                                                                                                                                     v_25)
+                                                                                                                                                     v_27)
                                                                                                                                                     (correlated-line
-                                                                                                                                                     v_25)
+                                                                                                                                                     v_27)
                                                                                                                                                     (correlated-column
-                                                                                                                                                     v_25)
+                                                                                                                                                     v_27)
                                                                                                                                                     (correlated-position
-                                                                                                                                                     v_25)
+                                                                                                                                                     v_27)
                                                                                                                                                     (correlated-span
-                                                                                                                                                     v_25)))
+                                                                                                                                                     v_27)))
                                                                                                                                                   (loop_3
                                                                                                                                                    (1/reverse
                                                                                                                                                     (let-values (((fold-var_15)
@@ -1885,7 +1885,7 @@
                                                                                                                                                                     fold-var_16)))
                                                                                                                                                       (let-values (((lst_16)
                                                                                                                                                                     (correlated-property-symbol-keys
-                                                                                                                                                                     v_25)))
+                                                                                                                                                                     v_27)))
                                                                                                                                                         (begin
                                                                                                                                                           (if (variable-reference-from-unsafe?
                                                                                                                                                                (#%variable-reference))
@@ -1915,7 +1915,7 @@
                                                                                                                                                                                                                        (cons
                                                                                                                                                                                                                         k_7
                                                                                                                                                                                                                         (correlated-property
-                                                                                                                                                                                                                         v_25
+                                                                                                                                                                                                                         v_27
                                                                                                                                                                                                                          k_7)))
                                                                                                                                                                                                                      fold-var_17))))
                                                                                                                                                                                                       (values
@@ -1931,7 +1931,7 @@
                                                                                                                                                            fold-var_15
                                                                                                                                                            lst_16))))))))
                                                                                                                                               (if (eq?
-                                                                                                                                                   v_25
+                                                                                                                                                   v_27
                                                                                                                                                    unsafe-undefined)
                                                                                                                                                 (let-values ()
                                                                                                                                                   (1/write-byte
@@ -1939,9 +1939,9 @@
                                                                                                                                                    o_1))
                                                                                                                                                 (let-values (((c3_0)
                                                                                                                                                               (if (struct-type?
-                                                                                                                                                                   v_25)
+                                                                                                                                                                   v_27)
                                                                                                                                                                 (prefab-struct-type-key+field-count
-                                                                                                                                                                 v_25)
+                                                                                                                                                                 v_27)
                                                                                                                                                                 #f)))
                                                                                                                                                   (if c3_0
                                                                                                                                                     ((lambda (k+c_1)
@@ -1960,14 +1960,14 @@
                                                                                                                                                       (if handle-fail_0
                                                                                                                                                         (loop_3
                                                                                                                                                          (handle-fail_0
-                                                                                                                                                          v_25))
+                                                                                                                                                          v_27))
                                                                                                                                                         (raise-arguments-error
                                                                                                                                                          's-exp->fasl
                                                                                                                                                          "cannot write value"
                                                                                                                                                          "value"
-                                                                                                                                                         v_25))))))))))))))))))))))))))))))))))))))))
+                                                                                                                                                         v_27))))))))))))))))))))))))))))))))))))))))
                                                                loop_3)
-                                                             v_21)
+                                                             v_23)
                                                             (get-output-bytes o_1 #t)))))
                                             (begin
                                               (write-fasl-integer shared-counter_0 o_0)
@@ -2032,7 +2032,7 @@
                                                                     (begin
                                                                       'for-loop
                                                                       (if (if (unsafe-fx< pos_5 len_7) #t #f)
-                                                                        (let-values (((v_29)
+                                                                        (let-values (((v_31)
                                                                                       (unsafe-vector-ref vec_12 pos_5))
                                                                                      ((pos_7) pos_6))
                                                                           (let-values ((()
@@ -2066,8 +2066,8 @@
                                                 (let-values (((bstr_8) (read-bytes/exactly* len_8 init-i_0)))
                                                   (mcons bstr_8 0)))))
                                   (let-values (((intern_0)
-                                                (lambda (v_30)
-                                                  (begin 'intern (if intern?_0 (datum-intern-literal v_30) v_30)))))
+                                                (lambda (v_32)
+                                                  (begin 'intern (if intern?_0 (datum-intern-literal v_32) v_32)))))
                                     ((letrec-values (((loop_5)
                                                       (lambda ()
                                                         (begin
@@ -2148,14 +2148,14 @@
                                                                           (let-values ()
                                                                             (let-values (((pos_8)
                                                                                           (read-fasl-integer i_0)))
-                                                                              (let-values (((v_31) (loop_5)))
+                                                                              (let-values (((v_33) (loop_5)))
                                                                                 (begin
                                                                                   (if (< pos_8 shared-count_0)
                                                                                     (void)
                                                                                     (let-values ()
                                                                                       (read-error "bad graph index")))
-                                                                                  (vector-set! shared_1 pos_8 v_31)
-                                                                                  v_31))))
+                                                                                  (vector-set! shared_1 pos_8 v_33)
+                                                                                  v_33))))
                                                                           (if (unsafe-fx< index_0 3)
                                                                             (let-values ()
                                                                               (let-values (((pos_9)
@@ -2245,10 +2245,10 @@
                                                                           (if (unsafe-fx< index_0 25)
                                                                             (let-values ()
                                                                               (let-values (((wrt-dir_1)
-                                                                                            (let-values (((or-part_18)
+                                                                                            (let-values (((or-part_19)
                                                                                                           (current-load-relative-directory)))
-                                                                                              (if or-part_18
-                                                                                                or-part_18
+                                                                                              (if or-part_19
+                                                                                                or-part_19
                                                                                                 (current-directory)))))
                                                                                 (let-values (((rel-elems_1)
                                                                                               (1/reverse
@@ -2417,7 +2417,7 @@
                                                                                                      'for/vector
                                                                                                      "exact-nonnegative-integer?"
                                                                                                      len_13)))
-                                                                                                (let-values (((v_32)
+                                                                                                (let-values (((v_34)
                                                                                                               (make-vector
                                                                                                                len_13
                                                                                                                0)))
@@ -2460,7 +2460,7 @@
                                                                                                                                                                       (let-values ()
                                                                                                                                                                         (begin
                                                                                                                                                                           (unsafe-vector*-set!
-                                                                                                                                                                           v_32
+                                                                                                                                                                           v_34
                                                                                                                                                                            i_3
                                                                                                                                                                            (let-values ()
                                                                                                                                                                              (loop_5)))
@@ -2488,7 +2488,7 @@
                                                                                                                  for-loop_16)
                                                                                                                i_1
                                                                                                                start_5))))))
-                                                                                                    v_32))))))
+                                                                                                    v_34))))))
                                                                                 (if (eqv?
                                                                                      type_0
                                                                                      fasl-immutable-vector-type)
@@ -2508,7 +2508,7 @@
                                                                                        "exact-nonnegative-integer?"
                                                                                        len_15)))
                                                                                   (let-values (((fill_0) 0.0))
-                                                                                    (let-values (((v_33)
+                                                                                    (let-values (((v_35)
                                                                                                   (make-flvector
                                                                                                    len_15
                                                                                                    fill_0)))
@@ -2555,7 +2555,7 @@
                                                                                                                                                                 (if (flonum?
                                                                                                                                                                      elem_0)
                                                                                                                                                                   (unsafe-flvector-set!
-                                                                                                                                                                   v_33
+                                                                                                                                                                   v_35
                                                                                                                                                                    i_8
                                                                                                                                                                    elem_0)
                                                                                                                                                                   (not-an-fX.1
@@ -2585,7 +2585,7 @@
                                                                                                      for-loop_17)
                                                                                                    i_6
                                                                                                    start_6))))))
-                                                                                        v_33))))))))
+                                                                                        v_35))))))))
                                                                         (if (unsafe-fx< index_0 35)
                                                                           (let-values ()
                                                                             (let-values (((len_16)
@@ -2601,7 +2601,7 @@
                                                                                        "exact-nonnegative-integer?"
                                                                                        len_17)))
                                                                                   (let-values (((fill_1) 0))
-                                                                                    (let-values (((v_34)
+                                                                                    (let-values (((v_36)
                                                                                                   (make-fxvector
                                                                                                    len_17
                                                                                                    fill_1)))
@@ -2648,7 +2648,7 @@
                                                                                                                                                                 (if (fixnum?
                                                                                                                                                                      elem_1)
                                                                                                                                                                   (unsafe-fxvector-set!
-                                                                                                                                                                   v_34
+                                                                                                                                                                   v_36
                                                                                                                                                                    i_13
                                                                                                                                                                    elem_1)
                                                                                                                                                                   (not-an-fX.1$1
@@ -2678,7 +2678,7 @@
                                                                                                      for-loop_18)
                                                                                                    i_11
                                                                                                    start_7))))))
-                                                                                        v_34)))))))
+                                                                                        v_36)))))))
                                                                           (if (unsafe-fx< index_0 36)
                                                                             (let-values () (box (loop_5)))
                                                                             (let-values () (box-immutable (loop_5))))))
@@ -2960,17 +2960,17 @@
                     (begin (write-fasl-integer (string-length s_7) o_2) (write-string s_7 o_2))))))))))))
  (define-values
   (write-fasl-string)
-  (lambda (v_35 o_3)
+  (lambda (v_37 o_3)
     (begin
-      (let-values (((bstr_10) (string->bytes/utf-8 v_35)))
+      (let-values (((bstr_10) (string->bytes/utf-8 v_37)))
         (begin (write-fasl-integer (bytes-length bstr_10) o_3) (1/write-bytes bstr_10 o_3))))))
  (define-values
   (write-fasl-bytes)
-  (lambda (v_36 o_4) (begin (begin (write-fasl-integer (bytes-length v_36) o_4) (1/write-bytes v_36 o_4)))))
+  (lambda (v_38 o_4) (begin (begin (write-fasl-integer (bytes-length v_38) o_4) (1/write-bytes v_38 o_4)))))
  (define-values
   (write-fasl-flonum)
-  (lambda (v_37 o_5)
-    (begin (1/write-bytes (if (eqv? v_37 +nan.0) #"\0\0\0\0\0\0\370\177" (real->floating-point-bytes v_37 8 #f)) o_5))))
+  (lambda (v_39 o_5)
+    (begin (1/write-bytes (if (eqv? v_39 +nan.0) #"\0\0\0\0\0\0\370\177" (real->floating-point-bytes v_39 8 #f)) o_5))))
  (define-values
   (read-error)
   (lambda (s_8 . args_3)
@@ -3157,13 +3157,13 @@
                 (lambda (v5_0 o3_0 k4_0)
                   (begin
                     's-exp->fasl
-                    (let-values (((v_38) v5_0))
+                    (let-values (((v_40) v5_0))
                       (let-values (((o_6) o3_0))
                         (let-values (((k_8) k4_0))
                           (let-values ()
-                            (let-values (((v8_0) v_38) ((o9_0) o_6) ((k10_0) k_8))
+                            (let-values (((v8_0) v_40) ((o9_0) o_6) ((k10_0) k_8))
                               (s-exp->fasl.1 #f #f k10_0 #f v8_0 o9_0))))))))))
     (case-lambda
-     ((v_39) (begin (s-exp->fasl_0 v_39 #f #f)))
-     ((v_40 o_7 k4_1) (s-exp->fasl_0 v_40 o_7 k4_1))
-     ((v_41 o3_1) (s-exp->fasl_0 v_41 o3_1 #f))))))
+     ((v_41) (begin (s-exp->fasl_0 v_41 #f #f)))
+     ((v_42 o_7 k4_1) (s-exp->fasl_0 v_42 o_7 k4_1))
+     ((v_43 o3_1) (s-exp->fasl_0 v_43 o3_1 #f))))))
