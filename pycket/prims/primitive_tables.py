@@ -667,6 +667,10 @@ thread_str = [
     "unsafe-add-pre-poll-callback!",
     "set-get-subprocesses-time!",
     "prop:place-message",
+    "thread/parallel",
+    "make-parallel-thread-pool",
+    "parallel-thread-pool-close",
+    "parallel-thread-pool?",
 ]
 kernel_str += thread_str
 
