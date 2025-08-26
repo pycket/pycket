@@ -7,9 +7,11 @@
 (define RKTIO-SOURCE  "rktio.rktl")         ; <- adjust path if needed
 (define PY-OUT-FILE   "_rktio_bootstrap.py")
 
-(define define-fn              (make-parameter '()))
-(define define-fn-errno        (make-parameter '()))
-(define define-fn-errno+step   (make-parameter '()))
+(define define-fn		  (make-parameter '()))
+(define define-fn-errno		  (make-parameter '()))
+(define define-fn-errno+step	  (make-parameter '()))
+(define define-fn-result_t	  (make-parameter '()))
+(define define-fn-alloc-result_t  (make-parameter '()))
 
 ;; Tight coupling with the Python code is inexorable here
 ;; because of the nature of ffi, though we're certainly abusing
@@ -134,18 +136,18 @@
 	      (hash-ref type:rktio->rffi struct-pointer #f)
 	      (and (hash-ref type:struct-ptrs struct-pointer #f) "R_PTR")
 	      (let* ([rffi_ptr_type
-		      (format "~a~a" 
+		      (format "~a~a"
 			(string-upcase (symbol->string struct-pointer)) "_PTR")]
 		     [w_ptr_type (format "W_~a" rffi_ptr_type)])
 		(hash-set! type:struct-ptrs struct-pointer rffi_ptr_type)
 		(hash-set! type:w-struct-ptrs rffi_ptr_type w_ptr_type)
 		"R_PTR" #;rffi_ptr_type))]
-	
+
 	[t (or
 	      (hash-ref type:rktio->rffi t #f)
 	      (and (hash-ref type:struct-ptrs t #f) "R_PTR")
 	      (let* ([rffi_ptr_type
-		       (format "~a~a" 
+		       (format "~a~a"
 			 (string-upcase (symbol->string t)) "_PTR")]
 		     [w_ptr_type (format "W_~a" rffi_ptr_type)])
 		(hash-set! type:struct-ptrs t rffi_ptr_type)
@@ -185,6 +187,7 @@
 (struct arg (r-type w-type rktio-name w-name r-name))
 (struct def-fun (r-ret-type w-ret-type name args-list))
 (struct def-fun-err (err-v r-ret-type w-ret-type name args-list))
+(struct def-fun-result_t (success-accessor r-ret-type w-ret-type name args-list is-alloc?))
 
 ;; Emit the final Python module.
 (define (write-python-module)
@@ -341,6 +344,35 @@ def ~a(~a):
 
 \t# *ref feedback line (if any *ref input is received)
 ~a
+\t# return line
+~a")
+
+      (define expose-py-fun-result_t-template
+	;; Almost the same with above, it also calls the
+	;; c_rktio_get_last_error_step if an error is signalled
+	"
+~a
+
+add_prim_to_rktio(\"~a\")
+
+@expose(\"~a\", [~a], simple=True)
+def ~a(~a):
+~a
+\n\t_res = c_~a(~a)
+
+\tres_success = c_rktio_result_is_success(_res)
+
+\tif res_success != 1:
+\t\telems = [c_rktio_get_error_kind(~a), c_rktio_get_error(~a)]
+\t\t~a
+\t\treturn values_vector.W_Vector.fromelements([num(n) for n in elems])
+
+\t# *ref feedback line (if any *ref input is received)
+~a
+
+\t# call success accessor to get the actual returned value
+\tres = c_~a(_res)
+
 \t# return line
 ~a")
 
@@ -637,20 +669,31 @@ def ~a(~a):
 		      *ref-ccharps
 		      w_ret_line)))))
 
-      (define (fn/err-to-tuple fn)
-	(format "\n    (~a, (~a, ~a), \"~a\", ~a)"
-	  (let ([ev (def-fun-err-err-v fn)])
-	    (if (not ev) 
-		"W_FALSE"
-		ev))
-	  (def-fun-err-r-ret-type fn)
-	  (def-fun-err-w-ret-type fn)
-	  (def-fun-err-name fn)
-	  (format "[~a]"
-	    (string-join
-	      (map compose-arg-type
-		   (def-fun-err-args-list fn))
-	      ","))))
+      (define (fn/result_t-to-py-expose fn)
+	(let ([name (def-fun-result_t-name fn)]
+	      [success-accessor (def-fun-result_t-success-accessor fn)]
+	      [w_ret_line (return-line (def-fun-result_t-w-ret-type fn)
+				       (def-fun-result_t-r-ret-type fn))]
+	      [is-alloc? (def-fun-result_t-is-alloc? fn)]
+	      [r_ret_type (def-fun-result_t-r-ret-type fn)])
+	  (let-values
+	    ([(w_arg_names w_arg_types r_arg_names r_arg_types r_arg_defns first_r_arg_name *ref-ccharps)
+	      (process-args (def-fun-result_t-args-list fn))])
+	    (let ([llexternal-lines
+		    (llexternal-block name r_arg_types r_ret_type)])
+	      (format expose-py-fun-result_t-template
+		      llexternal-lines
+		      name
+		      name w_arg_types
+		      name w_arg_names
+		      r_arg_defns
+		      name r_arg_names
+		      first_r_arg_name first_r_arg_name ; for get_error_kind & get_error
+		      (if is-alloc? "c_rktio_free(rffi.cast(rffi.VOIDP, _res))" "")
+		      *ref-ccharps
+		      success-accessor
+		      w_ret_line)))))
+
 
       ;; header
       (emit "
@@ -736,6 +779,9 @@ librktio_a = ExternalCompilationInfo(
       (map (lambda (fdef) (emit fun-sep (fn/err/step-to-py-expose fdef)))
 	   (define-fn-errno+step))
 
+      (map (lambda (fdef) (emit fun-sep (fn/result_t-to-py-expose fdef)))
+	   (define-fn-result_t))
+
       (emit "\n\n")
 
 )))
@@ -747,14 +793,23 @@ librktio_a = ExternalCompilationInfo(
 ;; each define-function form.
 (define (process-rktl port)
 
-  (define (r->w rffi-type)
+  (define (r->w rffi-type [success-accessor #f])
+    ; If we're using a success-accessor, then the return
+    ; type will be whatever it returns (rather than what we
+    ; infer from teh rffi-type).
+    (if success-accessor
+	(cond
+	  [(eq? success-accessor 'rktio_result_integer) w_fixnum]
+	  [(eq? success-accessor 'rktio_result_string) w_ccharp]
+	  [(eq? success-accessor 'rktio_result_directory_list) "W_R_PTR"]
+	  [else (error 'r->w (format "Unknown success-accessor used ~a" success-accessor))])
     (hash-ref
       type:rffi->pycket
       rffi-type
       (hash-ref type:w-struct-ptrs rffi-type 
 		;; hack
                 (format "W_~a" rffi-type))
-    ))
+    )))
 
   ;; walk : any-datum → void
   (define (walk expr)
@@ -809,7 +864,40 @@ librktio_a = ExternalCompilationInfo(
 			 (arg arg-r-type arg-w-type (cadr a) arg-w-name arg-r-name))) args)])
 	  (acc! define-fn-errno+step name (def-fun-err err-v lowered-ret-type w-ret-type name lowered-arg-types)))
        ]
-
+      [`(define-function/result_t ,success-accessor ,flags ,ret-type ,name ,args)
+	(let* (; w-ret-type doesn't make sense here, because we return whatever
+	       ; the success-accessor returns, so this function will have the same
+	       ; return type with whatever sucess-accessor it uses.
+	       ; Unfortunately there's no easy way to lookup the return value of
+	       ; the success-accessor function (I suppose we could scan all the
+	       ; functions defined across collections we set here, since the
+	       ; accessor is just another rktio function).
+	       ; Since there's only a handful of success-accessors that are used
+	       ; in grand total of 7 functions in rktio, I'll make a map for them 
+	       ; by hand, and we'll overwrite the ret-type right from the get go.
+	       [lowered-ret-type (lower-type ret-type)]
+	       [w-ret-type (r->w lowered-ret-type success-accessor)]
+	       [lowered-arg-types
+		(map (lambda (a)
+		       (let* ([arg-r-type (lower-type (car a) #t)]
+			      [arg-w-type (r->w arg-r-type)]
+			      [arg-w-name (format "w_~a" (cadr a))]
+			      [arg-r-name (format "r_~a" (cadr a))])
+			 (arg arg-r-type arg-w-type (cadr a) arg-w-name arg-r-name))) args)])
+	  (acc! define-fn-result_t name (def-fun-result_t success-accessor lowered-ret-type w-ret-type name lowered-arg-types #f)))
+       ]
+      [`(define-function/alloc_result_t ,success-accessor ,flags ,ret-type ,name ,args)
+	(let* ([lowered-ret-type (lower-type ret-type)]
+	       [w-ret-type (r->w lowered-ret-type success-accessor)]
+	       [lowered-arg-types
+		(map (lambda (a)
+		       (let* ([arg-r-type (lower-type (car a) #t)]
+			      [arg-w-type (r->w arg-r-type)]
+			      [arg-w-name (format "w_~a" (cadr a))]
+			      [arg-r-name (format "r_~a" (cadr a))])
+			 (arg arg-r-type arg-w-type (cadr a) arg-w-name arg-r-name))) args)])
+	  (acc! define-fn-result_t name (def-fun-result_t success-accessor lowered-ret-type w-ret-type name lowered-arg-types #t)))
+       ]
       [_ #f]))
 
   ;; read the single top-level form and start walking

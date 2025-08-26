@@ -380,6 +380,7 @@ kernel_str = [
     "make-weak-hasheqv", "make-will-executor", "map",
     "max", "memq", "memv", "min", "modulo",
     "most-positive-fixnum", "most-negative-fixnum",
+    "memory-order-acquire", "memory-order-release",
     "nack-guard-evt", "negative?", "never-evt",
     "newline", "not", "null",
     "null?", "number->string", "number?",
@@ -666,6 +667,10 @@ thread_str = [
     "unsafe-add-pre-poll-callback!",
     "set-get-subprocesses-time!",
     "prop:place-message",
+    "thread/parallel",
+    "make-parallel-thread-pool",
+    "parallel-thread-pool-close",
+    "parallel-thread-pool?",
 ]
 kernel_str += thread_str
 
@@ -686,6 +691,8 @@ engine_str = [
     "will-executor?",
     "will-register",
     "will-try-execute",
+    "unsafe-make-hasheq",
+    "unsafe-make-weak-hasheq",
     "set-reachable-size-increments-callback!",
     "set-custodian-memory-use-proc!",
     "set-immediate-allocation-check-proc!",
@@ -707,6 +714,8 @@ engine_str = [
     "call-with-current-continuation-roots",
     "fork-pthread",
     "pthread?",
+    "assert-push-lock-level!",
+    "assert-pop-lock-level!",
     "get-thread-id",
     "make-condition",
     "condition-wait",
@@ -720,7 +729,9 @@ engine_str = [
     "post-as-asynchronous-callback",
     "continuation-current-primitive",
     "prop:unsafe-authentic-override",
-    "get-system-stats"
+    "get-system-stats",
+    "make-engine-thread-cell-state",
+    "set-engine-thread-cell-state!",
 ]
 
 pthread_str = [

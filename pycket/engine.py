@@ -604,3 +604,93 @@ def poll_will_executors():
             if executor.have_any_ready_will():
                 executor.execute_ready_wills()
                 done = False
+
+current_lock_status = values_parameter.W_Parameter(values.w_null)
+
+@expose("assert-push-lock-level!", [values.W_Symbol], simple=False)
+def assert_push_lock_level_bang(v, env, cont):
+    from pycket.interpreter     import return_value
+
+    v_str = v.variable_name()
+
+    lock_orders = {
+            "rktio"                 :   ["rktio", "port"],
+            "rktio-sleep-relevant"  :   ["rktio-sleep-relevant", "rktio", "port"],
+            "custodian"             :   ["logger", "rktio-sleep-relevant", "rktio", "port"],
+            "logger"                :   ["custodian", "rktio-sleep-relevant", "rktio", "port"],
+    }
+
+    status_cell = current_lock_status.get_cell(cont)
+    status = status_cell.get()
+
+    if status is not values.w_null:
+        from pycket.ast_vs_sexp import to_rpython_list
+        r_ls, _ = to_rpython_list(status)
+        status_ls = [sym.variable_name() for sym in r_ls]
+
+        car_status_str = status_ls[0]
+        if car_status_str in lock_orders and v_str in lock_orders[car_status_str]:
+            # raise error here
+            exn = SchemeException("misordered lock")
+            if car_status_str == "custodian":
+                if "custodian" not in status_ls:
+                    raise exn
+            else:
+                raise exn
+
+    status_cell.set(values.W_Cons.make(v, status))
+    return return_value(values.w_void, env, cont)
+
+@expose("assert-pop-lock-level!", [values.W_Symbol], simple=False)
+def assert_pop_lock_level_bang(v, env, cont):
+    from pycket.interpreter     import return_value
+
+    status_cell = current_lock_status.get_cell(cont)
+    status = status_cell.get()
+
+    if status is values.w_null:
+        raise SchemeException("releasing unheld lock")
+
+    # Remove first occurrence of v (by symbol name), rebuild list
+    from pycket.ast_vs_sexp import to_rpython_list
+
+    v_name = v.variable_name()
+    elems, _ = to_rpython_list(status)
+
+    removed = False
+    kept = []
+    for sym in elems:
+        if (not removed and isinstance(sym, values.W_Symbol)
+                and sym.variable_name() == v_name):
+            removed = True
+            continue
+        kept.append(sym)
+
+    if not removed:
+        raise SchemeException("releasing unheld lock")
+
+    # Rebuild a Racket list
+    new_list = values.w_null
+    for sym in reversed(kept):
+        new_list = values.W_Cons.make(sym, new_list)
+
+    status_cell.set(new_list)
+    return return_value(values.w_void, env, cont)
+
+@expose("threaded?", [])
+def threaded_huh():
+    return values.w_false
+
+# FIXME: implementation
+@expose(["memory-order-acquire", "memory-order-release"], [])
+def memory_order_acq_release():
+    return values.w_void
+
+@expose("make-engine-thread-cell-state", [values.W_ThreadCell, values.W_Bool])
+def make_engine_thread_cell_state(init_break_enabled_cell, empty_config_huh):
+    return init_break_enabled_cell
+
+
+@expose("set-engine-thread-cell-state!", [values.W_Object])
+def set_engine_thread_cell_state_bang(init_break_enabled_cell):
+    return values.w_void

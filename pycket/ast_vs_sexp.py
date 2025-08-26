@@ -1,5 +1,5 @@
 from pycket import interpreter as interp
-from pycket import values, values_string, vector, util, values_regex
+from pycket import values, values_string, vector, values_regex
 from pycket.prims.correlated import W_Correlated
 from pycket.error import SchemeException
 from pycket.hash import simple, equal, base

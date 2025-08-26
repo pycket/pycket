@@ -1,0 +1,11 @@
+name: PR Build
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: ["master"]
+jobs:
+  translate:
+    uses: ./.github/workflows/translate.yml
+    secrets: inherit
+

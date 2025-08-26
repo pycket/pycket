@@ -1,0 +1,10 @@
+name: Nightly
+on:
+  schedule:
+    - cron: "37 5 * * *"
+  workflow_dispatch: {}
+jobs:
+  translate:
+    uses: ./.github/workflows/translate.yml
+    secrets: inherit
+

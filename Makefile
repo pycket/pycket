@@ -31,7 +31,7 @@ endif
 
 WITH_JIT = -Ojit --translation-jit
 
-RACKET_VERSION := 8.18.0.1
+RACKET_VERSION := 8.18.0.13
 RACKET_INSTALLER_SCRIPT_NAME := racket-$(RACKET_VERSION)-x86_64-linux-jammy-cs.sh
 
 translate-jit-all: $(TRANSLATE_TARGETS)
@@ -178,7 +178,7 @@ make-pypy:
 
 setup-old-pycket: setup-racket-for-old-pycket update-pypy
 
-bootstrap-linklets: expander fasl regexp
+bootstrap-linklets: expander fasl regexp thread io
 	@echo "ASSUMES: a built pycket-c-linklets binary"
 	./pycket-c-linklets --make-linklet-zos
 
@@ -212,7 +212,7 @@ IO_PATH_FASL := $(BOOTSTRAP_LINKLET_DIR)/io.linklet.fasl
 IO_PATH_JSON := $(BOOTSTRAP_LINKLET_DIR)/io.linklet.json
 IO_PATH_ZO := $(BOOTSTRAP_LINKLET_DIR)/io.linklet.zo
 
-io: check_pycket_c_linklets check_plthome
+io: check_pycket_c_linklets check_plthome rktio rktio
 	$(MAKE) -s -C linklet-extractor io
 	@echo "Done. io is at : $(IO_PATH_FASL)"
 

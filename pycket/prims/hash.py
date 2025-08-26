@@ -147,7 +147,7 @@ def from_assocs(assocs, fname):
         vals.append(val.cdr())
     return keys[:], vals[:]
 
-@expose(["make-weak-hasheq", "make-ephemeron-hasheq"], [default(values.W_List, values.w_null)])
+@expose(["make-weak-hasheq", "unsafe-make-weak-hasheq", "make-ephemeron-hasheq"], [default(values.W_List, values.w_null)])
 def make_weak_hasheq(assocs):
     # FIXME: not actually weak
     return make_simple_mutable_table_assocs(W_EqMutableHashTable, assocs, "make-weak-hasheq")
@@ -227,7 +227,7 @@ def make_hash(pairs):
 def make_hash(pairs):
     return W_EqualAlwaysHashTable(*from_assocs(pairs, "make-hashalw"))
 
-@expose("make-hasheq", [default(values.W_List, values.w_null)])
+@expose(["make-hasheq", "unsafe-make-hasheq"], [default(values.W_List, values.w_null)])
 def make_hasheq(pairs):
     return make_simple_mutable_table_assocs(W_EqMutableHashTable, pairs, "make-hasheq")
 

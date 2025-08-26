@@ -9,10 +9,11 @@
 
 Pycket is a Racket/Scheme implementation that is generated using the [RPython framework](https://rpython.readthedocs.io/en/latest/). Given an interpreter written in RPython (in our case a CEK machine interpreter for Racket), RPython framework produces a fast binary for it. It can also add a tracing JIT.
 
-There are currently two different modes that we refer as `OLD` and `NEW`. The `NEW` Pycket uses `linklets` and bootstraps the Racket using the `expander` linklet exported by Racket (version 8+). The `OLD` Pycket, on the other hand, uses Racket's binary to fully expand the program and generates `json` asts and evaluates them.
+Pycket has two major modes that are maintained and can be built by the targets: `pycket-c`, and `pycket-c-linlets`.
 
-Note that both versions require an unmodified Racket installation. The `OLD` Pycket requires a Racket binary, and while the `NEW` Pycket doesn't require a Racket binary, it still requires the Racket packages
-and libraries to bootstrap.
+`pycket-c` is Pycket's original design, a rudimentary interpreter for Racket's `#%kernel` language that relies on the Racket binary to expand a given program. Naturally, this mode requires a Racket installation on the system.
+
+`pycket-c-linklet` is the full-scale Racket implementation that uses the bootstrapping linklets to self-host Racket. This mode is more recently developed, and while it doesn't require a Racket binary, it requires Racket `/src` and `/collects` directories to load the full language.
 
 See the [Makefile targets](#make-targets) section about how to build both versions.
 
@@ -40,8 +41,6 @@ To produce a Pycket executable, use one of the provided [make targets](#make-tar
 
 ### PyPy Stuff:
 
-Assumes the mercurial binary `hg` to be in the environment.
-
  * `make clone-pypy` : clones the latest pypy into Pycket's directory
  * `make make-pypy` : builds pypy, assumes that pypy directory exists in Pycket's directory
 
@@ -59,9 +58,15 @@ Assumes the mercurial binary `hg` to be in the environment.
 
 ### [Running Pycket](#running)
 
-Pycket currently defaults to the `OLD` Pycket. To use the `NEW` version with the linklets, run it with:
+#### Bootstrapping Linklets
 
-    $ ./pycket-c-linklets <arguments>
+You'll need the bootstrapping linklets to self-host Racket. We ship them in Pycket repo, but just in case if you need to regenerate; assuming the Racket source is in place, just run the following to generate and retrieve them.
+
+```sh
+make bootstrap-linklets
+```
+
+Note that the `io` target there will also run `make rktio` which will pull the C headers and the `librktio.a` static library, as well as generate the whole `rktio` layer. If this stage fails, you may use `--no-io-linklet` flag on Pycket to omit using the io linklet entirely.
 
 You can run with the `-h` option to see the different command line options for each versions:
 
@@ -81,9 +86,7 @@ You can also run pycket under plain python (or `pypy` if its available), like th
 
 Running the interpreter on CPython or PyPy (i.e. running the targetpycket.py) requires a `PYTHONPATH` that includes both `RPython` (that should be the `pypy` directory cloned above) and `pycket` (that should be this directory).
 
-Also there are a couple of variables need to be set for the `NEW` Pycket to interact with the Racket, since it bootstraps Racket by reading and evaluating Racket's main collection by loading and using the bootstrap linklets (currently only the `expander.rktl.linklet`) exported by Racket. So the `NEW` Pycket needs to be able to locate various different parts of the Racket installation. The `OLD` Pycket is lucky to use the Racket's own binary.
-
-Naturally, it varies on the way in which the Racket is installed:
+You'll need `PLTHOME` to point to where Racket directory is, and the `PLTCOLLECTS` to point to the `/collects` dir.
 
 #### If Racket is installed in a single directory (non-Unix-style) :
 
